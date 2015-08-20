@@ -1,0 +1,7 @@
+Special thanks to all those in #lsc and #smxi (irc.oftc.net) for their tireless dedication helping test inxi modules.
+
+
+---
+
+To go to wiki list  try clicking
+[here](http://code.google.com/p/inxi/w/list)
