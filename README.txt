@@ -1,35 +1,42 @@
-README for svn/tarballs directory.
+README for inxi git branch tarballs.
 
-This directory is intended to be a repository of older .gz/.tar.gz files 
-from svn trunk. Tarballs contain the following (as of version 1.8.34, 
-pre 1.8 the .gz is just inxi itself):
+This git branch is intended to be a repository of older .gz/.tar.gz files 
+from the previous releases found in master/trunk branch. Tarballs contain 
+the following (as of version 1.8.34, pre 1.8 the .gz is just inxi itself):
 
 inxi
 inxi.1 (non gzipped man page)
 inxi.1.gz (gz, with: gzip -c -9 inxi.1 > inxi.1.gz)
-inxi.changelog (contains all main changes, but NOT all svn commits)
+inxi.changelog (contains all main changes, but NOT all svn/git commits)
 inxi.tar.gz (all of the above)
 
-Note that the current trunk tarball/inxi file names never change, so distro 
-maintainers can always grab the same file without having to poke around.
+Note that the current master branch tarball/inxi file names never change, 
+so distro maintainers can always grab the same file without having to 
+poke around.
 
--- trunk is always by definition, the current stable live files. 
+-- master is always by definition, the current inxi version. There are no
+   previous 'stable' versions or 'point releases'. We do not support
+   anything but the current inxi version. 
 
 -- Only one command to grab the currrent tarball (inxi.tar.gz):
-   wget -Nc https://inxi.googlecode.com/svn/trunk/inxi.tar.gz 
-   This will never change, so you can set your update / packaging scripts
-   to use that url always.
+   wget -Nc https://github.com/smxi/inxi/raw/master/inxi.tar.gz 
+   This will never change (well, it _would_ never have changed if
+   googlecode hadn't decided to shut down their repositories, forcing
+   inxi source repos to move, in this case, to github), so you can 
+   set your update / packaging scripts to use that url always (until github
+   shuts down, which I expect to happen in about 5 to 8 years).
 
--- not all trunk svn changes will be tarballed as sometimes there are frequent
-   changes. No tarballs exist prior to version 1.8.0 because there was no man 
-   page or tarball etc.
+-- not all git master branch changes will be tarballed as sometimes there are 
+   frequent changes. No tarballs exist prior to version 1.8.0 because there 
+   was no man page or tarball etc.
 
 -- I will try to keep the last tarball version of each major version release 
-   (like 1.9.19 as the last of the 1.9 series) if I remember.
+   (like 1.9.19 as the last of the 1.9 series) if I remember, but don't count
+   on it, I can and will probably forget now and then.
 
 Important: the only version of inxi that is supported is the latest current 
-svn trunk release. No issue reports or bug reports will be accepted for 
-anything other than current svn trunk.
+git master branch release. No issue reports or bug reports will be accepted for 
+anything other than current inxi from master.
 
 The version number follows these guidelines:
 Using example 1.8.14-6
@@ -51,7 +58,7 @@ third digit has not changed, but there is a change or a patch comes out,
 and the Tarball maintainer has time to pack the change. I don't usually use 
 this last one.
  
-This 'tarballs' directory provides a bumpy and incomplete history of inxi 
+This 'tarballs' branch provides a bumpy and incomplete history of inxi 
 releases (but it's better than nothing), and serves as a repository of 
 older inxi versions. Note that inxi did not have .tar.gz until the man 
 page was added, version 1.8.2. Before that, the .gz is just the gzip file
