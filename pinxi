@@ -33,14 +33,14 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 # use Path::Class; # maybe use, maybe not, for ls /sys
 use POSIX qw(uname strftime ttyname);
 use Sys::Hostname;
-use Time::HiRes qw(gettimeofday tv_interval);
+# use Time::HiRes qw(gettimeofday tv_interval);
 # use feature qw(state);
 
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-07';
-my $self_patch='362-p';
+my $self_patch='363-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -50,9 +50,21 @@ my ($self_path, $user_config_dir, $user_config_file,$user_data_dir);
 
 ## Debuggers
 my $debug=0;
-my ($end,$start,$t1,$t2,$t3,$fh_l,$log_file); # log file handle, file
-my $t0 = [gettimeofday]; # let's start it right away
-
+my (@t0,$end,$start,$fh_l,$log_file); # log file handle, file
+my ($b_hires,$t1,$t2,$t3) = (0,0,0,0,0);
+# NOTE: redhat removed HiRes from Perl Core Modules. Why? who knows.
+if (eval {require Time::HiRes}){
+	Time::HiRes->import('gettimeofday','tv_interval','usleep');
+#  import Time::HiRes::gettimeofday();
+#  import Time::HiRes::tv_interval();
+#  import Time::HiRes::usleep();
+	$b_hires = 1;
+}
+#print "result:$@\n";
+#$b_hires = 1 if defined Time::HiRes::gettimeofday();
+@t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
+# print "t0: @t0\n";
+# print "result:$@\n";
 ## Hashes
 my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
@@ -1031,9 +1043,9 @@ sub begin_logging {
 	my $data = '';
 	$end='main::log_data("fe", (caller(1))[3], "");';
 	$start='main::log_data("fs", (caller(1))[3], \@_);';
-	#require Time::HiRes;
-	#import Time::HiRes;
-	$t3 = tv_interval ($t0, [gettimeofday]);
+	#$t3 = tv_interval ($t0, [gettimeofday]);
+	 $t3 = eval 'Time::HiRes::tv_interval (\@t0, [Time::HiRes::gettimeofday()]);' if $b_hires;
+	#print Dumper $@;
 	my $now = strftime "%Y-%m-%d %H:%M:%S", localtime;
 	# do the rotation if logfile exists
 	if ( -f $log_file ){
@@ -1049,10 +1061,11 @@ sub begin_logging {
 	open $fh_l, '>', $log_file or error_handler(4, $log_file, "$!");
 	# and echo the start data
 	$data = $line2;
-	$data = $data . "START $self_name LOGGING:\n";
-	$data = $data . "$now\n";
-	$data = $data . "Elapsed since start: $t3\n";
-	$data = $data .  $line2;
+	$data .= "START $self_name LOGGING:\n";
+	$data .= "NOTE: HiRes timer not available.\n" if !$b_hires;
+	$data .= "$now\n";
+	$data .= "Elapsed since start: $t3\n";
+	$data .= $line2;
 	
 	print $fh_l $data;
 }
@@ -1081,12 +1094,17 @@ sub log_data {
 			$args = "\n${spacer}Args: None";
 		}
 		# $t1 = [gettimeofday];
-		$t3 = tv_interval ($t0, [gettimeofday]);
+		#$t3 = tv_interval ($t0, [gettimeofday]);
+		$t3 = eval 'Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()])' if $b_hires;
+		#print Dumper $@;
 		$data = "Start: Function: $two$args\n${spacer}Elapsed: $t3\n";
 		$spacer='';
 	}
 	elsif ( $one eq 'fe') {
-		$t3 = tv_interval ($t0, [gettimeofday]);
+		# print 'timer:', Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()]),"\n";
+		#$t3 = tv_interval ($t0, [gettimeofday]);
+		eval '$t3 = Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()])' if $b_hires;
+		#print Dumper $t3;
 		$data = "${spacer}Elapsed: $t3\nEnd: Function: $two\n";
 		$spacer='';
 	}
@@ -4350,7 +4368,7 @@ sub row_defaults {
 	$id ||= '';
 	my %unfound = (
 	'arm-cpu-f' => 'Use -f option to see features',
-	'arm-pci' => "ARM systems do not support PCI data type",
+	'arm-pci' => "PCI data type is not supported on ARM systems.",
 	'battery-data' => "No battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
 	'data-bsd' => "Feature not supported yet for BSDs.",
@@ -5303,7 +5321,12 @@ sub create_output_full {
 	my $num = 0;
 	my ($b_flags,$flag_key,@flags,%cpu,@data,@rows);
 	my $sleep = $cpu_sleep * 1000000;
-	Time::HiRes::usleep( $sleep );
+	if ($b_hires){
+		eval 'Time::HiRes::usleep( $sleep )';
+	}
+	else {
+		select(undef, undef, undef, $cpu_sleep);
+	}
 	if (my $file = main::system_files('cpuinfo')){
 		%cpu = data_cpuinfo($file,'full');
 	}
@@ -5422,7 +5445,6 @@ sub create_output_short {
 	if ($cpu[6]){
 		$data[0]{$num++ . "#$cpu[5]"} = $cpu[6];
 	}
-	
 	eval $end if $b_log;
 	return @data;
 }
@@ -5433,7 +5455,12 @@ sub data_short {
 	my (%cpu,@data,%speeds);
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
 	my $sleep = $cpu_sleep * 1000000;
-	Time::HiRes::usleep( $sleep );
+	if ($b_hires){
+		eval 'Time::HiRes::usleep( $sleep )';
+	}
+	else {
+		select(undef, undef, undef, $cpu_sleep);
+	}
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
 	if (my $file = main::system_files('cpuinfo')){
@@ -5504,13 +5531,17 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
-	my ($cache,$die_holder,$die_id,$phys_holder,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
+	my @phys_cpus = (0);# start with 1 always
+	my ($cache,$core_count,$die_holder,$die_id,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
+	my ($phys_holder) = (undef);
 	# need to prime for arm cpus, which do not have physical/core ids usually
 	# level 0 is phys id, level 1 is die id, level 2 is core id
-	$ids[0] = ([(0)]);
-	$ids[0][0] = ([(0)]);
+	#$ids[0] = ([(0)]);
+	$ids[0] = ([]);
+	$ids[0][0] = ([]);
 	my %cpu =  set_cpu_data();
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
 	foreach (@cpuinfo){
@@ -5582,24 +5613,38 @@ sub data_cpuinfo {
 		# increment by 1 for every new physical id we see. These are in almost all cases
 		# separate cpus, not separate dies within a single cpu body.
 		elsif ( $line[0] eq 'physical id' ){
-			if ($phys_holder != $line[1] ){
-				$phys_id++;
+			if ( !defined $phys_holder || $phys_holder != $line[1] ){
+				# only increment if not in array counter
+				push @phys_cpus, $line[1] if ! grep {/$line[1]/} @phys_cpus;
+				#$phys_id++;
+				#$ids[$phys_id] = ([(0)]) if ! $ids[$phys_id];
+				#$ids[$phys_id][$die_id] = ([(0)]) if ! $ids[$phys_id][$die_id];
 				$phys_holder = $line[1];
-				$ids[$phys_id] = ([(0)]);
-				$ids[$phys_id][$die_id] = ([(0)]);
+				$ids[$phys_holder] = ([]) if ! exists $ids[$phys_holder];
+				$ids[$phys_holder][$die_id] = ([]) if ! exists $ids[$phys_holder][$die_id];
+				
+				#print "pid: $line[1] ph: $phys_holder did: $die_id\n";
+				$die_id = 0;
 			}
 		}
 		elsif ( $line[0] eq 'core id' ){
+			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 			if ($line[1] > 0 ){
 				$die_holder = $line[1];
+				$core_count++;
 			}
 			# this handles multi die cpus like 16 core ryzen
 			elsif ($line[1] == 0 && $die_holder > 0 ){
-				$die_id++ ;
 				$die_holder = $line[1];
+				$core_count = 0;
+				$die_id++ ;
 			}
-			$ids[$phys_id][$die_id][$line[1]] = $speed;
-			$cpu{'dies'} = $die_id;
+			$phys_holder = 0 if ! defined $phys_holder;
+			#$ids[$phys_id][$die_id][$line[1]] = $speed;
+			#$ids[$phys_id][$die_id][$line[1]] = $speed;
+			$ids[$phys_holder][$die_id][$line[1]] = $speed;
+			#$cpu{'dies'} = $die_id;
+			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 		}
 		if (!$cpu{'type'} && $line[0] eq 'vendor_id' ){
 			$cpu{'type'} = cpu_vendor($line[1]);
@@ -5625,6 +5670,8 @@ sub data_cpuinfo {
 			}
 		}
 	}
+	$cpu{'phys'} = scalar @phys_cpus;
+	$cpu{'dies'} = $die_id++; # count starts at 0, all cpus have 1 die at least
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && $type ne 'short' ){
 		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'});
@@ -5879,6 +5926,7 @@ sub cpu_properties {
 		$die_count = scalar @dies;
 		$cpu{'dies'} = $die_count;
 		foreach my $core_ref (@dies){
+			next if ref $core_ref ne 'ARRAY';
 			my @cores = @$core_ref;
 			$core_count = 0;# reset for each die!!
 			# NOTE: the counters can be undefined because the index comes from 
@@ -5889,6 +5937,10 @@ sub cpu_properties {
 			}
 			#print 'cores: ' . $core_count, "\n";
 		}
+	}
+	# Note: for > 1 phys cpu system, the die counts will be wrong
+	if ($phyical_count > 1 && $die_count > 1 ){
+	
 	}
 	# this is an attempt to fix the amd family 15 bug with reported cores vs actual cores
 	# NOTE: amd A6-4400M APU 2 core reports: cores: 1 siblings: 2
@@ -12532,7 +12584,6 @@ sub get_memory_data_linux {
 		elsif ($_ =~ /^(MemFree|Buffers|Cached):/){
 			$not_used +=  get_piece($_,2);
 		}
-		last if $total && $not_used;
 	}
 	my $used = $total - $not_used;
 	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
