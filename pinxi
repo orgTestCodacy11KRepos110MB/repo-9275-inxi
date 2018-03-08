@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-07';
-my $self_patch='369-p';
+my $self_patch='370-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -73,7 +73,7 @@ my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@usb);
 ## disk arrays 
-my (@gpart,@labels,@partitions,@raid,@uuids);
+my (@glabel,@gpart,@labels,@partitions,@raid,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
 #my $opt_parser = Getopt::Long::Parser->new;
@@ -83,7 +83,7 @@ my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmi,$b_dmidecode_force,
 $b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,$b_pci,$b_root,
 $b_running_in_display,$b_sysctl,$b_usb_check);
 ## disk checks
-my ($b_partitions,$b_partition_extra,$b_raid);
+my ($b_glabel,$b_partitions,$b_partition_extra,$b_raid);
 my ($b_update,$b_weather) = (1,1);
 
 ## System
@@ -1032,7 +1032,6 @@ sub print_irc_message {
 #### DEBUGGERS
 #### -------------------------------------------------------------------
 
-
 # called in the initial -@ 10 script args setting so we can get logging 
 # as soon as possible # will have max 3 files, inxi.log, inxi.1.log, 
 # inxi.2.log
@@ -1148,6 +1147,12 @@ sub log_data {
 	if ($data){
 		print $fh_l "$spacer$data";
 	}
+}
+
+# args: dbg arg, 1-xx
+sub process_dbg {
+	my ($arg) = @_;
+	if ($arg == 20) {$b_arm = 1}
 }
 
 sub set_debugger {
@@ -1909,10 +1914,11 @@ sub upload_file {
 sub download_file {
 	my ($type, $url, $file) = @_;
 	my ($cmd,$args,$timeout);
+	my $debug_data = '';
 	my $result = 1;
 	$dl{'no-ssl-opt'} ||= '';
 	$dl{'spider'} ||= '';
-	$file ||= ''; # to avoid debug error
+	$file ||= 'N/A'; # to avoid debug error
 	if ( ! $dl{'dl'} ){
 		return 0;
 	}
@@ -1924,30 +1930,32 @@ sub download_file {
 	# print "$dl{'dl'}\n";
 	# tiny supports spider sort of
 	if ($dl{'dl'} eq 'tiny' ){
-		print_line("Using tiny: type: $type \nurl: $url \nfile: $file\n") if $test[1];
+		$cmd = "Using tiny: type: $type \nurl: $url \nfile: $file";
 		$result = get_file($type, $url, $file);
 	}
 	else {
 		if ($type eq 'stdout'){
 			$args = $dl{'stdout'};
 			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $url $dl{'null'}";
-			print_line("$cmd\n") if $test[1];
 			$result = qx($cmd);
+			$debug_data = 'Success: stdout data not null.'
 		}
 		elsif ($type eq 'file') {
 			$args = $dl{'file'};
 			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $file $url $dl{'null'}";
-			print_line("$cmd\n") if $test[1];
 			system($cmd);
 			$result = $?;
+			$debug_data = $result;
 		}
 		elsif ( $dl{'dl'} eq 'wget' && $type eq 'spider'){
 			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $dl{'spider'} $url";
-			print_line("$cmd\n") if $test[1];
 			system($cmd);
 			$result = $?;
+			$debug_data = $result;
 		}
 	}
+	print "-------\nDownloader Data:\n$cmd\nResult: $debug_data\n" if $test[1];
+	log_data('data',"$cmd\nResult: $result") if $b_log;
 	return $result;
 }
 
@@ -1957,9 +1965,16 @@ sub get_file {
 	my $return = 1;
 	my $debug = 0;
 	my $fh;
-	
+	$file ||= 'N/A';
+	log_data('dump','%{$response}',\%{$response}) if $b_log;
+	print Dumper \%{$response};
 	if ( ! $response->{success} ){
-		print "Failed to connect to server/file!\n";
+		my $content = $response->{content};
+		$content ||= "N/A\n";
+		my $msg = "Failed to connect to server/file!\n";
+		$msg .= "Response: ${content}Downloader: HTTP::Tiny URL: $url\nFile: $file";
+		log_data('data',$msg) if $b_log;
+		print error_defaults('download-error',$msg) if $test[1];
 		$return = 0;
 	}
 	else {
@@ -2122,6 +2137,14 @@ sub error_handler {
 		print_line("Check -h for correct parameters.\n");
 	}
 	exit 0;
+}
+sub error_defaults {
+	my ($type,$one) = @_;
+	$one ||= '';
+	my %errors = (
+	'download-error' => "Download Failure:\n$one\n",
+	);
+	return $errors{$type};
 }
 
 #### -------------------------------------------------------------------
@@ -3458,7 +3481,10 @@ sub get_options{
 		}},
 	'dbg:i' => sub { 
 		my ($opt,$arg) = @_;
-		if ($arg > 0) {$test[$arg] = 1}
+		if ($arg > 0) {
+			$test[$arg] = 1;
+			process_dbg($arg);
+		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		}},
@@ -5571,6 +5597,7 @@ sub data_cpuinfo {
 	my ($arch,@ids,@line,$b_first,$b_proc_int);
 	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
 	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/arm/arm-4-4-speeds-1.txt";
+	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
 	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
@@ -5717,6 +5744,10 @@ sub data_cpuinfo {
 	}
 	$cpu{'phys'} = scalar @phys_cpus;
 	$cpu{'dies'} = $die_id++; # count starts at 0, all cpus have 1 die at least
+	if ($b_arm && $cpu{'dies'} <= 1){
+		my $arm_dies = cpu_dies_sys();
+		$cpu{'dies'} = $arm_dies if $arm_dies;
+	}
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && $type ne 'short' ){
 		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'});
@@ -5872,65 +5903,6 @@ sub data_sysctl {
 	return %cpu;
 }
 
-sub set_cpu_speeds_sys {
-	eval $start if $b_log;
-	my (@arm,%speeds);
-	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
-	my $sys2 = '/sys/devices/system/cpu/cpu0/cpufreq/';
-	my ($cur,$min,$max) = ('scaling_cur_freq','scaling_min_freq','scaling_max_freq');
-	if (!-d $sys && -d $sys2){
-		$sys = $sys2;
-		($cur,$min,$max) = ('scaling_cur_freq','cpuinfo_min_freq','cpuinfo_max_freq');
-	}
-	if (-d $sys){
-		$speeds{'cur-freq'} = (main::reader("$sys/$cur"))[0];
-		$speeds{'cur-freq'} = speed_cleaner($speeds{'cur-freq'},'khz');
-		$speeds{'min-freq'} = (main::reader("$sys/$min"))[0];
-		$speeds{'min-freq'} = speed_cleaner($speeds{'min-freq'},'khz');
-		$speeds{'max-freq'} = (main::reader("$sys/$max"))[0];
-		$speeds{'max-freq'} = speed_cleaner($speeds{'max-freq'},'khz');
-		if ($b_arm){
-			@arm = main::globber('/sys/devices/system/cpu/cpufreq/policy*/');
-			# there are arm chips with two dies, that run at different min max speeds!!
-			# see: https://github.com/smxi/inxi/issues/128.
-			# it would be slick to show both die min/max/cur speeds, but this is
-			# ok for now.
-			if (scalar @arm > 1){
-				my ($current,$max,$min) = (0,0,0);
-				foreach (@arm){
-					$_ =~ s/\/$//; # strip off last slash in case globs have them
-					my $max_temp = main::reader("$_/cpuinfo_max_freq");
-					$max_temp = speed_cleaner($max_temp,'khz');
-					if ($max_temp > $max){
-						$max = $max_temp;
-					}
-					my $min_temp = main::reader("$_/cpuinfo_min_freq");
-					$min_temp = speed_cleaner($min_temp,'khz');
-					if ($min_temp < $min || $min == 0){
-						$max = $min_temp;
-					}
-					my $cur_temp = main::reader("$_/cpuinfo_max_freq");
-					$cur_temp = speed_cleaner($cur_temp,'khz');
-					if ($cur_temp > $current){
-						$current = $cur_temp;
-					}
-				}
-				$speeds{'cur-freq'} = $current if $current;
-				$speeds{'max-freq'} = $max if $max;
-				$speeds{'min-freq'} = $min if $min;
-			}
-		}
-		# policy4/cpuinfo_max_freq:["2000000"]
-		# policy4/cpuinfo_min_freq:["200000"]
-		if ($speeds{'min-freq'} > $speeds{'max-freq'} || $speeds{'min-freq'} == $speeds{'max-freq'}){
-			$speeds{'min-freq'} = 0;
-		}
-	}
-	main::log_data('dump','%speeds',\%speeds) if $b_log;
-	eval $end if $b_log;
-	return %speeds;
-}
-
 sub cpu_properties {
 	my (%cpu) = @_;
 	my $b_xeon = ($cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
@@ -5969,7 +5941,7 @@ sub cpu_properties {
 		my @dies = @$die_ref;
 		$core_count = 0;
 		$die_count = scalar @dies;
-		$cpu{'dies'} = $die_count;
+		#$cpu{'dies'} = $die_count;
 		foreach my $core_ref (@dies){
 			next if ref $core_ref ne 'ARRAY';
 			my @cores = @$core_ref;
@@ -5983,6 +5955,8 @@ sub cpu_properties {
 			#print 'cores: ' . $core_count, "\n";
 		}
 	}
+	# this covers potentially cases where ARM cpus have > 1 die 
+	$cpu{'dies'} = ($die_count <= 1 && $cpu{'dies'} > 1) ? $cpu{'dies'}: $die_count;
 	# Note: for > 1 phys cpu system, the die counts will be wrong
 	if ($phyical_count > 1 && $die_count > 1 ){
 	
@@ -6139,7 +6113,106 @@ sub cpu_properties {
 	#print Data::Dumper::Dumper \%cpu_properties;
 	#my $dc = scalar @dies;
 	#print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
+	eval $end if $b_log;
 	return %cpu_properties;
+}
+sub cpu_speeds {
+	eval $start if $b_log;
+	my (@processors) = @_;
+	my (@speeds);
+	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq');
+	foreach (@files){
+		my $speed = (main::reader($_))[0];
+		if ($speed || $speed eq '0'){
+			$speed = sprintf "%.0f", $speed/1000;
+			push @speeds, $speed;
+		}
+	}
+	if (!@speeds){
+		foreach (@processors){
+			if ($_ || $_ eq '0'){
+				$_ = sprintf "%.0f", $_;
+				push @speeds, $_;
+			}
+		}
+	}
+	#print join '; ', @speeds, "\n";
+	eval $end if $b_log;
+	return @speeds;
+}
+sub set_cpu_speeds_sys {
+	eval $start if $b_log;
+	my (@arm,%speeds);
+	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
+	my $sys2 = '/sys/devices/system/cpu/cpu0/cpufreq/';
+	my ($cur,$min,$max) = ('scaling_cur_freq','scaling_min_freq','scaling_max_freq');
+	if (!-d $sys && -d $sys2){
+		$sys = $sys2;
+		($cur,$min,$max) = ('scaling_cur_freq','cpuinfo_min_freq','cpuinfo_max_freq');
+	}
+	if (-d $sys){
+		$speeds{'cur-freq'} = (main::reader("$sys/$cur"))[0];
+		$speeds{'cur-freq'} = speed_cleaner($speeds{'cur-freq'},'khz');
+		$speeds{'min-freq'} = (main::reader("$sys/$min"))[0];
+		$speeds{'min-freq'} = speed_cleaner($speeds{'min-freq'},'khz');
+		$speeds{'max-freq'} = (main::reader("$sys/$max"))[0];
+		$speeds{'max-freq'} = speed_cleaner($speeds{'max-freq'},'khz');
+		if ($b_arm){
+			@arm = main::globber('/sys/devices/system/cpu/cpufreq/policy*/');
+			# there are arm chips with two dies, that run at different min max speeds!!
+			# see: https://github.com/smxi/inxi/issues/128.
+			# it would be slick to show both die min/max/cur speeds, but this is
+			# ok for now.
+			if (scalar @arm > 1){
+				my ($current,$max,$min) = (0,0,0);
+				foreach (@arm){
+					$_ =~ s/\/$//; # strip off last slash in case globs have them
+					my $max_temp = main::reader("$_/cpuinfo_max_freq");
+					$max_temp = speed_cleaner($max_temp,'khz');
+					if ($max_temp > $max){
+						$max = $max_temp;
+					}
+					my $min_temp = main::reader("$_/cpuinfo_min_freq");
+					$min_temp = speed_cleaner($min_temp,'khz');
+					if ($min_temp < $min || $min == 0){
+						$max = $min_temp;
+					}
+					my $cur_temp = main::reader("$_/cpuinfo_max_freq");
+					$cur_temp = speed_cleaner($cur_temp,'khz');
+					if ($cur_temp > $current){
+						$current = $cur_temp;
+					}
+				}
+				$speeds{'cur-freq'} = $current if $current;
+				$speeds{'max-freq'} = $max if $max;
+				$speeds{'min-freq'} = $min if $min;
+			}
+		}
+		# policy4/cpuinfo_max_freq:["2000000"]
+		# policy4/cpuinfo_min_freq:["200000"]
+		if ($speeds{'min-freq'} > $speeds{'max-freq'} || $speeds{'min-freq'} == $speeds{'max-freq'}){
+			$speeds{'min-freq'} = 0;
+		}
+	}
+	main::log_data('dump','%speeds',\%speeds) if $b_log;
+	eval $end if $b_log;
+	return %speeds;
+}
+
+# right now only using this for ARM cpus, this is not the same in intel/amd
+sub cpu_dies_sys {
+	eval $start if $b_log;
+	my @data = main::globber('/sys/devices/system/cpu/cpu*/topology/core_siblings_list');
+	my (@dies);
+	foreach (@data){
+		my $siblings = (main::reader($_))[0];
+		if (! grep {/$siblings/} @dies){
+			push @dies, $siblings;
+		}
+	}
+	my $die_count = scalar @dies;
+	eval $end if $b_log;
+	return $die_count;
 }
 sub cpu_flags_bsd {
 	eval $start if $b_log;
@@ -6175,30 +6248,7 @@ sub cpu_flags_bsd {
 	eval $end if $b_log;
 	return $flags;
 }
-sub cpu_speeds {
-	eval $start if $b_log;
-	my (@processors) = @_;
-	my (@speeds);
-	my @files = main::globber("/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq");
-	foreach (@files){
-		my $speed = (main::reader($_))[0];
-		if ($speed || $speed eq '0'){
-			$speed = sprintf "%.0f", $speed/1000;
-			push @speeds, $speed;
-		}
-	}
-	if (!@speeds){
-		foreach (@processors){
-			if ($_ || $_ eq '0'){
-				$_ = sprintf "%.0f", $_;
-				push @speeds, $_;
-			}
-		}
-	}
-	#print join '; ', @speeds, "\n";
-	eval $end if $b_log;
-	return @speeds;
-}
+
 sub cpu_vendor {
 	eval $start if $b_log;
 	my ($string) = @_;
@@ -6893,6 +6943,32 @@ sub hdd_temp {
 	}
 	eval $end if $b_log;
 	return $hdd_temp;
+}
+# gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
+sub match_glabel {
+	eval $start if $b_log;
+	my ($gptid) = @_;
+	return if !@glabel;
+	my ($dev_id) = ('');
+	foreach (@glabel){
+		my @temp = split /\s+/, $_;
+		if ($temp[0] eq $gptid){
+			$dev_id = $temp[2];
+			last;
+		}
+	}
+	$dev_id ||= $gptid; # no match? return full string
+	eval $end if $b_log;
+	return $dev_id;
+}
+sub set_glabel {
+	eval $start if $b_log;
+	$b_glabel = 1;
+	if (my $path = main::check_program('glabel')){
+		@glabel = main::grabber("$path status 2>/dev/null");
+	}
+	main::log_data('dump','@glabel',\@glabel) if $b_log;
+	eval $end if $b_log;
 }
 }
 
@@ -9189,6 +9265,7 @@ sub zfs_data {
 	my $b_v = 1;
 	my ($i,$j) = (0,0);
 	my @working = main::grabber("$zpool list -v 2>/dev/null");
+	DiskData::set_glabel() if $bsd_type && !$b_glabel;
 	# bsd sed does not support inserting a true \n so use this trick
 	# some zfs does not have -v
 	if (!@working){
@@ -9244,11 +9321,15 @@ sub zfs_data {
 		#    ada2        -      -      -         -      -      -
 		# this second is a single device not in an array
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
-		elsif ($row[1] =~ /^([a-z0-9]+[0-9]+|gptid\/.*)$/ && ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
+		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
+		elsif ($row[1] =~ /^([a-z0-9]+[0-9]+|gptid\/.*)$/ && 
+		       ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
+			if ($row[1] =~ /gptid\// && @glabel){
+				$row[1] = DiskData::match_glabel($row[1]);
+			}
 			$zfs[$j]{'components'}[$i] = $row[1];
 			$i++;
 		}
-		
 	}
 	eval $end if $b_log;
 	return @zfs;
@@ -13426,13 +13507,13 @@ sub set_sysctl_data {
 		push @sysctl, $_;
 		# we're building these here so we can use these arrays to test 
 		# in each feature if we will try to build the feature for bsds
-		if (/^hw\.sensors/ && !/^hw\.sensors\.acpibat/ && !/^hw.sensors.softraid/){
+		if (/^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/){
 			push @sysctl_sensors, $_;
 		}
 		elsif (/^hw\.(vendor|product|version|serialno|uuid)/){
 			push @sysctl_machine, $_;
 		}
-		elsif (/^hw\.sensors\.acpibat/){
+		elsif (/^hw\.sensors\.acpi(bat|cmb)/){
 			push @sysctl_battery, $_;
 		}
 	}
