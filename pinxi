@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-07';
-my $self_patch='366-p';
+my $self_patch='367-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4924,7 +4924,7 @@ sub asound_data {
 }
 sub usb_data {
 	eval $start if $b_log;
-	my (@rows,@data,@ids,$vendor,$product);
+	my (@rows,@data,@ids,$product,$product2,$vendor,$vendor2);
 	my ($j,$num) = (0,1);
 	if (-d '/proc/asound') {
 		# note: this will double the data, but it's easier this way.
@@ -4961,13 +4961,37 @@ sub usb_data {
 							if ($working[0] eq 'idProduct'){
 								$product = main::cleaner($working[2]) if $working[2];
 							}
+							if ($working[0] eq 'iManufacturer'){
+								$vendor2 = main::cleaner($working[2]) if $working[2];
+							}
+							if ($working[0] eq 'iProduct'){
+								$product2 = main::cleaner($working[2]) if $working[2];
+							}
 							if ($vendor && $product){
-								$product = ($product =~ /$vendor/) ? $product: "$vendor $product" ;
 								last;
 							}
 						}
 					}
-					$product ||= 'N/A';
+					if ($vendor && $product){
+						$product = ($product =~ /$vendor/) ? $product: "$vendor $product" ;
+					}
+					elsif (!$product) {
+						if ($vendor && $product2){
+							$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2" ;
+						}
+						elsif ($vendor2 && $product2){
+							$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2" ;
+						}
+						elsif ($vendor){
+							$product = $vendor;
+						}
+						elsif ($vendor2){
+							$product = $vendor2;
+						}
+						else {
+							$product = 'N/A';
+						}
+					}
 					@data = ({
 					$num++ . "#Card" => $product,
 					$num++ . "#driver" => 'USB Audio',
@@ -8259,7 +8283,7 @@ sub usb_data {
 			if ($product && network_device($product)){
 				@data = ({
 				$num++ . "#Card" => $product,
-				$num++ . "#driver" => 'USB network',
+				$num++ . "#driver" => 'USB Network',
 				},);
 				@rows = (@rows,@data);
 				if ($extra > 0){
