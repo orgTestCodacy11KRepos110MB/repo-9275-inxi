@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-07';
-my $self_patch='365-p';
+my $self_patch='366-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1386,8 +1386,11 @@ sub disk_data {
 	run_commands(\@cmds,'disk');
 	@cmds = (
 	['atacontrol', 'list'],
-	['camcontrol', 'devlist'],
+	['camcontrol', 'devlist'], 
+	['glabel', 'status'], 
 	['swapctl', '-l -k'],
+	['swapctl', '-l -k'],
+	['vmstat', '-H'],
 	);
 	run_commands(\@cmds,'disk-bsd');
 }
@@ -2197,8 +2200,8 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended system programs'){
 		if ($bsd_type){
-			@data = qw(dig dmidecode file gpart ifconfig lsusb sudo 
-			smartctl sysctl tree uptime usbdevs);
+			@data = qw(camcontrol dig dmidecode file glabel gpart ifconfig 
+			lsusb sudo smartctl sysctl tree uptime usbdevs);
 			$info_os = 'info-bsd';
 		}
 		else {
@@ -2387,6 +2390,13 @@ sub item_data {
 	'pacman' => 'curl',
 	'rpm' => 'curl',
 	}),
+	'camcontrol' => ({
+	'info' => '',
+	'info-bsd' => '-R; -D; -P. Get actual gptid /dev path',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
 	'dig' => ({
 	'info' => '-i wlan IP',
 	'info-bsd' => '-i wlan IP',
@@ -2418,6 +2428,13 @@ sub item_data {
 	'ftp' => ({
 	'info' => '',
 	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'glabel' => ({
+	'info' => '',
+	'info-bsd' => '-R; -D; -P. Get actual gptid /dev path',
 	'apt' => '',
 	'pacman' => '',
 	'rpm' => '',
@@ -4836,7 +4853,7 @@ sub card_data {
 	foreach (@pci){
 		$num = 1;
 		my @row = @$_;
-		if ($row[0] eq 'audio'){
+		if ($row[0] eq 'audio' || $row[0] eq 'multimedia'){
 			$j = scalar @rows;
 			my $driver = $row[9];
 			$driver ||= 'N/A';
@@ -6675,7 +6692,7 @@ sub proc_data_advanced {
 					}
 				}
 				else {
-					$drives[$i]{'serial'} = disk_serial("/dev/$drives[$i]{'id'}");
+					$drives[$i]{'serial'} = disk_serial_by_id("/dev/$drives[$i]{'id'}");
 				}
 				if ($extra > 2){
 					$path = "${working_path}rev";
@@ -6757,6 +6774,9 @@ sub scsi_data {
 	eval $end if $b_log;
 	return @scsi;
 }
+# camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
+# smartcl -i <device> |grep ^Serial
+# see smartctl; camcontrol devlist; gptid status;
 sub dmesg_boot_data {
 	eval $start if $b_log;
 	my ($used) = @_;
@@ -6784,7 +6804,7 @@ sub dmesg_boot_data {
 	return @data;
 }
 
-sub disk_serial {
+sub disk_serial_by_id {
 	eval $start if $b_log;
 	my ($device) = @_;
 	my ($serial) = ('');
@@ -8661,8 +8681,8 @@ sub partition_data {
 			$dev_base =~ s/^\/dev\///;
 		}
 		# this handles zfs type devices/partitions, which do not start with / but contain /
-		if (!$dev_base && $row[0] =~ /^[^\/]+\/.+/){
-			$row[0] =~ /^([^\/]+\/)([^\/]+)$/;
+		# note: Main/jails/transmission_1 path can be > 1 deep
+		if (!$dev_base && $row[0] =~ /^([^\/]+\/)(.+)/){
 			$dev_base = "non-dev-$1$2";
 		}
 		# this handles yet another fredforfaen special case where a mounted drive
@@ -9135,6 +9155,7 @@ sub mdraid_data {
 	eval $end if $b_log;
 	return @mdraid;
 }
+
 sub zfs_data {
 	eval $start if $b_log;
 	my ($zpool) = @_;
@@ -9197,7 +9218,7 @@ sub zfs_data {
 		#    ada2        -      -      -         -      -      -
 		# this second is a single device not in an array
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
-		elsif ($row[1] =~ /^[a-z0-9]+[0-9]+$/ && ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
+		elsif ($row[1] =~ /^([a-z0-9]+[0-9]+|gptid\/.*)$/ && ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
 			$zfs[$j]{'components'}[$i] = $row[1];
 			$i++;
 		}
@@ -13391,7 +13412,6 @@ sub set_sysctl_data {
 	}
 	print Dumper \@sysctl if $test[7];
 	if ($b_log){
-		main::log_data('dump','@sysctl',\@sysctl);
 		main::log_data('dump','@sysctl',\@sysctl);
 	}
 	eval $end if $b_log;
