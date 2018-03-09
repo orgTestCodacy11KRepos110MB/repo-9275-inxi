@@ -39,8 +39,8 @@ use Sys::Hostname;
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-07';
-my $self_patch='373-p';
+my $self_date='2018-03-08';
+my $self_patch='374-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3595,7 +3595,8 @@ sub get_options{
 		$b_pci = 1;
 	}
 	if ($show{'usb'} || $show{'audio'}  || $show{'network'} ){
-		$usb_level = ($show{'usb'}) ? 2 : 1;
+		# to detect wan/lan, we have to use long form to get as much data as possible
+		$usb_level = ($show{'usb'} || $show{'network'}) ? 2 : 1;
 	}
 	if ($bsd_type && ($show{'short'} || $show{'cpu'} || $show{'cpu-basic'} || $show{'machine'} || 
 	 $show{'info'} || $show{'process'} || $show{'ram'} ) ){
@@ -8336,12 +8337,12 @@ sub wan_ip {
 
 sub usb_data {
 	eval $start if $b_log;
-	my (@rows,@data,$vendor,$product);
+	my (@rows,@data,$product,$product2,$test,$vendor,$vendor2);
 	my ($j,$num) = (0,1);
 	return if !@usb;
 	foreach my $ref (@usb){
 		my @row = @$ref;
-		$product = '';
+		($product,$product2,$test,$vendor,$vendor2) = ('','','','','');
 		# a device will always be the second or > device on the bus
 		if ($row[1] > 1){
 			if ($usb_level == 1){
@@ -8350,19 +8351,43 @@ sub usb_data {
 			else {
 				foreach my $line (@row){
 					my @working = split /:/, $line;
-					if ($working[0] eq 'idVendor'){
-						$vendor = main::cleaner($working[2]) if $working[2];
+					if ($working[0] eq 'idVendor' && $working[2]){
+						$vendor = main::cleaner($working[2]);
 					}
-					if ($working[0] eq 'idProduct'){
-						$product = main::cleaner($working[2]) if $working[2];
+					if ($working[0] eq 'idProduct' && $working[2]){
+						$product = main::cleaner($working[2]);
 					}
-					if ($vendor && $product){
-						$product = ($product =~ /$vendor/) ? $product: "$vendor $product" ;
+					if ($working[0] eq 'iVendor' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'iProduct' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'Descriptor_Configuration'){
 						last;
 					}
 				}
+				if ($vendor && $product){
+					$product = ($product =~ /$vendor/) ? $product: "$vendor $product";
+				}
+				elsif ($vendor && $product2){
+					$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2";
+				}
+				elsif ($vendor2 && $product){
+					$product = ($product =~ /$vendor2/) ? $product: "$vendor2 $product";
+				}
+				elsif ($vendor2 && $product2){
+					$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2";
+				}
+				elsif ($vendor){
+					$product = $vendor;
+				}
+				elsif ($vendor2){
+					$product = $vendor2;
+				}
+				$test = "$vendor $product $vendor2 $vendor2";
 			}
-			if ($product && network_device($product)){
+			if ($product && network_device($test)){
 				@data = ({
 				$num++ . "#Card" => $product,
 				$num++ . "#driver" => 'USB Network',
@@ -8400,12 +8425,12 @@ sub usb_data {
 # Zonet.*ZEW.*Wireless
 sub network_device {
 	eval $start if $b_log;
-	my ($device) = @_;
+	my ($device_string) = @_;
 	my ($b_network);
 	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
 	# Atmel makes other stuff
-	my @tests = qw(Wi-Fi.*Adapter Ethernet WLAN Network 802\.11 
-	Wireless.*Adapter 54\sMbps Network Atheros D-Link.*Adapter 
+	my @tests = qw(wifi Wi-Fi.*Adapter Ethernet \bLAN\b WLAN Network 802\.11 
+	Wireless.*Adapter 54\sMbps Network 100\/1000 Atheros D-Link.*Adapter 
 	D-Link.*Wireless Linksys Netgea Ralink Realtek.*Network Realtek.*Wireless
 	Belkin.*Wireless Actiontec.*Wireless AirLink.*Wireless Asus.*Wireless 
 	Buffalo.*Wireless Davicom DWA-.*RangeBooster DWA-.*Wireless
@@ -8415,7 +8440,7 @@ sub network_device {
 	Zonet.*ZEW.*Wireless 050d:935b 0bda:8189 0bda:8197
 	);
 	foreach (@tests){
-		if ($device =~ /$_/i ){
+		if ($device_string =~ /$_/i ){
 			$b_network = 1;
 			last;
 		}
@@ -13541,6 +13566,7 @@ sub set_usb_data {
 	eval $start if $b_log;
 	if ($alerts{'lsusb'}{'action'} eq 'use' ){
 		#$usb_level = 2;
+		# NOTE: we can't get reliable usb network device with short
 		if ($usb_level == 2){
 			set_lsusb_data_long();
 		}
