@@ -39,8 +39,8 @@ use Sys::Hostname;
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-08';
-my $self_patch='380-p';
+my $self_date='2018-03-09';
+my $self_patch='381-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3386,6 +3386,7 @@ sub get_options{
 			}
 			if ($arg >= 7 ){
 				$b_downloader = 1 if ! check_program('dig');
+				$show{'flag'} = 1;
 				$show{'ip'} = 1;
 				$show{'raid-forced'} = 1;
 				$extra = 3;
@@ -4596,6 +4597,7 @@ sub print_data {
 			'Device' => 1,
 			'Floppy' => 1,
 			'ID' => 1,
+			'IF-ID' => 1,
 			'Optical' => 1,
 			);
 			foreach my $val1 (@{$data{$key1}}){
@@ -7995,14 +7997,6 @@ sub get {
 		$num++ . "#$key" => main::row_defaults('arm-pci',''),
 		},);
 		@rows = (@rows,@data);
-		if (!$bsd_type){
-			@data = advanced_data_sys('all','',0);
-			@rows = (@rows,@data);
-		}
-		else {
-			@data = advanced_data_bsd('all');
-			@rows = (@rows,@data);
-		}
 	}
 	else {
 		@data = card_data();
@@ -8010,11 +8004,17 @@ sub get {
 		@data = usb_data();
 		@rows = (@rows,@data);
 	}
+	if ($show{'network-advanced'}){
+		if (!$bsd_type){
+			@data = advanced_data_sys('check','',0);
+			@rows = (@rows,@data) if @data;
+		}
+		else {
+			@data = advanced_data_bsd('check');
+			@rows = (@rows,@data) if @data;
+		}
+	}
 	if ($show{'ip'}){
-# 		if ($bsd_type){
-# 			@data = if_ip('all');
-# 			@rows = (@rows,@data);
-# 		}
 		@data = wan_ip();
 		@rows = (@rows,@data);
 	}
@@ -8062,7 +8062,6 @@ sub card_data {
 			},
 			);
 			@rows = (@rows,@data);
-			
 			if ($extra > 0){
 				if ($row[9] && !$bsd_type){
 					my $version = main::get_module_version($row[9]);
@@ -8096,14 +8095,7 @@ sub card_data {
 		$num++ . "#$key" => main::row_defaults('pci-card-data',''),
 		},);
 		@rows = (@rows,@data);
-		if (!$bsd_type){
-			@data = advanced_data_sys('all','',0);
-			@rows = (@rows,@data);
-		}
-		else {
-			@data = advanced_data_bsd('all');
-			@rows = (@rows,@data);
-		}
+		
 	}
 	#my $ref = $pci[-1];
 	#print $$ref[0],"\n";
@@ -8115,13 +8107,17 @@ sub advanced_data_sys {
 	return if ! -d '/sys/class/net';
 	my ($vendor,$chip,$count,$b_wifi) = @_;
 	my $num = 0;
-	my ($b_all,$if,@row,@rows);
+	my $key = 'IF';
+	my ($b_check,$if,@row,@rows);
 	my @paths = glob('/sys/class/net/*');
 	@paths = grep {!/\/lo$/} @paths;
 	if ( $count > 0 && $count < scalar @paths ){
 		@paths = splice @paths, $count, scalar @paths;
 	}
-	$b_all = 1 if $vendor eq 'all';
+	if ($vendor eq 'check'){
+		$b_check = 1;
+		$key = 'IF-ID';
+	}
 	#print join '; ', @paths,  $count, "\n";
 	foreach (@paths){
 		my $path = "$_/device/vendor";
@@ -8134,9 +8130,10 @@ sub advanced_data_sys {
 		# this is a fix for a redhat bug in virtio 
 		$data2 = (defined $data2 && $data2 eq '0001' && defined $chip && $chip eq '1000') ? '1000' : $data2;
 		#print "d1:$data1 v:$vendor d2:$data2 c:$chip\n";
-		if ( $b_all || ( $data1 && $data2 && $data1 eq $vendor && $data2 eq $chip )) {
+		if ( $b_check || ( $data1 && $data2 && $data1 eq $vendor && $data2 eq $chip )) {
 			$if = $_;
 			$if =~ s/^\/.+\///;
+			next if ($b_check && grep {/$if/} @ifs_found);
 			$path = "$_/duplex";
 			$duplex = (main::reader($path))[0] if -e $path;
 			$duplex ||= 'N/A';
@@ -8151,7 +8148,7 @@ sub advanced_data_sys {
 			$state ||= 'N/A';
 			#print "$speed \n";
 			@row = ({
-			$num++ . "#IF" => $if,
+			$num++ . "#$key" => $if,
 			$num++ . "#state" => $state,
 			},);
 			my $j = scalar @row - 1;
@@ -8166,7 +8163,7 @@ sub advanced_data_sys {
 				$row[$j]{$num++ . "#duplex"} = $duplex;
 			}
 			$row[$j]{$num++ . "#mac"} = $mac;
-			if ($b_all){
+			if ($b_check){
 				@rows = (@rows,@row);
 			}
 			else {
@@ -8176,9 +8173,10 @@ sub advanced_data_sys {
 				@row = if_ip($if);
 				@rows = (@rows,@row);
 			}
-			last if !$b_all;
+			last if !$b_check;
 		}
 	}
+	# @ifs_found = ();
 	eval $end if $b_log;
 	return @rows;
 }
@@ -8187,10 +8185,14 @@ sub advanced_data_bsd {
 	return if ! @ifs_bsd;
 	my ($if,$b_wifi) = @_;
 	my (@data,@row,@rows,$working_if);
-	my ($b_all,$state,$speed,$duplex,$mac);
+	my ($b_check,$state,$speed,$duplex,$mac);
 	my $num = 0;
+	my $key = 'IF';
 	my $j = 0;
-	$b_all = 1 if $if eq 'all';
+	if ($if eq 'check'){
+		$b_check = 1;
+		$key = 'IF-ID';
+	}
 	foreach my $ref (@ifs_bsd){
 		if (ref $ref ne 'ARRAY'){
 			$working_if = $ref;
@@ -8200,8 +8202,9 @@ sub advanced_data_bsd {
  		else {
 			@data = @$ref;
  		}
-		if ($b_all || $working_if eq $if){
-			$if = $working_if if $b_all;
+		if ( $b_check || $working_if eq $if){
+			$if = $working_if if $b_check;
+			next if ($b_check && grep {/$if/} @ifs_found);
 			foreach my $line (@data){
 				# ($state,$speed,$duplex,$mac)
 				$duplex = $data[2];
@@ -8213,7 +8216,7 @@ sub advanced_data_bsd {
 				$state ||= 'N/A';
 				#print "$speed \n";
 				@row = ({
-				$num++ . "#IF" => $if,
+				$num++ . "#$key" => $if,
 				$num++ . "#state" => $state,
 				},);
 				push @ifs_found, $if if ! grep {/$if/} @ifs_found;
@@ -8234,7 +8237,9 @@ sub advanced_data_bsd {
 				@rows = (@rows,@row) if @row;
 			}
 		}
+		last if ! $b_check;
 	}
+	# @ifs_found = ();
 	eval $end if $b_log;
 	return @rows;
 }
@@ -12935,8 +12940,8 @@ sub get_runlevel_data {
 	eval $start if $b_log;
 	my $runlevel = '';
 	if ( my $program = check_program('runlevel')){
-		$runlevel = (grabber($program))[0];
-		$runlevel =~ s/[^\d]//g;
+		$runlevel = (grabber("$program 2>/dev/null"))[0];
+		$runlevel =~ s/[^\d]//g if $runlevel;
 		#print_line($runlevel . ";;");
 	}
 	eval $end if $b_log;
