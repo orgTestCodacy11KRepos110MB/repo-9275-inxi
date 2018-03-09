@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-09';
-my $self_patch='383-p';
+my $self_patch='384-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5606,6 +5606,8 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
+	 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-xeon-fake-dual-die-zyanya.txt";
+	 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -5639,7 +5641,7 @@ sub data_cpuinfo {
 					# note: alternate: 
 					# Processor	: AArch64 Processor rev 4 (aarch64)
 					# but no model name type
-					if ( $line[1] =~ /ARM|AArch/i){
+					if ( $b_arm || $line[1] =~ /ARM|AArch/i){
 						$b_arm = 1;
 						$cpu{'type'} = 'arm';
 					}
@@ -5668,7 +5670,7 @@ sub data_cpuinfo {
 		elsif (!$cpu{'model_name'} &&( $line[0] eq 'model name' || $line[0] eq 'cpu' )){
 			$cpu{'model_name'} = main::cleaner($line[1]);
 			$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
-			if ( $line[1] =~ /ARM|AArch/i){
+			if ( $b_arm || $line[1] =~ /ARM|AArch/i){
 				$b_arm = 1;
 				$cpu{'type'} = 'arm';
 			}
@@ -5767,7 +5769,7 @@ sub data_cpuinfo {
 		$cpu{'max-freq'} = $speeds{'max-freq'};
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	#print Data::Dumper::Dumper \%cpu;
+	print Data::Dumper::Dumper \%cpu if $test[8];
 	eval $end if $b_log;
 	return %cpu;
 }
@@ -5901,7 +5903,7 @@ sub data_sysctl {
 		$cpu{'flags'} = cpu_flags_bsd();
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	# print Data::Dumper::Dumper \%cpu;
+	print Data::Dumper::Dumper \%cpu if $test[8];
 	eval $end if $b_log;
 	return %cpu;
 }
@@ -8467,8 +8469,8 @@ sub network_device {
 	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
 	# Atmel makes other stuff
 	my @tests = qw(wifi Wi-Fi.*Adapter Ethernet \bLAN\b WLAN Network 802\.11 
-	Wireless.*Adapter 54\sMbps Network 100\/1000 Atheros D-Link.*Adapter 
-	D-Link.*Wireless Linksys Netgea Ralink Realtek.*Network Realtek.*Wireless
+	Wireless.*Adapter 54\sMbps Network 100\/1000 Mobile\sBroadband Atheros D-Link.*Adapter 
+	Dell.*Wireless D-Link.*Wireless Linksys Netgea Ralink Realtek.*Network Realtek.*Wireless
 	Belkin.*Wireless Actiontec.*Wireless AirLink.*Wireless Asus.*Wireless 
 	Buffalo.*Wireless Davicom DWA-.*RangeBooster DWA-.*Wireless
 	ENUWI-.*Wireless LG.*Wi-Fi Rosewill.*Wireless RNX-.*Wireless Samsung.*LinkStick 
@@ -8552,8 +8554,15 @@ sub create_output {
 			$j = scalar @rows;
 			my $speed = $devices{$key}{'speed'};
 			$speed ||= 'N/A';
-			my $multisession = ( $devices{$key}{'multisession'} == 1 ) ? 'yes' : 'no' ;
-			my $audio = ( $devices{$key}{'audio'} == 1 ) ? 'yes' : 'no' ;
+			my ($audio,$multisession) = ('','');
+			if (defined $devices{$key}{'multisession'}){
+				$multisession = ( $devices{$key}{'multisession'} == 1 ) ? 'yes' : 'no' ;
+			}
+			$multisession ||= 'N/A';
+			if (defined $devices{$key}{'audio'}){
+				$audio = ( $devices{$key}{'audio'} == 1 ) ? 'yes' : 'no' ;
+			}
+			$audio ||= 'N/A';
 			my $dvd = 'N/A';
 			my (@rw,$rws);
 			if (defined $devices{$key}{'dvd'}){
@@ -8605,7 +8614,7 @@ sub optical_data_bsd {
 sub optical_data_linux {
 	eval $start if $b_log;
 	my (@data,%devices,@info,@rows);
-	@data = main::globber('/dev/dvd* /dev/cd* /dev/scd* /dev/sr* /dev/fd[0-9]');
+	@data = main::globber('/dev/dvd* /dev/cdr* /dev/scd* /dev/sr* /dev/fd[0-9]');
 	# Newer kernel is NOT linking all optical drives. Some, but not all.
 	# Get the actual disk dev location, first try default which is easier to run, 
 	# need to preserve line breaks
