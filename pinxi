@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-09';
-my $self_patch='382-p';
+my $self_patch='383-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8005,6 +8005,9 @@ sub get {
 		@rows = (@rows,@data);
 	}
 	if ($show{'network-advanced'}){
+		# @ifs_found = ();
+		# shift @ifs_found;
+		# pop @ifs_found;
 		if (!$bsd_type){
 			@data = advanced_data_sys('check','',0);
 			@rows = (@rows,@data) if @data;
@@ -8077,9 +8080,6 @@ sub card_data {
 				$rows[$j]{$num++ . "#chip ID"} = $chip_id;
 			}
 			if ($show{'network-advanced'}){
-				# @ifs_found = ();
-				# shift @ifs_found;
-				# pop @ifs_found;
 				if (!$bsd_type){
 					@data = advanced_data_sys($row[5],$row[6],$holder{$chip_id},$b_wifi);
 				}
@@ -8136,6 +8136,7 @@ sub advanced_data_sys {
 		if ( $b_check || ( $data1 && $data2 && $data1 eq $vendor && $data2 eq $chip )) {
 			$if = $_;
 			$if =~ s/^\/.+\///;
+			# print "top: if: $if ifs: @ifs_found\n";
 			next if ($b_check && grep {/$if/} @ifs_found);
 			$path = "$_/duplex";
 			$duplex = (main::reader($path))[0] if -e $path;
@@ -8155,7 +8156,8 @@ sub advanced_data_sys {
 			$num++ . "#state" => $state,
 			},);
 			#my $j = scalar @row - 1;
-			push @ifs_found, $if if ! grep {/$if/} @ifs_found;
+			push (@ifs_found, $if) if (!$b_check && (! grep {/$if/} @ifs_found));
+			# print "push: if: $if ifs: @ifs_found\n";
 			# no print out for wifi since it doesn't have duplex/speed data available
 			# note that some cards show 'unknown' for state, so only testing explicitly
 			# for 'down' string in that to skip showing speed/duplex
@@ -8206,6 +8208,7 @@ sub advanced_data_bsd {
  		}
 		if ( $b_check || $working_if eq $if){
 			$if = $working_if if $b_check;
+			# print "top: if: $if ifs: @ifs_found\n";
 			next if ($b_check && grep {/$if/} @ifs_found);
 			foreach my $line (@data){
 				# ($state,$speed,$duplex,$mac)
@@ -8221,7 +8224,8 @@ sub advanced_data_bsd {
 				$num++ . "#$key" => $if,
 				$num++ . "#state" => $state,
 				},);
-				push @ifs_found, $if if ! grep {/$if/} @ifs_found;
+				push (@ifs_found, $if) if (!$b_check && (! grep {/$if/} @ifs_found ));
+				# print "push: if: $if ifs: @ifs_found\n";
 				# no print out for wifi since it doesn't have duplex/speed data available
 				# note that some cards show 'unknown' for state, so only testing explicitly
 				# for 'down' string in that to skip showing speed/duplex
