@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-08';
-my $self_patch='378-p';
+my $self_patch='379-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8178,9 +8178,10 @@ sub advanced_data_bsd {
 	eval $start if $b_log;
 	return if ! @ifs_bsd;
 	my ($if,$b_wifi) = @_;
-	my (@data,@row,@rows,$working_if,@if_list);
+	my (@data,@row,@rows,$working_if);
 	my ($b_all,$state,$speed,$duplex,$mac);
 	my $num = 0;
+	my $j = 0;
 	$b_all = 1 if $if eq 'all';
 	foreach my $ref (@ifs_bsd){
 		if (ref $ref ne 'ARRAY'){
@@ -8194,14 +8195,6 @@ sub advanced_data_bsd {
 		if ($b_all || $working_if eq $if){
 			$if = $working_if if $b_all;
 			foreach my $line (@data){
-				if ($b_all) {
-					if (! grep {/$if/} @if_list){
-						push @if_list, $if;
-					}
-					else {
-						last;
-					}
-				}
 				# ($state,$speed,$duplex,$mac)
 				$duplex = $data[2];
 				$duplex ||= 'N/A';
@@ -8215,8 +8208,6 @@ sub advanced_data_bsd {
 				$num++ . "#IF" => $if,
 				$num++ . "#state" => $state,
 				},);
-				@rows = (@rows,@row);
-				my $j = scalar @rows - 1;
 				push @ifs_found, $if if ! grep {/$if/} @ifs_found;
 				# no print out for wifi since it doesn't have duplex/speed data available
 				# note that some cards show 'unknown' for state, so only testing explicitly
@@ -8224,11 +8215,12 @@ sub advanced_data_bsd {
 				if (!$b_wifi && $state ne 'down' && $state ne 'no'){
 					# make sure the value is strictly numeric before appending Mbps
 					$speed = ($speed =~ /^[0-9]+$/) ? "$speed Mbps" : $speed;
-					$rows[$j]{$num++ .  "#speed"} = $speed;
-					$rows[$j]{$num++ . "#duplex"} = $duplex;
+					$row[0]{$num++ .  "#speed"} = $speed;
+					$row[0]{$num++ . "#duplex"} = $duplex;
 				}
-				$rows[$j]{$num++ . "#mac"} = $mac;
+				$row[0]{$num++ . "#mac"} = $mac;
 			}
+			@rows = (@rows,@row);
 			if ($show{'ip'}){
 				@row = if_ip($if) if $if;
 				@rows = (@rows,@row) if @row;
