@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-08';
-my $self_patch='374-p';
+my $self_patch='375-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7985,7 +7985,7 @@ sub get_device_vm {
 ## NetworkData 
 {
 package NetworkData;
-my $b_ip_run;
+my ($b_ip_run,@ifs_found);
 sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
@@ -8082,12 +8082,21 @@ sub card_data {
 		}
 		#print "$row[0]\n";
 	}
+	# @rows = ();
 	if (!@rows){
 		my $key = 'Message';
 		@data = ({
 		$num++ . "#$key" => main::row_defaults('pci-card-data',''),
 		},);
 		@rows = (@rows,@data);
+		if (!$bsd_type){
+			@data = advanced_data_sys('all','',0);
+			@rows = (@rows,@data);
+		}
+		else {
+			@data = advanced_data_bsd('all');
+			@rows = (@rows,@data);
+		}
 	}
 	#my $ref = $pci[-1];
 	#print $$ref[0],"\n";
@@ -8099,12 +8108,13 @@ sub advanced_data_sys {
 	return if ! -d '/sys/class/net';
 	my ($vendor,$chip,$count,$b_wifi) = @_;
 	my $num = 0;
-	my (@row,@rows,$if);
+	my ($b_all,$if,@row,@rows);
 	my @paths = glob('/sys/class/net/*');
 	@paths = grep {!/\/lo$/} @paths;
 	if ( $count > 0 && $count < scalar @paths ){
 		@paths = splice @paths, $count, scalar @paths;
 	}
+	$b_all = 1 if $vendor eq 'all';
 	#print join '; ', @paths,  $count, "\n";
 	foreach (@paths){
 		my $path = "$_/device/vendor";
@@ -8115,10 +8125,9 @@ sub advanced_data_sys {
 		$data2 = (main::reader($path))[0] if -e $path;
 		$data2 =~ s/^0x// if $data2;
 		# this is a fix for a redhat bug in virtio 
-		$data2 = (defined $data2 && $data2 eq '0001' && $chip eq '1000') ? '1000' : $data2;
+		$data2 = (defined $data2 && $data2 eq '0001' && defined $chip && $chip eq '1000') ? '1000' : $data2;
 		#print "d1:$data1 v:$vendor d2:$data2 c:$chip\n";
-		if ($data1 && $data2 && $data1 eq $vendor && $data2 eq $chip) {
-			my $j = scalar @rows - 1;
+		if ( $b_all || ( $data1 && $data2 && $data1 eq $vendor && $data2 eq $chip )) {
 			$if = $_;
 			$if =~ s/^\/.+\///;
 			$path = "$_/duplex";
@@ -8134,27 +8143,36 @@ sub advanced_data_sys {
 			$state = (main::reader($path))[0] if -e $path;
 			$state ||= 'N/A';
 			#print "$speed \n";
-			@rows = ({
+			@row = ({
 			$num++ . "#IF" => $if,
 			$num++ . "#state" => $state,
 			},);
+			my $j = scalar @row - 1;
+			push @ifs_found, $if if ! grep {/$if/} @ifs_found;
 			# no print out for wifi since it doesn't have duplex/speed data available
 			# note that some cards show 'unknown' for state, so only testing explicitly
 			# for 'down' string in that to skip showing speed/duplex
 			if (!$b_wifi && $state ne 'down' && $state ne 'no'){
 				# make sure the value is strictly numeric before appending Mbps
 				$speed = ($speed =~ /^[0-9]+$/) ? "$speed Mbps" : $speed;
-				$rows[$j]{$num++ .  "#speed"} = $speed;
-				$rows[$j]{$num++ . "#duplex"} = $duplex;
+				$row[$j]{$num++ .  "#speed"} = $speed;
+				$row[$j]{$num++ . "#duplex"} = $duplex;
 			}
-			$rows[$j]{$num++ . "#mac"} = $mac;
-			last;
+			$row[$j]{$num++ . "#mac"} = $mac;
+			if ($b_all){
+				@rows = (@rows,@row);
+			}
+			else {
+				@rows = @row;
+			}
+			if ($show{'ip'}){
+				@row = if_ip($if);
+				@rows = (@rows,@row);
+			}
+			last if !$b_all;
 		}
 	}
-	if ($show{'ip'}){
-		@row = if_ip($if);
-		@rows = (@rows,@row);
-	}
+	
 	eval $end if $b_log;
 	return @rows;
 }
@@ -8163,8 +8181,9 @@ sub advanced_data_bsd {
 	return if ! @ifs_bsd;
 	my ($if,$b_wifi) = @_;
 	my (@data,@row,@rows,$working_if);
-	my ($state,$speed,$duplex,$mac);
+	my ($b_all,$state,$speed,$duplex,$mac);
 	my $num = 0;
+	$b_all = 1 if $if eq 'all';
 	foreach my $ref (@ifs_bsd){
 		if (ref $ref ne 'ARRAY'){
 			$working_if = $ref;
@@ -8174,7 +8193,8 @@ sub advanced_data_bsd {
  		else {
 			@data = @$ref;
  		}
-		if ($working_if eq $if){
+		if ($b_all || $working_if eq $if){
+			$if = $working_if if $b_all;
 			foreach my $line (@data){
 				my $j = scalar @rows - 1;
 				# ($state,$speed,$duplex,$mac)
@@ -8190,6 +8210,7 @@ sub advanced_data_bsd {
 				$num++ . "#IF" => $if,
 				$num++ . "#state" => $state,
 				},);
+				push @ifs_found, $if if ! grep {/$if/} @ifs_found;
 				# no print out for wifi since it doesn't have duplex/speed data available
 				# note that some cards show 'unknown' for state, so only testing explicitly
 				# for 'down' string in that to skip showing speed/duplex
