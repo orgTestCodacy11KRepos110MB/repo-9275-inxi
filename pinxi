@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-07';
-my $self_patch='370-p';
+my $self_patch='371-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10425,7 +10425,10 @@ sub create_output {
 			elsif ($i == 3){
 				$rows[$j]{$num++ . '#psu'} = $fan_main[$i];
 			}
-			elsif ($i > 3){
+			elsif ($i == 4){
+				$rows[$j]{$num++ . '#sodimm'} = $fan_main[$i];
+			}
+			elsif ($i > 4){
 				$fan_number = $i - 3;
 				$rows[$j]{$num++ . '#sys-' . $fan_number} = $fan_main[$i];
 			}
@@ -10552,7 +10555,7 @@ sub sensors_data {
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# note: can be cpu fan:, cpu fan speed:, etc.
-		if (/^CPU(.*):([0-9]+)[ \t]RPM/i) {
+		if (/^(CPU|Processor).*:([0-9]+)[ \t]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[1] = $2;
 		}
@@ -10564,13 +10567,17 @@ sub sensors_data {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[3] = $3;
 		}
+		if (/(SODIMM)(.*):([0-9]+)[ \t]RPM/i) {
+			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
+			$sensors{'fan-main'}[4] = $2;
+		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 		# note: cpu/mobo/ps are 1/2/3
 		if (/^(AUX[1]? |CASE[1]? |CHASSIS[1]? )(.*):([0-9]+)[ \t]RPM/i) {
 			$temp_working = $3;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
-			for ( my $i = 4; $i < 7; $i++ ){
+			for ( my $i = 5; $i < 7; $i++ ){
 				next if defined $sensors{'fan-main'}[$i];
 				if ( !defined $sensors{'fan-main'}[$i] ){
 					$sensors{'fan-main'}[$i] = $temp_working;
