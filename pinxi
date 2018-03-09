@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-08';
-my $self_patch='377-p';
+my $self_patch='378-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8171,7 +8171,6 @@ sub advanced_data_sys {
 			last if !$b_all;
 		}
 	}
-	
 	eval $end if $b_log;
 	return @rows;
 }
@@ -8179,7 +8178,7 @@ sub advanced_data_bsd {
 	eval $start if $b_log;
 	return if ! @ifs_bsd;
 	my ($if,$b_wifi) = @_;
-	my (@data,@row,@rows,$working_if);
+	my (@data,@row,@rows,$working_if,@if_list);
 	my ($b_all,$state,$speed,$duplex,$mac);
 	my $num = 0;
 	$b_all = 1 if $if eq 'all';
@@ -8195,7 +8194,14 @@ sub advanced_data_bsd {
 		if ($b_all || $working_if eq $if){
 			$if = $working_if if $b_all;
 			foreach my $line (@data){
-				my $j = scalar @rows - 1;
+				if ($b_all) {
+					if (! grep {/$if/} @if_list){
+						push @if_list, $if;
+					}
+					else {
+						last;
+					}
+				}
 				# ($state,$speed,$duplex,$mac)
 				$duplex = $data[2];
 				$duplex ||= 'N/A';
@@ -8205,10 +8211,12 @@ sub advanced_data_bsd {
 				$state = $data[0];
 				$state ||= 'N/A';
 				#print "$speed \n";
-				@rows = ({
+				@row = ({
 				$num++ . "#IF" => $if,
 				$num++ . "#state" => $state,
 				},);
+				@rows = (@rows,@row);
+				my $j = scalar @rows - 1;
 				push @ifs_found, $if if ! grep {/$if/} @ifs_found;
 				# no print out for wifi since it doesn't have duplex/speed data available
 				# note that some cards show 'unknown' for state, so only testing explicitly
@@ -8254,7 +8262,7 @@ sub if_ip {
 			@data = @$ref;
 			# print "ref:$ref\n";
  		}
-		if ($working_if eq $if || $if eq 'all'){
+		if ($working_if eq $if){
 			foreach my $ref2 (@data){
 				$j = scalar @rows;
 				if ($limit > 0 && $j >= $limit){
