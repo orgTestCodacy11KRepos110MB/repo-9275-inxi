@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-09';
-my $self_patch='385-p';
+my $self_patch='386-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5692,13 +5692,9 @@ sub data_cpuinfo {
 			if ( !defined $phys_holder || $phys_holder != $line[1] ){
 				# only increment if not in array counter
 				push @phys_cpus, $line[1] if ! grep {/$line[1]/} @phys_cpus;
-				#$phys_id++;
-				#$ids[$phys_id] = ([(0)]) if ! $ids[$phys_id];
-				#$ids[$phys_id][$die_id] = ([(0)]) if ! $ids[$phys_id][$die_id];
 				$phys_holder = $line[1];
 				$ids[$phys_holder] = ([]) if ! exists $ids[$phys_holder];
 				$ids[$phys_holder][$die_id] = ([]) if ! exists $ids[$phys_holder][$die_id];
-				
 				#print "pid: $line[1] ph: $phys_holder did: $die_id\n";
 				$die_id = 0;
 				#$die_holder = 0;
@@ -5706,21 +5702,21 @@ sub data_cpuinfo {
 		}
 		elsif ( $line[0] eq 'core id' ){
 			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
+			# https://www.pcworld.com/article/3214635/components-processors/ryzen-threadripper-review-we-test-amds-monster-cpu.html
 			if ($line[1] > 0 ){
 				$die_holder = $line[1];
 				$core_count++;
 			}
-			# this handles multi die cpus like 16 core ryzen
+			# NOTE: this logic won't work for die detections, unforutnately.
+			# ARM uses a different /sys based method, and ryzen relies on math on the cores
+			# in process_data
 			elsif ($line[1] == 0 && $die_holder > 0 ){
 				$die_holder = $line[1];
 				$core_count = 0;
-				$die_id++ if $cpu{'type'} ne 'intel';
+				$die_id++ if ($cpu{'type'} ne 'intel' && $cpu{'type'} ne 'amd' );
 			}
 			$phys_holder = 0 if ! defined $phys_holder;
-			#$ids[$phys_id][$die_id][$line[1]] = $speed;
-			#$ids[$phys_id][$die_id][$line[1]] = $speed;
 			$ids[$phys_holder][$die_id][$line[1]] = $speed;
-			#$cpu{'dies'} = $die_id;
 			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 		}
 		if (!$cpu{'type'} && $line[0] eq 'vendor_id' ){
@@ -5982,8 +5978,13 @@ sub cpu_properties {
 	if ($b_xeon && $cpu{'siblings'} > 1){
 		$cpu_cores = ($cpu{'siblings'}/2); 
 	}
+	# ryzen is made out of blocks of 8 core dies
 	if ($b_ryzen){
 		$cpu_cores = $cpu{'cores'}; 
+		 # note: posix ceil isn't present in Perl for some reason, deprecated?
+		my $working = $cpu_cores / 8;
+		my @temp = split /\./, $working;
+		$cpu{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
 	}
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
