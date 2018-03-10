@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-09';
-my $self_patch='386-p';
+my $self_patch='387-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6475,7 +6475,6 @@ sub get {
 	my ($type) = @_;
 	$type ||= 'standard';
 	my $num = 0;
-
 	@data = disk_data();
 	if (@data){
 		if ($type eq 'standard'){
@@ -6714,6 +6713,10 @@ sub proc_data_advanced {
 			$block_type = 'sdx';
 			$working_path = "/sys/block/$drives[$i]{'id'}/device/";
 		}
+		elsif ($drives[$i]{'id'} =~ /mmcblk/){
+			$block_type = 'mmc';
+			$working_path = "/sys/block/$drives[$i]{'id'}/device/";
+		}
 		elsif ($drives[$i]{'id'} =~ /nvme/){
 			$block_type = 'nvme';
 			# this results in:
@@ -6732,6 +6735,17 @@ sub proc_data_advanced {
 					$model =~ s/\s/_/g;
 					@temp = split /-/, $model;
 					$drives[$i]{'model'} = $temp[0];
+				}
+			}
+			elsif ($block_type eq 'mmc' && -e "${working_path}name"){
+				$path = "${working_path}name";
+				if ( -e $path){
+					$model = (main::reader($path,'strip'))[0];
+					if ($model){
+						$model =~ s/\s/_/g;
+						@temp = split /-/, $model;
+						$drives[$i]{'model'} = $temp[0];
+					}
 				}
 			}
 			elsif (@scsi && @by_id){
@@ -6780,6 +6794,10 @@ sub proc_data_advanced {
 				if ($extra > 2){
 					$path = "${working_path}rev";
 					if ( -e $path){
+						$drives[$i]{'firmware'} = (main::reader($path,'strip'))[0];
+					}
+					$path = "${working_path}fwrev";
+					if ( !$drives[$i]{'firmware'} && -e $path){
 						$drives[$i]{'firmware'} = (main::reader($path,'strip'))[0];
 					}
 				}
