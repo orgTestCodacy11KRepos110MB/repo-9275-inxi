@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='390-p';
+my $self_patch='391-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6981,7 +6981,7 @@ sub match_glabel {
 	my ($dev_id) = ('');
 	foreach (@glabel){
 		my @temp = split /\s+/, $_;
-		if ($temp[0] eq $gptid){
+		if (defined $temp[0] && $temp[0] eq $gptid){
 			$dev_id = $temp[2];
 			last;
 		}
@@ -12421,7 +12421,7 @@ sub get_bsd_os {
 sub get_linux_distro {
 	eval $start if $b_log;
 	my $distro_file = '';
-	my (@working,$b_osr);
+	my ($b_osr,@working);
 	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
 	mandrake-release mx-version pardus-release porteus-version sabayon-release 
 	siduction-version sidux-version slitaz-release solusos-release turbolinux-release 
@@ -12440,15 +12440,20 @@ sub get_linux_distro {
 	my @distro_files = glob('/etc/*[-_]{[rR]elease,[vV]ersion}*');
 	my $distro_files_s = join "|", @distro_files;
 	my $lsb_release = '/etc/lsb-release';
-	my $b_lsb = ( -f $lsb_release ) ? 1 : 0;
 	my $issue = '/etc/issue';
 	my $os_release = '/etc/os-release';
 	my $b_os_release = ( -f $os_release ) ? 1 : 0;
+	my $b_lsb = ( -f $lsb_release ) ? 1 : 0;
 	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
 	if ( scalar @distro_files == 1 ){
 		$distro_file = $distro_files[0];
 	}
 	else {
+		# special case, to force manjaro which also has arch-release
+		# manjaro should use lsb, which has the full info, arch uses os release
+		if (grep {/manjaro/} @distro_files){
+			@distro_files = grep {!/arch-release/} @distro_files;
+		}
 		@working = (@derived,@primary);
 		foreach my $file (@working){
 			if ( "/etc/$file" =~ /($distro_files_s)$/){
@@ -12466,7 +12471,7 @@ sub get_linux_distro {
 				else {
 					$distro_file = "/etc/$file";
 				}
-				last;
+				# last;
 			}
 		}
 		main::log_data('data',"distro_file: $distro_file") if $b_log;
@@ -14074,23 +14079,25 @@ sub generate_short_data {
 	# print Dumper \@disk;
 	my $disk_string = 'N/A';
 	my ($size,$used,$size_type,$used_type) = ('','','','');
-	my (@temp);
+	my (@temp,$size_holder,$used_holder);
 	if (@disk){
 		$size = $disk[0]{'size'};
 		if (defined $disk[0]{'size'} && $disk[0]{'size'} =~ /^[0-9\.]+$/){
+			$size_holder = $disk[0]{'size'};
 			@temp = get_size($size);
 			$size = $temp[0];
 			$size_type = " $temp[1]";
 		}
 		$used = $disk[0]{'used'};
 		if (defined $disk[0]{'used'} && $disk[0]{'used'} =~ /^[0-9\.]+$/){
+			$used_holder = $disk[0]{'used'};
 			@temp = get_size($used);
 			$used = $temp[0];
 			$used_type = " $temp[1]";
 		}
 		# in some fringe cases size can be 0 so only assign 'N/A' if no percents etc
-		if ($size && $size_type && $used_type){
-			my $percent = ' (' . sprintf("%.1f", $used/$size*100) . '% used)';
+		if ($size_holder && $used_holder){
+			my $percent = ' (' . sprintf("%.1f", $used_holder/$size_holder*100) . '% used)';
 			$disk_string = "$size$size_type$percent";
 		}
 		else {
