@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-09';
-my $self_patch='387-p';
+my $self_patch='388-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1115,6 +1115,10 @@ sub log_data {
 			}
 			$spacer='';
 		}
+	}
+	elsif ($one eq 'cmd'){
+		$data = "Command: $two\n";
+		$data .= qx($two);
 	}
 	elsif ($one eq 'data'){
 		$data = "$two\n";
@@ -10577,7 +10581,8 @@ sub sensors_data {
 			$adapter = '';
 			next;
 		}
-		if (/^!(amdgpu|intel|nouveau|radeon)-(isa|pci|virtual)-/){
+		
+		if (/^(?:(?!intel|nouveau|radeon).)*-(isa|pci|virtual)-/){
 			$b_valid = 1;
 			$adapter = $1;
 			next;
@@ -10999,7 +11004,9 @@ sub gpu_data {
 			$screen2 =~ s/\.[0-9]$//;
 			$cmd = '-q GPUCoreTemp -q VideoRam -q GPUCurrentClockFreqs -q PCIECurrentLinkWidth ';
 			$cmd .= '-q Irq -q PCIBus -q PCIDevice -q GPUCurrentFanSpeed';
-			@data = main::grabber("$path -c $screen2 $cmd 2>/dev/null");
+			$cmd = "$path -c $screen2 $cmd 2>/dev/null";
+			@data = main::grabber($cmd);
+			main::log_data('cmd',$cmd) if $b_log;
 			@data = (@data,@data2);
 			$j = scalar @gpudata;
 			$gpudata[$j] = ({});
@@ -11062,8 +11069,9 @@ sub gpu_data {
 				if (/^fan.*:([0-9]+).*(RPM)?/){
 					$gpudata[$j]{'fan-speed'} = $1;
 				}
+				main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 			}
-			if (/!(intel|nouveau|radeon)-(pci|virtual|isa)-(.*)/){
+			if (/^(?:(?!intel|nouveau|radeon).)*-(pci|virtual|isa)-(.*)/){
 				$b_found = 0;
 				$holder = '';
 			}
