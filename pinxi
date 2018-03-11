@@ -39,8 +39,8 @@ use Sys::Hostname;
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-09';
-my $self_patch='388-p';
+my $self_date='2018-03-11';
+my $self_patch='389-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11393,10 +11393,10 @@ sub usb_data {
 				#print "$line\n";
 				@row = split /:/, $line;
 				next if ! defined $row[0];
-				if ($row[0] eq 'bcdUSB'){
-					$speed  = $row[1]
+				if ($row[0] eq 'bcdUSB' && defined $row[1]){
+					$speed  = $row[1];
 				}
-				elsif ($row[0] eq '~bInterfaceProtocol'){
+				elsif ($row[0] eq '~bInterfaceProtocol' && $row[2] ){
 					$protocol = $row[2];
 				}
 			}
@@ -11419,23 +11419,23 @@ sub usb_data {
 			foreach my $line (@id){
 				@row = split /:/, $line;
 				next if ! defined $row[0];
-				if ($row[0] eq 'bcdUSB'){
-					$speed  = $row[1]
+				if ($row[0] eq 'bcdUSB' && defined $row[1]){
+					$speed  = $row[1];
 				}
-				elsif ($row[0] eq 'bDeviceClass' && $row[1] == 9){
+				elsif ($row[0] eq 'bDeviceClass' && defined $row[1] && $row[1] == 9){
 					$b_hub = 1;
 				}
-				elsif ($row[0] eq 'idVendor'){
+				elsif ($row[0] eq 'idVendor' && $row[2]){
 					$vendor  = main::cleaner($row[2]);
 				}
-				elsif ($row[0] eq 'idProduct'){
-					$product = main::cleaner($row[2]) if $row[2];
+				elsif ($row[0] eq 'idProduct' && $row[2]){
+					$product = main::cleaner($row[2]);
 				}
 				# we want hubs to cascade to last item
-				elsif ($row[0] eq '~bInterfaceClass' && $row[1] != 9){
-					$class = main::cleaner($row[2]) if $row[2];
+				elsif ($row[0] eq '~bInterfaceClass' && $row[2] && defined $row[1] && $row[1] != 9){
+					$class = main::cleaner($row[2]);
 				}
-				elsif ($row[0] eq '~bInterfaceProtocol'){
+				elsif ($row[0] eq '~bInterfaceProtocol' && defined $row[2]){
 					$protocol = $row[2];
 					$protocol =~ s/none//i if $protocol;
 					last if $class;
@@ -13859,7 +13859,8 @@ sub generate_lines {
 	set_sysctl_data() if $b_sysctl;
 	# note: ps aux loads before logging starts, so create debugger data here
 	if ($b_log){
-		main::log_data('dump','@ps_aux',\@ps_aux);
+		# I don't think we need to see this, it's long, but leave in case we do
+		#main::log_data('dump','@ps_aux',\@ps_aux);
 		main::log_data('dump','@ps_cmd',\@ps_cmd);
 	}
 # 	if ($test[3]){
