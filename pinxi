@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='391-p';
+my $self_patch='392-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8025,9 +8025,9 @@ sub get {
 	}
 	else {
 		@data = card_data();
-		@rows = (@rows,@data);
+		@rows = (@rows,@data) if @data;
 		@data = usb_data();
-		@rows = (@rows,@data);
+		@rows = (@rows,@data) if @data;
 	}
 	if ($show{'network-advanced'}){
 		# @ifs_found = ();
@@ -8081,7 +8081,7 @@ sub card_data {
 				$holder{$chip_id}++; 
 			}
 			# first check if it's a known wifi id'ed card, if so, no print of duplex/speed
-			$b_wifi = ($row[4] =~ /wireless|wifi|wi-fi|wlan|802\.11|centrino/i) ? 1 : 0;
+			$b_wifi = check_wifi($row[4]);
 			$driver ||= 'N/A';
 			@data = (
 			{
@@ -8127,6 +8127,93 @@ sub card_data {
 	}
 	#my $ref = $pci[-1];
 	#print $$ref[0],"\n";
+	eval $end if $b_log;
+	return @rows;
+}
+sub usb_data {
+	eval $start if $b_log;
+	my ($b_wifi,@rows,@data,$product,$product2,$test,$vendor,$vendor2);
+	my ($j,$num) = (0,1);
+	return if !@usb;
+	foreach my $ref (@usb){
+		my @row = @$ref;
+		($product,$product2,$test,$vendor,$vendor2) = ('','','','','');
+		# a device will always be the second or > device on the bus
+		if ($row[1] > 1){
+			if ($usb_level == 1){
+				$product = main::cleaner($row[3]);
+			}
+			else {
+				foreach my $line (@row){
+					my @working = split /:/, $line;
+					if ($working[0] eq 'idVendor' && $working[2]){
+						$vendor = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'idProduct' && $working[2]){
+						$product = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'iVendor' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'iProduct' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'Descriptor_Configuration'){
+						last;
+					}
+				}
+				if ($vendor && $product){
+					$product = ($product =~ /$vendor/) ? $product: "$vendor $product";
+				}
+				elsif ($vendor && $product2){
+					$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2";
+				}
+				elsif ($vendor2 && $product){
+					$product = ($product =~ /$vendor2/) ? $product: "$vendor2 $product";
+				}
+				elsif ($vendor2 && $product2){
+					$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2";
+				}
+				elsif ($vendor){
+					$product = $vendor;
+				}
+				elsif ($vendor2){
+					$product = $vendor2;
+				}
+				$test = "$vendor $product $vendor2 $vendor2";
+			}
+			if ($product && network_device($test)){
+				@data = ({
+				$num++ . "#Card" => $product,
+				$num++ . "#driver" => 'USB Network',
+				},);
+				$b_wifi = check_wifi($product);
+				@rows = (@rows,@data);
+				if ($extra > 0){
+					$rows[$j]{$num++ . "#bus ID"} = "$row[0]:$row[1]";
+				}
+				if ($extra > 1){
+					$rows[$j]{$num++ . "#chip ID"} = $row[2];
+				}
+				$j = scalar @rows;
+				if ($show{'network-advanced'}){
+					if (!$bsd_type){
+						my (@temp,$vendor,$chip);
+						@temp = split (/:/, $row[2]) if $row[2];
+						($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
+						@data = advanced_data_sys($vendor,$chip,0,$b_wifi);
+					}
+					# NOTE: we need the driver.number, like wlp0 to get a match, and 
+					# we can't get that from usb data, so we have to let it fall back down 
+					# to the check function for BSDs.
+					#else {
+					#	@data = advanced_data_bsd($row[2],$b_wifi);
+					#}
+					@rows = (@rows,@data) if @data;
+				}
+			}
+		}
+	}
 	eval $end if $b_log;
 	return @rows;
 }
@@ -8397,81 +8484,6 @@ sub wan_ip {
 	return @data;
 }
 
-sub usb_data {
-	eval $start if $b_log;
-	my (@rows,@data,$product,$product2,$test,$vendor,$vendor2);
-	my ($j,$num) = (0,1);
-	return if !@usb;
-	foreach my $ref (@usb){
-		my @row = @$ref;
-		($product,$product2,$test,$vendor,$vendor2) = ('','','','','');
-		# a device will always be the second or > device on the bus
-		if ($row[1] > 1){
-			if ($usb_level == 1){
-				$product = main::cleaner($row[3]);
-			}
-			else {
-				foreach my $line (@row){
-					my @working = split /:/, $line;
-					if ($working[0] eq 'idVendor' && $working[2]){
-						$vendor = main::cleaner($working[2]);
-					}
-					if ($working[0] eq 'idProduct' && $working[2]){
-						$product = main::cleaner($working[2]);
-					}
-					if ($working[0] eq 'iVendor' && $working[2]){
-						$product2 = main::cleaner($working[2]);
-					}
-					if ($working[0] eq 'iProduct' && $working[2]){
-						$product2 = main::cleaner($working[2]);
-					}
-					if ($working[0] eq 'Descriptor_Configuration'){
-						last;
-					}
-				}
-				if ($vendor && $product){
-					$product = ($product =~ /$vendor/) ? $product: "$vendor $product";
-				}
-				elsif ($vendor && $product2){
-					$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2";
-				}
-				elsif ($vendor2 && $product){
-					$product = ($product =~ /$vendor2/) ? $product: "$vendor2 $product";
-				}
-				elsif ($vendor2 && $product2){
-					$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2";
-				}
-				elsif ($vendor){
-					$product = $vendor;
-				}
-				elsif ($vendor2){
-					$product = $vendor2;
-				}
-				$test = "$vendor $product $vendor2 $vendor2";
-			}
-			if ($product && network_device($test)){
-				@data = ({
-				$num++ . "#Card" => $product,
-				$num++ . "#driver" => 'USB Network',
-				},);
-				@rows = (@rows,@data);
-				if ($extra > 0){
-					$rows[$j]{$num++ . "#bus ID"} = "$row[0]:$row[1]";
-				}
-				if ($extra > 1){
-					$rows[$j]{$num++ . "#chip ID"} = $row[2];
-				}
-				$j = scalar @rows;
-				if ($show{'network-advanced'}){
-					@data = advanced_data_sys($row[5],$row[6],0);
-					@rows = (@rows,@data);
-				}
-			}
-		}
-	}
-	eval $end if $b_log;
-	return @rows;
-}
 ### USB networking search string data, because some brands can have other products than
 ### wifi/nic cards, they need further identifiers, with wildcards.
 ### putting the most common and likely first, then the less common, then some specifics
@@ -8509,6 +8521,11 @@ sub network_device {
 	}
 	eval $end if $b_log;
 	return $b_network;
+}
+sub check_wifi {
+	my ($item) = @_;
+	my $b_wifi = ($item =~ /wireless|wifi|wi-fi|wlan|802\.11|centrino/i) ? 1 : 0;
+	return $b_wifi;
 }
 }
 
