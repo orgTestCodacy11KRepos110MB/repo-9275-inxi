@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='392-p';
+my $self_patch='393-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10591,6 +10591,7 @@ sub sensors_data {
 	my ($b_valid,$sys_fan_nu)  = (0,0);
 	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','');
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
 	#@sensors_data = main::reader($file);
 	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
 	@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
@@ -10615,26 +10616,29 @@ sub sensors_data {
 		# when constructing temp items for array. 
 		# note that because of charset issues, no "°" degree sign used, but it is required 
 		# in testing regex to avoid error.
-		if (/^(AMBIENT|M\/B|MB|SIO|SYS)(.*):([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^(AMBIENT|M\/B|MB|SIO|SYS).*:([0-9\.]+)[ \t°](C|F)/i) {
 			$sensors{'mobo-temp'} = $2;
 			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# issue 58 msi/asus show wrong for CPUTIN so overwrite it if PECI 0 is present
 		# http://www.spinics.net/lists/lm-sensors/msg37308.html
-		if (/^CPU(.*)\+([0-9]+):([0-9\.]+)[ \t°](C|F)/i) {
-			$sensors{'cpu-temp'} = $2;
-			$working_unit = $3;
+		# NOTE: had: ^CPU.*\+([0-9]+): but that misses: CPUTIN and anything not with + in starter
+		# However, "CPUTIN is not a reliable measurement because it measures difference to Tjmax,
+		# which is the maximum CPU temperature reported as critical temperature by coretemp"
+		if (/^CPU.*:([0-9\.]+)[ \t°](C|F)/i) {
+			$sensors{'cpu-temp'} = $1;
+			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		if (/^PECI\sAgent\s0(.*):([0-9\.]+)[ \t°](C|F)/i) {
-			$sensors{'cpu-peci-temp'} = $2;
-			$working_unit = $3;
+		if (/^PECI\sAgent\s0.*:([0-9\.]+)[ \t°](C|F)/i) {
+			$sensors{'cpu-peci-temp'} = $1;
+			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		if (/^(P\/S|Power)(.*):([0-9\.]+)[ \t°](C|F)/i) {
-			$sensors{'psu-temp'} = $3;
-			$working_unit = $4;
+		if (/^(P\/S|Power).*:([0-9\.]+)[ \t°](C|F)/i) {
+			$sensors{'psu-temp'} = $2;
+			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# for temp1/2 only use temp1/2 if they are null or greater than the last ones
@@ -10678,23 +10682,23 @@ sub sensors_data {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[1] = $2;
 		}
-		if (/^(M\/B|MB|SYS)(.*):([0-9]+)[ \t]RPM/i) {
+		if (/^(M\/B|MB|SYS).*:([0-9]+)[ \t]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
-			$sensors{'fan-main'}[2] = $3;
+			$sensors{'fan-main'}[2] = $2;
 		}
-		if (/(Power|P\/S|POWER)(.*):([0-9]+)[ \t]RPM/i) {
+		if (/(Power|P\/S|POWER).*:([0-9]+)[ \t]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
-			$sensors{'fan-main'}[3] = $3;
+			$sensors{'fan-main'}[3] = $2;
 		}
-		if (/(SODIMM)(.*):([0-9]+)[ \t]RPM/i) {
+		if (/(SODIMM).*:([0-9]+)[ \t]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[4] = $2;
 		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 		# note: cpu/mobo/ps are 1/2/3
-		if (/^(AUX[1]? |CASE[1]? |CHASSIS[1]? )(.*):([0-9]+)[ \t]RPM/i) {
-			$temp_working = $3;
+		if (/^(AUX[1]? |CASE[1]? |CHASSIS[1]? ).*:([0-9]+)[ \t]RPM/i) {
+			$temp_working = $2;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			for ( my $i = 5; $i < 7; $i++ ){
 				next if defined $sensors{'fan-main'}[$i];
@@ -10704,8 +10708,8 @@ sub sensors_data {
 				}
 			}
 		}
-		if (/^(AUX[2-9] |CASE[2-9] |CHASSIS[2-9] )(.*):([0-9]+)[ \t]RPM/i) {
-			$temp_working = $3;
+		if (/^(AUX[2-9] |CASE[2-9] |CHASSIS[2-9] ).*:([0-9]+)[ \t]RPM/i) {
+			$temp_working = $2;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			for ( my $i = 5; $i < 30; $i++ ){
 				next if defined $sensors{'fan-main'}[$i];
@@ -10721,8 +10725,8 @@ sub sensors_data {
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
 			$sensors{'fan-default'}[1] = $2;
 		}
-		if (/^FAN([2-9]|1[0-9])(.*):([0-9]+)[ \t]RPM/i) {
-			$fan_working = $3;
+		if (/^FAN([2-9]|1[0-9]).*:([0-9]+)[ \t]RPM/i) {
+			$fan_working = $2;
 			$sys_fan_nu = $1;
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
 			if ( $sys_fan_nu =~ /^([0-9]+)$/ ) {
@@ -10738,7 +10742,7 @@ sub sensors_data {
 			}
 		}
 	}
-	#print Data::Dumper::Dumper \%sensors;
+	# print Data::Dumper::Dumper \%sensors;
 	%sensors = data_processor(%sensors) if %sensors;
 	main::log_data('dump','%sensors',\%sensors) if $b_log;
 	# print Data::Dumper::Dumper \%sensors;
@@ -10835,7 +10839,7 @@ sub data_processor {
 		if ( $sensors{'cpu-peci-temp'} && ( $sensors{'cpu-temp'} - $sensors{'cpu-peci-temp'} ) > $temp_diff ){
 			$cpu_temp = $sensors{'cpu-peci-temp'};
 		}
-		# then get the real cpu temp, best guess is hottest is real
+		# then get the real cpu temp, best guess is hottest is real, though only within narrowed diff range
 		else {
 			$cpu_temp = $sensors{'cpu-temp'};
 		}
