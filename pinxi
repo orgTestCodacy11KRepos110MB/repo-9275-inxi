@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='389-p';
+my $self_patch='390-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10539,8 +10539,8 @@ sub create_output {
 		}
 	}
 	# note: so far, only nvidia-settings returns speed, and that's in percent
-	if (scalar @gpu == 1 && defined $gpu[0]{'speed'}){
-		my $gpu_fan = $gpu[0]{'speed'} . '%';
+	if (scalar @gpu == 1 && defined $gpu[0]{'fan-speed'}){
+		my $gpu_fan = ( $gpu[0]{'fan-speed'} ) ? $gpu[0]{'fan-speed'} . $gpu[0]{'speed-unit'} : '';
 		my $gpu_type = $gpu[0]{'type'};
 		$rows[$j]{$num++ . '#gpu'} = $gpu_type;
 		$rows[$j]{$num++ . '#fan'} = $gpu_fan;
@@ -10551,7 +10551,8 @@ sub create_output {
 		my $gpu_unit = (defined $gpu[0]{'temp-unit'} ) ? " $gpu[0]{'temp-unit'}" : ' C';
 		foreach my $ref (@gpu){
 			my %info = %$ref;
-			my $gpu_fan = (defined $info{'speed'}) ? $info{'speed'} . '%': '' ;
+			# speed unit is either '' or %
+			my $gpu_fan = (defined $info{'fan-speed'}) ? $info{'fan-speed'} . $info{'speed-unit'}: '' ;
 			my $gpu_type = $info{'type'};
 			my $gpu_temp = (defined $info{'temp'} ) ? $info{'temp'} . $gpu_unit: 'N/A';
 			$rows[$j]{$num++ . '#device'} = $gpu_type;
@@ -10572,6 +10573,8 @@ sub sensors_data {
 	my (%sensors);
 	my ($b_valid,$sys_fan_nu)  = (0,0);
 	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','');
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+	#@sensors_data = main::reader($file);
 	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
 	@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
 	foreach (@sensors_data){
@@ -11015,6 +11018,7 @@ sub gpu_data {
 					my $attribute = $1;
 					my $value = $2;
 					$gpudata[$j]{'type'} = 'nvidia';
+					$gpudata[$j]{'speed-unit'} = '%';
 					$gpudata[$j]{'screen'} = $screen;
 					if (!$gpudata[$j]{'temp'} && $attribute eq 'GPUCoreTemp'){
 						$gpudata[$j]{'temp'} = $value;
@@ -11068,6 +11072,8 @@ sub gpu_data {
 				}
 				if (/^fan.*:([0-9]+).*(RPM)?/){
 					$gpudata[$j]{'fan-speed'} = $1;
+					# NOTE: we test for nvidia %, everything else stays with nothing
+					$gpudata[$j]{'speed-unit'} = '';
 				}
 				main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 			}
