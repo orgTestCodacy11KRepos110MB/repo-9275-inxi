@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='398-p';
+my $self_patch='400-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2667,6 +2667,7 @@ sub awk {
 	eval $start if $b_log;
 	my ($ref,$search,$num,$sep) = @_;
 	my ($result);
+	# print "search: $search\n";
 	return if ! @$ref || ! $search;
 	foreach (@$ref){
 		if (/$search/i){
@@ -4573,7 +4574,7 @@ sub print_data {
 	my $length = 0;
 	my $indent = $size{'indent'};
 	my (@temp,@working,@values,%ids,$holder2,%row);
-	my ($key,$line,$val2,$val3);
+	my ($array_holder,$key,$line,$val2,$val3);
 	# $size{'max'} = 88;
 	if ($size{'max'} < $size{'indent-min'}){
 		$indent = 2;
@@ -4613,6 +4614,12 @@ sub print_data {
 					$hash = scalar %$val1;
 					foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
 						$key = (split/#/, $key2)[1];
+						# for ram with > 1 system array, we want to reset device count to 1 for each
+						# new array
+						if ($key eq 'Array' && $array_holder != $ids{$key} ){
+							$array_holder = $ids{$key};
+							$ids{'Device'} = 1 if ($ids{'Device'} > 1);
+						}
 						if ($counter == 0 && defined $ids{$key}){
 							$key .= '-' . $ids{$key}++;
 						}
@@ -13146,7 +13153,11 @@ sub get_shell_source {
 			#print "shell parent 2: $shell_parent\n";
 		}
 	}
-	log_data('data',"parents: self: $self_parent shell: $shell_parent") if $b_log;
+	if ($b_log){
+		$self_parent ||= '';
+		$shell_parent ||= '';
+		log_data('data',"parents: self: $self_parent shell: $shell_parent");
+	}
 	eval $end if $b_log;
 	return $shell_parent;
 }
@@ -13156,9 +13167,10 @@ sub get_start_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
 	my $cmd = "ps -j -fp $parent";
-	my @data = grabber($cmd);
-	my $self_parent = awk(\@data,"$parent",3,'\s+');
 	log_data('cmd',$cmd) if $b_log;
+	my @data = grabber($cmd);
+	#shift @data if @data;
+	my $self_parent = awk(\@data,"$parent",3,'\s+');
 	eval $end if $b_log;
 	return $self_parent;
 }
@@ -13166,10 +13178,11 @@ sub get_start_parent {
 sub get_shell_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
-	my $cmd = "ps -j -fp $parent";
-	my @data = grabber($cmd,'strip');
-	my $shell_parent = awk(\@data, "$parent",-1,'\s+',);
+	my $cmd = "ps -j -p $parent";
 	log_data('cmd',$cmd) if $b_log;
+	my @data = grabber($cmd,'strip');
+	#shift @data if @data;
+	my $shell_parent = awk(\@data, "$parent",-1,'\s+');
 	eval $end if $b_log;
 	return $shell_parent;
 }
