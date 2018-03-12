@@ -2015,23 +2015,13 @@ sub set_downloader {
 	# It is NOT part of core modules. IO::Socket::SSL is also required 
 	# For some https connections so only use tiny as option if both present
 	if ($dl{'tiny'}){
-		eval "require HTTP::Tiny";
-		#print $@ . "\n";
-		if ( $@ ) {
-			$dl{'tiny'} = 0;
+		if (check_module('HTTP::Tiny') && check_module('IO::Socket::SSL')){
+			import HTTP::Tiny;
+			import IO::Socket::SSL;
+			$dl{'tiny'} = 1;
 		}
 		else {
-			# required to consistenly run HTTP::Tiny
-			eval "require IO::Socket::SSL"; 
-			#print $@ . "\n";
-			if ( $@ ) {
-				$dl{'tiny'} = 0;
-			}
-			else {
-				import HTTP::Tiny;
-				import IO::Socket::SSL;
-				$dl{'tiny'} = 1;
-			}
+			$dl{'tiny'} = 0;
 		}
 	}
 	#print $dl{'tiny'} . "\n";
@@ -2333,7 +2323,7 @@ sub check_items {
 		%info = item_data($_);
 		$about = $info{$info_os};
 		if ( ( $b_dir && -d $_ ) || ( $b_file && -r $_ ) ||
-		     ($b_program && main::check_program($_) ) || ($b_module && check_module($_)) ){
+		     ($b_program && main::check_program($_) ) || ($b_module && main::check_module($_)) ){
 			$result = 'Present';
 		}
 		elsif ($b_file && -f $_){
@@ -2366,13 +2356,7 @@ sub check_items {
 	}
 	return @rows;
 }
-sub check_module {
-	my ($module) = @_;
-	my $b_present = 0;
-	eval "require $module";
-	$b_present = 1 if !$@;
-	return $b_present;
-}
+
 sub item_data {
 	my ($type) = @_;
 	my %data = (
@@ -2736,6 +2720,14 @@ sub awk {
 	}
 	eval $end if $b_log;
 	return $result;
+}
+# $1 - Perl module to check
+sub check_module {
+	my ($module) = @_;
+	my $b_present = 0;
+	eval "require $module";
+	$b_present = 1 if !$@;
+	return $b_present;
 }
 # arg: 1 - string or path to search gneerated @paths data for.
 # note: a few nano seconds are saved by using raw $_[0] for program
