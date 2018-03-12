@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='402-p';
+my $self_patch='403-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2012,15 +2012,26 @@ sub set_downloader {
 	$dl{'null'} = '';
 	$dl{'spider'} = '';
 	# we only want to use HTTP::Tiny if it's present in user system.
-	# It is NOT part of core modules.
+	# It is NOT part of core modules. IO::Socket::SSL is also required 
+	# For some https connections so only use tiny as option if both present
 	if ($dl{'tiny'}){
-		eval "require HTTP::Tiny"; # if not found, return has error messages etc
+		eval "require HTTP::Tiny";
 		#print $@ . "\n";
 		if ( $@ ) {
 			$dl{'tiny'} = 0;
 		}
 		else {
-			import HTTP::Tiny;
+			# required to consistenly run HTTP::Tiny
+			eval "require IO::Socket::SSL"; 
+			#print $@ . "\n";
+			if ( $@ ) {
+				$dl{'tiny'} = 0;
+			}
+			else {
+				import HTTP::Tiny;
+				import IO::Socket::SSL;
+				$dl{'tiny'} = 1;
+			}
 		}
 	}
 	#print $dl{'tiny'} . "\n";
@@ -2175,6 +2186,8 @@ sub run {
 	push @rows,@data;
 	@data = check_items('recommended downloader programs',$line,$pm);
 	push @rows,@data;
+	@data = check_items('recommended Perl modules',$line,$pm);
+	push @rows,@data;
 	@data = check_items('recommended directories',$line,'');
 	push @rows,@data;
 	@data = check_items('recommended files',$line,'');
@@ -2218,7 +2231,7 @@ sub basic_data {
 sub check_items {
 	my ($type,$line,$pm) = @_;
 	my (@data,%info,@missing,$row,@rows,$result,@unreadable);
-	my ($b_dir,$b_file,$b_program,$item);
+	my ($b_dir,$b_file,$b_module,$b_program,$item);
 	my ($about,$extra,$extra2,$extra3,$extra4,$info_os,$install) = ('','','','','','info','');
 	if ($type eq 'required system directories'){
 		@data = qw(/proc /sys);
@@ -2259,13 +2272,22 @@ sub check_items {
 		}
 		$b_program = 1;
 		$extra = ' (You only need one of these)';
-		$extra2 = "Perl HTTP::Tiny is the default downloader tool. 
+		$extra2 = "Perl HTTP::Tiny is the default downloader tool if IO::Socket::SSL is present.
 		See --help --alt 40-44 options for how to override default downloader(s) in case of issues. ";
 		$extra3 = "If dig is installed, it is the default for WAN IP data. 
 		Strongly recommended. Dig is fast and accurate.";
-		$extra4 = ". However, you really only need dig in most cases so don't worry, ";
-		$extra4 .= "Perl is the default anyway and you obviously have that installed";
+		$extra4 = ". However, you really only need dig in most cases. All systems should have ";
+		$extra4 .= "at least one of the downloader options present.";
 		$item = 'Program';
+	}
+	elsif ($type eq 'recommended Perl modules'){
+		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes);
+		$b_module = 1;
+		$item = 'Perl Module';
+		$extra = ' (Optional)';
+		$extra2 = "None of these are strictly required, but if you have them all, you can eliminate
+		some recommended non Perl programs from the install. ";
+		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a downloader option.";
 	}
 	elsif ($type eq 'recommended directories'){
 		if ($bsd_type){
@@ -2310,7 +2332,8 @@ sub check_items {
 		$about = '';
 		%info = item_data($_);
 		$about = $info{$info_os};
-		if ( ( $b_dir && -d $_ ) || ( $b_file && -r $_ ) || ($b_program && main::check_program($_) )  ){
+		if ( ( $b_dir && -d $_ ) || ( $b_file && -r $_ ) ||
+		     ($b_program && main::check_program($_) ) || ($b_module && check_module($_)) ){
 			$result = 'Present';
 		}
 		elsif ($b_file && -f $_){
@@ -2319,7 +2342,7 @@ sub check_items {
 		}
 		else {
 			$result = 'Missing';
-			$install = " ~ Install package: $info{$pm}" if ($b_program && $pm);
+			$install = " ~ Install package: $info{$pm}" if (($b_program || $b_module) && $pm);
 			push @missing, "$_$install";
 		}
 		$row = make_row($_,$about,$result);
@@ -2342,6 +2365,13 @@ sub check_items {
 		$rows[scalar @rows] = (['0', '', '', "All $type are present"]);
 	}
 	return @rows;
+}
+sub check_module {
+	my ($module) = @_;
+	my $b_present = 0;
+	eval "require $module";
+	$b_present = 1 if !$@;
+	return $b_present;
 }
 sub item_data {
 	my ($type) = @_;
@@ -2613,6 +2643,28 @@ sub item_data {
 	'apt' => 'x11-xserver-utils',
 	'pacman' => 'xrandr',
 	'rpm' => 'x11-server-utils',
+	}),
+	# Perl modules
+	'HTTP::Tiny' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'info-bsd' => '-U; -w,-W; -i (if dig not installed)',
+	'apt' => 'libhttp-tiny-perl',
+	'pacman' => 'Core Modules',
+	'rpm' => 'Perl-http-tiny',
+	}),
+	'IO::Socket::SSL' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'info-bsd' => '-U; -w,-W; -i (if dig not installed)',
+	'apt' => 'libio-socket-ssl-perl',
+	'pacman' => 'perl-io-socket-ssl',
+	'rpm' => 'perl-IO-Socket-SSL',
+	}),
+	'Time::HiRes' => ({
+	'info' => '-C cpu sleep (not required); --debug timers',
+	'info-bsd' => '-C cpu sleep (not required); --debug timers',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'perl-Time-HiRes',
 	}),
 	);
 	my $ref = $data{$type};
