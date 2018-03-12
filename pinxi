@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-11';
-my $self_patch='394-p';
+my $self_patch='395-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8870,8 +8870,8 @@ sub partition_data {
 		}
 	}
 	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
-	my $filters = '^(aufs|cgroup|cgmfs|devfs|devtmpfs|fdescfs|iso9660|linprocfs|procfs|';
-	$filters .= 'squashfs|\/sys\/.*|sysfs|tmpfs|type|udev|unionfs|vartmp)$';
+	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|dev|devfs|devtmpfs|fdescfs|iso9660|linprocfs|procfs|';
+	$filters .= 'run|squashfs|\/sys\/.*|sysfs|tmpfs|type|udev|unionfs|vartmp)$';
 	foreach (@partitions_working){
 		my @row = split /\s+/, $_;
 		if ($row[0] =~ /$filters/ || $row[0] =~ /^ROOT/i){
@@ -13075,7 +13075,9 @@ sub sensors_gpu_search {
 sub get_shell_data {
 	eval $start if $b_log;
 	my ($ppid) = @_;
-	my $shell = qx(ps -p $ppid -o comm= 2>/dev/null);
+	my $cmd = "ps -p $ppid -o comm= 2>/dev/null";
+	my $shell = qx($cmd);
+	log_data('cmd',$cmd) if $b_log;
 	chomp($shell);
 	if ($shell){
 		#print "shell pre: $shell\n";
@@ -13150,16 +13152,24 @@ sub get_shell_source {
 # utilities for get_shell_source 
 # arg: 1 - parent id
 sub get_start_parent {
+	eval $start if $b_log;
 	my ($parent) = @_;
-	my @data = grabber("ps -j -fp $parent");
+	my $cmd = "ps -j -fp $parent";
+	my @data = grabber($cmd);
 	my $self_parent = awk(\@data,"$parent",3,'\s+');
+	log_data('cmd',$cmd) if $b_log;
+	eval $end if $b_log;
 	return $self_parent;
 }
 # arg: 1 - parent id
 sub get_shell_parent {
+	eval $start if $b_log;
 	my ($parent) = @_;
-	my @data = grabber("ps -j -p $parent",'strip');
+	my $cmd = "ps -j -fp $parent";
+	my @data = grabber($cmd,'strip');
 	my $shell_parent = awk(\@data, "$parent",-1,'\s+',);
+	log_data('cmd',$cmd) if $b_log;
+	eval $end if $b_log;
 	return $shell_parent;
 }
 
