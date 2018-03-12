@@ -18,6 +18,7 @@ my $self_date='2018-01-07';
 my $self_patch='086-p';
 
 my $prefix = 0; # for the primiary row hash key prefix
+my ($start,$end,$b_log) = ('','',0)
 
 sub generate_test_data {
 	eval $start if $b_log;
