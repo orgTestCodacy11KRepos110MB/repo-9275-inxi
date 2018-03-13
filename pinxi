@@ -1157,8 +1157,6 @@ sub log_data {
 sub process_dbg {
 	my ($arg) = @_;
 	if ($arg == 20) {$b_arm = 1}
-	elsif ($arg == 21) {$bsd_type = 'freebsd'}
-	elsif ($arg == 22) {$bsd_type = 'openbsd'}
 }
 
 sub set_debugger {
@@ -3536,6 +3534,15 @@ sub get_options{
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		}},
+	'bsd:s' => sub { 
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^dragonfly|freebsd|openbsd|netbsd$/i){
+			$bsd_type = lc($arg);
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}
+	},
 	'dbg:i' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg > 0) {
@@ -4483,7 +4490,7 @@ sub row_defaults {
 	'arm-pci' => "PCI data type is not supported on ARM systems.",
 	'battery-data' => "No battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
-	'data-bsd' => "No disk data found for this BSD system.",
+	'disk-data-bsd' => "No disk data found for this BSD system.",
 	'disk-data' => "No Disk data was found.",
 	'display-console' => 'No advanced graphics data found on this system in console.',
 	'display-null' => 'No advanced graphics data found on this system.',
@@ -4500,6 +4507,7 @@ sub row_defaults {
 	'machine-data-alt-33' => "No machine data: try newer kernel. Is dmidecode installed? Try -M --alt 33.",
 	'machine-data-dmidecode' => "No machine data: try newer kernel, or install dmidecoce.",
 	'optical-data' => "No Optical or Floppy data was found.",
+	'optical-data-bsd' => "No floppy or optical data found for this BSD system.",
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
 	'partition-data' => "No Partition data was found.",
 	'pci-advanced-data' => 'bus/chip ids unavailable',
@@ -4509,6 +4517,7 @@ sub row_defaults {
 	'ram-data' => "No RAM data was found. SOC?",
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
 	'unmounted-data' => "No unmounted partitions found.",
+	'unmounted-data-bsd' => "No unmounted partition data found for this BSD system.",
 	'unmounted-file' => "No /proc/partitions file found.",
 	'usb-data' => "No USB data was found. Server?",
 	'unknown-desktop-version' => "ERR-101",
@@ -6591,7 +6600,7 @@ sub get {
 			@rows = (@rows,@data);
 			if ( $bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
-				$val1 = main::row_defaults('data-bsd');
+				$val1 = main::row_defaults('disk-data-bsd');
 				@data = ({$num++ . "#$key1" => $val1,});
 				@rows = (@rows,@data);
 			}
@@ -8720,7 +8729,7 @@ sub get {
 	if ($bsd_type){
 		#@data = optical_data_bsd();
 		$key1 = 'Optical Report';
-		$val1 = main::row_defaults('data-bsd');
+		$val1 = main::row_defaults('optical-data-bsd');
 		@data = ({$num++ . "#$key1" => $val1,});
 	}
 	else {
@@ -11396,7 +11405,7 @@ sub get {
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('data-bsd');
+		$val1 = main::row_defaults('unmounted-data-bsd');
 	}
  	else {
 		if (my $file = main::system_files('partitions')){
