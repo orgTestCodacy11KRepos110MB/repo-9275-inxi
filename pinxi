@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-12';
-my $self_patch='404-p';
+my $self_patch='405-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -68,23 +68,23 @@ if (eval {require Time::HiRes}){
 ## Hashes
 my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
-## arrays
+## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
-my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
+my (@app,@dmesg_boot,@dm_boot_disk,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@usb);
-## disk arrays 
+## Disk arrays 
 my (@glabel,@gpart,@labels,@partitions,@raid,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
 #my $opt_parser = Getopt::Long::Parser->new;
 
 ## Booleans
-my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmi,$b_dmidecode_force,
-$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,$b_pci,$b_root,
-$b_running_in_display,$b_sysctl,$b_usb_check);
-## disk checks
-my ($b_glabel,$b_partitions,$b_partition_extra,$b_raid);
-my ($b_update,$b_weather) = (1,1);
+my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
+$b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,
+$b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
+## Disk checks
+my ($b_dm_boot_disk,$b_glabel,$b_partitions,$b_partition_extra,$b_raid);
+my ($b_sysctl_disk,$b_update,$b_weather) = (1,1);
 
 ## System
 my ($bsd_type,$language,$os) = ('','','');
@@ -1157,6 +1157,7 @@ sub log_data {
 sub process_dbg {
 	my ($arg) = @_;
 	if ($arg == 20) {$b_arm = 1}
+	elsif ($arg == 21) {$bsd_type = 'freebsd'}
 }
 
 sub set_debugger {
@@ -2126,6 +2127,12 @@ sub error_handler {
 			$errno=34; "There was an error moving files: $one\nError: $two" }
 		elsif ( $err eq 'write' ) { 
 			$errno=35; "Failed writing file: $one - Error: $two!" }
+		## Downloaders
+		elsif ( $err eq 'missing-downloader' ) { 
+			$errno=50; "The downloader $two you selected could not be located on your system." }
+		elsif ( $err eq 'missing-perl-downloader' ) { 
+			$errno=50; "The Perl module downloader requires both HTTP::Tiny and IO::Socket::SSL\n
+			modules. One or both of these is missing. See --recommends" }
 		## FTP
 		elsif ( $err eq 'ftp-bad-path' ) { 
 			$errno=50; "Unable to locate for FTP upload file:\n$one" }
@@ -3563,11 +3570,19 @@ sub get_options{
 		my ($opt,$arg) = @_;
 		$arg = lc($arg);
 		if ($arg =~ /^(curl|fetch|ftp|perl|wget)$/){
-			# this dumps all the other data and resets %dl for only the
-			# desired downloader.
-			$arg = set_perl_downloader($arg);
-			%dl = ('dl' => $arg, $arg => 1);
-			$b_downloader = 1;
+			if ($arg eq 'perl' && (!check_module('HTTP::Tiny') || !check_module('IO::Socket::SSL') )){
+				error_handler('missing-perl,downloader', $opt, $arg);
+			}
+			elsif ( !check_program($arg)) {
+				error_handler('missing-downloader', $opt, $arg);
+			}
+			else {
+				# this dumps all the other data and resets %dl for only the
+				# desired downloader.
+				$arg = set_perl_downloader($arg);
+				%dl = ('dl' => $arg, $arg => 1);
+				$b_downloader = 1;
+			}
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
@@ -3661,6 +3676,9 @@ sub get_options{
 	if ($show{'disk'} || $show{'optical'} ){
 		$show{'disk-basic'} = 0;
 		$show{'disk-total'} = 0;
+	}
+	if ($bsd_type && ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'})){
+		$b_dm_boot_disk = 1;
 	}
 } 
 
@@ -4465,7 +4483,7 @@ sub row_defaults {
 	'arm-pci' => "PCI data type is not supported on ARM systems.",
 	'battery-data' => "No battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
-	'data-bsd' => "Feature not supported yet for BSDs.",
+	'data-bsd' => "Your BSD OS does not appear to support this feature.",
 	'disk-data' => "No Disk data was found.",
 	'display-console' => 'No advanced graphics data found on this system in console.',
 	'display-null' => 'No advanced graphics data found on this system.',
@@ -4499,6 +4517,30 @@ sub row_defaults {
 	'weather-null' => "No $id found. Internet connection working?",
 	);
 	return $unfound{$type};
+}
+# convert string passed to KB, based on GB/MB/TB id
+sub translate_size {
+	my ($working) = @_;
+	my $size = 0;
+	if ( $working =~ /^([0-9]+)M[B]?$/i){
+		$size = $1 * 1024;
+	}
+	elsif ( $working =~ /^([0-9]+)G[B]?$/i){
+		$size = $1 * 1024**2;
+	}
+	elsif ( $working =~ /^([0-9]+)T[B]?$/i){
+		$size = $1 * 1024**3;
+	}
+	elsif ( $working =~ /^([0-9]+)P[B]?$/i){
+		$size = $1 * 1024**4;
+	}
+	elsif ( $working =~ /^([0-9]+)E[B]?$/i){
+		$size = $1 * 1024**5;
+	}
+	elsif ( $working =~ /^([0-9]+)K[B]?$/i){
+		$size = $1;
+	}
+	return $size;
 }
 
 #### -------------------------------------------------------------------
@@ -6540,11 +6582,18 @@ sub get {
 	my ($type) = @_;
 	$type ||= 'standard';
 	my $num = 0;
-	@data = disk_data();
+	@data = disk_data($type);
+	# NOTE: 
 	if (@data){
 		if ($type eq 'standard'){
 			@data = create_output(@data);
 			@rows = (@rows,@data);
+			if ( $bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
+				$key1 = 'Drive Report';
+				$val1 = main::row_defaults('data-bsd');
+				@data = ({$num++ . "#$key1" => $val1,});
+				@rows = (@rows,@data);
+			}
 		}
 		else {
 			@rows = @data;
@@ -6553,16 +6602,9 @@ sub get {
 	}
 	else {
 		$key1 = 'Message';
-		$val1 = main::row_defaults('disk-size');
+		$val1 = main::row_defaults('disk-data');
 		@rows = ({$num++ . "#$key1" => $val1,});
 	}
-	if ($bsd_type && $type eq 'standard' && $show{'disk'}){
-		$key1 = 'Drive Report';
-		$val1 = main::row_defaults('data-bsd');
-		@data = ({$num++ . "#$key1" => $val1,});
-		@rows = (@rows,@data);
-	}
-
 	if (!@rows){
 		$key1 = 'Message';
 		$val1 = main::row_defaults('disk-data');
@@ -6641,6 +6683,9 @@ sub create_output {
 			}
 			$rows[$j]{$num++ . '#model'} = $model;
 			$rows[$j]{$num++ . '#size'} = $size;
+			if ($extra > 0 && $row{'speed'}){
+				$rows[$j]{$num++ . '#speed'} = $row{'speed'};
+			}
 			if ($extra > 1){
 				my $serial = main::apply_filter($row{'serial'});
 				$rows[$j]{$num++ . '#serial'} = $serial;
@@ -6659,6 +6704,7 @@ sub create_output {
 }
 sub disk_data {
 	eval $start if $b_log;
+	my ($type) = @_;
 	my (@rows,@data,@devs);
 	my $num = 0;
 	my ($used) = (0);
@@ -6679,7 +6725,7 @@ sub disk_data {
 			push @devs, $row{'dev-base'};
 		}
 	}
-	if (my $file = main::system_files('partitions')){
+	if (!$bsd_type && (my $file = main::system_files('partitions'))){
 		@data = proc_data($used,$file);
 	}
 	elsif ($bsd_type) {
@@ -6709,6 +6755,8 @@ sub proc_data {
 			'model' => '',
 			'serial' => '',
 			'size' => $drive_size,
+			'spec' => '',
+			'speed' => '',
 			'temp' => '',
 			'type' => '',
 			'vendor' => '',
@@ -6873,6 +6921,77 @@ sub proc_data_advanced {
 	eval $end if $b_log;
 	return @drives;
 }
+# camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
+# smartcl -i <device> |grep ^Serial
+# see smartctl; camcontrol devlist; gptid status;
+sub dmesg_boot_data {
+	eval $start if $b_log;
+	my ($used) = @_;
+	my (@data,@drives);
+	my ($id_holder,$i,$size,$working) = ('',0,0,0);
+	my $file = main::system_files('dmesg-boot');
+	if (@dm_boot_disk){
+		foreach (@dm_boot_disk){
+			my @row = split /:\s*/, $_;
+			next if ! defined $row[1];
+			if ($id_holder ne $row[0]){
+				$i++ if $id_holder;
+				# print "$i $id_holder $row[0]\n";
+				$id_holder = $row[0];
+			}
+			# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
+			if (! exists $drives[$i]){
+				$drives[$i] = ({});
+				$drives[$i]{'id'} = $row[0];
+				$drives[$i]{'firmware'} = '';
+				$drives[$i]{'temp'} = '';
+				$drives[$i]{'type'} = '';
+				$drives[$i]{'vendor'} = '';
+			}
+			if ($row[1] =~ /^([0-9]+[KMGTPE][B]?)\s/){
+				$working = main::translate_size($1);
+				$size += $working if $working;
+				$drives[$i]{'size'} = $size;
+			}
+			if ($row[1] =~ /device$|^</){
+				$row[1] =~ s/\sdevice$//g;
+				$row[1] =~ /<([^>]*)>\s(.*)/;
+				$drives[$i]{'model'} = $1 if $1;
+				$drives[$i]{'spec'} = $2 if $2;
+			}
+			if ($row[1] =~ /^Serial\sNumber\s(.*)/){
+				$drives[$i]{'serial'} = $1;
+			}
+			if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
+				$drives[$i]{'speed'} = $1;
+				$drives[$i]{'speed'} =~ s/\.[0-9]+// if $drives[$i]{'speed'};
+			}
+			
+		}
+		if (!$size){
+			$size = main::row_defaults('data-bsd');
+		}
+	}
+	elsif ( $file && ! -r $file ){
+		$size = main::row_defaults('dmesg-boot-permissions');
+	}
+	elsif (! -f $file ){
+		$size = main::row_defaults('dmesg-boot-missing');
+	}
+	@data = ({
+	'size' => $size,
+	'used' => $used,
+	});
+	#main::log_data('dump','@data',\@data) if $b_log;
+	if ( $show{'disk'} ){
+		@data = (@data,@drives);
+		# print 'drives:', Data::Dumper::Dumper \@drives;
+	}
+	# print Data::Dumper::Dumper \@data;
+	eval $end if $b_log;
+	return @data;
+}
+
 # check for usb/firewire/[and thunderwire when data found]
 sub peripheral_data {
 	eval $start if $b_log;
@@ -6939,35 +7058,6 @@ sub scsi_data {
 	main::log_data('dump','@scsi', \@scsi) if $b_log;
 	eval $end if $b_log;
 	return @scsi;
-}
-# camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
-# smartcl -i <device> |grep ^Serial
-# see smartctl; camcontrol devlist; gptid status;
-sub dmesg_boot_data {
-	eval $start if $b_log;
-	my ($used) = @_;
-	my (@data,@rows,$size);
-	my $file = main::system_files('dmesg-boot');
-	
-	if ( $file && ! -r $file ){
-		$size = main::row_defaults('dmesg-boot-permissions');
-	}
-	elsif (! -f $file ){
-		$size = main::row_defaults('dmesg-boot-missing');
-	}
-	if (@dmesg_boot){
-		$size = main::row_defaults('data-bsd');
-# 		foreach (@dmesg_boot){
-# 		
-# 		}
-	}
-	@data = ({
-	'size' => $size,
-	'used' => $used,
-	});
-	main::log_data('dump','@data',\@data) if $b_log;
-	eval $end if $b_log;
-	return @data;
 }
 
 sub disk_serial_by_id {
@@ -7457,8 +7547,9 @@ sub x_drivers {
 		$list .= 'tga|trident|tseng|unichrome|v4l|vboxvideo|vesa|vga|via|vmware|voodoo';
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
-		@xorg = grep {/Failed|Unload|Loading/} @xorg;
+		#@xorg = grep {/Failed|Unload|Loading/} @xorg;
 		foreach (@xorg){
+			next if !/Failed|Unload|Loading/;
 			# note that in file names, driver is always lower case
 			if (/\sLoading.*($list)_drv.so$/i ) {
 				$driver=lc($1);
@@ -12097,6 +12188,7 @@ sub get_env_de_data {
 sub get_env_xprop_de_data {
 	eval $start if $b_log;
 	my ($program,@version_data);
+	# NOTE: Always add to set_prop the search term if you add an item!!
 	set_xprop();
 	# note that cinnamon split from gnome, and and can now be id'ed via xprop,
 	# but it will still trigger the next gnome true case, so this needs to go 
@@ -12119,8 +12211,10 @@ sub get_env_xprop_de_data {
 		$desktop[0] ||= 'MATE';
 	}
 	# note, GNOME_DESKTOP_SESSION_ID is deprecated so we'll see how that works out
-	# https://bugzilla.gnome.org/show_bug.cgi?id=542880
-	elsif ($xdg_desktop eq 'gnome' || $ENV{'GNOME_DESKTOP_SESSION_ID'}){
+	# https://bugzilla.gnome.org/show_bug.cgi?id=542880.
+	# NOTE: manjaro is leaving XDG data null, which forces the manual check for gnome, sigh...
+	elsif ($xdg_desktop eq 'gnome' || $ENV{'GNOME_DESKTOP_SESSION_ID'} || 
+	      (main::check_program('gnome-shell') && $b_xprop && main::awk(\@xprop,'^_gnome') ) ){
 		if ($program = main::check_program('gnome-about') ) {
 			@data = main::program_values('gnome-about');
 			$desktop[1] = main::program_version('gnome-about',$data[0],$data[1],$data[2],$data[5]);
@@ -12395,7 +12489,9 @@ sub set_gtk_data {
 sub set_info_data {
 	eval $start if $b_log;
 	my (@data,@info,$item);
-	if (@data = grep {/(gnome-shell|gnome-panel|kicker|lxpanel|mate-panel|plasma-desktop|plasma-netbook|xfce4-panel)(\s|$)/} @ps_cmd ) {
+	my $pattern = 'gnome-shell|gnome-panel|kicker|lxpanel|mate-panel|';
+	$pattern .= 'plasma-desktop|plasma-netbook|xfce4-panel';
+	if (@data = grep {/($pattern)(\s|$)/} @ps_cmd ) {
 		# only one entry per type, can be multiple
 		foreach $item (@data){
 			if (! main::awk(\@info, "$item")){
@@ -12414,11 +12510,15 @@ sub set_xprop {
 	if (my $program = main::check_program('xprop')){
 		@xprop = main::grabber("xprop -root $display_opt 2>/dev/null");
 		if (@xprop){
-			@xprop = grep {/^\S/} @xprop;
-			$_=lc for @xprop;
-			$b_xprop = 1 if scalar @xprop > 5;
+			my $pattern = 'blackbox_pid|enlightenment|^_gnome|herbstluftwm|';
+			$pattern .= '^i3_|icewm|_marco|_muffin|openbox_pid|^windowmaker|^_wm2|xfce';
+			# let's only do these searches once
+			@xprop = grep {/^\S/ && /($pattern)/i} @xprop;
+			$_ = lc for @xprop;
+			$b_xprop = 1 if scalar @xprop > 0;
 		}
 	}
+	#print "@xprop\n";
 	eval $end if $b_log;
 }
 
@@ -12495,14 +12595,13 @@ sub get_bsd_os {
 		my @uname = POSIX::uname();
 		$distro = "$uname[0] $uname[2]";
 	}
-	
 	eval $end if $b_log;
 	return $distro;
 }
 
 sub get_linux_distro {
 	eval $start if $b_log;
-	my $distro_file = '';
+	my ($distro_file) = ('');
 	my ($b_osr,@working);
 	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
 	mandrake-release mx-version pardus-release porteus-version sabayon-release 
@@ -12520,7 +12619,6 @@ sub get_linux_distro {
 	# wait to handle since crunchbang file is one of the few in the world that 
 	# uses this method
 	my @distro_files = glob('/etc/*[-_]{[rR]elease,[vV]ersion}*');
-	my $distro_files_s = join "|", @distro_files;
 	my $lsb_release = '/etc/lsb-release';
 	my $issue = '/etc/issue';
 	my $os_release = '/etc/os-release';
@@ -12530,12 +12628,13 @@ sub get_linux_distro {
 	if ( scalar @distro_files == 1 ){
 		$distro_file = $distro_files[0];
 	}
-	else {
+	elsif (scalar @distro_files > 1) {
 		# special case, to force manjaro which also has arch-release
 		# manjaro should use lsb, which has the full info, arch uses os release
 		if (grep {/manjaro/} @distro_files){
 			@distro_files = grep {!/arch-release/} @distro_files;
 		}
+		my $distro_files_s = join "|", @distro_files;
 		@working = (@derived,@primary);
 		foreach my $file (@working){
 			if ( "/etc/$file" =~ /($distro_files_s)$/){
@@ -12556,9 +12655,8 @@ sub get_linux_distro {
 				last;
 			}
 		}
-		main::log_data('data',"distro_file: $distro_file") if $b_log;
 	}
-	
+	main::log_data('data',"distro_file: $distro_file") if $b_log;
 	# first test for the legacy antiX distro id file
 	if ( -f '/etc/antiX'){
 		@working = main::reader('/etc/antiX');
@@ -13279,7 +13377,12 @@ sub get_uptime {
 
 sub set_dmesg_boot_data {
 	eval $start if $b_log;
-	if (my $file = system_files('dmesg-boot') ){
+	my ($file);
+	$b_dmesg_boot_check = 1;
+	$file = system_files('dmesg-boot');
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
+	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
 		# replace all indented items with ~ so we can id them easily while
@@ -13293,8 +13396,14 @@ sub set_dmesg_boot_data {
 		$_ =~ s/\s\s/ /g;
 		$_;
 		} @dmesg_boot;
+		if ($b_dm_boot_disk && @dmesg_boot){
+			@dm_boot_disk = grep {/^ada[0-9]/} @dmesg_boot;
+			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
+			print Dumper \@dm_boot_disk if $test[9];
+		}
 	}
 	log_data('dump','@dmesg_boot',\@dmesg_boot) if $b_log;
+	#print Dumper \@dmesg_boot if $test[9];
 	eval $end if $b_log;
 }
 # note, all actual tests have already been run in check_tools so if we
@@ -13962,7 +14071,7 @@ sub assign_data {
 }
 sub generate_lines {
 	eval $start if $b_log;
-	my (%row,$b_pci_check,$b_dmesg_boot_check,$b_dmi_check);
+	my (%row,$b_pci_check,$b_dmi_check);
 	set_ps_aux() if ! @ps_aux;
 	set_sysctl_data() if $b_sysctl;
 	# note: ps aux loads before logging starts, so create debugger data here
@@ -13972,6 +14081,9 @@ sub generate_lines {
 		main::log_data('dump','@ps_cmd',\@ps_cmd);
 	}
 	if ( $show{'short'} ){
+		if ($bsd_type && !$b_dmesg_boot_check){
+			set_dmesg_boot_data();
+		}
 		%row = generate_short_data();
 		assign_data(%row);
 	}
@@ -13985,9 +14097,8 @@ sub generate_lines {
 				set_dmi_data() ; 
 				$b_dmi_check = 1;
 			}
-			if ($bsd_type && $b_dmesg_boot_check){
+			if ($bsd_type && !$b_dmesg_boot_check){
 				set_dmesg_boot_data();
-				$b_dmesg_boot_check = 1;
 			}
 			%row = line_handler('Machine','machine');
 			assign_data(%row);
@@ -14013,9 +14124,8 @@ sub generate_lines {
 			assign_data(%row);
 		}
 		if ( $show{'cpu'} || $show{'cpu-basic'} ){
-			if ($bsd_type && $b_dmesg_boot_check){
+			if ($bsd_type && !$b_dmesg_boot_check){
 				set_dmesg_boot_data();
-				$b_dmesg_boot_check = 1;
 			}
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = line_handler('CPU','cpu',$arg);
@@ -14043,9 +14153,8 @@ sub generate_lines {
 			assign_data(%row);
 		}
 		if ( $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'optical'} ){
-			if ($bsd_type && $b_dmesg_boot_check){
+			if ($bsd_type && !$b_dmesg_boot_check){
 				set_dmesg_boot_data();
-				$b_dmesg_boot_check = 1;
 			}
 			%row = line_handler('Drives','disk');
 			assign_data(%row);
