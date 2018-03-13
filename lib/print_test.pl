@@ -14,7 +14,7 @@ use Data::Dumper qw(Dumper); # print_r
 
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-01-07';
+my $self_date='2018-03-12';
 my $self_patch='086-p';
 
 my $prefix = 0; # for the primiary row hash key prefix
@@ -26,7 +26,7 @@ sub generate_test_data {
 	$prefix++ . '#System' => [
 		{
 		'1#Host' => 'fred',
-		'02#Kernel' => '4.9.0-3.1-liquorix-686-pae i686',
+		'2#Kernel' => '4.9.0-3.1-liquorix-686-pae i686',
 		'3#bits' => '32',
 		'4#gcc' => '6.2.1',
 		},
@@ -34,7 +34,7 @@ sub generate_test_data {
 		'5#Desktop' => 'Xfce 4.12.3 (Gtk 2.24.31)',
 		'6#info' => 'xfce4-panel',
 		'7#dm' => 'lightdm',
-		'08#Distro' => 'sidux-20070102-d:1',
+		'8#Distro' => 'sidux-20070102-d:1',
 		},
 		
 	],
