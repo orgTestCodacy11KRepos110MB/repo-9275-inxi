@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-13';
-my $self_patch='406-p';
+my $self_patch='407-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -70,10 +70,11 @@ my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
-my (@app,@dmesg_boot,@dm_boot_disk,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
+my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@usb);
 ## Disk arrays 
-my (@glabel,@gpart,@labels,@partitions,@raid,@sysctl_disks,@uuids);
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@partitions,
+@raid,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
 #my $opt_parser = Getopt::Long::Parser->new;
@@ -83,7 +84,8 @@ my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
 $b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,
 $b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
 ## Disk checks
-my ($b_dm_boot_disk,$b_glabel,$b_partitions,$b_partition_extra,$b_raid);
+my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_partitions,$b_partition_extra,
+$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1);
 
 ## System
@@ -3687,6 +3689,9 @@ sub get_options{
 	if ($bsd_type && ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'})){
 		$b_dm_boot_disk = 1;
 	}
+	if ($bsd_type && ($show{'optical-basic'} || $show{'optical'})){
+		$b_dm_boot_optical = 1
+	}
 } 
 
 sub show_options {
@@ -6946,11 +6951,8 @@ sub dmesg_boot_data {
 	my $file = main::system_files('dmesg-boot');
 	if (@dm_boot_disk){
 		foreach (@dm_boot_disk){
-			# wd0 at pciide0 channel 0 drive 0: <TOSHIBA MK8026GAX>
-			$_ =~ s/^(\S+)\sat\s/$1:at /;
 			my @row = split /:\s*/, $_;
 			next if ! defined $row[1];
-			
 			if ($id_holder ne $row[0]){
 				$i++ if $id_holder;
 				# print "$i $id_holder $row[0]\n";
@@ -6990,7 +6992,7 @@ sub dmesg_boot_data {
 					$size += $working if $working;
 					$drives[$i]{'size'} = $working;
 				}
-				if ($bsd_type ne 'openbsd' && $row[1] =~ /device$|^</){
+				if ($row[1] =~ /device$|^</){
 					$row[1] =~ s/\sdevice$//g;
 					$row[1] =~ /<([^>]*)>\s(.*)/;
 					$drives[$i]{'model'} = $1 if $1;
@@ -8731,6 +8733,14 @@ sub get {
 		$key1 = 'Optical Report';
 		$val1 = main::row_defaults('optical-data-bsd');
 		@data = ({$num++ . "#$key1" => $val1,});
+		if ( @dm_boot_optical){
+			@data = optical_data_bsd();
+		}
+		else{
+			$key1 = 'Optical Report';
+			$val1 = main::row_defaults('optical-data-bsd');
+			@data = ({$num++ . "#$key1" => $val1,});
+		}
 	}
 	else {
 		@data = optical_data_linux();
@@ -8775,10 +8785,12 @@ sub create_output {
 			$rev ||= 'N/A';
 			$rows[$j]{ $num++ . '#rev'} = $rev;
 		}
+		if ($extra > 1 && $devices{$key}{'serial'}){
+			$rows[$j]{ $num++ . '#serial'} = main::apply_filter($devices{$key}{'serial'});
+		}
 		my $ref = $devices{$key}{'links'};
 		my $links = (@$ref) ? join ',', sort @$ref: 'N/A' ;
 		$rows[$j]{ $num++ . '#dev-links'} = $links;
-		
 		if ($show{'optical'}){
 			$j = scalar @rows;
 			my $speed = $devices{$key}{'speed'};
@@ -8833,9 +8845,106 @@ sub create_output {
 }
 sub optical_data_bsd {
 	eval $start if $b_log;
-	my (@data,%devices,@rows);
+	my (@data,%devices,@rows,@temp);
+	my ($count,$i,$working) = (0,0,'');
+	foreach (@dm_boot_optical){
+		$_ =~ s/(cd[0-9]+)\(([^:]+):([0-9]+):([0-9]+)\):/$1:$2-$3.$4,/;
+		my @row = split /:\s*/, $_;
+		next if ! defined $row[1];
+		if ($working ne $row[0]){
+			# print "$id_holder $row[0]\n";
+			$working = $row[0];
+		}
+		# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
+		if (! exists $devices{$working}){
+			$devices{$working} = ({});
+			$devices{$working}{'links'} = ([]);
+			$devices{$working}{'model'} = '';
+			$devices{$working}{'rev'} = '';
+			$devices{$working}{'state'} = '';
+			$devices{$working}{'vendor'} = '';
+			$devices{$working}{'temp'} = '';
+			$devices{$working}{'type'} = ($working =~ /^cd/) ? 'optical' : 'unknown';
+		}
+		#print "$_\n";
+		if ($bsd_type ne 'openbsd'){
+			if ($row[1] && $row[1] =~ /^<([^>]+)>/){
+				$devices{$working}{'model'} = $1;
+				$count = ($devices{$working}{'model'} =~ tr/ //);
+				if ($count && $count > 1){
+					@temp = split /\s+/, $devices{$working}{'model'};
+					$devices{$working}{'vendor'} = $temp[0];
+					my $index = ($#temp > 2 ) ? ($#temp - 1): $#temp;
+					$devices{$working}{'model'} = join ' ', @temp[1..$index];
+					$devices{$working}{'rev'} = $temp[-1] if $count > 2;
+				}
+				if ($show{'optical'}){
+					if (/\bDVD\b/){
+						$devices{$working}{'dvd'} = 1;
+					}
+					if (/\bRW\b/){
+						$devices{$working}{'cdrw'} = 1;
+						$devices{$working}{'dvdr'} = 1 if $devices{$working}{'dvd'};
+					}
+				}
+			}
+			if ($row[1] && $row[1] =~ /^Serial/){
+				@temp = split /\s+/,$row[1];
+				$devices{$working}{'serial'} = $temp[-1];
+			}
+			if ($show{'optical'}){
+				if ($row[1] =~ /^([0-9\.]+[MGTP][B]?\/s)/){
+					$devices{$working}{'speed'} = $1;
+					$devices{$working}{'speed'} =~ s/\.[0-9]+//;
+				}
+				if (/\bDVD[-]?RAM\b/){
+					$devices{$working}{'cdr'} = 1;
+					$devices{$working}{'dvdram'} = 1;
+				}
+				if ($row[2] && $row[2] =~ /,\s(.*)$/){
+					$devices{$working}{'state'} = $1;
+					$devices{$working}{'state'} =~ s/\s+-\s+/, /;
+				}
+			}
+		}
+		else {
+			if ($row[2] && $row[2] =~ /<([^>]+)>/){
+				$devices{$working}{'model'} = $1;
+				$count = ($devices{$working}{'model'} =~ tr/,//);
+				#print "c: $count $row[2]\n";
+				if ($count && $count > 1){
+					@temp = split /,\s*/, $devices{$working}{'model'};
+					$devices{$working}{'vendor'} = $temp[0];
+					$devices{$working}{'model'} = $temp[1];
+					$devices{$working}{'rev'} = $temp[2];
+				}
+				if ($show{'optical'}){
+					if (/\bDVD\b/){
+						$devices{$working}{'dvd'} = 1;
+					}
+					if (/\bRW\b/){
+						$devices{$working}{'cdrw'} = 1;
+						$devices{$working}{'dvdr'} = 1 if $devices{$working}{'dvd'};
+					}
+					if (/\bDVD[-]?RAM\b/){
+						$devices{$working}{'cdr'} = 1;
+						$devices{$working}{'dvdram'} = 1;
+					}
+				}
+			}
+			if ($show{'optical'}){
+				#print "$row[1]\n";
+				if (($row[1] =~ tr/,//) > 1){
+					@temp = split /,\s*/, $row[1];
+					$devices{$working}{'speed'} = $temp[2];
+				}
+				
+			}
+		}
+	}
 	
 	main::log_data('dump','%devices',\%devices) if $b_log;
+	#print Data::Dumper::Dumper \%devices;
 	@rows = create_output(%devices) if %devices;
 	eval $end if $b_log;
 	return @rows;
@@ -8861,6 +8970,10 @@ sub optical_data_linux {
  		else {
 			my $ref = $devices{$working}{'links'};
  			push @$ref, $_ if $_ ne $working;
+ 		}
+ 		# advanced data, if available
+ 		if ($show{'optical'}){
+ 		
  		}
 		#print "$working\n";
 	}
@@ -13420,33 +13533,37 @@ sub set_dmesg_boot_data {
 	$file = system_files('dmesg-boot');
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
 	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
 		# some dmesg repeats, so we need to dump the second and > iterations
-		foreach (@dmesg_boot){
-			$counter++ if /^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/;
-			last if $counter > 1;
-			push @temp, $_;
-		}
-		@dmesg_boot = @temp;
 		# replace all indented items with ~ so we can id them easily while
 		# processing note that if user, may get error of read permissions
 		# for some weird reason, real mem and avail mem are use a '=' separator, 
 		# who knows why, the others are ':'
-		@dmesg_boot = map {
-		$_ =~ s/\s*=\s*|:\s*/:/;
-		$_ =~ s/\"//g;
-		$_ =~ s/^\s+/~/;
-		$_ =~ s/\s\s/ /g;
-		$_;
-		} @dmesg_boot;
+		foreach (@dmesg_boot){
+			$counter++ if /^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/;
+			last if $counter > 1;
+			$_ =~ s/\s*=\s*|:\s*/:/;
+			$_ =~ s/\"//g;
+			$_ =~ s/^\s+/~/;
+			$_ =~ s/\s\s/ /g;
+			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
+			push @temp, $_;
+		}
+		@dmesg_boot = @temp;
 		if ($b_dm_boot_disk && @dmesg_boot){
 			@dm_boot_disk = grep {/^(ad|ada|mmcblk|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
 			print Dumper \@dm_boot_disk if $test[9];
+		}
+		if ($b_dm_boot_optical && @dmesg_boot){
+			@dm_boot_optical = grep {/^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/} @dmesg_boot;
+			log_data('dump','@dm_boot_optical',\@dm_boot_optical) if $b_log;
+			print Dumper \@dm_boot_optical if $test[9];
 		}
 	}
 	log_data('dump','@dmesg_boot',\@dmesg_boot) if $b_log;

@@ -2,8 +2,8 @@
 README for development branch of inxi Perl version: pinxi
 ====================================================================
 FILE:    README.txt
-VERSION: 3.4
-DATE:    2018-03-12
+VERSION: 3.5
+DATE:    2018-03-13
 
 NOTE: While the real program name will never change, for the sake
 of clarity, I will refer to the inxi-perl dev branch inxi as pinxi, 
@@ -156,7 +156,7 @@ Note that my current development goals are, roughly in this order:
      Audio: DONE 
      Network: DONE - with new features!
      Drives: DONE
-     Optical: DONE
+     Optical: DONE - now with BSD support
      RAID: Basic DONE, advanced TODO
      Partition: DONE
      Unmounted: DONE
