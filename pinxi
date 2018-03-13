@@ -39,7 +39,7 @@ use Sys::Hostname;
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-12';
+my $self_date='2018-03-13';
 my $self_patch='406-p';
 ## END INXI INFO ##
 
@@ -1158,6 +1158,7 @@ sub process_dbg {
 	my ($arg) = @_;
 	if ($arg == 20) {$b_arm = 1}
 	elsif ($arg == 21) {$bsd_type = 'freebsd'}
+	elsif ($arg == 22) {$bsd_type = 'openbsd'}
 }
 
 sub set_debugger {
@@ -2131,8 +2132,7 @@ sub error_handler {
 		elsif ( $err eq 'missing-downloader' ) { 
 			$errno=60; "Downloader program $two could not be located on your system." }
 		elsif ( $err eq 'missing-perl-downloader' ) { 
-			$errno=61; "Perl module downloader requires both HTTP::Tiny and IO::Socket::SSL\n
-			modules. One or both of these is missing. See --recommends" }
+			$errno=61; "Perl module downloader requires both HTTP::Tiny and\nIO::Socket::SSL modules. One or both of these is missing.\nSee --recommends" }
 		## FTP
 		elsif ( $err eq 'ftp-bad-path' ) { 
 			$errno=70; "Unable to locate for FTP upload file:\n$one" }
@@ -4483,7 +4483,7 @@ sub row_defaults {
 	'arm-pci' => "PCI data type is not supported on ARM systems.",
 	'battery-data' => "No battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
-	'data-bsd' => "Your BSD OS does not appear to support this feature.",
+	'data-bsd' => "No disk data found for this BSD system.",
 	'disk-data' => "No Disk data was found.",
 	'display-console' => 'No advanced graphics data found on this system in console.',
 	'display-null' => 'No advanced graphics data found on this system.',
@@ -4522,6 +4522,7 @@ sub row_defaults {
 sub translate_size {
 	my ($working) = @_;
 	my $size = 0;
+	return if ! defined $working;
 	if ( $working =~ /^([0-9]+)M[B]?$/i){
 		$size = $1 * 1024;
 	}
@@ -6627,7 +6628,7 @@ sub create_output {
 	#print Data::Dumper::Dumper \@disks;
 	my (@data,@rows);
 	my ($num,$j) = (0,0);
-	my ($size,$used,$percent,$size_holder,$used_holder) = ('','','','','');
+	my ($id,$model,$size,$used,$percent,$size_holder,$used_holder) = ('','','','','','','');
 	my @sizing = main::get_size($disks[0]{'size'});
 	#print Data::Dumper::Dumper \@disks;
 	if (@sizing){
@@ -6659,9 +6660,10 @@ sub create_output {
 	if ( $show{'disk'} && @disks){
 		@disks = sort { $a->{'id'} cmp $b->{'id'} } @disks;
 		foreach my $ref (@disks){
+			($id,$model,$size) = ('','','');
 			my %row = %$ref;
-			my $model = ($row{'model'}) ? $row{'model'}: 'N/A';
-			my $id =  ($row{'id'}) ? "/dev/$row{'id'}":'N/A';
+			$model = ($row{'model'}) ? $row{'model'}: 'N/A';
+			$id =  ($row{'id'}) ? "/dev/$row{'id'}":'N/A';
 			my @sizing = main::get_size($row{'size'});
 			#print Data::Dumper::Dumper \@disks;
 			if (@sizing){
@@ -6672,6 +6674,9 @@ sub create_output {
 					$size_holder = $sizing[0];
 				}
 				$size ||= 'N/A';
+			}
+			else {
+				$size = 'N/A';
 			}
 			$j = scalar @rows;
 			@data = ({
@@ -6927,7 +6932,7 @@ sub proc_data_advanced {
 sub dmesg_boot_data {
 	eval $start if $b_log;
 	my ($used) = @_;
-	my (@data,@drives);
+	my (@data,@drives,@temp);
 	my ($id_holder,$i,$size,$working) = ('',0,0,0);
 	my $file = main::system_files('dmesg-boot');
 	if (@dm_boot_disk){
@@ -6936,6 +6941,7 @@ sub dmesg_boot_data {
 			$_ =~ s/^(\S+)\sat\s/$1:at /;
 			my @row = split /:\s*/, $_;
 			next if ! defined $row[1];
+			
 			if ($id_holder ne $row[0]){
 				$i++ if $id_holder;
 				# print "$i $id_holder $row[0]\n";
@@ -6950,25 +6956,45 @@ sub dmesg_boot_data {
 				$drives[$i]{'type'} = '';
 				$drives[$i]{'vendor'} = '';
 			}
-			if ($row[1] =~ /^([0-9]+[KMGTPE][B]?)\s/){
-				$working = main::translate_size($1);
-				$size += $working if $working;
-				$drives[$i]{'size'} = $working;
+			#print "$i\n";
+			if ($bsd_type eq 'openbsd'){
+				if ($row[1] =~ /,\s*([0-9\.]+[MGTPE][B]?),.*\ssectors$|^</){
+					$working = main::translate_size($1);
+					$size += $working if $working;
+					$drives[$i]{'size'} = $working;
+				}
+				if ($row[2] && $row[2] =~ /<([^>]+)>/){
+					$drives[$i]{'model'} = $1 if $1;
+					$drives[$i]{'type'} = 'removable' if $_ =~ /removable$/;
+					# <Generic-, Compact Flash, 1.00>
+					my $count = ($drives[$i]{'model'} =~ tr/,//);
+					if ($count && $count > 1){
+						@temp = split /,\s*/, $drives[$i]{'model'};
+						$drives[$i]{'model'} = $temp[1];
+					}
+				}
+				# print "openbsd\n";
 			}
-			if ($row[1] =~ /device$|^</){
-				$row[1] =~ s/\sdevice$//g;
-				$row[1] =~ /<([^>]*)>\s(.*)/;
-				$drives[$i]{'model'} = $1 if $1;
-				$drives[$i]{'spec'} = $2 if $2;
+			else {
+				if ($row[1] =~ /^([0-9]+[KMGTPE][B]?)\s/){
+					$working = main::translate_size($1);
+					$size += $working if $working;
+					$drives[$i]{'size'} = $working;
+				}
+				if ($bsd_type ne 'openbsd' && $row[1] =~ /device$|^</){
+					$row[1] =~ s/\sdevice$//g;
+					$row[1] =~ /<([^>]*)>\s(.*)/;
+					$drives[$i]{'model'} = $1 if $1;
+					$drives[$i]{'spec'} = $2 if $2;
+				}
+				if ($row[1] =~ /^Serial\sNumber\s(.*)/){
+					$drives[$i]{'serial'} = $1;
+				}
+				if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
+					$drives[$i]{'speed'} = $1;
+					$drives[$i]{'speed'} =~ s/\.[0-9]+// if $drives[$i]{'speed'};
+				}
 			}
-			if ($row[1] =~ /^Serial\sNumber\s(.*)/){
-				$drives[$i]{'serial'} = $1;
-			}
-			if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
-				$drives[$i]{'speed'} = $1;
-				$drives[$i]{'speed'} =~ s/\.[0-9]+// if $drives[$i]{'speed'};
-			}
-			
 		}
 		if (!$size){
 			$size = main::row_defaults('data-bsd');
@@ -13379,14 +13405,24 @@ sub get_uptime {
 
 sub set_dmesg_boot_data {
 	eval $start if $b_log;
-	my ($file);
+	my ($file,@temp);
+	my ($counter) = (0);
 	$b_dmesg_boot_check = 1;
 	$file = system_files('dmesg-boot');
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
 	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
+		# some dmesg repeats, so we need to dump the second and > iterations
+		foreach (@dmesg_boot){
+			$counter++ if /^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/;
+			last if $counter > 1;
+			push @temp, $_;
+		}
+		@dmesg_boot = @temp;
 		# replace all indented items with ~ so we can id them easily while
 		# processing note that if user, may get error of read permissions
 		# for some weird reason, real mem and avail mem are use a '=' separator, 
