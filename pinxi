@@ -39,8 +39,8 @@ use Sys::Hostname;
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-13';
-my $self_patch='414-p';
+my $self_date='2018-03-14';
+my $self_patch='415-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9610,7 +9610,7 @@ sub throttled {
 {
 package RaidData;
 # debugger switches
-my ($b_md,$b_zfs) = (0,0);
+my ($b_md,$b_zfs) = (0,1);
 sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
@@ -9635,10 +9635,10 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my (@components,@components_good,@data,@failed,@rows,@sizes,@spare);
+	my (@components,@components_good,@data,@failed,@rows,@sizes,@spare,@temp);
 	my ($available,$blocks_avail,$chunk_raid,$component_string,$raid,$ref2,$ref3,
-	$report_size,$size);
-	my ($i,$j,$num) = (0,0,0);
+	$report_size,$size,$status);
+	my ($i,$j,$num,$status_id) = (0,0,0,0);
 	#print Data::Dumper::Dumper \@raid;
 	foreach my $ref (@raid){
 		$j = scalar @rows;
@@ -9660,6 +9660,7 @@ sub create_output {
 			$size = ($row{'report'}) ? $row{'report'}: '';
 			$size .= " $row{'u-data'}" if $size; 
 			$size ||= 'N/A';
+			$status_id = 2;
 		}
 		else {
 			$blocks_avail = 'free';
@@ -9669,6 +9670,7 @@ sub create_output {
 			$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 			@sizes = ($row{'free'}) ? main::get_size($row{'free'}) : ();
 			$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+			$status_id = 1;
 		}
 		$ref2 = $row{'arrays'};
 		my @arrays = @$ref2;
@@ -9694,8 +9696,10 @@ sub create_output {
 				@sizes = ($row2{'free'}) ? main::get_size($row2{'free'}) : ();
 				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				$raid = (defined $row2{'raid'}) ? $row2{'raid'}: 'no-raid';
+				$status = ($row2{'status'}) ? $row2{'status'}: 'N/A';
 				@data = ({
 				$num++ . '#array' => $raid,
+				$num++ . '#status' => $status,
 				$num++ . '#size' => $size,
 				$num++ . '#free' => $available,
 				});
@@ -9708,18 +9712,23 @@ sub create_output {
 			@components_good = ();
 			# @spare = split(/\s+/, $row{'unused'}) if $row{'unused'};
 			foreach my $item (@components){
-				if ($item =~ /(.*)\s*(\(?F\)?|DEGRADED|FAULTED)$/){
-					push @failed, $1;
+				@temp = split /~/, $item;
+				if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+					$temp[0] = "$temp[0]~$temp[1]" if $status_id == 2;
+					push @failed, $temp[0];
 				}
-				elsif ($item =~ /(.*)\s*(\(?S\)?|OFFLINE)$/){
-					push @spare, $1;
+				elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
+					$temp[0] = "$temp[0]~$temp[1]" if $status_id == 2;
+					push @spare, $temp[0];
 				}
 				else {
-					push @components_good, $item;
+					$temp[0] = ($status_id == 2) ? "$temp[0]~$temp[1]" : $temp[0];
+					push @components_good, $temp[0];
 				}
 			}
 			$component_string = (@components_good) ? join ' ', @components_good : 'N/A';
-			$rows[$j]{$num++ . "#components"} = $component_string;
+			$rows[$j]{$num++ . "#components"} = '';
+			$rows[$j]{$num++ . "#online"} = $component_string;
 			if (@failed){
 				$rows[$j]{$num++ . "#FAILED"} = join ' ', @failed;
 			}
@@ -9775,7 +9784,7 @@ sub mdraid_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
-	my (@data,@mdraid,$b_found);
+	my (@data,@mdraid,@temp,$b_found);
 	foreach (@working){
 		$_ =~ s/\s*:\s*/:/;
 		# print "$_\n";
@@ -9790,6 +9799,14 @@ sub mdraid_data {
 			$raid = 'mirror' if $raid eq '1';
 			# remember, these include the [x] id, so remove that for disk/unmounted
 			my @components = split /\s+/, $component_string;
+			foreach my $component (@components){
+				$component =~ /([\S]+)\[([0-9]+)\]\(?([SF])?\)?/;
+				my $string = "$1~";
+				$string .= (defined $2) ? "c$2" : '';
+				$string .= (defined $3) ? "~$3" : '';
+				push @temp, $string;
+			}
+			@components = @temp;
 			#print "$component_string\n";
 			$j = scalar @mdraid;
 			@data = ({
@@ -9850,9 +9867,9 @@ sub zfs_data {
 	my ($ref);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zfs-2-mirror-main-solestar.txt";
-	#my @working = main::reader($file);
-	my @working = main::grabber("$zpool list -v 2>/dev/null");
+	my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
+	my @working = main::reader($file);$zpool = '';
+	#my @working = main::grabber("$zpool list -v 2>/dev/null");
 	DiskData::set_glabel() if $bsd_type && !$b_glabel;
 	# bsd sed does not support inserting a true \n so use this trick
 	# some zfs does not have -v
@@ -9884,7 +9901,7 @@ sub zfs_data {
 			my $size = ($row[1])? main::translate_size($row[1]): '';
 			my $allocated = ($row[2])? $row[2]: '';
 			my $free = ($row[3])? main::translate_size($row[3]): '';
-			my $status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no raid';
+			my $status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-raid';
 			
 			$j = scalar @zfs;
 			@data = ({
@@ -9919,7 +9936,7 @@ sub zfs_data {
 		# this second is a single device not in an array
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
 		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
-		elsif ($row[1] =~ /^([a-z0-9]+[0-9]+|([\S]+)\/.*)()?$/ && 
+		elsif ($row[1] =~ /^([a-z0-9]+[0-9]+|([\S]+)\/.*)$/ && 
 		       ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
 			$row[1] =~ /^([a-z0-9]+[0-9]+|([\S]+)\/.*)\s*(DEGRADED|FAULTED|OFFLINE)?$/;
 			my $working = $1;
@@ -9927,13 +9944,85 @@ sub zfs_data {
 			if ($working =~ /[\S]+\// && @glabel){
 				$working = DiskData::match_glabel($working);
 			}
-			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = $working . $state;
+			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = $working . '~' . $state;
 			$i++;
 		}
 	}
-	# print 'zfs: ', Data::Dumper::Dumper \@zfs;
+	# print 'zfs1: ', Data::Dumper::Dumper \@zfs;
+	# clear out undefined arrrays values
+	$j = 0;
+	foreach $ref (@zfs){
+		my %row = %$ref;
+		my $ref2 = $row{'arrays'};
+		my @arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
+		@arrays = grep {defined $_} @arrays;
+		$zfs[$j]{'arrays'} = \@arrays;
+		$j++;
+	}
+	@zfs = zfs_status($zpool,@zfs);
+	# print Data::Dumper::Dumper \@zfs;
 	eval $end if $b_log;
 	return @zfs;
+}
+sub zfs_status {
+	eval $start if $b_log;
+	my ($zpool,@zfs) = @_;
+	my ($cmd,$status,$file,$raid,@arrays,@pool_status,@temp);
+	my ($i,$j,$k,$l) = (0,0,0,0);
+	foreach my $ref (@zfs){
+		my %row = %$ref;
+		$i = 0;
+		$k = 0;
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
+		@pool_status = main::reader($file,'strip');
+		$cmd = "$zpool status $row{'id'} 2>/dev/null";
+		#my @pool_status = main::grabber($cmd,"\n",'strip');
+		#main::log_data('cmd',$cmd) if $b_log;
+		my $ref2 = $row{'arrays'};
+		@arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
+		#@arrays = grep {defined $_} @arrays;
+		#print "$row{id} $#arrays\n";
+		#print Data::Dumper::Dumper \@arrays;
+		foreach my $array (@arrays){
+			#print 'ref: ', ref $array, "\n";
+			#next if ref $array ne 'HASH';
+			my %row2 = %$array;
+			my $ref3 = $row2{'components'};
+			my @components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
+			$l = 0;
+			# zpool status: mirror-0  ONLINE       2     0     0
+			$raid = ($row2{'raid'} && $row2{'raid'} =~ /^mirror/) ? "$row2{'raid'}-$i": '';
+			$status = ($raid) ? check_status($raid,@pool_status): '';
+			$zfs[$j]{'arrays'}[$k]{'status'} = $status;
+			#print "$raid i:$i j:$j k:$k $status\n";
+			foreach my $component (@components){
+				my @temp = split /~/, $component;
+				$status = ($temp[0]) ? check_status($temp[0],@pool_status): '';
+				$zfs[$j]{'arrays'}[$k]{'components'}[$l] .= $status if $status;
+				$l++;
+			}
+			$k++;
+			$i++ if $row2{'raid'} && $row2{'raid'} eq 'mirror';
+		}
+		$j++;
+	}
+	eval $end if $b_log;
+	return @zfs;
+}
+sub check_status {
+	eval $start if $b_log;
+	my ($item,@pool_status) = @_;
+	my ($status) = ('');
+	foreach (@pool_status){
+		my @temp = split /\s+/, $_;
+		if ($temp[0] eq $item){
+			last if !$temp[1]; 
+			$status = $temp[1];
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $status;
 }
 }
 
@@ -11770,25 +11859,7 @@ sub unmounted_data {
 	PartitionData::partition_data() if !$b_partitions;
 	main::get_partition_extra_data() if !$b_partition_extra;
 	RaidData::raid_data() if !$b_raid;
-	foreach my $ref (@partitions){
-		my %row = %$ref;
-		push @mounted, $row{'dev-base'} if $row{'dev-base'};
-	}
-	foreach my $ref (@raid){
-		my %row = %$ref;
-		my $ref2 = $row{'arrays'};
-		my @arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
-		@arrays = grep {defined $_} @arrays;
-		foreach my $array (@arrays){
-			my %row2 = %$array;
-			my $ref3 = $row2{'components'};
-			my @components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
-			foreach my $component (@components){
-				$component =~ s/\[[0-9]+\]//;
-				push @mounted, $component;
-			}
-		}
-	}
+	@mounted = get_mounted(@mounted);
 	foreach (@mounts){
 		my @working = split /\s+/, $_;
 		# note that size 1 means it is a logical extended partition container
@@ -11813,6 +11884,31 @@ sub unmounted_data {
 	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
 	eval $end if $b_log;
 	return @unmounted;
+}
+sub get_mounted {
+	eval $start if $b_log;
+	my (@mounted) = @_;
+	foreach my $ref (@partitions){
+		my %row = %$ref;
+		push @mounted, $row{'dev-base'} if $row{'dev-base'};
+	}
+	foreach my $ref (@raid){
+		my %row = %$ref;
+		my $ref2 = $row{'arrays'};
+		my @arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
+		@arrays = grep {defined $_} @arrays;
+		foreach my $array (@arrays){
+			my %row2 = %$array;
+			my $ref3 = $row2{'components'};
+			my @components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
+			foreach my $component (@components){
+				my @temp = split /~/, $component;
+				push @mounted, $temp[0];
+			}
+		}
+	}
+	eval $end if $b_log;
+	return @mounted;
 }
 sub unmounted_filesystem {
 	eval $start if $b_log;
