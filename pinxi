@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-15';
-my $self_patch='423-p';
+my $self_patch='424-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5279,10 +5279,11 @@ sub create_output {
 		my ($charge,$condition,$model,$serial,$status,$volts) = ('','','','','','');
 		my ($chemistry,$cycles,$location) = ('','','');
 		# $battery{$key}{''};
-		$charge = ($battery{$key}{'energy_now'}) ? "$battery{$key}{'energy_now'} Wh" : 'N/A';
+		# we need to handle cases where charge or energy full is 0
+		$charge = ($battery{$key}{'energy_now'} || $battery{$key}{'energy_now'} eq 0) ? "$battery{$key}{'energy_now'} Wh" : 'N/A';
 		if ($battery{$key}{'energy_full'} || $battery{$key}{'energy_full_design'}){
 			$battery{$key}{'energy_full_design'} ||= 'N/A';
-			$battery{$key}{'energy_full'} ||= 'N/A';
+			$battery{$key}{'energy_full'}= ($battery{$key}{'energy_full'} || $battery{$key}{'energy_full'} eq 0) ? $battery{$key}{'energy_full'} : 'N/A';
 			$condition = "$battery{$key}{'energy_full'}/$battery{$key}{'energy_full_design'} Wh";
 			if ($battery{$key}{'of_orig'}){
 				$condition .= " ($battery{$key}{'of_orig'}%)"; 
@@ -5341,7 +5342,6 @@ sub create_output {
 			}
 		}
 	}
-	
 	eval $end if $b_log;
 	return @rows;
 }
@@ -8998,10 +8998,6 @@ sub optical_data_linux {
  		else {
 			my $ref = $devices{$working}{'links'};
  			push @$ref, $_ if $_ ne $working;
- 		}
- 		# advanced data, if available
- 		if ($show{'optical'}){
- 		
  		}
 		#print "$working\n";
 	}
