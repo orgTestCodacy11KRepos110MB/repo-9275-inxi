@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-15';
-my $self_patch='425-p';
+my $self_patch='426-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7189,8 +7189,10 @@ sub match_glabel {
 	my ($dev_id) = ('');
 	foreach (@glabel){
 		my @temp = split /\s+/, $_;
+		my $gptid_trimmed = $gptid;
 		# slice off s[0-9] from end in case they use slice syntax
-		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq ( $gptid =~ s/s[0-9]+$//) ) ){
+		$gptid_trimmed =~ s/s[0-9]+$//;
+		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq $gptid_trimmed ) ){
 			$dev_id = $temp[2];
 			last;
 		}
@@ -7205,7 +7207,9 @@ sub set_glabel {
 	if (my $path = main::check_program('glabel')){
 		@glabel = main::grabber("$path status 2>/dev/null");
 	}
-	main::log_data('dump','@glabel',\@glabel) if $b_log;
+	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
+	# get rid of first header line
+	shift @glabel;
 	eval $end if $b_log;
 }
 }
@@ -8988,8 +8992,9 @@ sub optical_data_linux {
 		my $working = readlink($_);
 		$working = ($working) ? $working: $_;
 		next if $working =~ /random/;
-		$working =~ s/\/dev\///;
-		$_ =~ s/\/dev\///;
+		# possible fix: puppy has these in /mnt not /dev they say
+		$working =~ s/\/(dev|media|mnt)\///;
+		$_ =~ s/\/(dev|media|mnt)\///;
 		if  (! defined $devices{$working}){
 			my @temp = ($_ ne $working) ? ([$_]) : ([]);
 			$devices{$working} = ({'links' => @temp});
@@ -14428,8 +14433,9 @@ sub set_sysctl_data {
 		}
 	}
 	print Dumper \@sysctl if $test[7];
+	# this thing can get really long.
 	if ($b_log){
-		main::log_data('dump','@sysctl',\@sysctl);
+		#main::log_data('dump','@sysctl',\@sysctl);
 	}
 	eval $end if $b_log;
 }
