@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-14';
-my $self_patch='421-p';
+my $self_patch='422-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9640,6 +9640,12 @@ sub create_output {
 	$ref2,$ref3,$report_size,$size,$status);
 	my ($i,$j,$num,$status_id) = (0,0,0,0);
 	#print Data::Dumper::Dumper \@raid;
+	if ($extra > 2 && $raid[0]{'system-supported'}){
+		@data = ({
+		$num++ . '#Supported md-raid types' => $raid[0]{'system-supported'},
+		});
+		@rows = (@rows,@data);
+	}
 	foreach my $ref (@raid){
 		$j = scalar @rows;
 		my %row = %$ref;
@@ -9686,6 +9692,12 @@ sub create_output {
 		}
 		if ( ( $row{'type'} eq 'zfs' || ($row{'type'} eq 'mdraid' && $extra == 0 ) ) && $size){
 			$rows[$j]{$num++ . "#$report_size"} = $size;
+		}
+		if ( $row{'type'} eq 'zfs' && $available){
+			$rows[$j]{$num++ . "#$blocks_avail"} = $available;
+		}
+		if ( $row{'type'} eq 'zfs' && $allocated){
+			$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
 		}
 		$i = 0;
 		my $count = scalar @arrays;
@@ -9826,7 +9838,18 @@ sub mdraid_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
-	my (@data,@mdraid,@temp,$b_found);
+	my (@data,@mdraid,@temp,$b_found,$system,$unused);
+	# NOTE: a system with empty mdstat will still show these values
+	if ($working[0] && $working[0] =~ /^Personalities/){
+		$system = ( split /:\s*/,  $working[0])[1];
+		$system =~ s/\[|\]//g if $system;
+		shift @working;
+	}
+	if ($working[-1] && $working[-1] =~ /^used\sdevices/){
+		$unused = ( split /:\s*/,  $working[0])[1];
+		$unused =~ s/<|>|none//g if $unused;
+		pop @working;
+	}
 	foreach (@working){
 		$_ =~ s/\s*:\s*/:/;
 		# print "$_\n";
@@ -9890,15 +9913,13 @@ sub mdraid_data {
 			$mdraid[$j]{'recovery-finish'} = $1;
 			$mdraid[$j]{'recovery-speed'} = $2;
 		}
-		# comes last, empty mdstat still has unused devices
-		# this creates an empty hash, don't use it
-# 		if ($mdraid[$j]{'id'} && $_ =~ /^unused\sdevices:\s*(.*)/){
-# 			$mdraid[$j]{'unused'} = $1;
-# 			$mdraid[$j]{'unused'} =~ s/<|>|none//g; 
-# 		}
 		#print 'mdraid loop: ', Data::Dumper::Dumper \@mdraid;
 	}
-	# print 'mdraid: ', Data::Dumper::Dumper \@mdraid;
+	if (@mdraid){
+		$mdraid[0]{'system-supported'} = $system if $system;
+		$mdraid[0]{'unused'} = $unused if $unused;
+	}
+	#print Data::Dumper::Dumper \@mdraid;
 	eval $end if $b_log;
 	return @mdraid;
 }
