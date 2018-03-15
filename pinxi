@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-15';
-my $self_patch='424-p';
+my $self_patch='425-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10660,7 +10660,7 @@ sub get {
 sub get_repos_linux {
 	eval $start if $b_log;
 	my (@content,@data,@data2,@files,$repo,@rows);
-	my ($path);
+	my ($key,$path);
 	my $apk = '/etc/apk/repositories';
 	my $apt = '/etc/apt/sources.list';
 	my $eopkg_dir = '/var/lib/eopkg/';
@@ -10741,8 +10741,13 @@ sub get_repos_linux {
 					}
 				}
 			}
-			@content = ('No slackpkg+ sources found in file') if ! @content;
-			@content = url_cleaner(@content);
+			if (! @content){
+				$key = "No enabled slackpkg+ sources in";
+			}
+			else {
+				@content = url_cleaner(@content);
+				$key = "slackpkg+ sources";
+			}
 			@data = (
 			{$num++ . "#slackpkg+ sources" => $slackpkg_plus},
 			[@content],
@@ -10808,10 +10813,16 @@ sub get_repos_linux {
 				if ($url && $title && $enabled){
 					push @content, "$title ~ $url";
 				}
-				@content = url_cleaner(@content);
-				@content = ("No enabled $repo sources found in file") if ! @content;
+				
+				if (! @content){
+					$key = "No enabled $repo sources in";
+				}
+				else {
+					@content = url_cleaner(@content);
+					$key = "Enabled $repo sources in";
+				}
 				@data = (
-				{$num++ . "#Enabled $repo sources in" => $_},
+				{$num++ . "#$key" => $_},
 				[@content],
 				);
 				@rows = (@rows,@data);
@@ -10866,10 +10877,15 @@ sub get_repos_linux {
 				if ($url && $title && $enabled){
 					push @content, "$title ~ $url";
 				}
-				@content = url_cleaner(@content);
-				@content = ("No enabled $repo sources found in file") if ! @content;
+				if (! @content){
+					$key = "No enabled $repo sources in";
+				}
+				else {
+					@content = url_cleaner(@content);
+					$key = "Enabled $repo sources in";
+				}
 				@data = (
-				{$num++ . "#Enabled $repo sources in" => $_},
+				{$num++ . "#$key" => $_},
 				[@content],
 				);
 				@rows = (@rows,@data);
@@ -10905,6 +10921,7 @@ sub get_repos_linux {
 			if (/(.+)\s([\S]+:\/\/.+)/){
 				# pack the repo url
 				push @content, $1;
+				@content = url_cleaner(@content);
 				# get the repo
 				$repo = $2;
 				@data = (
@@ -10951,6 +10968,7 @@ sub get_repos_linux {
 				$repo = ($2 =~ /^activ/i) ? $repo : '';
 			}
 			if ($repo && @content){
+				@content = url_cleaner(@content);
 				@data = (
 				{$num++ . "#Active $which repo" => $repo},
 				[@content],
@@ -10962,6 +10980,7 @@ sub get_repos_linux {
 		}
 		# last one if present
 		if ($repo && @content){
+			@content = url_cleaner(@content);
 			@data = (
 			{$num++ . "#Active $which repo" => $repo},
 			[@content],
@@ -10976,6 +10995,7 @@ sub get_repos_linux {
 sub get_repos_bsd {
 	eval $start if $b_log;
 	my (@content,@data,@data2,@data3,@files,@rows);
+	my ($key);
 	my $bsd_pkg = '/usr/local/etc/pkg/repos/';
 	my $freebsd = '/etc/freebsd-update.conf';
 	my $freebsd_pkg = '/etc/pkg/FreeBSD.conf';
@@ -11026,10 +11046,15 @@ sub get_repos_bsd {
 							}
 						}
 					}
-					@data3 = url_cleaner(@data3);
-					@data3 = ('No pkg enabled servers found in file') if ! @data3;
+					if (! @data3){
+						$key = "No enabled BSD pkg servers in";
+					}
+					else {
+						@data3 = url_cleaner(@data3);
+						$key = "BSD enabled pkg servers in";
+					}
 					@data = (
-					{$num++ . "#BSD pkg enabled servers" => $_},
+					{$num++ . "#$key" => $_},
 					[@data3],
 					);
 					@rows = (@rows,@data);
@@ -11055,19 +11080,19 @@ sub repo_builder {
 	my ($file,$type,$search,$split,$count) = @_;
 	my (@content,@data,$missing,$key);
 	my %unfound = (
-	'apk' => 'No repos found in this file',
-	'apt' => 'No repos found in this file',
-	'bsd-package' => 'No package servers found in this file',
-	'pacman' => 'No repos found in this file',
-	'portsnap' => 'No ports servers found in this file',
-	'freebsd' => 'No update servers found in this file',
-	'freebsd-pkg' => 'No default pkg server found in this file',
-	'openbsd' => 'No pkg mirrors found in this file',
-	'netbsd' => 'No pkg servers found in this file',
-	'slackpkg' => 'No sources found in this file',
-	'slackpkg-plus' => 'No sources found in this file',
-	'yum' => 'No sources found in this file',
-	'zypp' => 'No sources found in this file',
+	'apk' => 'No APK repos found in',
+	'apt' => 'No apt repos found in',
+	'bsd-package' => 'No BSD package servers found in',
+	'pacman' => 'No Pacman repos found in',
+	'portsnap' => 'No ports servers found in',
+	'freebsd' => 'No FreeBSD update servers found in',
+	'freebsd-pkg' => 'No FreeBSD default pkg server found in',
+	'openbsd' => 'No OpenBSD pkg mirrors found in',
+	'netbsd' => 'No NetBSD pkg servers found in',
+	'slackpkg' => 'No slackpkg sources found in',
+	'slackpkg-plus' => 'No slackpkg+ sources found in',
+	'yum' => 'No yum sources found in',
+	'zypp' => 'No zypp sources found in',
 	);
 	$missing = $unfound{$type};
 	my %keys = (
@@ -11096,8 +11121,12 @@ sub repo_builder {
 		$inner[$count];
 		} @content;
 	}
-	@content = url_cleaner(@content);
-	@content = ($missing) if ! @content;
+	if (!@content){
+		$key = $missing;
+	}
+	else {
+		@content = url_cleaner(@content);
+	}
 	@data = (
 	{$num++ . "#$key" => $file},
 	[@content],
