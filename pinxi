@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-14';
-my $self_patch='418-p';
+my $self_patch='419-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3860,10 +3860,8 @@ sub show_options {
 	['2', '-N -A', '', "Version/port(s)/driver version (if available) for Network/Audio;" ],
 	['2', '-N -A -G', '', "Network, audio, graphics, shows PCI Bus ID/Usb ID 
 	number of card." ],
-	['2', '-R', '', "md-raid: Shows component raid id. Adds second RAID Info line: 
-	raid level; report on drives (like 5/5); blocks; chunk size; bitmap (if present). 
-	Resync line, shows blocks synced/total blocks. zfs-raid:	Shows raid array 
-	full size; available size; portion allocated to RAID" ],
+	['2', '-R', '', "md-raid: Adds second RAID Info line with extra data: blocks; chunk size; 
+	bitmap (if present). Resync line, shows blocks synced/total blocks." ],
 	['2', '-S', '', "Desktop toolkit if available (GNOME/XFCE/KDE only); Kernel 
 	gcc version" ],
 	['2', '-t', '', "Memory use output to cpu (-xt c), and cpu use to memory (-xt m)." ],
@@ -3891,9 +3889,9 @@ sub show_options {
 	['2', '-M', '', "Chassis information, bios rom size (dmidecode only), if data for 
 	either is available." ],
 	['2', '-N', '', "Chip vendor:product ID for each nic." ],
-	['2', '-R', '', "md-raid: Superblock (if present); algorythm, U data. Adds 
-	system info line (kernel support,read ahead, raid events). If present, 
-	adds unused device line. Resync line, shows progress bar." ],
+	['2', '-R', '', "md-raid: Superblock (if present); algorythm. Adds 
+	system info line (kernel support,read ahead, raid events). If resync, 
+	shows progress bar." ],
 	['2', '-S', '', "Display manager (dm) in desktop output, if in X 
 	(like kdm, gdm3, lightdm)." ],
 	['2', '--slots', '', "Show slot length." ],
@@ -3911,6 +3909,7 @@ sub show_options {
 	['2', '-D', '', "Firmware rev. if available." ],
 	['2', '-m', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail, if present, for Type; module voltage, if available; Serial number." ],
+	['2', '-R', '', "zfs-raid: Shows portion allocated (used) by RAID devices/arrays." ],
 	['2', '-S', '', "Panel/shell information in desktop output, if in X 
 	(like gnome-shell, cinnamon, mate-panel); if available, dm version number." ]
 	);
@@ -4727,7 +4726,7 @@ sub print_data {
 							$array_holder = $ids{$key};
 							$ids{'Device'} = 1 if ($ids{'Device'} > 1);
 						}
-						if ($key eq 'ID' && $ids{'array'} > 1 && $id_holder != $ids{$key} ){
+						if ($key eq 'Device' && $ids{'array'} > 1 && $id_holder != $ids{$key} ){
 							$id_holder = $ids{$key};
 							$ids{'array'} = 1 if ($ids{'array'} > 1);
 						}
@@ -9635,9 +9634,10 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my (@components,@components_good,@data,@failed,@rows,@sizes,@spare,@temp);
-	my ($available,$blocks_avail,$chunk_raid,$component_string,$raid,$ref2,$ref3,
-	$report_size,$size,$status);
+	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
+	@sizes,@spare,@temp);
+	my ($allocated,$available,$blocks_avail,$chunk_raid,$component_string,$raid,
+	$ref2,$ref3,$report_size,$size,$status);
 	my ($i,$j,$num,$status_id) = (0,0,0,0);
 	#print Data::Dumper::Dumper \@raid;
 	foreach my $ref (@raid){
@@ -9645,7 +9645,7 @@ sub create_output {
 		my %row = %$ref;
 		next if !%row;
 		@data = ({
-		$num++ . '#ID' => $row{'id'},
+		$num++ . '#Device' => $row{'id'},
 		$num++ . '#type' => $row{'type'},
 		$num++ . '#status' => $row{'status'},
 		});
@@ -9655,7 +9655,7 @@ sub create_output {
 			$chunk_raid = 'chunk size';
 			$report_size = 'report';
 			if ($extra > 0){
-				$available = ($row{'blocks'}) ? $row{'blocks'} : '';
+				$available = ($row{'blocks'}) ? $row{'blocks'} : 'N/A';
 			}
 			$size = ($row{'report'}) ? $row{'report'}: '';
 			$size .= " $row{'u-data'}" if $size; 
@@ -9670,20 +9670,28 @@ sub create_output {
 			$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 			@sizes = ($row{'free'}) ? main::get_size($row{'free'}) : ();
 			$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+			if ($extra > 2){
+				@sizes = ($row{'allocated'}) ? main::get_size($row{'allocated'}) : ();
+				$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+			}
 			$status_id = 1;
 		}
 		$ref2 = $row{'arrays'};
-		my @arrays = @$ref2;
+		@arrays = @$ref2;
 		@arrays = grep {defined $_} @arrays;
-		if ($row{'type'} eq 'mdraid' || !defined $arrays[0]{'raid'} ){
+		@arrays_holder = @arrays;
+		if (($row{'type'} eq 'mdraid' && $extra == 0 ) || !defined $arrays[0]{'raid'} ){
 			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
 			$rows[$j]{$num++ . "#raid"} = $raid;
 		}
-		if ( $size){
+		if ( ( $row{'type'} eq 'zfs' || ($row{'type'} eq 'mdraid' && $extra == 0 ) ) && $size){
 			$rows[$j]{$num++ . "#$report_size"} = $size;
 		}
-		if ($available){
+		if ($row{'type'} eq 'zfs' && $available){
 			$rows[$j]{$num++ . "#$blocks_avail"} = $available;
+		}
+		if ($row{'type'} eq 'zfs' && $allocated){
+			$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
 		}
 		$i = 0;
 		my $count = scalar @arrays;
@@ -9692,7 +9700,7 @@ sub create_output {
 			if ($count > 1){
 				$j = scalar @rows;
 				@sizes = ($row2{'size'}) ? main::get_size($row2{'size'}) : ();
-				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				$size = (@sizes) ? "$sizes[0] $sizes[1]" : 'N/A';
 				@sizes = ($row2{'free'}) ? main::get_size($row2{'free'}) : ();
 				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				$raid = (defined $row2{'raid'}) ? $row2{'raid'}: 'no-raid';
@@ -9713,6 +9721,13 @@ sub create_output {
 				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				$rows[$j]{$num++ . "#size"} = $size;
 				$rows[$j]{$num++ . "#free"} = $available;
+			}
+			if ($row{'type'} eq 'zfs' && $extra > 2){
+				@sizes = ($row{'allocated'}) ? main::get_size($row{'allocated'}) : ();
+				$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				if ($allocated){
+					$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
+				}
 			}
 			$ref3 = $row2{'components'};
 			@components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
@@ -9743,6 +9758,30 @@ sub create_output {
 			}
 			if (@spare){
 				$rows[$j]{$num++ . "#spare"} = join ' ', @spare;
+			}
+			if ($row{'type'} eq 'mdraid' && $extra > 0 ){
+				$j = scalar @rows;
+				print Data::Dumper::Dumper \@arrays_holder;
+				$rows[$j]{$num++ . "#Info"} = '';
+				$raid = (defined $arrays_holder[0]{'raid'}) ? $arrays_holder[0]{'raid'}: 'no-raid';
+				$rows[$j]{$num++ . "#raid"} = $raid;
+				$rows[$j]{$num++ . "#$blocks_avail"} = $available;
+				if ($size){
+					$rows[$j]{$num++ . "#$report_size"} = $size;
+				}
+				my $chunk = ($row{'chunk-size'}) ? $row{'chunk-size'}: 'N/A';
+				$rows[$j]{$num++ . "#$chunk_raid"} = $chunk;
+				if ($extra > 1){
+					if ($row{'bitmap'}){
+						$rows[$j]{$num++ . "#bitmap"} = $row{'bitmap'};
+					}
+					if ($row{'super-block'}){
+						$rows[$j]{$num++ . "#super blocks"} = $row{'super-block'};
+					}
+					if ($row{'algorithm'}){
+						$rows[$j]{$num++ . "#algorithm"} = $row{'algorithm'};
+					}
+				}
 			}
 			$i++;
 		}
