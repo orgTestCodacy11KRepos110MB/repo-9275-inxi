@@ -157,7 +157,7 @@ Note that my current development goals are, roughly in this order:
      Network: DONE - with new features!
      Drives: DONE
      Optical: DONE - now with BSD support
-     RAID: Basic DONE, advanced TODO
+     RAID: DONE
      Partition: DONE
      Unmounted: DONE
      USB Info: DONE: NEW!

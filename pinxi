@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-14';
-my $self_patch='420-p';
+my $self_patch='421-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10645,8 +10645,10 @@ sub get {
 sub get_repos_linux {
 	eval $start if $b_log;
 	my (@content,@data,@data2,@files,$repo,@rows);
+	my ($path);
 	my $apk = '/etc/apk/repositories';
 	my $apt = '/etc/apt/sources.list';
+	my $eopkg_dir = '/var/lib/eopkg/';
 	my $pacman = '/etc/pacman.conf';
 	my $pisi_dir = '/etc/pisi/';
 	my $portage_dir = '/etc/portage/repos.conf/';
@@ -10655,7 +10657,7 @@ sub get_repos_linux {
 	my $yum_conf = '/etc/yum.conf';
 	my $yum_repo_dir = '/etc/yum.repos.d/';
 	my $zypp_repo_dir = '/etc/zypp/repos.d/';
-	
+	my $b_test = 0;
 	# apt - debian, buntus, also sometimes some yum/rpm repos may create 
 	# apt repos here as well
 	if (-f $apt || -d "$apt.d"){
@@ -10865,8 +10867,8 @@ sub get_repos_linux {
 		@rows = (@rows,@data);
 	}
 	# Mandriva/Mageia using: urpmq
-	elsif ( main::check_program('urpmq') ){
-		@data2 = main::grabber("urpmq --list-media active --list-url","\n",'strip');
+	elsif ( $path = main::check_program('urpmq') ){
+		@data2 = main::grabber("$path --list-media active --list-url","\n",'strip');
 		main::writer("$debugger_dir/system-repo-data-urpmq.txt",@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
 		# we do that by looping through the lines of the output and then
@@ -10899,9 +10901,22 @@ sub get_repos_linux {
 		}
 	}
 	# Pardus
-	elsif (-d $pisi_dir && main::check_program('pisi') ){
-		@data2 = main::grabber("pisi list-repo 2>/dev/null","\n",'strip');
-		main::writer("$debugger_dir/system-repo-data-pisi.txt",@data2) if $debugger_dir;
+	elsif ( (-d $pisi_dir && ( $path = main::check_program('pisi') ) ) || 
+	        (-d $eopkg_dir && ( $path = main::check_program('eopkg') ) ) ){
+		#$path = 'eopkg';
+		my $which = ($path =~ /pisi$/) ? 'pisi': 'eopkg';
+		my ($b_pisi,$cmd);
+		if ($which eq 'pisi'){
+			$cmd = "$path list-repo";
+			$b_pisi = 1;
+		}
+		else {
+			$cmd = "$path lr";
+		}
+		#my $file = "$ENV{HOME}/bin/scripts/inxi/data/repo/solus/eopkg-2.txt";
+		#@data2 = main::reader($file,'strip');
+		@data2 = main::grabber("$cmd 2>/dev/null","\n",'strip');
+		main::writer("$debugger_dir/system-repo-data-$which.txt",@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
 		# we do that by looping through the lines of the output and then
 		# putting it back into the <data>:<url> format print repos expects to see
@@ -10911,27 +10926,37 @@ sub get_repos_linux {
 		# 	http://packages.pardus.org.tr/pardus-2009.1/pisi-index.xml.bz2
 		# Contrib [Aktiv]
 		# 	http://packages.pardus.org.tr/contrib-2009/pisi-index.xml.bz2
+		# Solus [inactive]
+		# 	https://packages.solus-project.com/shannon/eopkg-index.xml.xz
 		foreach (@data2){
 			# need to dump leading/trailing spaces and clear out color codes for irc output
 			$_ =~ s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g;
 			$_ =~ s/\e\[([0-9];)?[0-9]+m//g;
-			if (/:\/\//){
-				push @content, $_;
+			next if /^\s*$/;
+			if (/^\/|:\/\//){
+				push @content, $_ if $repo;
 			}
 			else {
-				$repo = $_;
+				# Local [inactive] Unstable [active]
+				if ( /^(.*)\s\[([\S]+)\]/){
+					$repo = $1;
+					$repo = ($2 =~ /^activ/i) ? $repo : '';
+				}
+			}
+			if ($repo && @content){
 				@data = (
-				{$num++ . "#pisi repo" => $repo},
+				{$num++ . "#Active $which repo" => $repo},
 				[@content],
 				);
 				@rows = (@rows,@data);
+				$repo = '';
 				@content = ();
 			}
 		}
 		# last one if present
 		if ($repo && @content){
 			@data = (
-			{$num++ . "#pisi repo" => $repo},
+			{$num++ . "#Active $which repo" => $repo},
 			[@content],
 			);
 			@rows = (@rows,@data);
