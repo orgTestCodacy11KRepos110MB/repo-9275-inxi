@@ -40,7 +40,7 @@ use Sys::Hostname;
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-14';
-my $self_patch='416-p';
+my $self_patch='417-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9705,6 +9705,15 @@ sub create_output {
 				});
 				@rows = (@rows,@data);
 			}
+			# items like cache may have one component, with a size on that component
+			elsif ($row{'type'} eq 'zfs' && !$size){
+				@sizes = ($row2{'size'}) ? main::get_size($row2{'size'}) : ();
+				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				@sizes = ($row2{'free'}) ? main::get_size($row2{'free'}) : ();
+				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				$rows[$j]{$num++ . "#size"} = $size;
+				$rows[$j]{$num++ . "#free"} = $available;
+			}
 			$ref3 = $row2{'components'};
 			@components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
 			@failed = ();
@@ -9744,7 +9753,6 @@ sub create_output {
 				$percent .= " $row{'progress-bar'}"
 			}
 			$rows[$j]{$num++ . "#Recovering"} = $percent;
-			
 			my $finish = ($row{'recovery-finish'})?$row{'recovery-finish'} : 'N/A';
 			$rows[$j]{$num++ . "#time remaining"} = $finish;
 			if ($extra > 0){
@@ -9864,10 +9872,11 @@ sub zfs_data {
 	eval $start if $b_log;
 	my ($zpool) = @_;
 	my (@components,@data,@zfs);
-	my ($ref);
+	my ($allocated,$free,$ref,$size,$status);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
 	#my @working = main::reader($file);$zpool = '';
 	my @working = main::grabber("$zpool list -v 2>/dev/null");
 	DiskData::set_glabel() if $bsd_type && !$b_glabel;
@@ -9898,11 +9907,10 @@ sub zfs_data {
 		if (/^[\S]+/){
 			@components = ();
 			$i = 0;
-			my $size = ($row[1])? main::translate_size($row[1]): '';
-			my $allocated = ($row[2])? $row[2]: '';
-			my $free = ($row[3])? main::translate_size($row[3]): '';
-			my $status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-raid';
-			
+			$size = ($row[1] && $row[1] ne '-')? main::translate_size($row[1]): '';
+			$allocated = ($row[2] && $row[2] ne '-')? main::translate_size($row[2]): '';
+			$free = ($row[3] && $row[3] ne '-')? main::translate_size($row[3]): '';
+			$status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-status';
 			$j = scalar @zfs;
 			@data = ({
 			'id' => $row[0],
@@ -9919,7 +9927,7 @@ sub zfs_data {
 		# raid level is the second item in the output, unless it is not, sometimes it is absent
 		if ($row[1] =~ /raid|mirror/){
 			$row[1] =~ s/^raid1/mirror/;
-			$row[1] =~ s/^raid/raid-/;
+			#$row[1] =~ s/^raid/raid-/; # need to match in zpool status <device>
 			$ref = $zfs[$j]{'arrays'};
 			$k = scalar @$ref;
 			$zfs[$j]{'arrays'}[$k]{'raid'} = $row[1];
@@ -9944,11 +9952,27 @@ sub zfs_data {
 			if ($working =~ /[\S]+\// && @glabel){
 				$working = DiskData::match_glabel($working);
 			}
+			# kind of a hack, things like cache may not show size/free
+			# data since they have no array row, but they might show it in 
+			# component row:
+			#   ada0s2    25.9G  19.6G  6.25G         -     0%    75%
+			if (!$zfs[$j]{'size'} && $row[2] && $row[2] ne '-') {
+				$size = ($row[2])? main::translate_size($row[2]): '';
+				$zfs[$j]{'arrays'}[$k]{'size'} = $size;
+			}
+			if (!$zfs[$j]{'allocated'} && $row[3] && $row[3] ne '-') {
+				$allocated = ($row[3])? main::translate_size($row[3]): '';
+				$zfs[$j]{'arrays'}[$k]{'allocated'} = $allocated;
+			}
+			if (!$zfs[$j]{'free'} && $row[4] && $row[4] ne '-') {
+				$free = ($row[4])? main::translate_size($row[4]): '';
+				$zfs[$j]{'arrays'}[$k]{'free'} = $free;
+			}
 			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = $working . '~' . $state;
 			$i++;
 		}
 	}
-	# print 'zfs1: ', Data::Dumper::Dumper \@zfs;
+	 print Data::Dumper::Dumper \@zfs;
 	# clear out undefined arrrays values
 	$j = 0;
 	foreach $ref (@zfs){
@@ -9960,7 +9984,7 @@ sub zfs_data {
 		$j++;
 	}
 	@zfs = zfs_status($zpool,@zfs);
-	# print Data::Dumper::Dumper \@zfs;
+	 print Data::Dumper::Dumper \@zfs;
 	eval $end if $b_log;
 	return @zfs;
 }
@@ -9974,12 +9998,16 @@ sub zfs_status {
 		$i = 0;
 		$k = 0;
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-tank-1.txt";
 		#@pool_status = main::reader($file,'strip');
 		$cmd = "$zpool status $row{'id'} 2>/dev/null";
-		my @pool_status = main::grabber($cmd,"\n",'strip');
+		@pool_status = main::grabber($cmd,"\n",'strip');
 		main::log_data('cmd',$cmd) if $b_log;
 		my $ref2 = $row{'arrays'};
 		@arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
+		print "$row{'id'} rs:$row{'status'}\n";
+		$status = ($row{'status'} && $row{'status'} eq 'no-status') ? check_status($row{'id'},@pool_status): $row{'status'};
+		$zfs[$j]{'status'} = $status if $status;
 		#@arrays = grep {defined $_} @arrays;
 		#print "$row{id} $#arrays\n";
 		#print Data::Dumper::Dumper \@arrays;
@@ -9991,7 +10019,7 @@ sub zfs_status {
 			my @components = (ref $ref3 eq 'ARRAY') ? @$ref3 : ();
 			$l = 0;
 			# zpool status: mirror-0  ONLINE       2     0     0
-			$raid = ($row2{'raid'} && $row2{'raid'} =~ /^mirror/) ? "$row2{'raid'}-$i": '';
+			$raid = ($row2{'raid'}) ? "$row2{'raid'}-$i": $row2{'raid'};
 			$status = ($raid) ? check_status($raid,@pool_status): '';
 			$zfs[$j]{'arrays'}[$k]{'status'} = $status;
 			#print "$raid i:$i j:$j k:$k $status\n";
@@ -10002,7 +10030,8 @@ sub zfs_status {
 				$l++;
 			}
 			$k++;
-			$i++ if $row2{'raid'} && $row2{'raid'} eq 'mirror';
+			# haven't seen a raid5/6 type array yet
+			$i++ if $row2{'raid'}; # && $row2{'raid'} eq 'mirror';
 		}
 		$j++;
 	}
