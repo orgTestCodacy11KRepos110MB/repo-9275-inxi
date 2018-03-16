@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-15';
-my $self_patch='429-p';
+my $self_patch='430-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2964,7 +2964,7 @@ sub program_version {
 				$_ = trimmer($_);
 				# print "$_ ::$num\n";
 				$version_nu = (split /\s+/, $_)[$num];
-				$version_nu =~ s/(|\([^)]+\)|,|dwm-|wmii2-|wmii-|v|V|\|)//g;
+				$version_nu =~ s/(\([^)]+\)|,|dwm-|wmii2-|wmii-|v|V|\||\(|\))//g;
 				# print "$version_nu\n";
 				last;
 			}
@@ -13468,10 +13468,6 @@ sub get_init_data {
 				$init_version = program_version($program,'^systemd','2','--version');
 			}
 		}
-		# output: /sbin/init --version:  init (upstart 1.1)
-		elsif ($init_version = program_version('init', 'upstart', '3','--version')){
-			$init = 'Upstart';
-		}
 		# epoch version == Epoch Init System 1.0.1 "Sage"
 		elsif ($comm =~ /epoch/){
 			$init = 'Epoch';
@@ -13486,7 +13482,13 @@ sub get_init_data {
 		}
 	}
 	if (!$init){
-		if (check_program('launchctl')){
+		# output: /sbin/init --version:  init (upstart 1.1)
+		# init (upstart 0.6.3)
+		if ($init_version = program_version('init', 'upstart', '3','--version')){
+			$init = 'Upstart';
+			
+		}
+		elsif (check_program('launchctl')){
 			$init = 'launchd';
 		}
 		elsif ( -f '/etc/inittab' ){
