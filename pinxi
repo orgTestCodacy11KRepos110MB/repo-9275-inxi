@@ -38,8 +38,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-15';
-my $self_patch='430-p';
+my $self_date='2018-03-16';
+my $self_patch='431-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9232,7 +9232,7 @@ sub partition_data {
 		# note: Main/jails/transmission_1 path can be > 1 deep 
 		# Main zfs 3678031340 8156 3678023184 0% /mnt/Main
 		if (!$dev_base && ($row[0] =~ /^([^\/]+\/)(.+)/ || ($row[0] =~ /^[^\/]+$/ && $row[1] =~ /^(btrfs|zfs)$/ ) ) ){
-			$dev_base = "non-dev-$1$2";
+			$dev_base = "non-dev-$row[0]";
 		}
 		# this handles yet another fredforfaen special case where a mounted drive
 		# has the search string in its name
@@ -9700,6 +9700,7 @@ sub create_output {
 		if ( $row{'type'} eq 'zfs' && $allocated){
 			$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
 		}
+		($allocated,$available,$size) = ('','','');
 		$i = 0;
 		my $count = scalar @arrays;
 		foreach $ref3 (@arrays){
@@ -9730,7 +9731,7 @@ sub create_output {
 				$rows[$j]{$num++ . "#free"} = $available;
 			}
 			if ($row{'type'} eq 'zfs' && $extra > 2){
-				@sizes = ($row{'allocated'}) ? main::get_size($row{'allocated'}) : ();
+				@sizes = ($row{'allocated'}) ? main::get_size($row2{'allocated'}) : ();
 				$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				if ($allocated){
 					$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
@@ -9990,6 +9991,7 @@ sub zfs_data {
 			$zfs[$j]{'arrays'}[$k]{'raid'} = $row[1];
 			$i = 0;
 			$zfs[$j]{'arrays'}[$k]{'size'} = ($row[2] && $row[2] ne '-') ? main::translate_size($row[2]) : '';
+			$zfs[$j]{'arrays'}[$k]{'allocated'} = ($row[3] && $row[3] ne '-') ? main::translate_size($row[3]) : '';
 			$zfs[$j]{'arrays'}[$k]{'free'} = ($row[4] && $row[4] ne '-') ? main::translate_size($row[4]) : '';
 		}
 		# https://blogs.oracle.com/eschrock/entry/zfs_hot_spares
@@ -13486,7 +13488,6 @@ sub get_init_data {
 		# init (upstart 0.6.3)
 		if ($init_version = program_version('init', 'upstart', '3','--version')){
 			$init = 'Upstart';
-			
 		}
 		elsif (check_program('launchctl')){
 			$init = 'launchd';
