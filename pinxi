@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-16';
-my $self_patch='431-p';
+my $self_patch='432-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -104,7 +104,7 @@ my $filter_string = '<filter>';
 my $line1 = "----------------------------------------------------------------------\n";
 my $line2 = "======================================================================\n";
 my $line3 = "----------------------------------------\n";
-my $output_type = 'screen';
+my ($output_file,$output_type) = ('','screen');
 my $prefix = 0; # for the primiary row hash key prefix
 
 # these will assign a separator to non irc states. Important! Using ':' can 
@@ -2095,8 +2095,10 @@ sub error_handler {
 			$errno=11; "Bad internal argument: $one" }
 		elsif ( $err eq 'distro-block' ) { 
 			$errno=20; "Option: $one has been disabled by the $self_name distribution maintainer." }
+		elsif ( $err eq 'option-feature-incomplete' ) { 
+			$errno=21; $b_help=0; "Option: '$one' feature: '$two' has not been implemented yet." }
 		elsif ( $err eq 'unknown-option' ) { 
-			$errno=21; $b_help=1; "Unsupported option: $one" }
+			$errno=22; $b_help=1; "Unsupported option: $one" }
 		## Data
 		elsif ( $err eq 'open-data' ) { 
 			$errno=32; "Error opening data for reading: $one \nError: $two" }
@@ -2117,16 +2119,18 @@ sub error_handler {
 			$errno=45; "Error opening file: $one \nError: $two" }
 		elsif ( $err eq 'open-dir' ) { 
 			$errno=46; "Error opening directory: $one \nError: $two" }
+		elsif ( $err eq 'output-file-bad' ) { 
+			$errno=47; "The output directory path is not writable, or no file name was included:\nPath given: $two" }
 		elsif ( $err eq 'not-writable' ) { 
-			$errno=47; "The file: $one is not writable!" }
+			$errno=48; "The file: $one is not writable!" }
 		elsif ( $err eq 'open-dir-failed' ) { 
-			$errno=48; "The directory: $one failed to open with error: $two" }
+			$errno=49; "The directory: $one failed to open with error: $two" }
 		elsif ( $err eq 'remove' ) { 
-			$errno=49; "Failed to remove file: $one Error: $two" }
+			$errno=50; "Failed to remove file: $one Error: $two" }
 		elsif ( $err eq 'rename' ) { 
-			$errno=50; "There was an error moving files: $one\nError: $two" }
+			$errno=51; "There was an error moving files: $one\nError: $two" }
 		elsif ( $err eq 'write' ) { 
-			$errno=51; "Failed writing file: $one - Error: $two!" }
+			$errno=52; "Failed writing file: $one - Error: $two!" }
 		## Downloaders
 		elsif ( $err eq 'missing-downloader' ) { 
 			$errno=60; "Downloader program $two could not be located on your system." }
@@ -3610,8 +3614,26 @@ sub get_options{
 		$help_type = 'full'; },
 	'output:s' => sub {
 		my ($opt,$arg) = @_;
-		if ($arg =~ /^csv|json|screen|xml$/){
-			$output_type = $arg;
+		if ($arg =~ /^(json|screen|xml)$/){
+			if ($1 eq 'screen'){
+				$output_type = $arg;
+			}
+			else {
+				error_handler('option-feature-incomplete', $opt, $arg);
+			}
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}},
+	'output-file:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg){
+			if (check_output_path($arg)){
+				$output_file = $arg;
+			}
+			else {
+				error_handler('output-file-bad', $opt, $arg);
+			}
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
@@ -3659,6 +3681,11 @@ sub get_options{
 	show_version() if $b_version;
 	show_options($help_type) if $help_type;
 	update_me( $self_download, $download_id ) if $b_updater;
+	if ($output_type){
+		if ($output_type ne 'screen' && ! $output_file){
+			error_handler('bad-arg', '--output', '--output-file not provided');
+		}
+	}
 	if ( $show{'ram'} || $show{'slot'} || 
 	     ( ( $bsd_type || $b_dmidecode_force ) && ($show{'machine'} || $show{'battery'}) ) ){
 		$b_dmi = 1;
@@ -4562,14 +4589,21 @@ sub translate_size {
 #### GENERATE OUTPUT
 #### -------------------------------------------------------------------
 
+sub check_output_path {
+	my ($path) = @_;
+	my ($b_good,$dir,$file);
+	$dir = $path;
+	$dir =~ s/([^\/])+$//;
+	$file = $1;
+	$b_good = 1 if (-d $dir && -w $dir && $file);
+	return $b_good;
+}
+
 sub output_handler {
 	my (%data) = @_;
 	# print Dumper \%data;
 	if ($output_type eq 'screen'){
 		print_data(%data);
-	}
-	elsif ($output_type eq 'csv'){
-		generate_csv(%data);
 	}
 	elsif ($output_type eq 'json'){
 		generate_json(%data);
@@ -4578,6 +4612,21 @@ sub output_handler {
 		generate_xml(%data);
 	}
 }
+sub generate_json {
+	eval $start if $b_log;
+	my (%data) = @_;
+	error_handler('not-in-irc', 'help') if $b_irc;
+	print Dumper \%data;
+	eval $end if $b_log;
+}
+sub generate_xml {
+	eval $start if $b_log;
+	my (%data) = @_;
+	error_handler('not-in-irc', 'help') if $b_irc;
+	print Dumper \%data;
+	eval $end if $b_log;
+}
+
 sub print_basic {
 	my (@data) = @_;
 	my $indent = 18;
