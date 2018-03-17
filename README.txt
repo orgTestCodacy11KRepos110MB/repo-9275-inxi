@@ -2,8 +2,8 @@
 README for development branch of inxi Perl version: pinxi
 ====================================================================
 FILE:    README.txt
-VERSION: 3.5
-DATE:    2018-03-13
+VERSION: 3.6
+DATE:    2018-03-16
 
 NOTE: While the real program name will never change, for the sake
 of clarity, I will refer to the inxi-perl dev branch inxi as pinxi, 
@@ -142,7 +142,7 @@ Note that my current development goals are, roughly in this order:
    
    Status of Lines:
      Short: DONE
-    
+     
      Basic -b: DONE
      
      Full:
@@ -169,18 +169,13 @@ Note that my current development goals are, roughly in this order:
      
 10. Man page. DONE
 
-11. Look into adding support for language hashes, that would replace 
-    the hack key values in the print arrays with the alternate language 
+11. Adding support for language hashes, that would replace the hack 
+    key values in the print arrays with the alternate language 
     equivalent. Or, if missing that key, print the english. That would
     solve the issue of people flaking out on language support over time.
     Status: NOT Started (but support is designed in as I go along)
 
-12. Related to 10, add support for alternate output formats, using 
-    json or csv or xml. I assume Perl has modules that make that easy, but 
-    it's not very hard to do that manually either once you have the line
-    data in hashes.
-    Status: Started (Support built in as I go along, only the actual 
-    output engines will need to be created.)
+12. Export to json/xml - DONE. New options: --output --output-file
 
 ====================================================================
 
