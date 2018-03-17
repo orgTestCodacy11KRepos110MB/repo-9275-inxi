@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-16';
-my $self_patch='437-p';
+my $self_patch='438-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5834,16 +5834,17 @@ sub data_cpuinfo {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
 	my ($arch,@ids,@line,$b_first,$b_proc_int);
-	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
-	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/arm/arm-4-4-speeds-1.txt";
-	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
-	# $file = "$ENV{HOME}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-4-speeds-1.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-xeon-fake-dual-die-zyanya.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -6168,12 +6169,7 @@ sub cpu_properties {
 	my ($cpu_layout,$cpu_type,$min_max,$min_max_key,$cache,$core_count,
 	   $cpu_cores,$die_count) = ('','','','',0,0,0,0);
 	my @cores;
-	# like, intel core duo
-	# NOTE: sadly, not all core intel are HT/MT, oh well...
-	# if ($b_xeon || $cpu{'model_name'} =~ /intel.*core/i){
-	if ($b_xeon ){
-		$b_ht = 1;
-	}
+	
 	foreach my $die_ref ( @phys ){
 		my @dies = @$die_ref;
 		$core_count = 0;
@@ -6191,6 +6187,12 @@ sub cpu_properties {
 			}
 			#print 'cores: ' . $core_count, "\n";
 		}
+	}
+	# like, intel core duo
+	# NOTE: sadly, not all core intel are HT/MT, oh well...
+	# if ($b_xeon || $cpu{'model_name'} =~ /intel.*core/i){
+	if ($b_xeon ){
+		$b_ht = 1;
 	}
 	# this covers potentially cases where ARM cpus have > 1 die 
 	$cpu{'dies'} = ($b_arm && $die_count <= 1 && $cpu{'dies'} > 1) ? $cpu{'dies'}: $die_count;
@@ -6248,6 +6250,17 @@ sub cpu_properties {
 			$cpu{'processors'}[$_] = 0;
 		}
 	}
+	# last test to catch some corner cases 
+	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
+	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
+	#print "prc: $processors_count phc: $phyical_count coc: $core_count cpc: $cpu_cores\n";
+	if (!$b_arm && $processors_count == $phyical_count*$core_count && $cpu_cores > $core_count){
+		$b_ht = 0;
+		$b_xeon = 0;
+		$cpu_cores = 1;
+		$core_count = 1;
+		$cpu{'siblings'} = 1;
+	}
 	#print "pc: $processors_count s: $cpu{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
 	# Algorithm:
 	# if > 1 processor && processor id (physical id) == core id then Multi threaded (MT)
@@ -6257,13 +6270,16 @@ sub cpu_properties {
 	# if = 1 processor then single core/processor Uni-Processor (UP)
 	if ( $processors_count > 1 || ( $b_xeon && $cpu{'siblings'} > 0 ) ) {
 		# non-multicore MT
-		if ($processors_count == ($cpu_cores * 2)){
+		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
+			#print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
 		elsif ($b_xeon && $cpu{'siblings'} > 1){
+			#print "mt:2\n";
 			$cpu_type .= 'MT'; 
 		}
 		elsif ($cpu{'siblings'} > 1 && ($cpu{'siblings'} == 2 * $cpu_cores )){
+			#print "mt:3\n";
 			$cpu_type .= 'MT'; 
 		}
 		# non-MT multi-core or MT multi-core
