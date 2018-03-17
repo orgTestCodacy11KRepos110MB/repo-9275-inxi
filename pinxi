@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-16';
-my $self_patch='434-p';
+my $self_patch='435-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2284,7 +2284,7 @@ sub check_items {
 		$item = 'Program';
 	}
 	elsif ($type eq 'recommended Perl modules'){
-		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes Cpanel::JSON::XS);
+		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes Cpanel::JSON::XS XML::Dumper);
 		$b_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
@@ -2670,12 +2670,12 @@ sub item_data {
 	'pacman' => 'Core Modules',
 	'rpm' => 'perl-Time-HiRes',
 	}),
-	'XML::Writer' => ({
-	'info' => '--output xml - required for export.',
-	'info-bsd' => '--output xml - required for export.',
-	'apt' => 'libxml-writer-perl',
-	'pacman' => 'perl-xml-writer',
-	'rpm' => 'perl-XML-Writer',
+	'XML::Dumper' => ({
+	'info' => '--output xml - Crude and raw.',
+	'info-bsd' => '--output xml - Crude and raw.',
+	'apt' => 'libxml-dumper-perl',
+	'pacman' => 'perl-xml-dumper',
+	'rpm' => 'perl-XML-Dumper',
 	}),
 	);
 	my $ref = $data{$type};
@@ -3632,7 +3632,7 @@ sub get_options{
 	'output:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(json|screen|xml)$/){
-			if ($arg =~ /json|screen/){
+			if ($arg =~ /json|screen|xml/){
 				$output_type = $arg;
 			}
 			else {
@@ -4638,10 +4638,9 @@ sub generate_json {
 	my $b_debug = 1;
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper \%data if $b_debug;
-	my $ref = \%data;
 	if (check_module('Cpanel::JSON::XS')){
 		import Cpanel::JSON::XS;
-		$json = Cpanel::JSON::XS::encode_json($ref);
+		$json = Cpanel::JSON::XS::encode_json(\%data);
 		$json =~ s/"[0-9]+#/"/g;
 		if ($output_file eq 'print'){
 			print "$json";
@@ -4660,18 +4659,18 @@ sub generate_json {
 	eval $end if $b_log;
 }
 # NOTE: So far xml is substantially more difficult than json, so 
-# holding off on this option for a while.
+# using a crude dumper rather than making a nice xml file, but at
+# least xml has some output now.
 sub generate_xml {
 	eval $start if $b_log;
 	my (%data) = @_;
 	my ($xml);
-	my $b_debug = 1;
+	my $b_debug = 0;
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper \%data if $b_debug;
-	my $ref = \%data;
-	if (check_module('XML::Writer')){
-		import XML::Writer;
-		
+	if (check_module('XML::Dumper')){
+		import XML::Dumper;
+		$xml = XML::Dumper::pl2xml(\%data);
 		$xml =~ s/"[0-9]+#/"/g;
 		if ($output_file eq 'print'){
 			print "$xml";
