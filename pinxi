@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-16';
-my $self_patch='435-p';
+my $self_patch='436-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4542,6 +4542,7 @@ sub row_defaults {
 	'battery-data-sys' => "No /sys data found. Old system?",
 	'disk-data-bsd' => "No disk data found for this BSD system.",
 	'disk-data' => "No Disk data was found.",
+	'disk-size-0' => "Total N/A",
 	'display-console' => 'No advanced graphics data found on this system in console.',
 	'display-null' => 'No advanced graphics data found on this system.',
 	'display-root' => 'Advanced graphics data unavailable in console for root.',
@@ -6771,7 +6772,7 @@ sub create_output {
 	my (@data,@rows);
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size,$used,$percent,$size_holder,$used_holder) = ('','','','','','','');
-	my @sizing = main::get_size($disks[0]{'size'});
+	my @sizing = main::get_size($disks[0]{'size'}) if $disks[0]{'size'};
 	#print Data::Dumper::Dumper \@disks;
 	if (@sizing){
 		$size = $sizing[0];
@@ -6779,9 +6780,9 @@ sub create_output {
 		if (defined $sizing[0] && $sizing[1]){
 			$size .= ' ' . $sizing[1];
 		}
-		$size ||= 'N/A';
 	}
-	@sizing = main::get_size($disks[0]{'used'});
+	$size ||= 'N/A';
+	@sizing = main::get_size($disks[0]{'used'}) if $disks[0]{'used'};
 	if (@sizing){
 		$used = $sizing[0];
 		if (defined $sizing[0] && $sizing[1]){
@@ -6791,8 +6792,8 @@ sub create_output {
 				$used = $used . ' (' . sprintf("%0.1f", $disks[0]{'used'}/$disks[0]{'size'}*100) . '%)';
 			}
 		}
-		$used ||= 'N/A';
 	}
+	$used ||= 'N/A';
 	@data = ({
 	$num++ . '#HDD Total Size' => $size,
 	$num++ . '#used' => $used,
@@ -7427,7 +7428,6 @@ sub display_server(){
 		$graphics{'compositor'} = display_compositor();
 	}
 	$server = $ENV{'WAYLAND_DISPLAY'} if (!$server && $ENV{'WAYLAND_DISPLAY'});
-	
 	if ( $show{'display-data'}){
 		# X vendor and version detection.
 		# new method added since radeon and X.org and the disappearance of 
@@ -7435,14 +7435,13 @@ sub display_server(){
 		# returned, e.g. like: X.Org version: 6.8.2 
 		# A failover mechanism is in place: if $version empty, release number parsed instead
 		if (my $program = main::check_program('xdpyinfo')){
-			my @xdpyinfo_temp = main::grabber("$program $display_opt 2>/dev/null");
-			foreach (@xdpyinfo_temp){
-				s/^\s+//;
-				s/:\s+/:/;
-				push @xdpyinfo, $_ if $_;
-			}
+			my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
+			#@xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
+			#print join "\n",@xdpyinfo, "\n";
 			foreach (@xdpyinfo){
-				my @working = split /:/, $_;
+				my @working = split /:\s+/, $_;
+				next if ( ($graphics{'dimensions'} && $working[0] ne 'dimensions' ) || !$working[0] );
+				#print "$_\n";
 				if ($working[0] eq 'vendor string'){
 					$working[1] =~ s/The\s|\sFoundation//g;
 					# some distros, like fedora, report themselves as the xorg vendor, 
@@ -7597,17 +7596,18 @@ sub gl_data(){
 				});
 				return @row;
 			}
-			@glxinfo = grep {!/^\s/} @glxinfo;
+			#print join "\n",@glxinfo,"\n";
 			my $compat_version = '';
 			my ($b_compat,@core_profile_version,@direct_render,@renderer,@opengl_version,@working);
 			foreach (@glxinfo){
+				next if /^\s/;
 				if (/^opengl renderer/i){
 					@working = split /:\s*/, $_;
 					$working[1] = main::cleaner($working[1]);
 					# Allow all mesas
-					if ($working[1] =~ /mesa/i){
-						
-					}
+					#if ($working[1] =~ /mesa/i){
+					#	
+					#}
 					push @renderer, $working[1];
 				}
 				# dropping all conditions from this test to just show full mesa information
@@ -9308,8 +9308,8 @@ sub partition_data {
 		}
 	}
 	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
-	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|configfs|debugfs|dev|devfs|devtmpfs|';
-	$filters .= 'fdescfs|iso9660|linprocfs|procfs|run|squashfs|sys|\/sys\/.*|sysfs|';
+	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|configfs|debugfs|\/dev|dev|devfs|devtmpfs|';
+	$filters .= 'fdescfs|iso9660|linprocfs|procfs|\/run(\/.*)?|run|squashfs|sys|\/sys\/.*|sysfs|';
 	$filters .= 'tmpfs|type|udev|unionfs|vartmp)$';
 	foreach (@partitions_working){
 		my @row = split /\s+/, $_;
@@ -14634,13 +14634,15 @@ sub set_lsusb_data_long {
 		# Couldn't open device, some information will be missing
 		next if /^\s*$|^Couldn't/; # expensive second call: || /UNAVAIL/
 		if (!$b_skip && $bus_id && /^\s\s/){
+			#if ($_ =~ /\bDescriptor\b:/){
 			if ($_ =~ /^\s+([\S]+)\sDescriptor:/){
+				#$_ =~ /^\s+([\S]+)\sDescriptor:/;
 				$_ = "Descriptor_$1";
 			}
 			else {
-				$_ =~ s/^\s\s//;
+				$_ =~ s/^\s\s|[\s]+$//g;
 				$_ =~ s/^[\s]+/~/g;
-				$_ =~ s/[\s]+$//g;
+				#$_ =~ s/[\s]+$//g;
 				$_ =~ s/\sType/_Type/g;
 				$_ =~ s/^([\S]+)[\s]+(.*)//;
 				my $one = ($1) ? $1: '';
@@ -14650,27 +14652,30 @@ sub set_lsusb_data_long {
 				#$_ = cleaner($_);
 				if (/([\S]+):([0-9]+|0x[0-9a-f]+)\s(.*)/){
 					$_ = "$1:$2:$3";
-					$b_skip = 1 if $1 eq '~bInterfaceProtocol';
+					#$b_skip = 1 if $1 eq '~bInterfaceProtocol';
 				}
 				#print "$1\n";
 			}
 			push @working, $_;
 		}
 		elsif (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
-			$j = scalar @usb;
-			$bus_id = int($1);
-			$device_id = int($2);
-			$id = $3;
-			$b_skip = 0;
-			# we don't need 32, system boot, or 127, end of table
-			if (@working){
-				if ($working[0] != 32 && $working[0] != 127){
-					$usb[$j] = (
-					[@working],
-					);
+		#elsif (/^Bus\s/){
+			#if (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
+				$j = scalar @usb;
+				$bus_id = int($1);
+				$device_id = int($2);
+				$id = $3;
+				$b_skip = 0;
+				# we don't need 32, system boot, or 127, end of table
+				if (@working){
+					if ($working[0] != 32 && $working[0] != 127){
+						$usb[$j] = (
+						[@working],
+						);
+					}
 				}
-			}
-			@working = ($bus_id,$device_id,$id);
+				@working = ($bus_id,$device_id,$id);
+			#}
 		}
 	}
 	if (@working){
@@ -14992,7 +14997,7 @@ sub generate_short_data {
 	my (@temp,$size_holder,$used_holder);
 	if (@disk){
 		$size = $disk[0]{'size'};
-		if (defined $disk[0]{'size'} && $disk[0]{'size'} =~ /^[0-9\.]+$/){
+		if ($disk[0]{'size'} && $disk[0]{'size'} =~ /^[0-9\.]+$/){
 			$size_holder = $disk[0]{'size'};
 			@temp = get_size($size);
 			$size = $temp[0];
@@ -15011,7 +15016,7 @@ sub generate_short_data {
 			$disk_string = "$size$size_type$percent";
 		}
 		else {
-			$size ||= 'N/A';
+			$size ||= row_defaults('disk-size-0');
 			$disk_string = "$used$used_type/$size$size_type";
 		}
 	}
