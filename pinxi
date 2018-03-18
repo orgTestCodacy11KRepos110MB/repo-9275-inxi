@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-16';
-my $self_patch='440-p';
+my $self_patch='441-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1535,6 +1535,8 @@ sub system_data {
 	print "Collecting system data...\n";
 	my %data = (
 	'cc' => $ENV{'CC'},
+	# @(#)MIRBSD KSH R56 2018/03/09: ksh and mksh
+	'ksh-version' => $ENV{'KSH_VERSION'},
 	'xdg-config-home' => $ENV{'XDG_CONFIG_HOME'},
 	'xdg-config-dirs' => $ENV{'XDG_CONFIG_DIRS'},
 	'xdg-data-home' => $ENV{'XDG_DATA_HOME'},
@@ -1617,6 +1619,8 @@ sub system_data {
 	['systemd-detect-virt',''],
 	);
 	run_commands(\@cmds,'system');
+	@files = main::globber('/dev/bus/usb/*/*');
+	copy_files(\@files, 'system');
 }
 sub system_files {
 	print "Collecting system files data...\n";
@@ -2918,7 +2922,12 @@ sub program_values {
 	'bash' => ['^GNU[[:space:]]bash,[[:space:]]version',4,'--version','Bash',1,0],
 	'csh' => ['^tcsh',2,'--version','csh',1,0],
 	'dash' => ['dash',3,'--version','Dash',1,0], # no version, uses dpkg query, sigh
-	'ksh' => ['version',5,'-v','csh',1,0], # ksh is too weird to try to handle with version
+	# ksh/lksh/mksh/pdksh can't be handled with version but we'll use the search string to 
+	# trigger version return and tests
+	'ksh' => ['ksh',5,'-v','ksh',1,0], 
+	'lksh' => ['ksh',5,'-v','lksh',1,0], 
+	'mksh' => ['ksh',5,'-v','mksh',1,0], 
+	'pdksh' => ['ksh',5,'-v','pdksh',1,0], 
 	'tcsh' => ['^tcsh',2,'--version','tcsh',1,0],
 	'zsh' => ['^zsh',2,'--version','zsh',1,0],
 	# tools
@@ -2949,18 +2958,26 @@ sub program_version {
 	# adjust to array index, not human readable
 	$num-- if (defined $num && $num > 0);
 	
-	# dump these once the dm stuff is done, we'll pass this data
-	# we're not trying to get ksh any more, it's too difficult
-	#if ( $app =~ /^ksh/) {
-	#	$version = '-v';
-	#}
+	# ksh: Version JM 93t+ 2010--03-05
+	# mksh: @(#)MIRBSD KSH R56 2018/03/09
+	# --version opens a new ksh, sigh...
+	if ($search eq 'ksh'){
+		if ( $ENV{'KSH_VERSION'} ){
+			my @temp = split /\s+/, $ENV{'KSH_VERSION'};
+			if ($temp[2]){
+				log_data('data',"Program *ksh array: @temp version: $temp[2]") if $b_log;
+				return $temp[2];
+			}
+		}
+		return 0;
+	}
 	# konvi in particular doesn't like using $ENV{'PATH'} as set, so we need
 	# to always assign the full path if it hasn't already been done
 	if ( $app !~ /^\//){
 		$app = check_program($app);
 	}
 	# note, some wm/apps send version info to stderr instead of stdout
-	if ( $app =~ /\/(dwm|ksh|kvirc|scrotwm)$/ ) {
+	if ( $app =~ /\/(dwm|kvirc|scrotwm)$/ ) {
 		$cmd = "$app $version 2>&1";
 	}
 # 	elsif ( $app eq 'csh' ){
@@ -5267,6 +5284,7 @@ sub usb_data {
 					}
 					@data = ({
 					$num++ . "#Card" => $product,
+					$num++ . "#type" => 'USB',
 					$num++ . "#driver" => 'USB Audio',
 					},);
 					@rows = (@rows,@data);
@@ -8541,6 +8559,7 @@ sub usb_data {
 			if ($product && network_device($test)){
 				@data = ({
 				$num++ . "#Card" => $product,
+				$num++ . "#type" => 'USB',
 				$num++ . "#driver" => 'USB Network',
 				},);
 				$b_wifi = check_wifi($product);
@@ -9337,7 +9356,7 @@ sub partition_data {
 		}
 	}
 	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
-	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|configfs|debugfs|\/dev|dev|devfs|devtmpfs|';
+	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|configfs|debugfs|\/dev|dev|\/dev/loop[0-9]*|devfs|devtmpfs|';
 	$filters .= 'fdescfs|iso9660|linprocfs|none|procfs|\/run(\/.*)?|run|squashfs|sys|\/sys\/.*|sysfs|';
 	$filters .= 'tmpfs|type|udev|unionfs|vartmp)$';
 	foreach (@partitions_working){
@@ -13971,7 +13990,8 @@ sub get_shell_data {
 		#print "shell post: $shell\n";
 		# sh because -v/--version doesn't work on it, ksh because
 		# it takes too much work to handle all the variants
-		if ( $shell ne 'sh' && $shell ne 'ksh' ) {
+		# covers 
+		if ( $shell ne 'sh' ) {
 			@app = main::program_values(lc($shell));
 			if ($app[0]){
 				$client{'version'} = main::program_version($shell,$app[0],$app[1],$app[2]);
@@ -14008,13 +14028,15 @@ sub get_shell_source {
 		$shell_parent = get_shell_parent($self_parent);
 		#print "shell parent 1: $shell_parent\n";
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
-		if ( $shell_parent && ( $shell_parent eq 'su' || $shell_parent =~ /^(bash|csh|ksh|sh|dash|perl|zsh|tcsh)$/ ) ){
+		if ( $shell_parent && ( $shell_parent eq 'su' || 
+		     $shell_parent =~ /^(bash|csh|ksh|lksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ) ){
 			my $shell = $1; # we want the first set only if shell is parent
 			# no idea why have to do script_parent action twice in su case, but you do.
 			$self_parent = get_start_parent($self_parent);
 			$shell_parent = get_shell_parent($self_parent) if $shell;
 			#print "shell parent 2: $shell_parent\n";
-			if (!$shell || $shell_parent =~ /^(bash|csh|ksh|sh|dash|perl|zsh|tcsh)$/ ){
+			if (!$shell || 
+			    $shell_parent =~ /^(bash|csh|ksh|lksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ){
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
 			}
