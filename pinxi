@@ -38,8 +38,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-16';
-my $self_patch='441-p';
+my $self_date='2018-03-18';
+my $self_patch='442-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5212,7 +5212,7 @@ sub asound_data {
 }
 sub usb_data {
 	eval $start if $b_log;
-	my (@rows,@data,@ids,$product,$product2,$vendor,$vendor2);
+	my (@rows,@data,@ids,$driver,$product,$product2,$vendor,$vendor2);
 	my ($j,$num) = (0,1);
 	if (-d '/proc/asound') {
 		# note: this will double the data, but it's easier this way.
@@ -5282,10 +5282,12 @@ sub usb_data {
 							$product = 'N/A';
 						}
 					}
+					$driver = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
+					$driver ||= 'snd-usb-audio';
 					@data = ({
 					$num++ . "#Card" => $product,
 					$num++ . "#type" => 'USB',
-					$num++ . "#driver" => 'USB Audio',
+					$num++ . "#driver" => $driver,
 					},);
 					@rows = (@rows,@data);
 					if ($extra > 0){
@@ -5301,6 +5303,7 @@ sub usb_data {
 	eval $end if $b_log;
 	return @rows;
 }
+
 sub sound_server_data {
 	eval $start if $b_log;
 	my (@data,$server,$version);
@@ -8557,10 +8560,12 @@ sub usb_data {
 				$test = "$vendor $product $vendor2 $vendor2";
 			}
 			if ($product && network_device($test)){
+				my $driver = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
+				$driver ||= 'usb-network';
 				@data = ({
 				$num++ . "#Card" => $product,
 				$num++ . "#type" => 'USB',
-				$num++ . "#driver" => 'USB Network',
+				$num++ . "#driver" => $driver,
 				},);
 				$b_wifi = check_wifi($product);
 				@rows = (@rows,@data);
@@ -13963,10 +13968,6 @@ sub get_self_version {
 	eval $end if $b_log;
 	return $self_version . $patch;
 }
-
-sub sensors_gpu_search {
-	return 'amdgpu|intel|radeon|nouveau';
-}
 sub get_shell_data {
 	eval $start if $b_log;
 	my ($ppid) = @_;
@@ -14111,6 +14112,62 @@ sub get_uptime {
 	$uptime ||= 'N/A';
 	eval $end if $b_log;
 	return $uptime;
+}
+# NOTE: annoyingly, /sys does NOT actually use the id, it uses 
+# the count of physical devices, starting at 0 for hub, on the bus.
+# args: $1 - $bus number; $2 - vendor:chip id
+sub get_usb_drivers {
+	eval $start if $b_log;
+	my ($bus,$id) = @_;
+	return if !$bus || !$id;# these will be > 0
+	my ($chip,$driver,$file,$path,$vendor,$working,$working2,@drivers,@temp);
+	@temp = split /:/, $id;
+	$vendor = $temp[0];
+	$chip = $temp[1];
+	@temp = main::globber("/sys/bus/usb/devices/usb$bus/$bus-*/$bus-*/");
+	#print join "\n", @temp, "\n";
+	# first we need to get the device path, since it's not predictable
+	foreach (@temp){
+		#print "$_\n";
+		$working = $_ . 'idVendor';
+		$working2 = $_ . 'idProduct';
+		if (-e $working && (main::reader($working))[0] eq $vendor && 
+		    -e $working2 && (main::reader($working2))[0] eq $chip){
+			$path = $_;
+			if ( -e "${path}driver"){
+				if ($working = Cwd::abs_path("${path}driver")){
+					$working =~ s/^.*\///;
+					if ($working && $working ne 'usb' && $working ne 'usbhid'){
+						push @drivers, $working;
+					}
+				}
+			}
+			last;
+		}
+	}
+	# test 2
+	@temp = main::globber("$path$bus-*/");
+	#print "@temp\n";
+	foreach (@temp){
+		#print "p2:". $_ . "driver\n";
+		$file = $_ . 'driver';
+		#print "f:$file\n";
+		if (-e $file){
+			#print "here\n";
+			#print (Cwd::abs_path($file), "\n");
+			if ($working = Cwd::abs_path($file)){
+				#print "w:$working\n";
+				$working =~ s/^.*\///;
+				if ($working && $working ne 'usb' && $working ne 'usbhid' && ! grep {/$working/} @drivers){
+					push @drivers, $working;
+				}
+			}
+		}
+	}
+	#print join "\n", @drivers, "\n";
+	$driver = join ',', @drivers if @drivers;
+	eval $end if $b_log;
+	return $driver;
 }
 
 #### -------------------------------------------------------------------
