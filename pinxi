@@ -14124,7 +14124,52 @@ sub get_usb_drivers {
 	@temp = split /:/, $id;
 	$vendor = $temp[0];
 	$chip = $temp[1];
-	@temp = main::globber("/sys/bus/usb/devices/usb$bus/$bus-*/$bus-*/");
+	# some have it one level deeper than others
+	my @globs = ("/sys/bus/usb/devices/usb$bus/$bus-*/","/sys/bus/usb/devices/usb$bus/$bus-*/$bus-*/");
+	foreach (@globs){
+		$path = get_usb_path($vendor,$chip,$_);
+		last if $path;
+	}
+	if ($path){
+		if ( -e "${path}driver"){
+			if ($working = Cwd::abs_path("${path}driver")){
+				$working =~ s/^.*\///;
+				if ($working && $working ne 'usb' && $working ne 'usbhid'){
+					push @drivers, $working;
+				}
+			}
+		}
+		# test 2
+		@temp = main::globber("$path$bus-*/");
+		#print "@temp\n";
+		foreach (@temp){
+			#print "p2:". $_ . "driver\n";
+			$file = $_ . 'driver';
+			#print "f:$file\n";
+			if (-e $file){
+				#print "here\n";
+				#print (Cwd::abs_path($file), "\n");
+				if ($working = Cwd::abs_path($file)){
+					#print "w:$working\n";
+					$working =~ s/^.*\///;
+					if ($working && $working ne 'usb' && $working ne 'usbhid' && ! grep {/$working/} @drivers){
+						push @drivers, $working;
+					}
+				}
+			}
+		}
+		#print join "\n", @drivers, "\n";
+		$driver = join ',', @drivers if @drivers;
+	}
+	eval $end if $b_log;
+	return $driver;
+}
+sub get_usb_path {
+	eval $start if $b_log;
+	my ($vendor,$chip,$glob) = @_;
+	my ($path,$working,$working2);
+	#print "$vendor,$chip,$glob\n";
+	my @temp = main::globber($glob);
 	#print join "\n", @temp, "\n";
 	# first we need to get the device path, since it's not predictable
 	foreach (@temp){
@@ -14134,40 +14179,12 @@ sub get_usb_drivers {
 		if (-e $working && (main::reader($working))[0] eq $vendor && 
 		    -e $working2 && (main::reader($working2))[0] eq $chip){
 			$path = $_;
-			if ( -e "${path}driver"){
-				if ($working = Cwd::abs_path("${path}driver")){
-					$working =~ s/^.*\///;
-					if ($working && $working ne 'usb' && $working ne 'usbhid'){
-						push @drivers, $working;
-					}
-				}
-			}
+			#print "$_\n";
 			last;
 		}
 	}
-	# test 2
-	@temp = main::globber("$path$bus-*/");
-	#print "@temp\n";
-	foreach (@temp){
-		#print "p2:". $_ . "driver\n";
-		$file = $_ . 'driver';
-		#print "f:$file\n";
-		if (-e $file){
-			#print "here\n";
-			#print (Cwd::abs_path($file), "\n");
-			if ($working = Cwd::abs_path($file)){
-				#print "w:$working\n";
-				$working =~ s/^.*\///;
-				if ($working && $working ne 'usb' && $working ne 'usbhid' && ! grep {/$working/} @drivers){
-					push @drivers, $working;
-				}
-			}
-		}
-	}
-	#print join "\n", @drivers, "\n";
-	$driver = join ',', @drivers if @drivers;
 	eval $end if $b_log;
-	return $driver;
+	return $path
 }
 
 #### -------------------------------------------------------------------
