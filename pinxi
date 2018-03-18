@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-18';
-my $self_patch='444-p';
+my $self_patch='445-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -65,7 +65,7 @@ if (eval {require Time::HiRes}){
 # print "t0: @t0\n";
 # print "result:$@\n";
 ## Hashes
-my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
+my ( %alerts, %arm_machine, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
@@ -79,13 +79,13 @@ my @test = (0,0,0,0,0);
 #my $opt_parser = Getopt::Long::Parser->new;
 
 ## Booleans
-my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
+my ($b_arm,$b_arm_machine,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
 $b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,
 $b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_partitions,$b_partition_extra,
 $b_raid);
-my ($b_sysctl_disk,$b_update,$b_weather) = (1,1);
+my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
 my ($bsd_type,$language,$os) = ('','','');
@@ -2290,13 +2290,14 @@ sub check_items {
 		$item = 'Program';
 	}
 	elsif ($type eq 'recommended Perl modules'){
-		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes Cpanel::JSON::XS XML::Dumper);
+		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper);
 		$b_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
 		$extra2 = "None of these are strictly required, but if you have them all, you can eliminate
 		some recommended non Perl programs from the install. ";
-		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a downloader option.";
+		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a downloader option. 
+		For json export Cpanel::JSON::XS is preferred over JSON::XS.";
 	}
 	elsif ($type eq 'recommended directories'){
 		if ($bsd_type){
@@ -2668,6 +2669,13 @@ sub item_data {
 	'apt' => 'libio-socket-ssl-perl',
 	'pacman' => 'perl-io-socket-ssl',
 	'rpm' => 'perl-IO-Socket-SSL',
+	}),
+	'JSON::XS' => ({
+	'info' => '--output json - required for export (legacy).',
+	'info-bsd' => '--output json - required for export (legacy).',
+	'apt' => 'libjson-xs-perl',
+	'pacman' => 'perl-json-xs',
+	'rpm' => 'perl-JSON-XS',
 	}),
 	'Time::HiRes' => ({
 	'info' => '-C cpu sleep (not required); --debug timers',
@@ -4664,11 +4672,21 @@ sub generate_json {
 	my (%data) = @_;
 	my ($json);
 	my $b_debug = 1;
+	my ($b_cpanel,$b_valid);
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper \%data if $b_debug;
 	if (check_module('Cpanel::JSON::XS')){
 		import Cpanel::JSON::XS;
 		$json = Cpanel::JSON::XS::encode_json(\%data);
+	}
+	elsif (check_module('JSON::XS')){
+		import JSON::XS;
+		$json = JSON::XS::encode_json(\%data);
+	}
+	else {
+		error_handler('required-module', 'json', 'Cpanel::JSON::XS OR JSON::XS');
+	}
+	if ($json){
 		$json =~ s/"[0-9]+#/"/g;
 		if ($output_file eq 'print'){
 			print "$json";
@@ -4680,9 +4698,6 @@ sub generate_json {
 			close $fh;
 			print_line("Data written successfully.\n");
 		}
-	}
-	else {
-		error_handler('required-module', 'json', 'Cpanel::JSON::XS');
 	}
 	eval $end if $b_log;
 }
@@ -5864,6 +5879,7 @@ sub data_cpuinfo {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
 	my ($arch,@ids,@line,$b_first,$b_proc_int);
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-4-speeds-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
@@ -5899,11 +5915,13 @@ sub data_cpuinfo {
 				$b_first = 1;
 				$cpu{'processors'}[$proc_count] = 0;
 				$proc_count++;
+				#print "p1:\n";
 			}
 			else {
 				if (!$b_proc_int){
 					$cpu{'processors'}[$proc_count] = 0;
 					$proc_count++;
+					#print "p2a:\n";
 				}
 				if (!$b_first ){
 					# note: alternate: 
@@ -5915,13 +5933,20 @@ sub data_cpuinfo {
 					}
 					$cpu{'model_name'} = main::cleaner($line[1]);
 					$cpu{'model_name'} = cpu_cleaner($cpu{'model'});
+					#print "p2b:\n";
 				}
 				$b_first = 1;
 			}
 		}
 		elsif (!$cpu{'family'} && 
 		       ($line[0] eq 'architecture' || $line[0] eq 'cpu family' || $line[0] eq 'cpu architecture' )){
-			$cpu{'family'} = uc(sprintf("%x", $line[1]));
+			if ($line[1] =~ /^\d+$/){
+				# translate integers to hex
+				$cpu{'family'} = uc(sprintf("%x", $line[1]));
+			}
+			elsif ($b_arm) {
+				$cpu{'arch'} = $line[1];
+			}
 		}
 		elsif (!$cpu{'rev'} && ($line[0] eq 'stepping' || $line[0] eq 'cpu revision' )){
 			$cpu{'rev'} = $line[1];
@@ -6019,7 +6044,7 @@ sub data_cpuinfo {
 	}
 	$cpu{'type'} = 'arm' if $b_arm && !$cpu{'type'};
 	$cpu{'ids'} = (\@ids);
-	if ( $extra > 0 && $type ne 'short' ){
+	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
 		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'});
 		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
@@ -8274,6 +8299,7 @@ sub machine_data_dmi {
 	return @rows;
 }
 
+
 sub get_device_sys {
 	eval $start if $b_log;
 	my ($chasis_id) = @_;
@@ -9379,15 +9405,17 @@ sub partition_data {
 		$b_load = 0;
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
+			# this could point to by-label or by-uuid so get that first. In theory, abs_path should 
+			# drill down to get the real path, but it isn't always working.
+			if ($row[0] eq '/dev/root'){
+				$row[0] = get_root();
+			}
 			# sometimes paths are set using /dev/disk/by-[label|uuid] so we need to get the /dev/xxx path
 			if ($row[0] =~ /by-label|by-uuid/){
 				$row[0] = Cwd::abs_path($row[0]);
 			}
 			elsif ($row[0] =~ /mapper\// && @mapper){
 				$row[0] = get_mapper($row[0],@mapper);
-			}
-			elsif ($row[0] eq '/dev/root'){
-				$row[0] = get_root();
 			}
 			$dev_base = $row[0];
 			$dev_base =~ s/^\/dev\///;
