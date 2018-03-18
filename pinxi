@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-18';
-my $self_patch='445-p';
+my $self_patch='446-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2934,6 +2934,7 @@ sub program_values {
 	# trigger version return and tests
 	'ksh' => ['ksh',5,'-v','ksh',1,0], 
 	'lksh' => ['ksh',5,'-v','lksh',1,0], 
+	'loksh' => ['ksh',5,'-v','lksh',1,0], 
 	'mksh' => ['ksh',5,'-v','mksh',1,0], 
 	'pdksh' => ['ksh',5,'-v','pdksh',1,0], 
 	'tcsh' => ['^tcsh',2,'--version','tcsh',1,0],
@@ -2968,6 +2969,7 @@ sub program_version {
 	
 	# ksh: Version JM 93t+ 2010--03-05
 	# mksh: @(#)MIRBSD KSH R56 2018/03/09
+	# loksh: @(#)PD KSH v5.2.14 99/07/13.2
 	# --version opens a new ksh, sigh...
 	if ($search eq 'ksh'){
 		if ( $ENV{'KSH_VERSION'} ){
@@ -10652,10 +10654,11 @@ sub data_processor {
 		$ref{'slots-16'} ||= 0; 
 		$ref{'max-capacity-5'} ||= 0;
 		$ref{'max-module-size'} ||= 0;
-		
+		#$ref{'max-module-size'} = 0;# debugger
 		# 1: if max cap 1 is null, and max cap 2 not null, use 2
 		if ($b_debug){
 			print "1: mms: $ref{'max-module-size'} :dms: $ref{'derived-module-size'} :mc: $max_cap :uc: $ref{'used-capacity'}\n";
+			print "1a: s5: $ref{'slots-5'} s16: $ref{'slots-16'}\n";
 		}
 		if (!$max_cap && $ref{'max-capacity-5'}) {
 			$max_cap = $ref{'max-capacity-5'};
@@ -10736,12 +10739,29 @@ sub data_processor {
 			if ($b_debug){
 				print "5: dms: $ref{'derived-module-size'} :s16: $ref{'slots-16'} :mc: $max_cap\n";
 			}
+			
 			# now prep for rebuilding the ram array data 
 			if (!$ref{'max-module-size'}){
 				# ie: 2x4gB
 				if (!$est_cap && $ref{'derived-module-size'} > 0 && $max_cap > ($ref{'derived-module-size'} * $ref{'slots-16'} * 4) ){
 					$est_cap = 'check';
 					print "G\n" if $b_debug;
+				}
+				if ($max_cap && ($ref{'slots-16'} || $ref{'slots-5'})){
+					my $slots = 0;
+					if ($ref{'slots-16'} && $ref{'slots-16'} >= $ref{'slots-5'}){
+						$slots = $ref{'slots-16'};
+					}
+					elsif ($ref{'slots-5'} && $ref{'slots-5'} > $ref{'slots-16'}){
+						$slots = $ref{'slots-5'};
+					}
+					if ($ref{'derived-module-size'} * $slots > $max_cap){
+						$ref{'max-module-size'} = $ref{'derived-module-size'};
+					}
+					else {
+						$ref{'max-module-size'} = sprintf("%.f",$max_cap/$slots);
+					}
+					$est_mod = 'est';
 				}
 			}
 			# case where listed max cap is too big for actual slots x max cap, eg:
@@ -10912,7 +10932,7 @@ sub get_repos_linux {
 		}
 	}
 	# slackware
-	elsif (-f $slackpkg || -f $slackpkg_plus){
+	if (-f $slackpkg || -f $slackpkg_plus){
 		#$slackpkg = "$ENV{HOME}/bin/scripts/inxi/data/repo/slackware/slackpkg-2.conf";
 		if (-f $slackpkg){
 			@data = repo_builder($slackpkg,'slackpkg','^[[:space:]]*[^#]+');
@@ -10958,7 +10978,7 @@ sub get_repos_linux {
 		}
 	}
 	# redhat/suse
-	elsif (-d $yum_repo_dir || -f $yum_conf || -d $zypp_repo_dir){
+	if (-d $yum_repo_dir || -f $yum_conf || -d $zypp_repo_dir){
 		if (-d $yum_repo_dir || -f $yum_conf){
 			@files = main::globber("$yum_repo_dir*.repo");
 			push @files, $yum_conf if -f $yum_conf;
@@ -11032,7 +11052,7 @@ sub get_repos_linux {
 		# print Data::Dumper::Dumper \@rows;
 	}
 	# gentoo 
-	elsif (-d $portage_dir && main::check_program('emerge')){
+	if (-d $portage_dir && main::check_program('emerge')){
 		@files = main::globber("$portage_dir*.conf");
 		$repo = 'portage';
 		if (@files){
@@ -11094,12 +11114,12 @@ sub get_repos_linux {
 		}
 	}
 	# Alpine linux
-	elsif (-f $apk){
+	if (-f $apk){
 		@data = repo_builder($apk,'apk','^\s*[^#]+');
 		@rows = (@rows,@data);
 	}
 	# Mandriva/Mageia using: urpmq
-	elsif ( $path = main::check_program('urpmq') ){
+	if ( $path = main::check_program('urpmq') ){
 		@data2 = main::grabber("$path --list-media active --list-url","\n",'strip');
 		main::writer("$debugger_dir/system-repo-data-urpmq.txt",@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
@@ -11134,7 +11154,7 @@ sub get_repos_linux {
 		}
 	}
 	# Pardus/Solus
-	elsif ( (-d $pisi_dir && ( $path = main::check_program('pisi') ) ) || 
+	if ( (-d $pisi_dir && ( $path = main::check_program('pisi') ) ) || 
 	        (-d $eopkg_dir && ( $path = main::check_program('eopkg') ) ) ){
 		#$path = 'eopkg';
 		my $which = ($path =~ /pisi$/) ? 'pisi': 'eopkg';
@@ -13317,6 +13337,9 @@ sub get_display_manager {
 		if (awk (\@ps_cmd, 'startx') ){
 			$found[0] = 'startx';
 		}
+		elsif (awk (\@ps_cmd, 'xinit') ){
+			$found[0] = 'xinit';
+		}
 	}
 	# might add this in, but the rate of new dm's makes it more likely it's an 
 	# unknown dm, so we'll keep output to N/A
@@ -14054,14 +14077,14 @@ sub get_shell_source {
 		#print "shell parent 1: $shell_parent\n";
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		if ( $shell_parent && ( $shell_parent eq 'su' || 
-		     $shell_parent =~ /^(bash|csh|ksh|lksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ) ){
+		     $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ) ){
 			my $shell = $1; # we want the first set only if shell is parent
 			# no idea why have to do script_parent action twice in su case, but you do.
 			$self_parent = get_start_parent($self_parent);
 			$shell_parent = get_shell_parent($self_parent) if $shell;
 			#print "shell parent 2: $shell_parent\n";
 			if (!$shell || 
-			    $shell_parent =~ /^(bash|csh|ksh|lksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ){
+			    $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ){
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
 			}
