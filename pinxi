@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-18';
-my $self_patch='448-p';
+my $self_patch='449-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -65,7 +65,7 @@ if (eval {require Time::HiRes}){
 # print "t0: @t0\n";
 # print "result:$@\n";
 ## Hashes
-my ( %alerts, %arm_machine, %client, %colors, %dl, %files, %rows, %system_files, %use );
+my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
@@ -79,7 +79,7 @@ my @test = (0,0,0,0,0);
 #my $opt_parser = Getopt::Long::Parser->new;
 
 ## Booleans
-my ($b_arm,$b_arm_machine,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
+my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
 $b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_mem,
 $b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
 ## Disk checks
@@ -5882,9 +5882,12 @@ sub prep_short_data {
 sub data_cpuinfo {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
-	my ($arch,@ids,@line,$b_first,$b_proc_int);
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-4-speeds-1.txt";
+	my ($arch,@ids,@line,$b_first,$b_proc_int,$starter);
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
@@ -5893,7 +5896,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-xeon-fake-dual-die-zyanya.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
 	my %speeds = set_cpu_speeds_sys();
@@ -5911,21 +5914,43 @@ sub data_cpuinfo {
 	foreach (@cpuinfo){
 		next if /^\s*$/;
 		@line = split /\s*:\s*/, $_;
+		next if !$line[0];
+		$starter = $line[0]; # preserve case for one specific ARM issue
 		$line[0] = lc($line[0]);
-		if ($line[0] eq 'processor'){
+		if ($b_arm && !$b_first && $starter eq 'Processor' && $line[1] !~ /^\d+$/){
+			#print "l1:$line[1]\n";
+			$cpu{'model_name'} = main::cleaner($line[1]);
+			$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
+			$cpu{'type'} = 'arm';
+			# Processor   : AArch64 Processor rev 4 (aarch64)
+			# Processor : Feroceon 88FR131 rev 1 (v5l)
+			if ($cpu{'model_name'} && $cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
+				$cpu{'model_name'} = $1;
+				$cpu{'rev'} = $2;
+				if ($4){
+					$cpu{'arch'} = $4;
+					$cpu{'model_name'} .= ' ' . $cpu{'arch'} if $cpu{'model_name'} !~ /$cpu{'arch'}/i; 
+				}
+				$cpu{'processors'}[$proc_count] = 0;
+				$b_proc_int = 0;
+				$b_first = 1;
+				#print "p0:\n";
+			}
+		}
+		elsif ($line[0] eq 'processor'){
 			# this protects against double processor lines, one int, one string
 			if ($line[1] =~ /^\d+$/){
 				$b_proc_int = 1;
 				$b_first = 1;
 				$cpu{'processors'}[$proc_count] = 0;
 				$proc_count++;
-				#print "p1:\n";
+				#print "p1: $proc_count\n";
 			}
 			else {
 				if (!$b_proc_int){
 					$cpu{'processors'}[$proc_count] = 0;
 					$proc_count++;
-					#print "p2a:\n";
+					#print "p2a: $proc_count\n";
 				}
 				if (!$b_first ){
 					# note: alternate: 
@@ -5970,6 +5995,15 @@ sub data_cpuinfo {
 			if ( $b_arm || $line[1] =~ /ARM|AArch/i){
 				$b_arm = 1;
 				$cpu{'type'} = 'arm';
+				if ($cpu{'model_name'} && $cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
+					$cpu{'model_name'} = $1;
+					$cpu{'rev'} = $2;
+					if ($4){
+						$cpu{'arch'} = $4;
+						$cpu{'model_name'} .= ' ' . $cpu{'arch'} if $cpu{'model_name'} !~ /$cpu{'arch'}/i;
+					}
+					#$cpu{'processors'}[$proc_count] = 0;
+				}
 			}
 		}
 		elsif ( $line[0] eq 'cpu mhz' ){
@@ -6044,7 +6078,8 @@ sub data_cpuinfo {
 	$cpu{'dies'} = $die_id++; # count starts at 0, all cpus have 1 die at least
 	if ($b_arm && $cpu{'dies'} <= 1){
 		my $arm_dies = cpu_dies_sys();
-		$cpu{'dies'} = $arm_dies if $arm_dies;
+		# case were 4 core arm returned 4 sibling lists, obviously wrong
+		$cpu{'dies'} = $arm_dies if $arm_dies && $proc_count != $arm_dies;
 	}
 	$cpu{'type'} = 'arm' if $b_arm && !$cpu{'type'};
 	$cpu{'ids'} = (\@ids);
@@ -6204,11 +6239,11 @@ sub data_sysctl {
 
 sub cpu_properties {
 	my (%cpu) = @_;
-	my $b_xeon = ($cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
+	my $b_xeon = ($cpu{'model_name'} && $cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
 	my $b_ht = 0;
 	my $b_ryzen = 0;
-	if ( ($cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} eq '17' ) || 
-	     $cpu{'model_name'} =~ /Ryzen/i){
+	if ( ($cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) || 
+	     $cpu{'model_name'} && $cpu{'model_name'} =~ /Ryzen/i){
 		$b_ryzen = 1;
 	}
 	#my @dies = $phys[0][0];
@@ -7960,7 +7995,7 @@ package MachineData;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows,$key1,$val1,$which);
+	my (%arm_machine,@data,@rows,$key1,$val1,$which);
 	my $num = 0;
 	if ($bsd_type || $b_dmidecode_force){
 		my $ref = $alerts{'dmidecode'};
@@ -7985,8 +8020,17 @@ sub get {
 		}
 	}
 	elsif (!$bsd_type) {
-		$key1 = 'Message';
-		$val1 = main::row_defaults('machine-data-alt-33','');
+		# this uses /proc/cpuinfo so only GNU/Linux
+		if ($b_arm){
+			%arm_machine = machine_data_arm();
+			if (%arm_machine){
+				@data = create_output_arm(%arm_machine);
+			}
+		}
+		if (!@data){
+			$key1 = 'Message';
+			$val1 = main::row_defaults('machine-data-alt-33','');
+		}
 	}
 	# if error case, null data, whatever
 	if ($key1) {
@@ -8120,6 +8164,25 @@ sub create_output {
 	eval $end if $b_log;
 	return @rows;
 }
+sub create_output_arm {
+	my (%data,@row,@rows);
+	my (%arm_machine) = @_;
+	my $num = 0;
+	my $j = 0;
+	#print Data::Dumper::Dumper \%arm_machine;
+	if ($arm_machine{'device'}){
+		$rows[$j]{$num++ . "#ARM Device"} = $arm_machine{'device'};
+	}
+	if ($arm_machine{'firmware'}){
+		$rows[$j]{$num++ . "#rev"} = $arm_machine{'firmware'};
+	}
+	# sometimes has value like: 0000
+	if (defined $arm_machine{'serial'}){
+		$rows[$j]{$num++ . "#serial"} = main::apply_filter($arm_machine{'serial'});
+	}
+	eval $end if $b_log;
+	return @rows;
+}
 
 sub machine_data_sys {
 	eval $start if $b_log;
@@ -8176,6 +8239,35 @@ sub machine_data_sys {
 	my @rows = create_output(\%data);
 	eval $end if $b_log;
 	return @rows;
+}
+# this will create an alternate machine data source
+# which will be used for alt ARM machine data in cases 
+# where no dmi data present, or by cpu data to guess at 
+# certain actions for arm only.
+sub machine_data_arm {
+	eval $end if $b_log;
+	my (%arm_machine,@temp);
+	if (my $file = main::system_files('cpuinfo')){
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		my @data = main::reader($file);
+		foreach (@data){
+			if (/^Hardware/i){
+				@temp = split /\s*:\s*/, $_;
+				$arm_machine{'device'} = $temp[1];
+			}
+			elsif (/^Revision/i){
+				@temp = split /\s*:\s*/, $_;
+				$arm_machine{'firmware'} = $temp[1];
+			}
+			elsif (/^Serial/i){
+				@temp = split /\s*:\s*/, $_;
+				$arm_machine{'serial'} = $temp[1];
+			}
+		}
+	}
+	#print Data::Dumper::Dumper \%arm_machine;
+	eval $end if $b_log;
+	return %arm_machine;
 }
 
 # bios_date: 09/07/2010
