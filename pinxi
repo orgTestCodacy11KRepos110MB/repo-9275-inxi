@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.00';
 my $self_date='2018-03-18';
-my $self_patch='447-p';
+my $self_patch='448-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11427,6 +11427,10 @@ sub create_output {
 	$num++ . '#mobo' => $mobo_temp,
 	});
 	@rows = (@rows,@data);
+	if (defined $sensors{'sodimm-temp'}){
+		my $sodimm_temp = $sensors{'sodimm-temp'} . $temp_unit;
+		$rows[$j]{$num++ . '#sodimm'} = $sodimm_temp;
+	}
 	if (defined $sensors{'psu-temp'}){
 		my $psu_temp = $sensors{'psu-temp'} . $temp_unit;
 		$rows[$j]{$num++ . '#psu'} = $psu_temp;
@@ -11514,8 +11518,10 @@ sub sensors_data {
 	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','');
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
 	#@sensors_data = main::reader($file);
 	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
+	#print @sensors_data;
 	@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
 	foreach (@sensors_data){
 		# we get this from gpu_data()
@@ -11524,21 +11530,24 @@ sub sensors_data {
 			$adapter = '';
 			next;
 		}
-		
 		if (/^(?:(?!amdgpu|intel|nouveau|radeon).)*-(isa|pci|virtual)-/){
 			$b_valid = 1;
 			$adapter = $1;
 			next;
 		}
+		next if !$b_valid;
 		my @working = split /:/, $_;
+		next if !$working[0] || /^Adapter/;
+		print "$working[0]:$working[1]\n";
 		# There are some guesses here, but with more sensors samples it will get closer.
 		# note: using arrays starting at 1 for all fan arrays to make it easier overall
 		# we have to be sure we are working with the actual real string before assigning
 		# data to real variables and arrays. Extracting C/F degree unit as well to use
 		# when constructing temp items for array. 
 		# note that because of charset issues, no "°" degree sign used, but it is required 
-		# in testing regex to avoid error.
-		if (/^(AMBIENT|M\/B|MB|SIO|SYS).*:([0-9\.]+)[ \t°](C|F)/i) {
+		# in testing regex to avoid error. It might be because I got that data from a forum post,
+		# note directly via debugger.
+		if (/^(AMBIENT|M\/B|MB|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'mobo-temp'} = $2;
 			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -11548,23 +11557,32 @@ sub sensors_data {
 		# NOTE: had: ^CPU.*\+([0-9]+): but that misses: CPUTIN and anything not with + in starter
 		# However, "CPUTIN is not a reliable measurement because it measures difference to Tjmax,
 		# which is the maximum CPU temperature reported as critical temperature by coretemp"
-		if (/^CPU.*:([0-9\.]+)[ \t°](C|F)/i) {
+		# NOTE: I've seen an inexplicable case where: CPU:52.0°C fails to match with [\s°] but 
+		# does match with: [\s°]*. I can't account for this, but that's why the * is there
+		if (/^CPU.*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'cpu-temp'} = $1;
 			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+			print "here\n";
 		}
-		if (/^PECI\sAgent\s0.*:([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^PECI\sAgent\s0.*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'cpu-peci-temp'} = $1;
 			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		if (/^(P\/S|Power).*:([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^(P\/S|Power).*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'psu-temp'} = $2;
 			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
+		if (/^SODIMM.*:([0-9\.]+)[\s°]*(C|F)/i) {
+			$sensors{'sodimm-temp'} = $1;
+			$working_unit = $2;
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+			
+		}
 		# for temp1/2 only use temp1/2 if they are null or greater than the last ones
-		if (/^temp1:([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^temp1:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp1'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -11572,7 +11590,7 @@ sub sensors_data {
 			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		if (/^temp2:([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^temp2:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp2'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -11581,7 +11599,7 @@ sub sensors_data {
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# temp3 is only used as an absolute override for systems with all 3 present
-		if (/^temp3:([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^temp3:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp3'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -11591,7 +11609,7 @@ sub sensors_data {
 		}
 		# final fallback if all else fails, funtoo user showed sensors putting
 		# temp on wrapped second line, not handled
-		if (/^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[ \t°](C|F)/i) {
+		if (/^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $3;
 			$working_unit = $4;
 			if ( !$sensors{'core-0-temp'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -11600,26 +11618,26 @@ sub sensors_data {
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# note: can be cpu fan:, cpu fan speed:, etc.
-		if (/^(CPU|Processor).*:([0-9]+)[ \t]RPM/i) {
+		if (/^(CPU|Processor).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[1] = $2;
 		}
-		if (/^(M\/B|MB|SYS).*:([0-9]+)[ \t]RPM/i) {
+		if (/^(M\/B|MB|SYS).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[2] = $2;
 		}
-		if (/(Power|P\/S|POWER).*:([0-9]+)[ \t]RPM/i) {
+		if (/(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[3] = $2;
 		}
-		if (/(SODIMM).*:([0-9]+)[ \t]RPM/i) {
+		if (/(SODIMM).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[4] = $2;
 		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 		# note: cpu/mobo/ps are 1/2/3
-		if (/^(AUX[1]? |CASE[1]? |CHASSIS[1]? ).*:([0-9]+)[ \t]RPM/i) {
+		if (/^(AUX[1]? |CASE[1]? |CHASSIS[1]? ).*:([0-9]+)[\s]RPM/i) {
 			$temp_working = $2;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			for ( my $i = 5; $i < 7; $i++ ){
@@ -11630,7 +11648,7 @@ sub sensors_data {
 				}
 			}
 		}
-		if (/^(AUX[2-9] |CASE[2-9] |CHASSIS[2-9] ).*:([0-9]+)[ \t]RPM/i) {
+		if (/^(AUX[2-9] |CASE[2-9] |CHASSIS[2-9] ).*:([0-9]+)[\s]RPM/i) {
 			$temp_working = $2;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			for ( my $i = 5; $i < 30; $i++ ){
@@ -11643,11 +11661,11 @@ sub sensors_data {
 			}
 		}
 		# in rare cases syntax is like: fan1: xxx RPM
-		if (/^FAN(1)?:([0-9]+)[ \t]RPM/i) {
+		if (/^FAN(1)?:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
 			$sensors{'fan-default'}[1] = $2;
 		}
-		if (/^FAN([2-9]|1[0-9]).*:([0-9]+)[ \t]RPM/i) {
+		if (/^FAN([2-9]|1[0-9]).*:([0-9]+)[\s]RPM/i) {
 			$fan_working = $2;
 			$sys_fan_nu = $1;
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
@@ -11891,9 +11909,13 @@ sub data_processor {
 		%sensors = ();
 	}
 	else {
-		my ($psu_temp);
+		my ($psu_temp,$sodimm_temp);
 		if ( $sensors{'psu-temp'} ){
 			$psu_temp = $sensors{'psu-temp'};
+		}
+		# sodimm fan is fan_main[4]
+		if ( $sensors{'sodimm-temp'} ){
+			$sodimm_temp = $sensors{'sodimm-temp'};
 		}
 		%sensors = (
 		'cpu-temp' => $cpu_temp,
@@ -11905,6 +11927,9 @@ sub data_processor {
 		);
 		if ($psu_temp){
 			$sensors{'psu-temp'} = $psu_temp;
+		}
+		if ($sodimm_temp){
+			$sensors{'sodimm-temp'} = $sodimm_temp;
 		}
 	}
 	eval $end if $b_log;
