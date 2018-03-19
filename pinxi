@@ -38,8 +38,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-18';
-my $self_patch='451-p';
+my $self_date='2018-03-19';
+my $self_patch='452-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8395,7 +8395,6 @@ sub machine_data_dmi {
 	return @rows;
 }
 
-
 sub get_device_sys {
 	eval $start if $b_log;
 	my ($chasis_id) = @_;
@@ -8443,7 +8442,15 @@ sub get_device_vm {
 	my $vm;
 	if ( my $program = main::check_program('systemd-detect-virt') ){
 		my $vm_test = (main::grabber("$program 2>/dev/null"))[0];
-		$vm = $vm_test if ( $vm_test && $vm_test ne 'none');
+		if ($vm_test){
+			# kvm vbox reports as oracle, usually, unless they change it
+			if (lc($vm_test) eq 'oracle'){
+				$vm = 'virtualbox';
+			}
+			elsif ( $vm_test ne 'none'){
+				$vm = $vm_test;
+			}
+		}
 	}
 	if (!$vm || lc($vm) eq 'bochs') {
 		if (-e '/proc/vz'){$vm = 'openvz'}
@@ -9727,6 +9734,21 @@ sub get_root {
 	# sure how far in abs_path resolves the path.
 	my $temp = Cwd::abs_path($path);
 	$path = $temp if $temp;
+	# note: it's a kernel config option to have /dev/root be a sym link 
+	# or not, if it isn't, path will be empty, if so, then try mount
+	if (!$path && (my $program = main::check_program('mount'))){
+		my @data = main::grabber("$program 2>/dev/null");
+		# /dev/sda2 on / type ext4 (rw,noatime,data=ordered)
+		foreach (@data){
+			if (/^([\S]+)\son\s\/\s/){
+				$path = $1;
+				# note: we'll be handing off any uuid/label paths to the next 
+				# check tools after get_root() above, so don't trim those.
+				$path =~ s/.*\/// if $path !~ /by-uuid|by-label/;
+				last;
+			}
+		}
+	}
 	eval $end if $b_log;
 	return $path;
 }
@@ -9746,8 +9768,6 @@ sub get_uuid {
 	eval $end if $b_log;
 	return $uuid;
 }
-
-
 }
 
 ## ProcessData 
@@ -14226,6 +14246,7 @@ sub get_shell_source {
 sub get_start_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
+	# ps -j -fp : bsds ps do not have -f for PPID, so we can't get the ppid
 	my $cmd = "ps -j -fp $parent";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd);
@@ -15363,7 +15384,8 @@ sub generate_info_data {
 		$client .= ' ' . $client{'version'};
 	}
 	if (!$b_irc && $extra > 1 ){
-		if ($b_display){
+		# bsds don't support -f option to get PPID
+		if ($b_display && !$bsd_type){
 			$val1 = get_shell_source();
 		}
 		else {
