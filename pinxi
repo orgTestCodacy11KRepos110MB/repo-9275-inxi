@@ -38,8 +38,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.00';
-my $self_date='2018-03-19';
-my $self_patch='456-p';
+my $self_date='2018-03-20';
+my $self_patch='457-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11031,7 +11031,7 @@ sub get {
 }
 sub get_repos_linux {
 	eval $start if $b_log;
-	my (@content,@data,@data2,@files,$repo,@rows);
+	my (@content,@data,@data2,@data3,@files,$repo,@rows);
 	my ($key,$path);
 	my $apk = '/etc/apk/repositories';
 	my $apt = '/etc/apt/sources.list';
@@ -11048,11 +11048,111 @@ sub get_repos_linux {
 	# apt - debian, buntus, also sometimes some yum/rpm repos may create 
 	# apt repos here as well
 	if (-f $apt || -d "$apt.d"){
+		my ($apt_arch,$apt_comp,$apt_suites,$apt_types,@apt_urls,@apt_working,
+		$b_apt_enabled,$file);
+		my $counter = 0;
 		@files = main::globber('/etc/apt/sources.list.d/*.list');
 		push @files, $apt;
 		main::log_data('data',"apt repo files:\n" . main::joiner(\@files, "\n", 'unset') ) if $b_log;
 		foreach ( sort @files){
 			@data = repo_builder($_,'apt','^\s*deb') if -r $_;
+			@rows = (@rows,@data);
+		}
+		#@files = main::globber("$ENV{'HOME'}/bin/scripts/inxi/data/repo/apt/*.sources");
+		@files = main::globber('/etc/apt/sources.list.d/*.sources');
+		main::log_data('data',"apt deb822 repo files:\n" . main::joiner(\@files, "\n", 'unset') ) if $b_log;
+		foreach $file (@files){
+			@data2 = main::reader($file,'strip');
+			my $count = scalar @data2;
+			push @dbg_files, $file if $debugger_dir;
+			#print "$file\n";
+			@apt_urls = ();
+			@apt_working = ();
+			$counter = 0;
+			$b_apt_enabled = 1;
+			foreach my $row (@data2){
+				$counter++;
+				next if $row =~ /^\s*$|^\s*#/;
+				#print "row:$row\n";
+				if ($row =~ /^Types:\s*(.*)/){
+					my $type_holder= $1;
+					#print "ath:$type_holder\n";
+					if ($apt_types && @apt_working){
+						if ($b_apt_enabled){
+							#print "1: url builder\n";
+							foreach $repo (@apt_working){
+								my $string = $apt_types . ' ' . $repo;
+								$string .= ' ' . $apt_suites if $apt_suites ;
+								$string .= ' ' . $apt_comp if $apt_comp;
+								$string .= ' ' . $apt_arch if $apt_arch;
+								#print "s1:$string\n";
+								push @data3, $string;
+							}
+						}
+						#print join "\n",@data3,"\n";
+						@apt_urls = (@apt_urls,@data3);
+						@data3 = ();
+						@apt_working = ();
+						$apt_arch = '';
+						$apt_comp = '';
+						$apt_suites = '';
+						$apt_types = '';
+					}
+					$apt_types = $type_holder;
+					$b_apt_enabled = 1;
+				}
+				if ($row =~ /^Enabled:\s*(.*)/){
+					my $status = $1;
+					$b_apt_enabled = ($status =~ /no/i) ? 0: 1;
+				}
+				if ($row =~ /:\//){
+					my $url = $row;
+					$url =~ s/^URIs:\s*//;
+					push @apt_working, $url if $url;
+				}
+				if ($row =~ /^Suites:\s*(.*)/){
+					$apt_suites = $1;
+				}
+				if ($row =~ /^Components:\s*(.*)/){
+					$apt_comp = $1;
+				}
+				if ($row =~ /^Architectures:\s*(.*)/){
+					$apt_arch = $1;
+				}
+				# we've hit the last line!!
+				if ($counter == $count && @apt_working){
+					#print "2: url builder\n";
+					if ($b_apt_enabled){
+						foreach $repo (@apt_working){
+							my $string = $apt_types . ' ' . $repo;
+							$string .= ' ' . $apt_suites if $apt_suites ;
+							$string .= ' ' . $apt_comp if $apt_comp;
+							$string .= ' ' . $apt_arch if $apt_arch;
+							#print "s2:$string\n";
+							push @data3, $string;
+						}
+					}
+					#print join "\n",@data3,"\n";
+					@apt_urls = (@apt_urls,@data3);
+					@data3 = ();
+					@apt_working = ();
+					$apt_arch = '';
+					$apt_comp = '';
+					$apt_suites = '';
+					$apt_types = '';
+				}
+			}
+			if (@apt_urls){
+				$key = repo_builder('active','apt');
+				@apt_urls = url_cleaner(@apt_urls);
+			}
+			else {
+				$key = repo_builder('active','apt');
+			}
+			@data = (
+			{$num++ . "#$key" => $file},
+			[@apt_urls],
+			);
 			@rows = (@rows,@data);
 		}
 		@files = ();
@@ -11114,14 +11214,14 @@ sub get_repos_linux {
 				}
 			}
 			if (! @content){
-				$key = "No enabled slackpkg+ sources in";
+				$key = repo_builder('missing','slackpkg+');
 			}
 			else {
 				@content = url_cleaner(@content);
-				$key = "slackpkg+ sources";
+				$key = repo_builder('active','slackpkg+');
 			}
 			@data = (
-			{$num++ . "#slackpkg+ sources" => $slackpkg_plus},
+			{$num++ . "#$key" => $slackpkg_plus},
 			[@content],
 			);
 			@data = url_cleaner(@data);
@@ -11187,11 +11287,11 @@ sub get_repos_linux {
 				}
 				
 				if (! @content){
-					$key = "No enabled $repo sources in";
+					$key = repo_builder('missing',$repo);
 				}
 				else {
 					@content = url_cleaner(@content);
-					$key = "Enabled $repo sources in";
+					$key = repo_builder('active',$repo);
 				}
 				@data = (
 				{$num++ . "#$key" => $_},
@@ -11250,11 +11350,11 @@ sub get_repos_linux {
 					push @content, "$title ~ $url";
 				}
 				if (! @content){
-					$key = "No enabled $repo sources in";
+					$key = repo_builder('missing','portage');
 				}
 				else {
 					@content = url_cleaner(@content);
-					$key = "Enabled $repo sources in";
+					$key = repo_builder('active','portage');
 				}
 				@data = (
 				{$num++ . "#$key" => $_},
@@ -11341,8 +11441,9 @@ sub get_repos_linux {
 			}
 			if ($repo && @content){
 				@content = url_cleaner(@content);
+				$key = repo_builder('active',$which);
 				@data = (
-				{$num++ . "#Active $which repo" => $repo},
+				{$num++ . "#$key" => $repo},
 				[@content],
 				);
 				@rows = (@rows,@data);
@@ -11353,8 +11454,9 @@ sub get_repos_linux {
 		# last one if present
 		if ($repo && @content){
 			@content = url_cleaner(@content);
+			$key = repo_builder('active',$which);
 			@data = (
-			{$num++ . "#Active $which repo" => $repo},
+			{$num++ . "#$key" => $repo},
 			[@content],
 			);
 			@rows = (@rows,@data);
@@ -11419,11 +11521,11 @@ sub get_repos_bsd {
 						}
 					}
 					if (! @data3){
-						$key = "No enabled BSD pkg servers in";
+						$key = repo_builder('missing','bsd-package');
 					}
 					else {
 						@data3 = url_cleaner(@data3);
-						$key = "BSD enabled pkg servers in";
+						$key = repo_builder('active','bsd-package');
 					}
 					@data = (
 					{$num++ . "#$key" => $_},
@@ -11454,35 +11556,43 @@ sub repo_builder {
 	my %unfound = (
 	'apk' => 'No APK repos found in',
 	'apt' => 'No apt repos found in',
-	'bsd-package' => 'No BSD package servers found in',
+	'bsd-package' => 'No enabled BSD pkg servers in',
+	'eopkg' => 'No active eopkg repos found',
 	'pacman' => 'No Pacman repos found in',
+	'pisi' => 'No active pisi repos found',
+	'portage' => 'No enabled portage sources in',
 	'portsnap' => 'No ports servers found in',
 	'freebsd' => 'No FreeBSD update servers found in',
 	'freebsd-pkg' => 'No FreeBSD default pkg server found in',
 	'openbsd' => 'No OpenBSD pkg mirrors found in',
 	'netbsd' => 'No NetBSD pkg servers found in',
 	'slackpkg' => 'No slackpkg sources found in',
-	'slackpkg-plus' => 'No slackpkg+ sources found in',
+	'slackpkg+' => 'No slackpkg+ sources found in',
 	'yum' => 'No yum sources found in',
 	'zypp' => 'No zypp sources found in',
 	);
 	$missing = $unfound{$type};
+	return $missing if $file eq 'missing';
 	my %keys = (
 	'apk' => 'APK repo',
 	'apt' => 'Active apt sources in',
-	'bsd-package' => 'BSD pkg server',
-	'pacman' => 'Active Pacman repo servers in',
+	'bsd-package' => 'BSD enabled pkg servers in',
+	'eopkg' => 'Active eopkg repo',
 	'freebsd' => 'FreeBSD update server',
 	'freebsd-pkg' => 'FreeBSD default pkg server',
+	'pacman' => 'Active Pacman repo servers in',
+	'pisi' => 'Active pisi repo',
+	'portage' => 'Enabled portage sources in',
 	'portsnap' => 'BSD ports server',
 	'openbsd' => 'OpenBSD pkg mirror',
 	'netbsd' => 'NetBSD pkg servers',
 	'slackpkg' => 'slackpkg sources',
-	'slackpkg-plus' => 'slackpkg+ sources',
+	'slackpkg+' => 'slackpkg+ sources',
 	'yum' => 'Active yum sources in',
 	'zypp' => 'Active zypp sources in',
 	);
 	$key = $keys{$type};
+	return $key if $file eq 'active';
 	push @dbg_files, $file if $debugger_dir;
 	@content =  main::reader($file);
 	@content = grep {/$search/i && !/^\s*$/} @content if @content;
