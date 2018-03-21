@@ -39,7 +39,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.02';
 my $self_date='2018-03-20';
-my $self_patch='02';
+my $self_patch='02-p';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1939,10 +1939,14 @@ sub download_file {
 	# print "$dl{'no-ssl-opt'}\n";
 	# print "$dl{'dl'}\n";
 	# tiny supports spider sort of
+	## NOTE: 1 is success, 0 false for Perl
 	if ($dl{'dl'} eq 'tiny' ){
 		$cmd = "Using tiny: type: $type \nurl: $url \nfile: $file";
 		$result = get_file($type, $url, $file);
+		$debug_data = $result;
 	}
+	# But: 0 is success, and 1 is false for these
+	# when strings are returned, they will be taken as true
 	else {
 		if ($type eq 'stdout'){
 			$args = $dl{'stdout'};
@@ -1954,13 +1958,13 @@ sub download_file {
 			$args = $dl{'file'};
 			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $file $url $dl{'null'}";
 			system($cmd);
-			$result = $?;
+			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
 		}
 		elsif ( $dl{'dl'} eq 'wget' && $type eq 'spider'){
 			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $dl{'spider'} $url";
 			system($cmd);
-			$result = $?;
+			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
 		}
 	}
@@ -3187,13 +3191,13 @@ sub update_man {
 	my $man_file_path="$man_file_location/$self_name.1.gz" ;
 	my $output = '';
 	
-	my $downloader_man_error=1;
+	my $b_downloaded = 1;
 	if ( ! -d $man_file_location ){
 		print "The required man directory was not detected on your system.\n";
 		print "Unable to continue: $man_file_location\n";
 		return 0;
 	}
-	if ( -w $man_file_location ){
+	if ( ! -w $man_file_location ){
 		print "Cannot write to $man_file_location! Are you root?\n";
 		print "Unable to continue: $man_file_location\n";
 		return 0;
@@ -3205,24 +3209,23 @@ sub update_man {
 			system( 'mandb' );
 		}
 	}
-# 	if ( $dl{'dl'} =~ /tiny|wget/){
+# 	if ( $dl{'dl'} =~ /^(wget)$/){
 # 		print "Checking Man page download URL...\n";
-# 		download_file('spider', $man_file_url);
-# 		$downloader_man_error = $?;
+# 		$b_downloaded = download_file('spider', $man_file_url);
 # 	}
-	if ( $downloader_man_error == 1 ){
-# 		if ( $dl{'dl'} =~ /tiny|wget/){
+	if ( $b_downloaded ){
+# 		if ( $dl{'dl'} =~ /^(wget)$/){
 # 			print "Man file download URL verified: $man_file_url\n";
 # 		}
 		print "Downloading Man page file now.\n";
-		download_file('file', $man_file_url,  $man_file_path );
-		$downloader_man_error = $?;
-		if ( $downloader_man_error == 0 ){
+		# returns perl, 1 for true, 0 for false, even when using shell tool returns
+		$b_downloaded = download_file('file', $man_file_url,  $man_file_path );
+		if ( !$b_downloaded ){
 			print "Oh no! Something went wrong downloading the Man file at: $man_file_url\n";
-			print "Check the error messages for what happened. Error: $downloader_man_error\n";
+			print "Check the error messages for what happened. Error: $b_downloaded\n";
 		}
 		else {
-			print "Download/install of man page successful. Check to make sure it works: man inxi\n";
+			print "Download/install of man page successful.\nCheck to make sure it works: man inxi\n";
 		}
 	}
 	else {
@@ -3264,7 +3267,7 @@ sub set_version_data {
 	open (my $fh, '<', "$self_path/$self_name");
 	while( my $row = <$fh>){
 		chomp $row;
-		$row =~ s/'//g;
+		$row =~ s/'|;//g;
 		if ($row =~ /^my \$self_name/ ){
 			$self_name = (split /=/, $row)[1];
 		}
