@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.02';
 my $self_date='2018-03-20';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -742,8 +742,8 @@ sub get_configs {
 # args: 0: key; 1: value
 sub get_config_item {
 	my ($key,$val) = @_;
-	if ($key eq 'B_ALLOW_UPDATE') {$b_update = int($val)}
-	elsif ($key eq 'B_ALLOW_WEATHER') {$b_weather = int($val)}
+	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$b_update = int($val)}
+	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$b_weather = int($val)}
 	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if $val =~ /^[0-9\.]$/}
 	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = int($val)}
 	elsif ($key eq 'DOWNLOADER') {
@@ -1003,10 +1003,10 @@ sub set_config_color_scheme {
 	open( $w_fh, '>', $user_config_file ) or error_handler('open', $user_config_file, $!);
 	foreach ( @file_lines ) { 
 		if ( $_ =~ /^$configs{'variable'}/ ){
-			$_ = "$configs{'variable'}=$value\n";
+			$_ = "$configs{'variable'}=$value";
 			$b_found = 1;
 		}
-		print $w_fh "$_";
+		print $w_fh "$_\n";
 	}
 	if (! $b_found ){
 		print $w_fh "$configs{'variable'}=$value\n";
@@ -4171,18 +4171,17 @@ sub get_client_name {
 		if (! check_modern_konvi() ){
 			$ppid = getppid();
 			$client_name = (main::grabber("ps -p $ppid"))[1];
-			
-			my @data = split /\s+/, $client_name;
-			if ($bsd_type){
-				$client_name = lc($data[5]);
-			}
-			# gnu/linux uses last value
-			else {
-				$client_name = lc($data[scalar @data - 1]);
-			}
-			$client_name =~ s/.*\|-(|)//;
-			$client_name =~ s/[0-9\.]+$//; # clean things like python2.7
 			if ($client_name){
+				my @data = split /\s+/, $client_name if $client_name;
+				if ($bsd_type){
+					$client_name = lc($data[5]);
+				}
+				# gnu/linux uses last value
+				else {
+					$client_name = lc($data[scalar @data - 1]);
+				}
+				$client_name =~ s/.*\|-(|)//;
+				$client_name =~ s/[0-9\.]+$//; # clean things like python2.7
 				$client{'name'} = $client_name;
 				$client{'native'} = 1;
 				get_client_version();
@@ -13721,7 +13720,6 @@ sub get_linux_distro {
 				# if so, use lsb-release, if not, then just use the found file
 				# this is for only those distro's with self named release/version files
 				# because Mint does not use such, it must be done as below 
-				## this if statement requires the spaces and * as it is, else it won't work
 				if ($b_lsb && $file =~ /$lsb_good_s/){
 					$distro_file = $lsb_release;
 				}
