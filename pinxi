@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.03';
 my $self_date='2018-03-22';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3123,7 +3123,9 @@ sub get_defaults {
 	'inxi-main' => 'https://github.com/smxi/inxi/raw/master/',
 	'inxi-pinxi' => 'https://github.com/smxi/inxi/raw/inxi-perl/',
 	'inxi-man' => "https://smxi.org/in/$self_name.1.gz",
+	'inxi-man-gh' => "https://github.com/smxi/inxi/raw/master/$self_name.1",
 	'pinxi-man' => "https://smxi.org/in/$self_name.1.gz",
+	'pinxi-man-gh' => "https://github.com/smxi/inxi/raw/inxi-perl/$self_name.1",
 	);
 	if ( exists $defaults{$type}){
 		return $defaults{$type};
@@ -3199,12 +3201,11 @@ sub update_me {
 }
 
 sub update_man {
-	my $man_file_url=get_defaults($self_name . '-man'); 
 	my $man_file_location=set_man_location();
 	my $man_file_path="$man_file_location/$self_name.1.gz" ;
-	my $output = '';
+	my ($man_file_url,$output) = ('','');
 	
-	my $b_downloaded = 1;
+	my $b_downloaded = 0;
 	if ( ! -d $man_file_location ){
 		print "The required man directory was not detected on your system.\n";
 		print "Unable to continue: $man_file_location\n";
@@ -3222,27 +3223,38 @@ sub update_man {
 			system( 'mandb' );
 		}
 	}
-# 	if ( $dl{'dl'} =~ /^(wget)$/){
-# 		print "Checking Man page download URL...\n";
-# 		$b_downloaded = download_file('spider', $man_file_url);
-# 	}
-	if ( $b_downloaded ){
-# 		if ( $dl{'dl'} =~ /^(wget)$/){
-# 			print "Man file download URL verified: $man_file_url\n";
-# 		}
-		print "Downloading Man page file now.\n";
-		# returns perl, 1 for true, 0 for false, even when using shell tool returns
-		$b_downloaded = download_file('file', $man_file_url,  $man_file_path );
-		if ( !$b_downloaded ){
-			print "Oh no! Something went wrong downloading the Man file at: $man_file_url\n";
-			print "Check the error messages for what happened. Error: $b_downloaded\n";
+	 # first choice is inxi.1/pinxi.1 from gh, second gz from smxi.org
+	if (my $program = check_program('gzip')){
+		$man_file_url=get_defaults($self_name . '-man-gh'); 
+		print "Downloading Man page file...\n";
+		my $data = download_file('stdout', $man_file_url );
+		if ($data){
+			$b_downloaded = 1;
+			print "Compressing then writing file to system...\n";
+			system("echo \"$data\" | $program -c -9 > $man_file_path");
+			my $err = $?;
+			if ($err > 0){
+				print "Oh no! Somedthing went wrong writing the manfile to local location:\n";
+				print "Local path: $man_file_path Error: $err\n";
+			}
 		}
 		else {
-			print "Download/install of man page successful.\nCheck to make sure it works: man inxi\n";
+			print "Something went wrong on the file download.\nTry --dbg 1 to see more info.\n";
 		}
 	}
 	else {
-		print "Man file download URL failed, unable to continue: $man_file_url\n";
+		$man_file_url=get_defaults($self_name . '-man'); 
+		# used to use spider tests, but only wget supports that, so no need
+		print "Downloading Man page file gz...\n";
+		# returns perl, 1 for true, 0 for false, even when using shell tool returns
+		$b_downloaded = download_file('file', $man_file_url,  $man_file_path );
+		if ($b_downloaded) {
+			print "Download/install of man page successful.\nCheck to make sure it works: man $self_name\n";
+		}
+	}
+	if ( !$b_downloaded ){
+		print "Oh no! Something went wrong downloading the Man file at:\n$man_file_url\n";
+		print "Try -U with --dbg 1 for more information on the failure.\n";
 	}
 }
 
