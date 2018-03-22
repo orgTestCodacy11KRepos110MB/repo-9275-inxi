@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.02';
 my $self_date='2018-03-20';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -71,7 +71,7 @@ my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@usb);
 ## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@partitions,
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@partitions,
 @raid,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
@@ -82,8 +82,8 @@ my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
 $b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_man,
 $b_mem,$b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
 ## Disk checks
-my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_partitions,$b_partition_extra,
-$b_raid);
+my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_lsblk,$b_partitions,
+$b_partition_extra,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
@@ -1371,6 +1371,9 @@ sub disk_data {
 	['df', '-k -T'],
 	['df', '-k -T -P'],
 	['df', '-P'],
+	['lsblk', '-fs'],
+	['lsblk', '-rfs'],
+	['lsblk', '-a'],
 	['gpart', 'list'],
 	['gpart', 'show'],
 	['gpart', 'status'],
@@ -7686,6 +7689,9 @@ sub display_server(){
 			if ($drivers[1]){
 				$row[0]{$num++ . "#unloaded"} = $drivers[1];
 			}
+			if ($graphics{'compositor'}){
+				$row[0]{$num++ . "#compositor"} = $graphics{'compositor'};
+			}
 		}
 		if ($resolution){
 			$row[0]{$num++ . "#resolution"} = $resolution;
@@ -9730,6 +9736,20 @@ sub get_bsd_label_uuid {
 	main::log_data('dump','@data',\@data) if $b_log;
 	eval $end if $b_log;
 	return @data;
+}
+sub set_lsblk {
+	eval $start if $b_log;
+	$b_lsblk = 1;
+	if (my $program = main::check_program('lsblk')){
+		@lsblk = main::grabber("$program -fs 2>/dev/null");
+	}
+	main::log_data('dump','@lsblk',\@lsblk) if $b_log;
+	eval $end if $b_log;
+}
+sub check_lsblk {
+	eval $start if $b_log;
+	
+	eval $start if $b_log;
 }
 sub get_label {
 	eval $start if $b_log;
