@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.03';
 my $self_date='2018-03-22';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3865,7 +3865,7 @@ sub show_options {
 	$self_name version." ],
 	['1', '-l', '--label', "$partition_string_u labels. Default: short $partition_string -P. 
 	For full -p output, use: -pl (or -plu)." ],
-	['1', '-m', '--memory', "Memory (RAM) data. Physical system memory array(s), capacity, 
+	['1', '-m', '--memory', "Memory (RAM) data. Requires root. Physical system memory array(s), capacity, 
 	how many devices (slots) supported, and individual memory devices 
 	(sticks of memory etc). For devices, shows device locator, size, speed, 
 	type (like: DDR3). If neither -I nor -tm are selected, also shows 
@@ -3896,7 +3896,7 @@ sub show_options {
 	['1', '-s', '--sensors', "Sensors output (if sensors installed/configured): mobo/cpu/gpu temp; 
 	detected fan speeds. Gpu temp only for Fglrx/Nvidia drivers. Nvidia shows 
 	screen number for > 1 screens." ],
-	['1', '', '--slots', "Show PCI slots, type, speed, status." ],
+	['1', '', '--slots', "Show PCI slots, type, speed, status. Requires root. " ],
 	['1', '-S', '--system', "System information: host name, kernel, desktop environment 
 	(if in X), distro" ],
 	['1', '-t', '--processes', "Processes. Requires extra options: c^(cpu) m^(memory) cm^(cpu+memory). 
@@ -3909,7 +3909,7 @@ sub show_options {
 	For full -p output, use: -pu (or -plu)." ],
 	['1', '-v', '--verbosity', "Script verbosity levels. Verbosity level number is required. 
 	Should not be used with -b or -F" ],
-	['1', '', '', "Supported levels: 0-7 Example: $self_name^-v^4" ],
+	['1', '', '', "Supported levels: 0-8 Example: $self_name^-v^4" ],
 	['2', '0', '', "Short output, same as: $self_name" ],
 	['2', '1', '', "Basic verbose, -S + basic CPU + -G + basic Disk + -I." ],
 	['2', '2', '', "Networking card (-N), Machine (-M) data, if present, Battery (-B), 
@@ -3971,7 +3971,7 @@ sub show_options {
 	);
 	push @data, @rows;
 	if ( $b_weather ){
-		@rows = (['2', '-w -W', '', "Wind speed and time zone (-w only)." ]);
+		@rows = (['2', '-w -W', '', "Wind speed, humidity, pressusre, and time zone (-w only)." ]);
 		push @data, @rows;
 	}
 	@rows = (
@@ -3991,7 +3991,7 @@ sub show_options {
 	['2', '-M', '', "Chassis information, bios rom size (dmidecode only), if data for 
 	either is available." ],
 	['2', '-N', '', "Chip vendor:product ID for each nic." ],
-	['2', '-R', '', "md-raid: Superblock (if present); algorythm. Adds 
+	['2', '-R', '', "md-raid: Superblock (if present); algorithm. Adds 
 	system info line (kernel support,read ahead, raid events). If resync, 
 	shows progress bar." ],
 	['2', '-S', '', "Display manager (dm) in desktop output, if in X 
@@ -4001,7 +4001,7 @@ sub show_options {
 	);
 	push @data, @rows;
 	if ( $b_weather ){
-		@rows = (['2', '-w -W', '', "Humidity, barometric pressure." ]);
+		@rows = (['2', '-w -W', '', "Dew poinnt, heat index." ]);
 		push @data, @rows;
 	}
 	@rows = (
@@ -4019,8 +4019,7 @@ sub show_options {
 	push @data, @rows;
 	if ( $b_weather ){
 		@rows = (['2', '-w -W', '', "Location (uses -z/irc filter), weather 
-		observation time, wind chill, heat index, dew point (shows extra lines 
-		for data where relevant)." ] );
+		observation time, altitude (shows extra lines for data where relevant)." ] );
 		push @data, @rows;
 	}
 	@rows = (
@@ -4093,7 +4092,7 @@ sub show_options {
 	['2', '41', '', "Bypass Curl as a downloader option." ],
 	['2', '42', '', "Bypass Fetch as a downloader option." ],
 	['2', '43', '', "Bypass Wget as a downloader option." ],
-	['2', '44', '', "Bypass Curl, Fetch, and Wget as a downloader options. Forces 
+	['2', '44', '', "Bypass Curl, Fetch, and Wget as downloader options. Forces 
 	Perl if HTTP::Tiny present." ],
 	['1', '', '--display', "Will try to get display data out of X. Default gets it from display 0. 
 	If you use this format: --display 1 it would get it from display 1 instead, or any 
@@ -5082,6 +5081,8 @@ sub show_version {
 		$working_path = readlink "$working_path/$self_name";
 		$working_path =~ s/[^\/]+$//;
 	}
+	# strange output /./ ending, but just trim it off, I don't know how it happens
+	$working_path =~ s%/\./%/%;
 	@row = [ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"];
 	push @data, @row;
 	if ( ! $b_irc ){
@@ -5194,7 +5195,7 @@ sub card_data {
 			$num++ . "#driver" => $driver,
 			},);
 			@rows = (@rows,@data);
-			if ($extra > 1 && !$bsd_type){
+			if ($extra > 0 && !$bsd_type){
 				if ($row[9] ){
 					my $version = main::get_module_version($row[9]);
 					$rows[$j]{$num++ . "#v"} = $version if $version;
@@ -5480,7 +5481,7 @@ sub create_output {
 		$condition ||= 'N/A';
 		$j = scalar @rows;
 		@data = ({
-		$num++ . "#$key" => '',
+		$num++ . "#ID" => $key,
 		$num++ . "#charge" => $charge,
 		$num++ . "#condition" => $condition,
 		},);
@@ -5551,7 +5552,6 @@ sub battery_data_sys {
 		$b_ma = 0;
 		$id = $item;
 		$id =~ s%/sys/class/power_supply/|\/$%%g;
-		$id =~ s/(BAT|CMB)/$1-/;
 		$battery{$id} = ({});
 		foreach $file (@items){
 			$path = "$item$file";
@@ -5643,7 +5643,7 @@ sub battery_data_dmi {
 		my @ref = @$_;
 		# Portable Battery
 		if ($ref[0] == 22){
-			$id = "BAT-$i";
+			$id = "BAT$i";
 			$i++;
 			$battery{$id} = ({});
 			# skip first three row, we don't need that data
@@ -5753,7 +5753,7 @@ sub create_output_full {
 		my $arch = $cpu{'arch'};
 		$arch ||= 'N/A';
 		$rows[$j]{$num++ . "#arch"} = $arch;
-		if ($extra > 1 && $arch ne 'N/A' && $cpu{'rev'} ){
+		if ( $arch ne 'N/A' && $cpu{'rev'} ){
 			$rows[$j]{$num++ . "#rev"} = $cpu{'rev'};
 		}
 	}
@@ -7804,12 +7804,14 @@ sub gl_data(){
 			@row = ({
 			$num++ . "#OpenGL" => '',
 			$num++ . "#renderer" => $renderer,
-			$num++ . "#version" => $version,
+			$num++ . "#v" => $version,
 			});
 			if ($b_compat && $extra > 1 && $compat_version){
 				$row[0]{$num++ . "#compat-v"} = $compat_version;
 			}
-			$row[0]{$num++ . "#direct render"} = $direct_render;
+			if ($extra > 0){
+				$row[0]{$num++ . "#direct render"} = $direct_render;
+			}
 		}
 		else {
 			@row = ({
@@ -7901,7 +7903,7 @@ sub x_drivers {
 			}
 		}
 		my $sep = '';
-		foreach (keys %drivers){
+		foreach (sort keys %drivers){
 			if ($drivers{$_} eq 'loaded') {
 				$sep = ($loaded) ? ',' : '';
 				$loaded .= $sep . $_;
@@ -9495,10 +9497,10 @@ sub create_output {
 		}
 		%part = check_lsblk($row{'dev-base'},0) if (@lsblk && $row{'dev-base'} && $dev_type eq 'dev');
 		if (%part){
-			$fs = $part{'fs'};
+			$fs = lc($part{'fs'});
 		}
 		elsif (defined $row{'fs'}){
-			$fs = $row{'fs'};
+			$fs = lc($row{'fs'});
 		}
 		else {
 			$fs = 'N/A';
@@ -11779,7 +11781,7 @@ sub create_output {
 	if (!@fan_main && !@fan_default){
 		$fan_def = 'N/A';
 	}
-	$rows[$j]{$num++ . '#Fan Speeds (in RPM)'} = $fan_def;
+	$rows[$j]{$num++ . '#Fan Speeds (RPM)'} = $fan_def;
 	my $b_cpu = 0;
 	for (my $i = 0; $i < scalar @fan_main; $i++){
 		next if $i == 0;# starts at 1, not 0
@@ -12525,7 +12527,7 @@ sub create_output {
 		my @data2 = main::get_size($row{'size'}) if (defined $row{'size'});
 		my $size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
 		if ($row{'fs'}){
-			$fs = $row{'fs'};
+			$fs = lc($row{'fs'});
 		}
 		else {
 			if (main::check_program('file')){
@@ -14454,6 +14456,9 @@ sub get_shell_source {
 			}
 			#print "shell parent 2: $shell_parent\n";
 		}
+		# to work around a ps -p or gnome-terminal bug, which returns 
+		# gnome-terminal- trim - off end 
+		$shell_parent =~ s/-$//;
 	}
 	if ($b_log){
 		$self_parent ||= '';
