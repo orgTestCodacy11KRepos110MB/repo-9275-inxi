@@ -2,8 +2,8 @@
 README for development branch of inxi Perl version: pinxi
 ====================================================================
 FILE:    README.txt
-VERSION: 3.6
-DATE:    2018-03-16
+VERSION: 3.7
+DATE:    2018-03-22
 
 NOTE: While the real program name will never change, for the sake
 of clarity, I will refer to the inxi-perl dev branch inxi as pinxi, 
@@ -19,10 +19,13 @@ Clone just this branch:
 
 git clone https://github.com/smxi/inxi --branch inxi-perl --single-branch
 
-Install pinxi for testing. Note that the -U option works now so 
-only the initial install is required:
+Install pinxi for testing. Note that the -U option works the same as 
+master branch inxi, so only the initial install is required:
 
 wget -O pinxi https://github.com/smxi/inxi/raw/inxi-perl/pinxi
+
+pinxi -U --man also installs the man page from pinxi, which is the 
+development branch for the master man page.
 
 ====================================================================
 
@@ -179,31 +182,27 @@ Note that my current development goals are, roughly in this order:
 
 ====================================================================
 
-HELP? BSD Welcome!!
+BSD Development:
 
-So I may experiment with this a bit, it also depends on if I can
-generate any interest, since there's no practical way I can actually
-refactor inxi by myself into Perl, it's too much work, even though
-the gawk blocks are largely directly translatable to Perl.
+Please note, after really struggling with BSD development, I have 
+concluded that I will only do it under these circumstances:
 
-However, due to the very specific logic of binxi, the only real way 
-to translate the stuff was to create the logic engines, init, startup, 
-print, debug, log, before the actual data or printer features could be 
-rolled out.
+1. a fully tested robust patch that does not break any existing 
+logic is given.
 
-Now, if you are willing and able to do literal function translations
-from the existing Bash/Gawk/Sed/tr/wc/grep/etc in binxi to the Perl
-equivalents in pinxi, and are most important, willing to accept that
-almost every line of logic in binxi is there to handle real events 
-that have happened and which the logic has seen, which means, it 
-does very little good to skip stuff you don't think matters, or that
-you don't understand, etc, it's all got to be translated, every bit,
-well, then, I really would welcome your help. 
+2. I am given direct SSH access to the machine, or a machine/OS 
+very much like it. VMs do not cut it for most advanced hardware stuff,
+but are OK for basic development work.
 
-BSD?
-I need help on all BSD functions and tools. Those will be obvious as
-I go along, tools that have specific modules for Linux or BSD will
-be added to modules/ as I go along, and I will just leave the BSD
-stub sub, and the data structure will be obvious from the Linux
-version.
+Any thing else is simply too time consuming for me to justify at this 
+point. Note that I have access to some BSD machines, and those reflect
+accuratnely where the support can go if I have access. This means
+ok, but not totally complete, which is the best I can really hope 
+for given the diverse state of the BSD OS ecosystem, which is 
+simply too splintered to really support at random. But with machine 
+access my experience has shown me that I can make quite good progress
+on most BSDs, at least those that have available data, which is not 
+always a given.
+
+
 
