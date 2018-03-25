@@ -2,16 +2,12 @@
 README for development branch of inxi Perl version: pinxi
 ====================================================================
 FILE:    README.txt
-VERSION: 3.7
-DATE:    2018-03-22
+VERSION: 3.8
+DATE:    2018-03-24
 
 NOTE: While the real program name will never change, for the sake
-of clarity, I will refer to the inxi-perl dev branch inxi as pinxi, 
-and bash/gawk master branch inxi as binxi in the following.
-
-During development, so I can more easily test changes, the name is 
-changed on the file and internally to pinxi until it is ready  for 
-release in master branch.
+of clarity, the inxi-perl branch inxi is called pinxi, so it can be
+run next to either inxi-legacy (binxi) or master (inxi).
 
 ====================================================================
 
@@ -23,6 +19,9 @@ Install pinxi for testing. Note that the -U option works the same as
 master branch inxi, so only the initial install is required:
 
 wget -O pinxi https://github.com/smxi/inxi/raw/inxi-perl/pinxi
+
+Shortcut download path for github (easier to remember and type):
+wget -O pinxi smxi.org/pinxi
 
 pinxi -U --man also installs the man page from pinxi, which is the 
 development branch for the master man page.
@@ -111,74 +110,23 @@ commit. Or at least to make it easier to work on one piece at a time.
 
 ROADMAP:
 
-Note that my current development goals are, roughly in this order:
+pinxi now running as the development branch of inxi. As such, it will
+be either the same as, or ahead of, briefly, inxi, until the two are 
+synced, where it starts over.
 
-1. Complete startup/initialization code. 
-   Status: DONE
+There is only one feature remaining from the original roadmap that
+is left as a to-do:
 
-2. Complete debug logging code. 
-   Status: DONE
+1. Adding support for language hashes, that would replace the hack 
+   key values in the print arrays with the alternate language 
+   equivalent. Or, if missing that key, print the english. That would
+   solve the issue of people flaking out on language support over time.
+   Status: NOT Started (but support is designed in as I go along)
 
-3. Complete debugger data collector. 
-   Status: DONE
-
-4. Complete recommends output. This is OS aware, and only offers BSDs
-   and GNU/Linux systems the appropriate files/directories/programs.
-   Status: DONE
-   
-5. Complete option handler. 
-   Status: DONE.
-   
-6. Complete help/version output handlers. 
-   Status: DONE
-   
-7. Complete startup client logic, that's what gets irc client info, etc.
-   Status: DONE
-   
-8. Complete line printers and colorizers. 
-   1. for no colorized, sized, indentation controlled: -h or -V
-      Status: DONE
-   2. full, hash print out, colorizer, sizer. real inxi output.
-      Status: DONE
-   
-9. Start on get data and print lines, which is about 2/3 the program.
-   
-   Status of Lines:
-     Short: DONE
-     
-     Basic -b: DONE
-     
-     Full:
-     System: DONE
-     Machine: DONE
-     Battery: DONE
-     Memory: DONE
-     PCI Slots: DONE: NEW!
-     CPU: DONE
-     Graphics: DONE
-     Audio: DONE 
-     Network: DONE - with new features!
-     Drives: DONE
-     Optical: DONE - now with BSD support
-     RAID: DONE
-     Partition: DONE
-     Unmounted: DONE
-     USB Info: DONE: NEW!
-     Sensors: DONE [BSD is todo]
-     Repos: DONE
-     Processes: DONE - Improved significantly
-     Weather: DONE
-     Info: DONE
-     
-10. Man page. DONE
-
-11. Adding support for language hashes, that would replace the hack 
-    key values in the print arrays with the alternate language 
-    equivalent. Or, if missing that key, print the english. That would
-    solve the issue of people flaking out on language support over time.
-    Status: NOT Started (but support is designed in as I go along)
-
-12. Export to json/xml - DONE. New options: --output --output-file
+This will only be added if there is real support and interest, there is
+an active issue on the master branch inxi about this, so if someone steps
+forwards and wants to do contribute, then it will happen, and if nobody 
+does, then it will not happen.
 
 ====================================================================
 
@@ -194,15 +142,16 @@ logic is given.
 very much like it. VMs do not cut it for most advanced hardware stuff,
 but are OK for basic development work.
 
-Any thing else is simply too time consuming for me to justify at this 
+Anything else is simply too time consuming for me to justify at this 
 point. Note that I have access to some BSD machines, and those reflect
 accuratnely where the support can go if I have access. This means
 ok, but not totally complete, which is the best I can really hope 
 for given the diverse state of the BSD OS ecosystem, which is 
-simply too splintered to really support at random. But with machine 
-access my experience has shown me that I can make quite good progress
-on most BSDs, at least those that have available data, which is not 
-always a given.
+simply too splintered to really support at random (didn't anyone ever 
+hear the warning fable about sticks in a bundle being harder to break
+than a thick stick alone?). But with machine access my experience has 
+shown me that I can make quite good progress on most BSDs, at least 
+those that have available data, which is not always a given.
 
 
 
