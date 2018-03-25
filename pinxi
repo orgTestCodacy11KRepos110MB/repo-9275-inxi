@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.06';
 my $self_date='2018-03-24';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7615,10 +7615,12 @@ sub display_server(){
 	my $num = 0;
 	# note: this may not always be set, it won't be out of X, for example
 	my $server = $ENV{'XDG_SESSION_TYPE'};
-	if ($extra > 1){
-		$graphics{'compositor'} = display_compositor();
-	}
+	
 	$server = $ENV{'WAYLAND_DISPLAY'} if (!$server && $ENV{'WAYLAND_DISPLAY'});
+	if ($extra > 1){
+		# initial tests, if wayland, it is certainly a compositor
+		$graphics{'compositor'} = display_compositor(lc($server));
+	}
 	if ( $show{'display-data'}){
 		# X vendor and version detection.
 		# new method added since radeon and X.org and the disappearance of 
@@ -7996,21 +7998,25 @@ sub x_version {
 	eval $end if $b_log;
 	return $version;
 }
-sub display_compositor(){
+# $1 - server: wayland|x11
+sub display_compositor {
 	eval $start if $b_log;
+	my ($server) = @_; 
 	my ($compositor) = ('');
 	# NOTE: chains of greps of ps data are VERY expensive, so check for program presence
 	if (main::check_program('mutter') && (grep {/mutter/} @ps_cmd ) ) {
 		$compositor = 'mutter';
 	}
-	elsif (main::check_program('gnome-shell') && (grep {/gnome-shell/} @ps_cmd ) ) {
-		$compositor = 'gnome-shell';
-	}
-	elsif (main::check_program('kwin') && (grep {/kwin/} @ps_cmd ) ) {
+	elsif (main::check_program('kwin') && (grep {/\bkwin\b/} @ps_cmd ) ) {
 		$compositor = 'kwin';
 	}
 	elsif (main::check_program('muffin') && (grep {/muffin/} @ps_cmd ) ) {
 		$compositor = 'muffin';
+	}
+	# Note: other strings have gnome-shell in them, so important to get exact one. Since we 
+	# can't fully trust how this will appear, the pattern should tighten it
+	elsif (main::check_program('gnome-shell') && (grep {/^(\/[\S]+\/)?gnome-shell(\s|$)/} @ps_cmd ) ) {
+		$compositor = 'gnome-shell';
 	}
 	elsif (main::check_program('weston') && (grep {/weston/} @ps_cmd ) ) {
 		$compositor = 'weston';
@@ -8031,7 +8037,7 @@ sub display_compositor(){
 		$compositor = 'kmscon';
 	}
 	# did not find in debian apt
-	elsif (main::check_program('sway') && (grep {/sway/} @ps_cmd ) ) {
+	elsif (main::check_program('sway') && (grep {/\bsway\b/} @ps_cmd ) ) {
 		$compositor = 'sway';
 	}
 	# did not find in debian apt
@@ -8055,11 +8061,11 @@ sub display_compositor(){
 		$compositor = 'wayhouse';
 	}
 	# did not find in debian apt
-	elsif (main::check_program('swc') && (grep {/swc/} @ps_cmd ) ) {
+	elsif (main::check_program('swc') && (grep {/\bswc\b/} @ps_cmd ) ) {
 		$compositor = 'swc';
 	}
 	# did not find in debian apt
-	elsif (main::check_program('dwc') && (grep {/dwc/} @ps_cmd ) ) {
+	elsif (main::check_program('dwc') && (grep {/\bdwc\b/} @ps_cmd ) ) {
 		$compositor = 'dwc';
 	}
 	main::log_data('data',"compositor: $compositor") if $b_log;
