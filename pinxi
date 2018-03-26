@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.07';
 my $self_date='2018-03-25';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9955,12 +9955,16 @@ sub cpu_processes {
 		$b[2] <=> $a[2] } @ps_aux;
 	# if there's a count limit, for irc, etc, only use that much of the data
 	@rows = splice @rows,0,$count;
-	$cpu_mem = ' - Memory: MiB / % used' if $extra > 0;
+	
 	$j = scalar @rows;
+	# $cpu_mem = ' - Memory: MiB / % used' if $extra > 0;
 	my $throttled = throttled($ps_count,$count,$j);
-	my @data = (
-	{$num++ . "#CPU  % used - Command - pid$cpu_mem - top" => "$count$throttled",},
-	);
+	#my $header = "CPU  % used - Command - pid$cpu_mem - top";
+	#my $header = "Top $count by CPU";
+	my @data = ({
+	$num++ . "#Top" => $count,
+	$num++ . "#by CPU" => $throttled,
+	},);
 	@processes = (@processes,@data);
 	my $i = 1;
 	foreach (@rows){
@@ -9968,13 +9972,11 @@ sub cpu_processes {
 		$j = scalar @processes;
 		my @row = split /\s+/, $_;
 		my @command = process_starter(scalar @row, $row[10],$row[11]);
-		@data = (
-		{
+		@data = ({
 		$num++ . "#" . $i++ => '',
 		$num++ . "#cpu" => $row[2] . '%',
 		$num++ . "#command" => $command[0],
-		},
-		);
+		},);
 		@processes = (@processes,@data);
 		if ($command[1]) {
 			$processes[$j]{$num++ . "#started by"} = $command[1];
@@ -10003,12 +10005,16 @@ sub mem_processes {
 	@rows = splice @rows,0,$count;
 	#print Data::Dumper::Dumper \@rows;
 	@processes = main::memory_data_full('process') if !$b_mem;
-	$cpu_mem = ' - CPU: % used' if $extra > 0;
+	
 	$j = scalar @rows;
 	my $throttled = throttled($ps_count,$count,$j);
-	@data = (
-	{$num++ . "#Memory MiB/% used - Command - pid$cpu_mem - top" => "$count$throttled",},
-	);
+	#$cpu_mem = ' - CPU: % used' if $extra > 0;
+	#my $header = "Memory MiB/% used - Command - pid$cpu_mem - top";
+	#my $header = "Top $count by Memory";
+	@data = ({
+	$num++ . "#Top" => $count,
+	$num++ . "#by Memory" => $throttled,
+	},);
 	@processes = (@processes,@data);
 	my $i = 1;
 	foreach (@rows){
@@ -10019,13 +10025,11 @@ sub mem_processes {
 		$mem = ($row[5]) ? sprintf( "%.${decimals}f", $row[5]/1024 ) . ' MiB' : 'N/A';
 		my @command = process_starter(scalar @row, $row[10],$row[11]);
 		$mem .= " (" . $row[3] . "%)"; 
-		@data = (
-		{
+		@data = ({
 		$num++ . "#" . $i++ => '',
 		$num++ . "#mem" => $mem,
 		$num++ . "#command" => $command[0],
-		},
-		);
+		},);
 		@processes = (@processes,@data);
 		if ($command[1]) {
 			$processes[$j]{$num++ . "#started by"} = $command[1];
