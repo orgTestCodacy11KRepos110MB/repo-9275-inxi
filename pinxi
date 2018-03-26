@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.07';
 my $self_date='2018-03-25';
-my $self_patch='03';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3529,7 +3529,7 @@ sub get_options{
 			}
 			if ($arg >= 7 ){
 				$b_downloader = 1 if ! check_program('dig');
-				$show{'flag'} = 1;
+				$show{'cpu-flag'} = 1;
 				$show{'ip'} = 1;
 				$show{'raid-forced'} = 1;
 				$extra = 3;
@@ -10682,7 +10682,7 @@ sub create_output {
 					$mod{'manufacturer'} ||= 'N/A';
 					$rows[$j]{$num++ . "#manufacturer"} = $mod{'manufacturer'};
 					$mod{'part-number'} ||= 'N/A';
-					$rows[$j]{$num++ . "#part-nu"} = $mod{'part-number'};
+					$rows[$j]{$num++ . "#part-no"} = $mod{'part-number'};
 				}
 				if ($extra > 2 ){
 					$mod{'serial'} ||= 'N/A';
@@ -11670,6 +11670,27 @@ sub get_repos_bsd {
 		@data = repo_builder($netbsd,'netbsd','^\s*[^#]+$');
 		@rows = (@rows,@data);
 	}
+	# BSDs do not default always to having repo files, so show correct error 
+	# mesage in that case
+	if (!@rows){
+		if ($bsd_type eq 'freebsd'){
+			$key = repo_builder('missing','freebsd-nf');
+		}
+		elsif ($bsd_type eq 'openbsd'){
+			$key = repo_builder('missing','openbsd-nf');
+		}
+		elsif ($bsd_type eq 'netbsd'){
+			$key = repo_builder('missing','netbsd-nf');
+		}
+		else {
+			$key = repo_builder('missing','bsd-nf');
+		}
+		@data = (
+		{$num++ . "#Message" => $key},
+		[()],
+		);
+		@rows = (@rows,@data);
+	}
 	eval $start if $b_log;
 	return @rows;
 }
@@ -11681,15 +11702,19 @@ sub repo_builder {
 	'apk' => 'No active APK repos in',
 	'apt' => 'No active apt repos in',
 	'bsd-package' => 'No enabled BSD pkg servers in',
+	'bsd-nf' => 'No BSD pkg server files found',
 	'eopkg' => 'No active eopkg repos found',
 	'pacman' => 'No active pacman repos in',
 	'pisi' => 'No active pisi repos found',
 	'portage' => 'No enabled portage sources in',
 	'portsnap' => 'No ports servers in',
 	'freebsd' => 'No FreeBSD update servers in',
+	'freebsd-nf' => 'No FreeBSD update server files found',
 	'freebsd-pkg' => 'No FreeBSD default pkg server in',
 	'openbsd' => 'No OpenBSD pkg mirrors in',
+	'openbsd-nf' => 'No OpenBSD pkg mirror files found',
 	'netbsd' => 'No NetBSD pkg servers in',
+	'netbsd-nf' => 'No NetBSD pkg server files found',
 	'slackpkg' => 'No active slackpkg repos in',
 	'slackpkg+' => 'No active slackpkg+ repos in',
 	'yum' => 'No active yum repos in',
@@ -12967,7 +12992,7 @@ sub create_output {
 	if ($extra > 2){
 		if (!$show{'filter'}){
 			$rows[0]{$num++ . "#Location"} = $location[1];
-			$rows[0]{$num++ . "#Altitude"} = $weather{'elevation'};
+			$rows[0]{$num++ . "#altitude"} = $weather{'elevation'};
 		}
 	}
 	$rows[0]{$num++ . "#Time"} = $weather{'date-time'};
@@ -15665,9 +15690,6 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	if ($extra > 0 && $client{'version'}){
-		$client .= ' ' . $client{'version'};
-	}
 	if (!$b_irc && $extra > 1 ){
 		# bsds don't support -f option to get PPID
 		if ($b_display && !$bsd_type){
@@ -15749,7 +15771,11 @@ sub generate_info_data {
 			$data{$data_name}[$index]{$num++ . '#clang'} = $clang_version;
 		}
 	}
+	
 	$data{$data_name}[$index]{$num++ . '#' . $client_shell} =  $client;
+	if ($extra > 0 && $client{'version'}){
+		$data{$data_name}[$index]{$num++ . '#v'} = $client{'version'};
+	}
 	if ( $running_in ){
 		$data{$data_name}[$index]{$num++ . '#running in'} = $running_in;
 	}
