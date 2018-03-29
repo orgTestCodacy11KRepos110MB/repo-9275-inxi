@@ -37,8 +37,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.09';
-my $self_date='2018-03-28';
-my $self_patch='01';
+my $self_date='2018-03-29';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5976,6 +5976,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
@@ -6326,11 +6327,16 @@ sub data_sysctl {
 sub cpu_properties {
 	my (%cpu) = @_;
 	my $b_xeon = ($cpu{'model_name'} && $cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
-	my $b_ht = 0;
-	my $b_ryzen = 0;
-	if ( ($cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) || 
-	     $cpu{'model_name'} && $cpu{'model_name'} =~ /Ryzen/i){
-		$b_ryzen = 1;
+	my ($b_epyc,$b_ht,$b_ryzen);
+	if ( $cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) {
+		if ($cpu{'model_name'} ){
+			if ($cpu{'model_name'} =~ /Ryzen/i ){ 
+				$b_ryzen = 1;
+			}
+			elsif ($cpu{'model_name'} =~ /EPYC/i){
+				$b_epyc = 1;
+			}
+		}
 	}
 	#my @dies = $phys[0][0];
 	my $ref = $cpu{'ids'};
@@ -6405,6 +6411,10 @@ sub cpu_properties {
 		my $working = $cpu_cores / 8;
 		my @temp = split /\./, $working;
 		$cpu{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
+	}
+	# these always have 4 dies
+	elsif ($b_epyc) {
+		$cpu{'dies'} = 4;
 	}
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
