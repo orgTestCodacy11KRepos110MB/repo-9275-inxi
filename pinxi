@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.09';
 my $self_date='2018-03-30';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4639,6 +4639,13 @@ sub pci_cleaner {
 	$string =~ s/^\s+|\s+$//g;
 	return $string;
 }
+sub pci_long_filter {
+	my ($string) = @_;
+	if ($string =~ /\[AMD\/ATI\]/){
+		$string =~ s/Advanced\sMicro\sDevices\s\[AMD\/ATI\]/AMD/;
+	}
+	return $string;
+}
 
 sub row_defaults {
 	my ($type,$id) = @_;
@@ -7605,9 +7612,13 @@ sub card_data {
 			$j = scalar @rows;
 			$driver = $row[9];
 			$driver ||= 'N/A';
+			my $card = main::trimmer($row[4]);
+			if ($size{'max'} < 110){
+				$card = main::pci_long_filter($card);
+			}
 			@data = (
 			{
-			$num++ . "#Card" => main::trimmer($row[4]),
+			$num++ . "#Card" => $card,
 			$num++ . "#driver" => $driver,
 			},
 			);
