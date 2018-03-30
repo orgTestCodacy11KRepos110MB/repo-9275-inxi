@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.09';
 my $self_date='2018-03-29';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6327,8 +6327,9 @@ sub data_sysctl {
 sub cpu_properties {
 	my (%cpu) = @_;
 	my $b_xeon = ($cpu{'model_name'} && $cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
-	my ($b_epyc,$b_ht,$b_ryzen);
+	my ($b_amd_zen,$b_epyc,$b_ht,$b_ryzen);
 	if ( $cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) {
+		$b_amd_zen = 1;
 		if ($cpu{'model_name'} ){
 			if ($cpu{'model_name'} =~ /Ryzen/i ){ 
 				$b_ryzen = 1;
@@ -6414,6 +6415,7 @@ sub cpu_properties {
 	}
 	# these always have 4 dies
 	elsif ($b_epyc) {
+		$cpu_cores = $cpu{'cores'}; 
 		$cpu{'dies'} = 4;
 	}
 	# final check, override the num of cores value if it clearly is wrong
@@ -6429,7 +6431,7 @@ sub cpu_properties {
 	# this happens with BSDs which have very little cpu data available
 	if ( $processors_count == 0 && $cpu_cores > 0 ){
 		$processors_count = $cpu_cores;
-		if ($bsd_type && ($b_ht || $b_ryzen) && $cpu_cores > 2 ){
+		if ($bsd_type && ($b_ht || $b_amd_zen) && $cpu_cores > 2 ){
 			$cpu_cores = $cpu_cores/2;;
 		}
 		my $count = $processors_count;
