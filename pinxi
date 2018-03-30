@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.09';
 my $self_date='2018-03-29';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10178,14 +10178,16 @@ sub create_output {
 		}
 		if ( ( $row{'type'} eq 'zfs' || ($row{'type'} eq 'mdraid' && $extra == 0 ) ) && $size){
 			$rows[$j]{$num++ . "#$report_size"} = $size;
+			$size = '';
 		}
 		if ( $row{'type'} eq 'zfs' && $available){
 			$rows[$j]{$num++ . "#$blocks_avail"} = $available;
+			$available = '';
 		}
 		if ( $row{'type'} eq 'zfs' && $allocated){
 			$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
+			$allocated = '';
 		}
-		($allocated,$available,$size) = ('','','');
 		$i = 0;
 		my $count = scalar @arrays;
 		foreach $ref3 (@arrays){
@@ -10323,6 +10325,7 @@ sub mdraid_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-4-device-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
+	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
 	my (@data,@mdraid,@temp,$b_found,$system,$unused);
@@ -10347,7 +10350,7 @@ sub mdraid_data {
 			my $raid = $4;
 			my $component_string = $5;
 			@temp = ();
-			$raid =~ s/^raid1/mirror/;
+			$raid =~ s/^raid1$/mirror/;
 			$raid =~ s/^raid/raid-/;
 			$raid = 'mirror' if $raid eq '1';
 			# remember, these include the [x] id, so remove that for disk/unmounted
@@ -10372,7 +10375,8 @@ sub mdraid_data {
 			$mdraid[$j]{'arrays'}[0]{'raid'} = $raid;
 			$mdraid[$j]{'arrays'}[0]{'components'} = \@components;
 		}
-		if ($_ =~ /^\s*([0-9]+)\sblocks/){
+		#print "$_\n";
+		if ($_ =~ /^([0-9]+)\sblocks/){
 			$mdraid[$j]{'blocks'} = $1;
 		}
 		if ($_ =~ /super\s([0-9\.]+)\s/){
@@ -10388,7 +10392,7 @@ sub mdraid_data {
 		if ($_ =~ /resync=([\S]+)/){
 			$mdraid[$j]{'resync'} = $1;
 		}
-		if ($_ =~ /([0-9]+[km])\schunk/){
+		if ($_ =~ /([0-9]+[km])\schunk/i){
 			$mdraid[$j]{'chunk-size'} = $1;
 		}
 		if ($_ =~ /(\[[=]*>[\.]*\]).*(resync|recovery)\s*=\s*([0-9\.]+%)?(\s\(([0-9\/]+)\))?/){
