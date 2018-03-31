@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.09';
 my $self_date='2018-03-30';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10148,6 +10148,7 @@ sub create_output {
 	@sizes,@spare,@temp);
 	my ($allocated,$available,$blocks_avail,$chunk_raid,$component_string,$raid,
 	$ref2,$ref3,$report_size,$size,$status);
+	my ($b_row_1_sizes);
 	my ($i,$j,$num,$status_id) = (0,0,0,0);
 	#print Data::Dumper::Dumper \@raid;
 	if ($extra > 2 && $raid[0]{'system-supported'}){
@@ -10159,6 +10160,7 @@ sub create_output {
 	foreach my $ref (@raid){
 		$j = scalar @rows;
 		my %row = %$ref;
+		$b_row_1_sizes = 0;
 		next if !%row;
 		@data = ({
 		$num++ . '#Device' => $row{'id'},
@@ -10199,14 +10201,18 @@ sub create_output {
 		if (($row{'type'} eq 'mdraid' && $extra == 0 ) || !defined $arrays[0]{'raid'} ){
 			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
 			$rows[$j]{$num++ . "#raid"} = $raid;
+			
 		}
 		if ( ( $row{'type'} eq 'zfs' || ($row{'type'} eq 'mdraid' && $extra == 0 ) ) && $size){
+			#print "here 0\n";
 			$rows[$j]{$num++ . "#$report_size"} = $size;
 			$size = '';
+			$b_row_1_sizes = 1;
 		}
 		if ( $row{'type'} eq 'zfs' && $available){
 			$rows[$j]{$num++ . "#$blocks_avail"} = $available;
 			$available = '';
+			$b_row_1_sizes = 1;
 		}
 		if ( $row{'type'} eq 'zfs' && $allocated){
 			$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
@@ -10233,19 +10239,20 @@ sub create_output {
 				@rows = (@rows,@data);
 			}
 			# items like cache may have one component, with a size on that component
-			elsif ($row{'type'} eq 'zfs' && !$size){
+			elsif (!$b_row_1_sizes && $row{'type'} eq 'zfs'){
+				#print "here $count\n";
 				@sizes = ($row2{'size'}) ? main::get_size($row2{'size'}) : ();
 				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				@sizes = ($row2{'free'}) ? main::get_size($row2{'free'}) : ();
 				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
 				$rows[$j]{$num++ . "#size"} = $size;
 				$rows[$j]{$num++ . "#free"} = $available;
-			}
-			if ($row{'type'} eq 'zfs' && $extra > 2){
-				@sizes = ($row{'allocated'}) ? main::get_size($row2{'allocated'}) : ();
-				$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-				if ($allocated){
-					$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
+				if ($extra > 2){
+					@sizes = ($row{'allocated'}) ? main::get_size($row2{'allocated'}) : ();
+					$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+					if ($allocated){
+						$rows[$j]{$num++ . "#$chunk_raid"} = $allocated;
+					}
 				}
 			}
 			$ref3 = $row2{'components'};
@@ -10446,6 +10453,7 @@ sub zfs_data {
 	my ($allocated,$free,$ref,$size,$status);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-1-mirror-main-solestar.txt";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
 	#my @working = main::reader($file);$zpool = '';
@@ -10569,6 +10577,7 @@ sub zfs_status {
 		my %row = %$ref;
 		$i = 0;
 		$k = 0;
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-1-mirror-main-solestar.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-tank-1.txt";
 		#@pool_status = main::reader($file,'strip');
