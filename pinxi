@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.10';
 my $self_date='2018-03-31';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11929,6 +11929,12 @@ sub create_output {
 	if ($sensors{'cpu2-temp'}){
 		$rows[$j]{$num++ . '#cpu-2'} = $sensors{'cpu2-temp'} . $temp_unit;
 	}
+	if ($sensors{'cpu3-temp'}){
+		$rows[$j]{$num++ . '#cpu-3'} = $sensors{'cpu3-temp'} . $temp_unit;
+	}
+	if ($sensors{'cpu4-temp'}){
+		$rows[$j]{$num++ . '#cpu-4'} = $sensors{'cpu4-temp'} . $temp_unit;
+	}
 	$rows[$j]{$num++ . '#mobo'} = $mobo_temp;
 	if (defined $sensors{'sodimm-temp'}){
 		my $sodimm_temp = $sensors{'sodimm-temp'} . $temp_unit;
@@ -12042,8 +12048,9 @@ sub ipmi_data {
 			$working_unit =~ s/degrees\s//; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif ($row[0] =~ /^CPU([2])\sTemp/i && (!$sensors{'cpu2-temp'} || $sensors{'cpu2-temp'} < $row[1] )) {
-			$sensors{'cpu2-temp'} = int($row[1]);
+		elsif ($row[0] =~ /^CPU([2-4])\sTemp/i) {
+			$temp_working = $1;
+			$sensors{"cpu${temp_working}-temp"} = int($row[1]);
 			$working_unit = $row[2];
 			$working_unit =~ s/degrees\s//; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -12324,8 +12331,8 @@ sub set_temp_unit {
 sub data_processor {
 	eval $start if $b_log;
 	my (%sensors) = @_;
-	my ($cpu_temp,$cpu2_temp,$index_count_fan_default,
-	$index_count_fan_main,$mobo_temp,$psu_temp) = (0,0,0,0,0,0);
+	my ($cpu_temp,$cpu2_temp,$cpu3_temp,$cpu4_temp,$index_count_fan_default,
+	$index_count_fan_main,$mobo_temp,$psu_temp) = (0,0,0,0,0,0,0,0);
 	my ($fan_type,$i,$j) = (0,0,0);
 	my $temp_diff = 20; # for C, handled for F after that is determined
 	my (@fan_main,@fan_default);
@@ -12519,10 +12526,17 @@ sub data_processor {
 		if ( $sensors{'cpu2-temp'} ){
 			$cpu2_temp = $sensors{'cpu2-temp'};
 		}
-		$cpu2_temp = 
+		if ( $sensors{'cpu3-temp'} ){
+			$cpu3_temp = $sensors{'cpu3-temp'};
+		}
+		if ( $sensors{'cpu4-temp'} ){
+			$cpu4_temp = $sensors{'cpu4-temp'};
+		}
 		%sensors = (
 		'cpu-temp' => $cpu_temp,
 		'cpu2-temp' => $cpu2_temp,
+		'cpu3-temp' => $cpu3_temp,
+		'cpu4-temp' => $cpu4_temp,
 		'mobo-temp' => $mobo_temp,
 		'psu-temp' => $psu_temp,
 		'temp-unit' => $sensors{'temp-unit'},
