@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.10';
 my $self_date='2018-03-31';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4695,7 +4695,9 @@ sub row_defaults {
 	'pci-slot-data' => "No PCI slot data found. SOC?",
 	'raid-data' => "No RAID data was found.",
 	'ram-data' => "No RAM data was found. SOC?",
+	'sensors-data-ipmi' => "No ipmi sensors data was found.",
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
+	'sensors-ipmi-root' => "You must be sudo/root to run ipmi sensors.",
 	'unmounted-data' => "No unmounted partitions found.",
 	'unmounted-data-bsd' => "No unmounted partition data found for this BSD system.",
 	'unmounted-file' => "No /proc/partitions file found.",
@@ -11853,25 +11855,51 @@ sub file_path {
 {
 package SensorData;
 my (@sensors_data);
+my ($b_ipmi) = (0);
 sub get {
 	eval $start if $b_log;
-	my ($key1,$val1,@rows,%sensors);
+	my ($key1,$val1,@data,@rows,%sensors);
 	my $num = 0;
+	if ( $b_ipmi || 
+	    ( main::globber('dev/ipmi*') && 
+	    ( my $program = main::check_program('ipmitool') ) ) ){
+		if (!$b_root){
+			%sensors = ipmi_data($program);
+			@data = create_output('ipmi',%sensors);
+			if (!@data) {
+				$key1 = 'Message';
+				$val1 = main::row_defaults('sensors-data-ipmi');
+				#$val1 = main::row_defaults('dev');
+				@data = ({$num++ . "#$key1" => $val1,});
+			}
+			@rows = (@rows,@data);
+		}
+		else {
+			$key1 = 'Message';
+			$val1 = main::row_defaults('sensors-ipmi-root');
+			@data = ({$num++ . "#$key1" => $val1,});
+			@rows = (@rows,@data);
+		}
+	}
 	my $ref = $alerts{'sensors'};
 	if ( $$ref{'action'} ne 'use'){
+		#print "here 1\n";
 		$key1 = $$ref{'action'};
 		$val1 = $$ref{$key1};
 		$key1 = ucfirst($key1);
-		@rows = ({$num++ . "#$key1" => $val1,});
+		@data = ({$num++ . "#$key1" => $val1,});
+		@rows = (@rows,@data);
 	}
 	else {
 		%sensors = sensors_data();
-		@rows = create_output(%sensors);
-		if (!@rows) {
+		@data = create_output('sensors',%sensors);
+		#print "here 2\n";
+		if (!@data) {
 			$key1 = 'Message';
 			$val1 = main::row_defaults('sensors-data-linux');
-			@rows = ({$num++ . "#$key1" => $val1,});
+			@data = ({$num++ . "#$key1" => $val1,});
 		}
+		@rows = (@rows,@data);
 	}
 	undef @sensors_data;
 	eval $end if $b_log;
@@ -11879,24 +11907,26 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my (%sensors) = @_;
+	my ($source,%sensors) = @_;
 	# note: might revisit this, since gpu sensors data might be present
 	return if ! %sensors;
 	my (@gpu,@data,@rows,@fan_default,@fan_main);
+	my ($data_source) = ('');
 	my $fan_number = 0;
 	my $num = 0;
 	my $j = 0;
-	@gpu = gpu_data();
+	@gpu = gpu_data() if $source eq 'sensors';
 	my $temp_unit  = (defined $sensors{'temp-unit'}) ? " $sensors{'temp-unit'}": '';
 	my $cpu_temp = (defined $sensors{'cpu-temp'}) ? $sensors{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors{'mobo-temp'}) ? $sensors{'mobo-temp'} . $temp_unit: 'N/A';
-	
+	$data_source = uc($source) if ($source eq 'ipmi');
 	@data = ({
-	$num++ . '#System Temperatures' => '',
+	$num++ . "#${data_source}System Temperatures" => '',
 	$num++ . '#cpu' => $cpu_temp,
 	$num++ . '#mobo' => $mobo_temp,
 	});
 	@rows = (@rows,@data);
+	
 	if (defined $sensors{'sodimm-temp'}){
 		my $sodimm_temp = $sensors{'sodimm-temp'} . $temp_unit;
 		$rows[$j]{$num++ . '#sodimm'} = $sodimm_temp;
@@ -11921,7 +11951,7 @@ sub create_output {
 	if (!@fan_main && !@fan_default){
 		$fan_def = 'N/A';
 	}
-	$rows[$j]{$num++ . '#Fan Speeds (RPM)'} = $fan_def;
+	$rows[$j]{$num++ . "#${data_source}Fan Speeds (RPM)"} = $fan_def;
 	my $b_cpu = 0;
 	for (my $i = 0; $i < scalar @fan_main; $i++){
 		next if $i == 0;# starts at 1, not 0
@@ -11980,6 +12010,63 @@ sub create_output {
 	}
 	eval $end if $b_log;
 	return @rows;
+}
+sub ipmi_data {
+	eval $start if $b_log;
+	my ($program) = @_;
+	my ($file,@data,$fan_working,%sensors,@row,$sys_fan_nu,$working_unit);
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";
+	#@data = main::reader($file);
+	$program ||= 'ipmi'; # only for debugging, will always exist if reachers here
+	@data = main::grabber("$program sensors 2>/dev/null");
+	return if ! @data;
+	foreach (@data){
+		next if /^\s*$/;
+		#print "$_\n";
+		@row = split /\s*\|\s*/, $_;
+		#print "$row[0] $row[1]\n";
+		if ($row[0] =~ /^System Temp/i){
+			$sensors{'mobo-temp'} = int($row[1]);
+			$working_unit = $row[2];
+			$working_unit =~ s/degrees\s//; 
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+		}
+		# Platform Control Hub (PCH), it is the X370 chip on the Crosshair VI Hero.
+		
+		elsif ($row[0] =~ /^CPU[0-9]+\sTemp/i && (!$sensors{'cpu-temp'} || $sensors{'cpu-temp'} < $row[1] )) {
+			$sensors{'cpu-temp'} = int($row[1]);
+			$working_unit = $row[2];
+			$working_unit =~ s/degrees\s//; 
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+		}
+		
+		# note that the counters are dynamically set for fan numbers here
+		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
+		# note: cpu/mobo/ps are 1/2/3
+		if ($row[0] =~ /^FAN([0-9A-F]+)/i) {
+			$fan_working = int($row[1]);
+			$sys_fan_nu = hex($1);
+			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
+			if ( $sys_fan_nu =~ /^([0-9]+)$/ ) {
+				# add to array if array index does not exist OR if number is > existing number
+				if ( defined $sensors{'fan-default'}[$sys_fan_nu] ) {
+					if ( $fan_working >= $sensors{'fan-default'}[$sys_fan_nu] ) {
+						$sensors{'fan-default'}[$sys_fan_nu] = $fan_working;
+					}
+				}
+				else {
+					$sensors{'fan-default'}[$sys_fan_nu] = $fan_working;
+				}
+			}
+		}
+	}
+	
+	# print Data::Dumper::Dumper \%sensors;
+	%sensors = data_processor(%sensors) if %sensors;
+	main::log_data('dump','ipmi: %sensors',\%sensors) if $b_log;
+	eval $end if $b_log;
+	#print Data::Dumper::Dumper \%sensors;
+	return %sensors;
 }
 sub sensors_data {
 	eval $start if $b_log;
@@ -12153,7 +12240,7 @@ sub sensors_data {
 	}
 	# print Data::Dumper::Dumper \%sensors;
 	%sensors = data_processor(%sensors) if %sensors;
-	main::log_data('dump','%sensors',\%sensors) if $b_log;
+	main::log_data('dump','lm-sensors: %sensors',\%sensors) if $b_log;
 	# print Data::Dumper::Dumper \%sensors;
 	eval $end if $b_log;
 	return %sensors;
