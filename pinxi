@@ -11855,7 +11855,7 @@ sub file_path {
 {
 package SensorData;
 my (@sensors_data);
-my ($b_ipmi) = (0);
+my ($b_ipmi) = (1);
 sub get {
 	eval $start if $b_log;
 	my ($key1,$val1,@data,@rows,%sensors);
@@ -11919,13 +11919,19 @@ sub create_output {
 	my $temp_unit  = (defined $sensors{'temp-unit'}) ? " $sensors{'temp-unit'}": '';
 	my $cpu_temp = (defined $sensors{'cpu-temp'}) ? $sensors{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors{'mobo-temp'}) ? $sensors{'mobo-temp'} . $temp_unit: 'N/A';
+	my $cpu1_key = ($sensors{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
 	$data_source = uc($source) . ' ' if ($source eq 'ipmi');
 	@data = ({
 	$num++ . "#${data_source}System Temperatures" => '',
-	$num++ . '#cpu' => $cpu_temp,
+	$num++ . "#$cpu1_key" => $cpu_temp,
 	$num++ . '#mobo' => $mobo_temp,
 	});
 	@rows = (@rows,@data);
+	
+	if ($sensors{'cpu2-temp'}){
+		$rows[$j]{$num++ . '#cpu-2'} = $sensors{'cpu2-temp'};
+	}
+	$rows[$j]{$num++ . '#mobo'} = $mobo_temp;
 	
 	if (defined $sensors{'sodimm-temp'}){
 		my $sodimm_temp = $sensors{'sodimm-temp'} . $temp_unit;
@@ -12015,10 +12021,10 @@ sub ipmi_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my ($file,@data,$fan_working,%sensors,@row,$sys_fan_nu,$temp_working,$working_unit);
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";
-	#@data = main::reader($file);
+	$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";
+	@data = main::reader($file);
 	$program ||= 'ipmi'; # only for debugging, will always exist if reachers here
-	@data = main::grabber("$program sensors 2>/dev/null");
+	#@data = main::grabber("$program sensors 2>/dev/null");
 	return if ! @data;
 	foreach (@data){
 		next if /^\s*$/;
@@ -12033,8 +12039,14 @@ sub ipmi_data {
 		}
 		# Platform Control Hub (PCH), it is the X370 chip on the Crosshair VI Hero.
 		# VRM: voltage regulator module
-		elsif ($row[0] =~ /^CPU[0-9]+\sTemp/i && (!$sensors{'cpu-temp'} || $sensors{'cpu-temp'} < $row[1] )) {
+		elsif ($row[0] =~ /^CPU[1]?\sTemp/i && (!$sensors{'cpu-temp'} || $sensors{'cpu-temp'} < $row[1] )) {
 			$sensors{'cpu-temp'} = int($row[1]);
+			$working_unit = $row[2];
+			$working_unit =~ s/degrees\s//; 
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+		}
+		elsif ($row[0] =~ /^CPU([2])\sTemp/i && (!$sensors{'cpu2-temp'} || $sensors{'cpu2-temp'} < $row[1] )) {
+			$sensors{'cpu2-temp'} = int($row[1]);
 			$working_unit = $row[2];
 			$working_unit =~ s/degrees\s//; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -12315,7 +12327,8 @@ sub set_temp_unit {
 sub data_processor {
 	eval $start if $b_log;
 	my (%sensors) = @_;
-	my ($cpu_temp,$index_count_fan_default,$index_count_fan_main,$mobo_temp,$psu_temp) = (0,0,0,0,0);
+	my ($cpu_temp,$cpu2_temp,$index_count_fan_default,
+	$index_count_fan_main,$mobo_temp,$psu_temp) = (0,0,0,0,0,0);
 	my ($fan_type,$i,$j) = (0,0,0);
 	my $temp_diff = 20; # for C, handled for F after that is determined
 	my (@fan_main,@fan_default);
@@ -12506,8 +12519,13 @@ sub data_processor {
 		if ( $sensors{'sodimm-temp'} ){
 			$sodimm_temp = $sensors{'sodimm-temp'};
 		}
+		if ( $sensors{'cpu2-temp'} ){
+			$cpu2_temp = $sensors{'cpu2-temp'};
+		}
+		$cpu2_temp = 
 		%sensors = (
 		'cpu-temp' => $cpu_temp,
+		'cpu2-temp' => $cpu2_temp,
 		'mobo-temp' => $mobo_temp,
 		'psu-temp' => $psu_temp,
 		'temp-unit' => $sensors{'temp-unit'},
