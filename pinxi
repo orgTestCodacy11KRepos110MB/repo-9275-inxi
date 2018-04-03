@@ -12052,14 +12052,22 @@ sub create_output {
 sub ipmi_data {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($file,@data,$fan_working,%sensors,@row,$sys_fan_nu,$temp_working,$working_unit);
+	my ($cmd,$file,@data,$fan_working,%sensors,@row,$sys_fan_nu,$temp_working,$working_unit);
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";
 	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";$program='ipmi-sensors';
 	#@data = main::reader($file);
 	$program ||= 'ipmi-xx'; # only for debugging, will always exist if reachers here
-	my ($b_ipmitool,$i_key,$i_value,$i_unit) = ($program =~ /ipmi-sensors$/) ? (0,1,3,4) : (1,0,1,2);
-	@data = main::grabber("$program sensor 2>/dev/null");
+	my ($b_ipmitool,$i_key,$i_value,$i_unit);
+	if ($program =~ /ipmi-sensors$/){
+		$cmd = $program;
+		($b_ipmitool,$i_key,$i_value,$i_unit) = (0,1,3,4);
+	}
+	else {
+		$cmd = "$program sensors";
+		($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2);
+	}
+	@data = main::grabber("$cmd 2>/dev/null");
 	return if ! @data;
 	foreach (@data){
 		next if /^\s*$/;
