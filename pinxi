@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.10';
 my $self_date='2018-04-02';
-my $self_patch='26';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14877,19 +14877,26 @@ sub get_tty_number {
 # 04:29:08 up  3:18,  3 users,  load average: 0,00, 0,00, 0,00
 # 10:23PM  up 5 days, 16:17, 1 user, load averages: 0.85, 0.90, 1.00
 # 05:36:47 up 1 day,  3:28,  4 users,  load average: 1,88, 0,98, 0,62
+# 05:36:47 up 1 day,  3 min,  4 users,  load average: 1,88, 0,98, 0,62
 sub get_uptime {
 	eval $start if $b_log;
 	my ($days,$hours,$minutes,$uptime) = ('','','','');
 	if (check_program('uptime')){
 		$uptime = qx(uptime);
 		$uptime = trimmer($uptime);
+		#$uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
 		if ($uptime && 
-		 $uptime =~ /[\S]+\s+up\s+([0-9]+\s+day[s]?,\s+)?([0-9]{1,2}):([0-9]{1,2}),\s+[0-9]+\s+user/){
-			$days = $1 . 'd' if $1;
-			$days .= ' ' if ($1 && $2);
-			$hours = $2 . 'h ' if $2;
-			$minutes = $3 . 'm' if $3;
-			$days =~ s/ day[s]?,\s+// if $days;
+		 $uptime =~ /[\S]+\s+up\s+(([0-9]+)\s+day[s]?,\s+)?(([0-9]{1,2}):([0-9]{1,2})|([0-9]+)\smin),\s+[0-9]+\s+user/){
+			$days = $2 . 'd' if $2;
+			$days .= ' ' if ($days && ($4 || $6));
+			if ($4 && $5){
+				$hours = $4 . 'h ';
+				$minutes = $5 . 'm';
+			}
+			elsif ($6){
+				$minutes = $6 . 'm';
+				
+			}
 			$uptime = $days . $hours . $minutes;
 		}
 	}
