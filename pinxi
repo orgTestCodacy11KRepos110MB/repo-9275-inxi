@@ -37,8 +37,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.10';
-my $self_date='2018-04-02';
-my $self_patch='31';
+my $self_date='2018-04-03';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7123,6 +7123,10 @@ sub create_output {
 			if ($extra > 0 && $row{'temp'}){
 				$rows[$j]{$num++ . '#temp'} = $row{'temp'} . ' C';
 			}
+			# extra level tests already done
+			if (defined $row{'partition-table'}){
+				$rows[$j]{$num++ . '#p-table'} = $row{'partition-table'};
+			}
 		}
 	}
 
@@ -7225,7 +7229,9 @@ sub proc_data_advanced {
 	my ($b_hdx,@drives) = @_;
 	my ($i) = (0);
 	my (@data,@rows,@scsi,@temp,@working);
-	my ($block_type,$file,$firmware,$model,$path,$serial,$vendor,$working_path);
+	my ($pt_cmd) = ('unset');
+	my ($block_type,$file,$firmware,$model,$path,$partition_table,
+	$serial,$vendor,$working_path);
 	@by_id = main::globber('/dev/disk/by-id/*');
 	@by_path = main::globber('/dev/disk/by-path/*');
 	## check for all ide type drives, non libata, only do it if hdx is in array
@@ -7247,7 +7253,13 @@ sub proc_data_advanced {
 	#print 'drives:', Data::Dumper::Dumper \@drives;
 	for ($i = 1; $i < scalar @drives; $i++){
 		#next if $drives[$i]{'id'} =~ /^hd[a-z]/;
-		($block_type,$firmware,$model,$serial,$vendor,$working_path) = ('','','','','','');
+		($block_type,$firmware,$model,$partition_table,
+		$serial,$vendor,$working_path) = ('','','','','','','');
+		if ($extra > 2){
+			@data = partition_table($pt_cmd,$drives[$i]{'id'});
+			$pt_cmd = $data[0];
+			$drives[$i]{'partition-table'} = $data[1] if $data[1];
+		}
 		#print "$drives[$i]{'id'}\n";
 		if ($drives[$i]{'id'} =~ /[sv]d[a-z]/){
 			$block_type = 'sdx';
@@ -7477,6 +7489,34 @@ sub peripheral_data {
 	}
 	eval $end if $b_log;
 	return $type;
+}
+sub partition_table {
+	eval $start if $b_log;
+	my ($set_cmd,$id) = @_;
+	my ($cmd,$pt,$program,@data,@return);
+	if ($set_cmd ne 'unset'){
+		$return[0] = $set_cmd;
+	}
+	else {
+		if (!$b_root){
+			if ($program = main::check_program('udevadm')){
+				$return[0] = "$program  info -q property -n ";
+			}
+		}
+		if (!$return[0] && $b_root && -e "/lib/udev/udisks-part-id") {
+			$return[0] = "/lib/udev/udisks-part-id /dev/";
+		}
+		elsif (!$return[0]) {
+			$return[0] = 'na'
+		}
+	}
+	if ($return[0] ne 'na'){
+		$cmd = "$return[0]$id 2>/dev/null";
+		@data = main::grabber($cmd);
+		$return[1] = main::awk(\@data,'^UDISKS_PARTITION_TABLE_SCHEME',2,'=');
+	}
+	eval $end if $b_log;
+	return @return;
 }
 sub scsi_data {
 	eval $start if $b_log;
