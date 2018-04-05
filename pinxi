@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='2.9.11';
 my $self_date='2018-04-04';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4567,7 +4567,7 @@ sub clean_characters {
 sub cleaner {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or ''
-	$item =~ s/chipset|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|nee|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|inc\.|<inc>|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/chipset|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|nee|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
 	$item =~ s/\s\s+/ /g;
 	$item =~ s/^\s+|\s+$//g;
@@ -11084,6 +11084,7 @@ sub data_processor {
 	my (@ram) = @_;
 	my $b_debug = 0;
 	my (@return,@temp);
+	my $est = 'est.';
 	
 	foreach (@ram){
 		# because we use the actual array handle as the index, 
@@ -11114,7 +11115,7 @@ sub data_processor {
 		if ( $ref{'max-module-size'} && $ref{'derived-module-size'} && 
 		     $ref{'derived-module-size'} > $ref{'max-module-size'} ){
 			$ref{'max-module-size'} = $ref{'derived-module-size'};
-			$est_mod = 'est';
+			$est_mod = $est;
 		}
 		if ($b_debug){
 			print "3: dcf: $ref{'device-count-found'} :dms: $ref{'derived-module-size'} :mc: $max_cap :uc: $ref{'used-capacity'}\n";
@@ -11129,18 +11130,18 @@ sub data_processor {
 					if ($ref{'max-module-size'} && 
 					  $ref{'used-capacity'} < ($ref{'slots-16'} * $ref{'max-module-size'} )){
 						$max_cap = $ref{'slots-16'} * $ref{'max-module-size'};
-						$est_cap = 'est';
+						$est_cap = $est;
 						print "A\n" if $b_debug;
 					}
 					elsif ($ref{'derived-module-size'} && 
 					  $ref{'used-capacity'} < ($ref{'slots-16'} * $ref{'derived-module-size'}) ){
 						$max_cap = $ref{'slots-16'} * $ref{'derived-module-size'};
-						$est_cap = 'est';
+						$est_cap = $est;
 						print "B\n" if $b_debug;
 					}
 					else {
 						$max_cap = $ref{'used-capacity'};
-						$est_cap = 'est';
+						$est_cap = $est;
 						print "C\n" if $b_debug;
 					}
 				}
@@ -11152,12 +11153,12 @@ sub data_processor {
 				if ($ref{'slots-16'} > 1 && $ref{'device-count-found'} > 1 && 
 				  $max_cap < ($ref{'derived-module-size'} * $ref{'slots-16'} ) ){
 					$max_cap = $ref{'derived-module-size'} * $ref{'slots-16'};
-					$est_cap = 'est';
+					$est_cap = $est;
 					print "D\n" if $b_debug;
 				}
 				elsif ($ref{'device-count-found'} > 0 && $max_cap < ( $ref{'derived-module-size'} * $ref{'device-count-found'} )){
 					$max_cap = $ref{'derived-module-size'} * $ref{'device-count-found'};
-					$est_cap = 'est';
+					$est_cap = $est;
 					print "E\n" if $b_debug;
 				}
 				## handle cases where we have type 5 data: mms x device count equals type 5 max cap
@@ -11167,7 +11168,7 @@ sub data_processor {
 				  $ref{'max-capacity-5'} != $ref{'max-capacity-16'} &&
 				  $ref{'derived-module-size'} != ($ref{'max-capacity-16'}/$ref{'slots-16'}) ){
 					$max_cap = $ref{'max-capacity-5'};
-					$est_cap = 'est';
+					$est_cap = $est;
 					print "F\n" if $b_debug;
 				}
 				
@@ -11205,7 +11206,7 @@ sub data_processor {
 					else {
 						$ref{'max-module-size'} = sprintf("%.f",$max_cap/$slots);
 					}
-					$est_mod = 'est';
+					$est_mod = $est;
 				}
 			}
 			# case where listed max cap is too big for actual slots x max cap, eg:
