@@ -37,8 +37,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.11';
-my $self_date='2018-04-04';
-my $self_patch='07';
+my $self_date='2018-04-05';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -696,93 +696,6 @@ sub set_colors {
 	eval $end if $b_log;
 }
 
-#### -------------------------------------------------------------------
-#### CONFIGS
-#### -------------------------------------------------------------------
-
-sub check_config_file {
-	$user_config_file = "$user_config_dir/$self_name.conf";
-	if ( ! -f $user_config_file ){
-		open( my $fh, '>', $user_config_file ) or error_handler('create', $user_config_file, $!);
-	}
-}
-
-sub get_configs {
-	my (@configs) = @_;
-	my ($key, $val,@config_files);
-	if (!@configs){
-		@config_files = (
-		qq(/etc/$self_name.conf), 
-		qq($user_config_dir/$self_name.conf)
-		);
-	}
-	else {
-		@config_files = (@configs);
-	}
-	# Config files should be passed in an array as a param to this function.
-	# Default intended use: global @CONFIGS;
-	foreach (@config_files) {
-		next unless open (my $fh, '<', "$_");
-		while (<$fh>) {
-			chomp;
-			s/#.*//;
-			s/^\s+//;
-			s/\s+$//;
-			s/'|"//g;
-			s/true/1/; # switch to 1/0 perl boolean
-			s/false/0/; # switch to 1/0 perl boolean
-			next unless length;
-			($key, $val) = split(/\s*=\s*/, $_, 2);
-			get_config_item($key,$val);
-			# print "f: $file key: $key val: $val\n";
-		}
-		close $fh;
-	}
-}
-
-# args: 0: key; 1: value
-sub get_config_item {
-	my ($key,$val) = @_;
-	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$b_update = int($val)}
-	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$b_weather = int($val)}
-	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if $val =~ /^[0-9\.]$/}
-	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = int($val)}
-	elsif ($key eq 'DOWNLOADER') {
-		if ($val =~ /^(curl|fetch|ftp|perl|wget)$/){
-			# this dumps all the other data and resets %dl for only the
-			# desired downloader.
-			$val = set_perl_downloader($val);
-			%dl = ('dl' => $val, $val => 1);
-		}}
-	elsif ($key eq 'FILTER_STRING') {$filter_string = $val}
-	elsif ($key eq 'LANGUAGE') {$language = $val if $val =~ /^(en)$/}
-	elsif ($key eq 'LIMIT') {$limit = int($val)}
-	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^json|screen|xml/}
-	elsif ($key eq 'PS_COUNT') {$ps_count = int($val) }
-	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = int($val)}
-	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = int($val)}
-	# layout
-	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = int($val)}
-	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = int($val)}
-	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = int($val)}
-	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = int($val)}
-	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = int($val)}
-	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = int($val)}
-	# note: not using the old short SEP1/SEP2
-	elsif ($key eq 'SEP1_IRC') {$sep{'s1-irc'} = $val}
-	elsif ($key eq 'SEP1_CONSOLE') {$sep{'s1-console'} = $val}
-	elsif ($key eq 'SEP[23]_IRC') {$sep{'s2-irc'} = $val}
-	elsif ($key eq 'SEP[23]_CONSOLE') {$sep{'s2-console'} = $val}
-	# size
-	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = int($val)}
-	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = int($val)}
-	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = int($val)}
-	elsif ($key eq 'INDENT') {$size{'indent'} = int($val)}
-	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = int($val)}
-	#  print "mc: key: $key val: $val\n";
-	# print Dumper (keys %size) . "\n";
-}
-
 ## SelectColors
 {
 package SelectColors;
@@ -959,8 +872,11 @@ sub process_selection {
 		exit 1;
 	}
 	elsif ($response == ($count + 2)){
-		@data = ([0, '', '', "Ok, continuing $self_name unchanged. You can set the colors 
-		anytime by starting with: -c 95 to 99"],);
+		@data = (
+		[0, '', '', "Ok, continuing $self_name unchanged. You can set the colors 
+		anytime by using: -c 94 to 99"],
+		[0, '', '',  "$line1"],
+		);
 		main::print_basic(@data); 
 		if ( defined $colors{'console'} && !$b_display ){
 			main::set_color_scheme($colors{'console'});
@@ -1033,6 +949,93 @@ sub print_irc_message {
 	exit 1;
 }
 
+}
+
+#### -------------------------------------------------------------------
+#### CONFIGS
+#### -------------------------------------------------------------------
+
+sub check_config_file {
+	$user_config_file = "$user_config_dir/$self_name.conf";
+	if ( ! -f $user_config_file ){
+		open( my $fh, '>', $user_config_file ) or error_handler('create', $user_config_file, $!);
+	}
+}
+
+sub get_configs {
+	my (@configs) = @_;
+	my ($key, $val,@config_files);
+	if (!@configs){
+		@config_files = (
+		qq(/etc/$self_name.conf), 
+		qq($user_config_dir/$self_name.conf)
+		);
+	}
+	else {
+		@config_files = (@configs);
+	}
+	# Config files should be passed in an array as a param to this function.
+	# Default intended use: global @CONFIGS;
+	foreach (@config_files) {
+		next unless open (my $fh, '<', "$_");
+		while (<$fh>) {
+			chomp;
+			s/#.*//;
+			s/^\s+//;
+			s/\s+$//;
+			s/'|"//g;
+			s/true/1/; # switch to 1/0 perl boolean
+			s/false/0/; # switch to 1/0 perl boolean
+			next unless length;
+			($key, $val) = split(/\s*=\s*/, $_, 2);
+			get_config_item($key,$val);
+			# print "f: $file key: $key val: $val\n";
+		}
+		close $fh;
+	}
+}
+
+# args: 0: key; 1: value
+sub get_config_item {
+	my ($key,$val) = @_;
+	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$b_update = int($val)}
+	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$b_weather = int($val)}
+	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if $val =~ /^[0-9\.]$/}
+	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = int($val)}
+	elsif ($key eq 'DOWNLOADER') {
+		if ($val =~ /^(curl|fetch|ftp|perl|wget)$/){
+			# this dumps all the other data and resets %dl for only the
+			# desired downloader.
+			$val = set_perl_downloader($val);
+			%dl = ('dl' => $val, $val => 1);
+		}}
+	elsif ($key eq 'FILTER_STRING') {$filter_string = $val}
+	elsif ($key eq 'LANGUAGE') {$language = $val if $val =~ /^(en)$/}
+	elsif ($key eq 'LIMIT') {$limit = int($val)}
+	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^json|screen|xml/}
+	elsif ($key eq 'PS_COUNT') {$ps_count = int($val) }
+	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = int($val)}
+	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = int($val)}
+	# layout
+	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = int($val)}
+	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = int($val)}
+	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = int($val)}
+	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = int($val)}
+	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = int($val)}
+	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = int($val)}
+	# note: not using the old short SEP1/SEP2
+	elsif ($key eq 'SEP1_IRC') {$sep{'s1-irc'} = $val}
+	elsif ($key eq 'SEP1_CONSOLE') {$sep{'s1-console'} = $val}
+	elsif ($key eq 'SEP[23]_IRC') {$sep{'s2-irc'} = $val}
+	elsif ($key eq 'SEP[23]_CONSOLE') {$sep{'s2-console'} = $val}
+	# size
+	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = int($val)}
+	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = int($val)}
+	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = int($val)}
+	elsif ($key eq 'INDENT') {$size{'indent'} = int($val)}
+	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = int($val)}
+	#  print "mc: key: $key val: $val\n";
+	# print Dumper (keys %size) . "\n";
 }
 
 #### -------------------------------------------------------------------
@@ -3344,7 +3347,7 @@ sub set_version_data {
 }
 
 ########################################################################
-#### OPTIONS HANDLER
+#### OPTIONS HANDLER / VERSION
 ########################################################################
 
 sub get_options{
@@ -4195,6 +4198,68 @@ sub show_options {
 	exit 1;
 }
 
+
+sub show_version {
+	require Cwd;
+	import Cwd;
+	# if not in PATH could be either . or directory name, no slash starting
+	my $working_path=$self_path;
+	my (@data, @row, @rows, $link, $self_string);
+	if ( $working_path eq '.' ){
+		$working_path = getcwd();
+	}
+	elsif ( $working_path !~ /^\// ){
+		$working_path = getcwd() . "/$working_path";
+	}
+	# handle if it's a symbolic link, rare, but can happen with directories 
+	# in irc clients which would only matter if user starts inxi with -! 30 override 
+	# in irc client
+	if ( -l "$working_path/$self_name" ){
+		$link="$working_path/$self_name";
+		$working_path = readlink "$working_path/$self_name";
+		$working_path =~ s/[^\/]+$//;
+	}
+	# strange output /./ ending, but just trim it off, I don't know how it happens
+	$working_path =~ s%/\./%/%;
+	@row = ([ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"],);
+	push @data, @row;
+	if ( ! $b_irc ){
+		@row = ([ 0, '', '', ""],);
+		push @data, @row;
+		my $year = (split/-/, $self_date)[0];
+		@row = [ 0, '', '', "Program Location: $working_path" ];
+		push @data, @row;
+		if ( $link ){
+			@row = [ 0, '', '', "Started via symbolic link: $link" ];
+			push @data, @row;
+		}
+		@rows = (
+		[ 0, '', '', "Website:^https://github.com/smxi/inxi^or^https://smxi.org/" ],
+		[ 0, '', '', "IRC:^irc.oftc.net channel:^#smxi" ],
+		[ 0, '', '', "Forums:^https://techpatterns.com/forums/forum-33.html" ],
+		[ 0, '', '', " " ],
+		[ 0, '', '', "$self_name - the universal, portable, system information tool 
+		for console and irc." ],
+		[ 0, '', '', "Using Perl version: $]"],
+		[ 0, '', '', " " ],
+		[ 0, '', '', "This program started life as a fork of Infobash 3.02: 
+		Copyright^(C)^2005-2007^Michiel^de^Boer^a.k.a.^locsmif." ],
+		[ 0, '', '', "Subsequent changes and modifications (after Infobash 3.02): 
+		Copyright^(C)^2008-$year^Harald^Hope^aka^h2. 
+		CPU/Konversation^fixes:^Scott^Rogers^aka^trash80.
+		USB^audio^fixes:^Steven^Barrett^aka^damentz." ],
+		[ 0, '', '', '' ],
+		[ 0, '', '', "This program is free software; you can redistribute it and/or modify 
+		it under the terms of the GNU General Public License as published by the Free Software 
+		Foundation; either version 3 of the License, or (at your option) any later version. 
+		(https://www.gnu.org/licenses/gpl.html)" ]
+		);
+		push @data, @rows;
+	}
+	print_basic(@data); 
+	exit 1;
+}
+
 ########################################################################
 #### STARTUP DATA
 ########################################################################
@@ -4734,6 +4799,7 @@ sub row_defaults {
 	'pci-slot-data' => "No PCI slot data found. SOC?",
 	'raid-data' => "No RAID data was found.",
 	'ram-data' => "No RAM data was found. SOC?",
+	'root-required' => "<root required>",
 	'sensors-data-ipmi' => "No ipmi sensors data was found.",
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
 	'sensors-ipmi-root' => "Unable to run ipmi sensors. Are you root?",
@@ -5181,65 +5247,6 @@ sub print_line {
 	else {
 		print $line;
 	}
-}
-
-sub show_version {
-	require Cwd;
-	import Cwd;
-	# if not in PATH could be either . or directory name, no slash starting
-	my $working_path=$self_path;
-	my (@data, @row, @rows, $link, $self_string);
-	if ( $working_path eq '.' ){
-		$working_path = getcwd();
-	}
-	elsif ( $working_path !~ /^\// ){
-		$working_path = getcwd() . "/$working_path";
-	}
-	# handle if it's a symbolic link, rare, but can happen with directories 
-	# in irc clients which would only matter if user starts inxi with -! 30 override 
-	# in irc client
-	if ( -l "$working_path/$self_name" ){
-		$link="$working_path/$self_name";
-		$working_path = readlink "$working_path/$self_name";
-		$working_path =~ s/[^\/]+$//;
-	}
-	# strange output /./ ending, but just trim it off, I don't know how it happens
-	$working_path =~ s%/\./%/%;
-	@row = [ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"];
-	push @data, @row;
-	if ( ! $b_irc ){
-		my $year = (split/-/, $self_date)[0];
-		@row = [ 0, '', '', "Program Location: $working_path" ];
-		push @data, @row;
-		if ( $link ){
-			@row = [ 0, '', '', "Started via symbolic link: $link" ];
-			push @data, @row;
-		}
-		@rows = (
-		[ 0, '', '', "Website:^https://github.com/smxi/inxi^or^https://smxi.org/" ],
-		[ 0, '', '', "IRC:^irc.oftc.net channel:^#smxi" ],
-		[ 0, '', '', "Forums:^https://techpatterns.com/forums/forum-33.html" ],
-		[ 0, '', '', " " ],
-		[ 0, '', '', "$self_name - the universal, portable, system information tool 
-		for console and irc." ],
-		[ 0, '', '', "Using Perl version: $]"],
-		[ 0, '', '', " " ],
-		[ 0, '', '', "This program started life as a fork of Infobash 3.02: 
-		Copyright^(C)^2005-2007^Michiel^de^Boer^a.k.a.^locsmif." ],
-		[ 0, '', '', "Subsequent changes and modifications (after Infobash 3.02): 
-		Copyright^(C)^2008-$year^Harald^Hope^aka^h2. 
-		CPU/Konversation^fixes:^Scott^Rogers^aka^trash80.
-		USB^audio^fixes:^Steven^Barrett^aka^damentz." ],
-		[ 0, '', '', '' ],
-		[ 0, '', '', "This program is free software; you can redistribute it and/or modify 
-		it under the terms of the GNU General Public License as published by the Free Software 
-		Foundation; either version 3 of the License, or (at your option) any later version. 
-		(https://www.gnu.org/licenses/gpl.html)" ]
-		);
-		push @data, @rows;
-	}
-	print_basic(@data); 
-	exit 1;
 }
 
 ########################################################################
@@ -10855,7 +10862,7 @@ sub create_output {
 					$rows[$j]{main::key($num++,'part-no')} = $mod{'part-number'};
 				}
 				if ($extra > 2 ){
-					$mod{'serial'} ||= 'N/A';
+					$mod{'serial'} = main::apply_filter($mod{'serial'});
 					$rows[$j]{main::key($num++,'serial')} = $mod{'serial'};
 				}
 			}
@@ -12947,7 +12954,7 @@ sub create_output {
 		}
 		else {
 			if (main::check_program('file')){
-				$fs = ($b_root) ? 'N/A' : 'root required' ;
+				$fs = ($b_root) ? 'N/A' : main::row_defaults('root-required');
 			}
 			else {
 				$fs = 'requires file';
