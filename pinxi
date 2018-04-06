@@ -37,8 +37,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.11';
-my $self_date='2018-04-05';
-my $self_patch='12';
+my $self_date='2018-04-06';
+my $self_patch='13';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3354,8 +3354,8 @@ sub get_options{
 	eval $start if $b_log;
 	my (@args) = @_;
 	$show{'short'} = 1;
-	my ($b_downloader,$b_no_man,$b_no_man_force,$b_recommends,$b_updater,$b_version,
-	$b_use_man,$help_type,$self_download, $download_id);
+	my ($b_downloader,$b_help,$b_no_man,$b_no_man_force,$b_recommends,$b_updater,$b_version,
+	$b_use_man,$self_download, $download_id);
 	GetOptions (
 	'A|audio' => sub {
 		$show{'short'} = 0;
@@ -3474,6 +3474,7 @@ sub get_options{
 		$show{'sensor'} = 1; },
 	'sleep:s' => sub {
 		my ($opt,$arg) = @_;
+		$arg ||= 0;
 		if ($arg >= 0){
 			$cpu_sleep = $arg;
 		}
@@ -3722,9 +3723,7 @@ sub get_options{
 			error_handler('bad-arg', $opt, $arg);
 		}},
 	'h|help|?' => sub {
-		$help_type = 'standard'; },
-	'H|help-full' => sub {
-		$help_type = 'full'; },
+		$b_help = 1; },
 	'host|hostname' => sub {
 		$show{'host'} = 1 },
 	'indent-min:i' => sub {
@@ -3822,7 +3821,7 @@ sub get_options{
 	CheckRecommends::run() if $b_recommends;
 	set_downloader() if $b_downloader;
 	show_version() if $b_version;
-	show_options($help_type) if $help_type;
+	show_options() if $b_help;
 	$b_man = 0 if (!$b_use_man || $b_no_man_force);
 	update_me( $self_download, $download_id ) if $b_updater;
 	if ($output_type){
@@ -3866,7 +3865,6 @@ sub get_options{
 
 sub show_options {
 	error_handler('not-in-irc', 'help') if $b_irc;
-	my ($type) = @_;
 	my (@row,@rows,@data);
 	my $line = '';
 	my $color_scheme_count = get_color_scheme('count') - 1; 
@@ -4102,8 +4100,6 @@ sub show_options {
 	[0, '', '', "$line" ],
 	[0, '', '', "Additional Options:" ],
 	['1', '-h', '--help', "This help menu." ],
-	['1', '-H', '--help-full', "This help menu, plus developer options. Do not use dev options in 
-	normal operation!" ],
 	['1', '', '--recommends', "Checks $self_name application dependencies + recommends, 
 	and directories, then shows what package(s) you need to install to add support 
 	for that feature. " ]
@@ -4186,14 +4182,6 @@ sub show_options {
 	['0', '', '', $line ],
 	);
 	push @data, @rows;
-	if ( $type eq 'full' ){
-		@rows = (
-		[0, '', '', "Developer and Testing Options (Advanced):" ],
-		['1', '', '--dbg', "Switches on specific debuggers. Refer to inxi-values.txt documentation for active switches." ],
-		['0', '', '', $line ]
-		);
-		push @data, @rows;
-	}
 	print_basic(@data); 
 	exit 1;
 }
