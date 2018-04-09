@@ -37,8 +37,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='2.9.12';
-my $self_date='2018-04-07';
-my $self_patch='10';
+my $self_date='2018-04-09';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -79,8 +79,8 @@ my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
-$b_dmidecode_force,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_man,
-$b_mem,$b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
+$b_dmidecode_force,$b_force_display,$b_gpudata,$b_irc,$b_log,$b_log_colors,
+$b_log_full,$b_man,$b_mem,$b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_lsblk,$b_partitions,
 $b_partition_extra,$b_raid);
@@ -215,29 +215,6 @@ sub check_tools {
 		);
 		%alerts = (%alerts, %hash);
 	}
-	if ( $show{'graphic'} ){
-		foreach ( qw(xrandr xdpyinfo glxinfo) ){
-			$action = 'use';
-			if (check_program($_)) {
-				if (!$b_display && !defined $display){
-					if (!defined $display){$action = 'in-console' }
-				}
-			}
-			else {
-				$action = 'missing';
-				# --display out of x override happens before this, so we need to retain that switch
-				$show{'display-data'} = ( !$b_display && $show{'display-data'} == 2 ) ? 1 : 0;
-			}
-			%hash = (
-			$_ => {
-			'action' => $action,
-			'missing' => "Missing: $_ - continuing in non desktop mode. Check --recommends",
-			'in-console' => 'See --display option to get advanced graphics data',
-			},
-			);
-			%alerts = (%alerts, %hash);
-		}
-	}
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
 	if ($b_pci || $b_sysctl){
@@ -344,7 +321,6 @@ sub set_basics {
 	$client{'su-start'} = ''; # shows sudo/su
 	$client{'version'} = '';
 	$colors{'default'} = 2;
-	$show{'display-data'} = ( $b_display ) ? 1 : 0;
 }
 
 # args: $1 - default OR override default cols max integer count. $_[0]
@@ -3689,8 +3665,8 @@ sub get_options{
 			$display=$arg;
 			$display ||= ':0';
 			$display = ":$display" if $display !~ /^:/;
-			$b_display = 1;
-			$show{'display-data'} = 2;
+			$b_display = ($b_root) ? 0 : 1;
+			$b_force_display = 1;
 			$display_opt = "-display $display";
 		}
 		else {
@@ -4775,7 +4751,7 @@ sub row_defaults {
 	'display-root' => 'Advanced graphics data unavailable in console for root.',
 	'display-root-x' => 'Advanced graphics data unavailable for root. Old System?',
 	'display-server' => "No display server data found. Headless server?",
-	'display-tool' => "Unable to show advanced data. Required tool $id missing.",
+	'glxinfo-missing' => "Unable to show advanced data. Required tool glxinfo missing.",
 	'display-try' => 'Advanced graphics data unavailable in console. Try -G --display',
 	'dev' => 'Feature under development',
 	'dmesg-boot-permissions' => 'dmesg.boot permissions',
@@ -4805,6 +4781,7 @@ sub row_defaults {
 	'unknown-dev' => "ERR-102",
 	'unknown-shell' => "ERR-100",
 	'weather-null' => "No $id found. Internet connection working?",
+	'xdpyinfo-missing' => '<xdpyinfo missing>',
 	);
 	return $unfound{$type};
 }
@@ -7755,7 +7732,6 @@ sub card_data {
 		}
 		#print "$row[0]\n";
 	}
-	
 	#my $ref = $pci[-1];
 	#print $$ref[0],"\n";
 	eval $end if $b_log;
@@ -7775,7 +7751,7 @@ sub display_server(){
 		$server = lc($server) if $server;
 		$graphics{'compositor'} = display_compositor($server);
 	}
-	if ( $show{'display-data'}){
+	if ( $b_display){
 		# X vendor and version detection.
 		# new method added since radeon and X.org and the disappearance of 
 		# <X server name> version : ...etc. Later on, the normal textual version string 
@@ -7849,6 +7825,9 @@ sub display_server(){
 			else {
 				$graphics{'tty'} = tty_data();
 			}
+		}
+		else {
+			$graphics{'screens'} = ([main::row_defaults('xdpyinfo-missing')]);
 		}
 	}
 	else {
@@ -7928,8 +7907,8 @@ sub gl_data(){
 	eval $start if $b_log;
 	my $num = 0;
 	my (@row,$arg);
-	#print ("$show{'display-data'} : $b_root\n");
-	if ( $show{'display-data'} == 1 || (!$b_root && $show{'display-data'} == 2)){
+	#print ("$b_display : $b_root\n");
+	if ( $b_display){
 		if (my $program = main::check_program('glxinfo')){
 			# NOTE: glxinfo -B is not always available, unforunately
 			my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
@@ -7938,7 +7917,7 @@ sub gl_data(){
 				if ($b_root){
 					$type = 'display-root-x';
 				}
-				elsif ($show{'display-data'} == 1){
+				else {
 					$type = 'display-null';
 				}
 				@row = ({
@@ -8016,25 +7995,25 @@ sub gl_data(){
 		}
 		else {
 			@row = ({
-			main::key($num++,'Message') => main::row_defaults('display-tool','glxinfo'),
+			main::key($num++,'Message') => main::row_defaults('glxinfo-missing'),
 			});
 		}
 	}
 	else {
 		my $type = 'display-console';
-		my $ref = $alerts{'glxinfo'};
-		if ($$ref{'action'} eq 'missing'){
-			$type = 'display-tool';
-			$arg = 'glxinfo';
+		if (!main::check_program('glxinfo')){
+			$type = 'glxinfo-missing';
 		}
-		elsif ($b_root){
-			$type = 'display-root';
-		}
-		elsif ($show{'display-data'} == 0){
-			$type = 'display-try';
+		else {
+			if ($b_root){
+				$type = 'display-root';
+			}
+			else {
+				$type = 'display-try';
+			}
 		}
 		@row = ({
-		main::key($num++,'Message') => main::row_defaults($type,$arg),
+		main::key($num++,'Message') => main::row_defaults($type),
 		});
 	}
 	eval $end if $b_log;
@@ -16090,7 +16069,7 @@ sub generate_info_data {
 	$gcc ||= 'N/A';
 	if (!$b_irc && $extra > 1 ){
 		# bsds don't support -f option to get PPID
-		if ($b_display && !$bsd_type){
+		if (($b_display && !$b_force_display) && !$bsd_type){
 			$parent = get_shell_source();
 		}
 		else {
@@ -16101,7 +16080,6 @@ sub generate_info_data {
 			$client{'su-start'} = $parent if !$client{'su-start'};
 			$parent = undef;
 		}
-		
 		# can be tty 0 so test for defined
 		$running_in = $parent if defined $parent;
 		if ($extra > 2 && $running_in && get_ssh_status() ){
@@ -16118,7 +16096,6 @@ sub generate_info_data {
 		$used .= " ($temp[2]%)" if $temp[2];
 	}
 	$memory ||= 'N/A';
-	
 	my %data = (
 	$data_name => [{
 		main::key($num++,'Processes') => scalar @ps_aux, 
@@ -16128,7 +16105,7 @@ sub generate_info_data {
 		},],
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
-	if ( !$show{'display-data'} || $extra > 0 ){
+	if ( (!$b_display || $b_force_display) || $extra > 0 ){
 		my %init = get_init_data();
 		my $init_type = ($init{'init-type'}) ? $init{'init-type'}: 'N/A';
 		$data{$data_name}[$index]{main::key($num++,'Init')} = $init_type;
