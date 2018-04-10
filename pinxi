@@ -38,7 +38,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.00';
 my $self_date='2018-04-09';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13614,6 +13614,7 @@ sub get_compiler_version_linux {
 # 2 - toolkit
 # 3 - toolkit version
 # 4 - info extra desktop data
+# 5 - wm
 {
 package DesktopEnvironment;
 my ($b_xprop,$kde_session_version,$xdg_desktop,@desktop,@data,@xprop);
@@ -13637,6 +13638,9 @@ sub get {
 	}
 	if ($extra > 2 && @desktop){
 		set_info_data();
+	}
+	if ($b_display && !$b_force_display && $extra > 2){
+		get_wm();
 	}
 	main::log_data('dump','@desktop', \@desktop) if $b_log;
 	# ($b_xprop,$kde_session_version,$xdg_desktop,@data,@xprop) = undef;
@@ -13984,6 +13988,16 @@ sub get_ps_de_data {
 		@data = main::program_values('afterstep');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('afterstep',$data[0],$data[1],$data[2],$data[5]);
+	}
+	eval $end if $b_log;
+}
+
+sub get_wm {
+	eval $start if $b_log;
+	if ( my $program =  main::check_program('wmctrl') ){
+		my $cmd = "$program -m 2>/dev/null";
+		my @data = main::grabber($cmd,'','strip');
+		$desktop[5] = main::awk(\@data,'^Name',2,'\s*:\s*');
 	}
 	eval $end if $b_log;
 }
@@ -16172,7 +16186,7 @@ sub generate_system_data {
 	my $num = 0;
 	my (%row,$ref,$index,$val1);
 	my $data_name = main::key($prefix++,'System');
-	my ($desktop,$desktop_info,$desktop_key) = ('','','Desktop');
+	my ($desktop,$desktop_info,$desktop_key,$wm) = ('','','Desktop','');
 	my (@desktop_data,$desktop_version);
 	
 	my %data = (
@@ -16212,6 +16226,9 @@ sub generate_system_data {
 		if ($extra > 2 && $desktop_data[4]){
 			$desktop_info = $desktop_data[4];
 		}
+		if ($desktop_data[5]){
+			$wm = $desktop_data[5];
+		}
 	}
 	if (!$b_display || ( ! $desktop && $b_root)) {
 		my $tty = get_tty_number();
@@ -16230,6 +16247,9 @@ sub generate_system_data {
 	if ($extra > 2){
 		if ($desktop_info){
 			$data{$data_name}[$index]{main::key($num++,'info')} = $desktop_info;
+		}
+		if ($wm){
+			$data{$data_name}[$index]{main::key($num++,'wm')} = $wm;
 		}
 	}
 	if ($extra > 1){
