@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.00';
-my $self_date='2018-04-10';
-my $self_patch='05';
+my $self_date='2018-04-12';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3898,8 +3898,8 @@ sub show_options {
 	['1', '-F', '--full', "Full output. Includes all Upper Case line letters 
 	except -W, plus -s and -n. Does not show extra verbose options such 
 	as -d -f -i -l -m -o -p -r -t -u -x, unless specified." ],
-	['1', '-G', '--graphics', "Graphics info (card(s), driver, display server 
-	type/version, resolution, renderer, OpenGL version)." ],
+	['1', '-G', '--graphics', "Graphics info (card(s), driver, display protocol 
+	(if available), display server, resolution, renderer, OpenGL version)." ],
 	['1', '-i', '--ip', "WAN IP address and local interfaces (requires ifconfig 
 	or ip network tool). Triggers -n. Not shown with -F for user security reasons. 
 	You shouldn't paste your local/WAN IP." ],
@@ -7667,7 +7667,7 @@ sub get {
 			@rows = (@rows,@data);
 		}
 	}
-	@data = display_server();
+	@data = display_data();
 	@rows = (@rows,@data);
 	@data = gl_data();
 	@rows = (@rows,@data);
@@ -7736,26 +7736,27 @@ sub card_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub display_server(){
+sub display_data(){
 	eval $start if $b_log;
 	my (%graphics,@row);
 	my @xdpyinfo;
 	my $num = 0;
+	my ($protocol,$server) = ('','');
 	# note: these may not always be set, they won't be out of X, for example
-	my $server = $ENV{'XDG_SESSION_TYPE'};
-	$server = $ENV{'WAYLAND_DISPLAY'} if (!$server && $ENV{'WAYLAND_DISPLAY'});
+	$protocol = $ENV{'XDG_SESSION_TYPE'} if $ENV{'XDG_SESSION_TYPE'};
+	$protocol = $ENV{'WAYLAND_DISPLAY'} if (!$protocol && $ENV{'WAYLAND_DISPLAY'});
 	# need to confirm that there's a point to this test, I believe no, fails out of x
-# 	if (!$server && $b_display && !$b_force_display && $ENV{'XDG_SESSION_ID'}){
+# 	if (!$protocol && $b_display && !$b_force_display && $ENV{'XDG_SESSION_ID'}){
 # 		if (my $program = main::check_program('loginctl')){
 # 			my $temp = (main::grabber("$program show-session $ENV{'XDG_SESSION_ID'} -p Type --no-pager 2>/dev/null"))[0];
 # 			$temp =~ s/Type=// if $temp;
-# 			$server = $temp;
+# 			$protocol = $temp;
 # 		}
 # 	}
 	if ($extra > 1){
 		# initial tests, if wayland, it is certainly a compositor
-		$server = lc($server) if $server;
-		$graphics{'compositor'} = display_compositor($server);
+		$protocol = lc($protocol) if $protocol;
+		$graphics{'compositor'} = display_compositor($protocol);
 	}
 	if ( $b_display){
 		# X vendor and version detection.
@@ -7852,12 +7853,7 @@ sub display_server(){
 		my $server_string = '';
 		if ($graphics{'vendor'}){
 			my $version = ($graphics{'version'}) ? " $graphics{'version'}" : '';
-			if ($server){
-				$server_string = "$server ($graphics{'vendor'}$version)";
-			}
-			else {
-				$server_string = "$graphics{'vendor'}$version";
-			}
+			$server_string = "$graphics{'vendor'}$version";
 		}
 		elsif ($graphics{'version'}) {
 			$server_string = "X.org $graphics{'version'}";
@@ -7872,7 +7868,7 @@ sub display_server(){
 			}
 		}
 		my @drivers = x_drivers();
-		if (!$server_string && !$graphics{'vendor'} && !@drivers){
+		if (!$protocol && !$server_string && !$graphics{'vendor'} && !@drivers){
 			$server_string = main::row_defaults('display-server');
 			@row = ({
 			main::key($num++,'Display Server') => $server_string,
@@ -7885,7 +7881,8 @@ sub display_server(){
 			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
 			$driver = ($drivers[0]) ? $drivers[0]: $driver;
 			@row = ({
-			main::key($num++,'Display Server') => $server_string,
+			main::key($num++,'Display') => $protocol,
+			main::key($num++,'server') => $server_string,
 			main::key($num++,'driver') => $driver,
 			});
 			if ($drivers[2]){
@@ -8137,10 +8134,10 @@ sub x_version {
 	eval $end if $b_log;
 	return $version;
 }
-# $1 - server: wayland|x11
+# $1 - protocol: wayland|x11
 sub display_compositor {
 	eval $start if $b_log;
-	my ($server) = @_; 
+	my ($protocol) = @_; 
 	my ($compositor) = ('');
 	# NOTE: chains of greps of ps data are VERY expensive, so check for program presence
 	if (main::check_program('mutter') && (grep {/mutter/} @ps_cmd ) ) {
