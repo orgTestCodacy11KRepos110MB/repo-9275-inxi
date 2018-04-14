@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.03';
-my $self_date='2018-04-13';
-my $self_patch='03';
+my $self_date='2018-04-14';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9800,7 +9800,7 @@ sub partition_data {
 		}
 	}
 	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
-	my $filters = '^(aufs|cgroup|cgroup2|cgmfs|configfs|debugfs|\/dev|dev|\/dev/loop[0-9]*|devfs|devtmpfs|';
+	my $filters = '^(aufs|cgroup.*|cgmfs|configfs|debugfs|\/dev|dev|\/dev/loop[0-9]*|devfs|devtmpfs|';
 	$filters .= 'fdescfs|iso9660|linprocfs|none|procfs|\/run(\/.*)?|run|squashfs|sys|\/sys\/.*|sysfs|';
 	$filters .= 'tmpfs|type|udev|unionfs|vartmp)$';
 	foreach (@partitions_working){
@@ -14936,14 +14936,22 @@ sub get_shell_data {
 sub get_shell_source {
 	eval $start if $b_log;
 	my (@data);
-	my ($self_parent,$shell_parent) = ('','');
+	my ($msg,$self_parent,$shell_parent) = ('','','');
 	my $ppid = getppid();
 	$self_parent = get_start_parent($ppid);
+	if ($b_log){
+		$msg = ($ppid) ? "self parent: $self_parent ppid: $ppid": "self parent: undefined";
+		log_data('data',$msg);
+	}
 	#print "self parent: $self_parent ppid: $ppid\n";
 	if ($self_parent){
 		$shell_parent = get_shell_parent($self_parent);
 		$client{'su-start'} = $shell_parent if ($shell_parent eq 'su' && !$client{'su-start'});
 		#print "shell parent 1: $shell_parent\n";
+		if ($b_log){
+			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
+			log_data('data',$msg);
+		}
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		if ( $shell_parent && ( $shell_parent eq 'su' || 
 		     $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ) ){
@@ -14952,12 +14960,20 @@ sub get_shell_source {
 			$self_parent = get_start_parent($self_parent);
 			$shell_parent = get_shell_parent($self_parent) if $shell;
 			#print "shell parent 2: $shell_parent\n";
+			if ($b_log){
+				$msg = ($shell_parent) ? "shell parent 2: $shell_parent": "shell parent 2: undefined";
+				log_data('data',$msg);
+			}
 			if (!$shell || 
 			    $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ){
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
 			}
-			#print "shell parent 2: $shell_parent\n";
+			#print "shell parent 3: $shell_parent\n";
+			if ($b_log){
+				$msg = ($shell_parent) ? "shell parent 3: $shell_parent": "shell parent 3: undefined";
+			log_data('data',$msg);
+			}
 		}
 		# to work around a ps -p or gnome-terminal bug, which returns 
 		# gnome-terminal- trim - off end 
