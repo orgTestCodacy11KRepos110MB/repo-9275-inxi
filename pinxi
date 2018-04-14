@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.03';
 my $self_date='2018-04-13';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -75,8 +75,7 @@ my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 ## System
 my ($bsd_type,$language,$os) = ('','','');
 my ($cpu_sleep,$dl_timeout,$limit,$ps_count,$usb_level) = (0.35,4,10,5,0);
-my @paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/X11R6/bin /usr/local/sbin /usr/local/bin);
-$ENV{'PATH'} = 'sbin:/bin:/usr/sbin:/usr/bin:/usr/X11R6/bin:/usr/local/sbin:/usr/local/bin';
+my @paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin /usr/X11R6/bin);
 my $sensors_cpu_nu = 0;
 
 ## Tools
@@ -133,13 +132,13 @@ sub main {
 # 	print Dumper \@ARGV;
 	eval $start if $b_log;
 	initialize();
+	set_path();
 	## use for start client debugging
 	# $debug = 10;
 	# set_debugger(); # for debugging of konvi issues
 	#my $ob_start = StartClient->new();
 	#$ob_start->get_client_data();
 	StartClient::get_client_data();
-	#print_line("path: $ENV{'PATH'}");
 	# print_line( Dumper \%client);
 	get_options();
 	set_debugger(); # right after so it's set
@@ -375,23 +374,21 @@ sub set_os {
 		}
 	}
 }
-# not used, leaving for now in case something unaccounted happens.
-# this data is now hard set top of program
+# This data is hard set top of program but due to a specific project's
+# foolish idea that ignoring the FSH totally is somehow a positive step
+# forwards for free software, we also have to padd the results with PATH.
 sub set_path {
-	my $added_paths = '';
 	# Extra path variable to make execute failures less likely, merged below
-	my @path = split ':', $ENV{'PATH'};
-	#print "PATH=$ENV{'PATH'}\n";
+	my (@path);
+	@path = split /:/, $ENV{'PATH'} if $ENV{'PATH'};
+	# print "paths: @paths\nPATH: $ENV{'PATH'}\n";
 	# Create a difference of $PATH and $extra_paths and add that to $PATH:
-	foreach (@paths) {
-		if ( ! grep (/$_/, @path) ){
-			$added_paths .= ":$_";
-			# print "$added_paths\n";
+	foreach my $id (@path) {
+		if ( !(grep { /^$id$/ } @paths) && $id !~ /(game)/ ){
+			push @paths, $id;
 		}
 	}
-	$ENV{'PATH'} .= $added_paths;
-	# print "PATH=$ENV{'PATH'}\n";
-	##/bin/sh -c 'echo "PATH in subshell=\"$PATH\""'
+	# print "paths: @paths\n";
 }
 
 sub set_sep {
@@ -1042,6 +1039,7 @@ sub begin_logging {
 	$data .= "$now\n";
 	$data .= "Elapsed since start: $t3\n";
 	$data .= "n: $self_name v: $self_version p: $self_patch d: $self_date\n";
+	$data .= '@paths:' . joiner(\@paths, '::', 'unset') . "\n";
 	$data .= $line2;
 	
 	print $fh_l $data;
@@ -1511,6 +1509,7 @@ sub system_data {
 	# @(#)MIRBSD KSH R56 2018/03/09: ksh and mksh
 	'ksh-version' => $ENV{'KSH_VERSION'},
 	'manpath' => $ENV{'MANPATH'},
+	'path' => $ENV{'PATH'},
 	'xdg-config-home' => $ENV{'XDG_CONFIG_HOME'},
 	'xdg-config-dirs' => $ENV{'XDG_CONFIG_DIRS'},
 	'xdg-data-home' => $ENV{'XDG_DATA_HOME'},
