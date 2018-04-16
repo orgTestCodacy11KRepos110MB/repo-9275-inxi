@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.04';
 my $self_date='2018-04-16';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -12218,15 +12218,19 @@ sub create_output {
 	}
 	if ($extra > 0 && $source eq 'ipmi'){
 		$j = scalar @rows;
-		$sensors{'volts-12v'} ||= 'N/A';
-		$sensors{'volts-5v'} ||= 'N/A';
-		$sensors{'volts-3v3'} ||= 'N/A';
+		$sensors{'volts-12'} ||= 'N/A';
+		$sensors{'volts-5'} ||= 'N/A';
+		$sensors{'volts-3.3'} ||= 'N/A';
+		$sensors{'volts-dimm-p1'} ||= 'N/A';
+		$sensors{'volts-dimm-p2'} ||= 'N/A';
 		$sensors{'volts-vbat'} ||= 'N/A';
 		$rows[$j]{main::key($num++,'Voltages')} = $data_source;
-		$rows[$j]{main::key($num++,'12v')} = $sensors{'volts-12v'};
-		$rows[$j]{main::key($num++,'5v')} = $sensors{'volts-5v'};
-		$rows[$j]{main::key($num++,'3v3')} = $sensors{'volts-3v3'};
+		$rows[$j]{main::key($num++,'12v')} = $sensors{'volts-12'};
+		$rows[$j]{main::key($num++,'5v')} = $sensors{'volts-5'};
+		$rows[$j]{main::key($num++,'3v3')} = $sensors{'volts-3.3'};
 		$rows[$j]{main::key($num++,'vbat')} = $sensors{'volts-vbat'};
+		$rows[$j]{main::key($num++,'dimm-p1')} = $sensors{'volts-dimm-p1'} if $sensors{'volts-dimm-p1'};
+		$rows[$j]{main::key($num++,'dimm-p2')} = $sensors{'volts-dimm-p2'} if $sensors{'volts-dimm-p2'};
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -12333,16 +12337,23 @@ sub ipmi_data {
 		}
 		if ($extra > 0){
 			if ($row[$i_key] =~ /^12V$/i) {
-				$sensors{'volts-12v'} = $row[$i_value];
+				$sensors{'volts-12'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^P5V$/i) {
-				$sensors{'volts-5v'} = $row[$i_value];
+			elsif ($row[$i_key] =~ /^(P5V|5VCC)$/i) {
+				$sensors{'volts-5'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^P3V3$/i) {
-				$sensors{'volts-3v3'} = $row[$i_value];
+			elsif ($row[$i_key] =~ /^(P3V3|3.3VCC)$/i) {
+				$sensors{'volts-3.3'} = $row[$i_value];
 			}
 			elsif ($row[$i_key] =~ /^VBAT$/i) {
 				$sensors{'volts-vbat'} = $row[$i_value];
+			}
+			# NOTE: VDimmP1ABC VDimmP1DEF
+			elsif (!$sensors{'volts-dimm-p1'} && $row[$i_key] =~ /^(P1_SOC_RUN$|VDimmP1)/i) {
+				$sensors{'volts-dimm-p1'} = $row[$i_value];
+			}
+			elsif (! $sensors{'volts-dimm-p2'} && $row[$i_key] =~ /^(P2_SOC_RUN$|VDimmP2)/i) {
+				$sensors{'volts-dimm-p2'} = $row[$i_value];
 			}
 		}
 	}
@@ -12752,7 +12763,7 @@ sub data_processor {
 		%sensors = ();
 	}
 	else {
-		my ($psu_temp,$sodimm_temp,$volts_12v,$volts_5v,$volts_3v3,$volts_vbat);
+		my ($psu_temp,$sodimm_temp,$v_12,$v_5,$v_33,$v_dimm_p1,$v_dimm_p2,$v_vbat);
 		$psu_temp = $sensors{'psu-temp'} if $sensors{'psu-temp'};
 		# sodimm fan is fan_main[4]
 		$sodimm_temp = $sensors{'sodimm-temp'} if $sensors{'sodimm-temp'};
@@ -12760,11 +12771,13 @@ sub data_processor {
 		$cpu3_temp = $sensors{'cpu3-temp'} if $sensors{'cpu3-temp'};
 		$cpu4_temp = $sensors{'cpu4-temp'} if $sensors{'cpu4-temp'};
 		# so far only for ipmi, sensors data is junk for volts
-		if ($extra > 0 && $sensors{'volts-12v'} ){
-			$volts_12v = $sensors{'volts-12v'} if $sensors{'volts-12v'};
-			$volts_5v = $sensors{'volts-5v'} if $sensors{'volts-5v'};
-			$volts_3v3 = $sensors{'volts-3v3'} if  $sensors{'volts-3v3'};
-			$volts_vbat = $sensors{'volts-vbat'} if $sensors{'volts-vbat'};
+		if ($extra > 0 && $sensors{'volts-12'} ){
+			$v_12 = $sensors{'volts-12'} if $sensors{'volts-12'};
+			$v_5 = $sensors{'volts-5'} if $sensors{'volts-5'};
+			$v_33 = $sensors{'volts-3.3'} if  $sensors{'volts-3.3'};
+			$v_vbat = $sensors{'volts-vbat'} if $sensors{'volts-vbat'};
+			$v_dimm_p1 = $sensors{'volts-dimm-p1'} if $sensors{'volts-dimm-p1'};
+			$v_dimm_p2 = $sensors{'volts-dimm-p2'} if $sensors{'volts-dimm-p2'};
 		}
 		%sensors = (
 		'cpu-temp' => $cpu_temp,
@@ -12783,11 +12796,13 @@ sub data_processor {
 		if ($sodimm_temp){
 			$sensors{'sodimm-temp'} = $sodimm_temp;
 		}
-		if ($extra > 0 && ($volts_12v || $volts_5v || $volts_3v3) ){
-			$sensors{'volts-12v'} = $volts_12v;
-			$sensors{'volts-5v'} = $volts_5v;
-			$sensors{'volts-3v3'} = $volts_3v3;
-			$sensors{'volts-vbat'} = $volts_vbat;
+		if ($extra > 0 && ($v_12 || $v_5 || $v_33) ){
+			$sensors{'volts-12'} = $v_12;
+			$sensors{'volts-5'} = $v_5;
+			$sensors{'volts-3.3'} = $v_33;
+			$sensors{'volts-vbat'} = $v_vbat;
+			$sensors{'volts-dimm-p1'} = $v_dimm_p1;
+			$sensors{'volts-dimm-p2'} = $v_dimm_p2;
 		}
 	}
 	eval $end if $b_log;
