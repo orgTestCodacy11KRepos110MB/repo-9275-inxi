@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.04';
-my $self_date='2018-04-14';
-my $self_patch='02';
+my $self_date='2018-04-15';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -56,7 +56,7 @@ my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
-my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@pci,@ps_aux,@ps_cmd,
+my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@pci,@ps_aux,@ps_cmd,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@usb);
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@partitions,
@@ -75,8 +75,8 @@ my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 ## System
 my ($bsd_type,$language,$os) = ('','','');
 my ($cpu_sleep,$dl_timeout,$limit,$ps_count,$usb_level) = (0.35,4,10,5,0);
-my @paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin /usr/X11R6/bin);
 my $sensors_cpu_nu = 0;
+my ($bits_sys);
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
@@ -357,7 +357,14 @@ sub set_display_width {
 sub set_os {
 	my @uname = uname();
 	$os = lc($uname[0]);
-	$b_arm = 1 if $uname[-1] =~ /arm|aarch/i;
+	my $type = lc($uname[-1]);
+	$b_arm = 1 if $type =~ /arm|aarch/;
+	if ($type =~ /(armv[1-7]|aarch32|i[345]86|sparc_v9)/){
+		$bits_sys = 32;
+	}
+	elsif ($type =~ /(alpha|64)/){
+		$bits_sys = 64;
+	}
 	if ( $os =~ /(bsd|dragonfly|darwin)/ ){
 		if ( $os =~ /openbsd/ ){
 			$os = 'openbsd';
@@ -379,6 +386,7 @@ sub set_os {
 sub set_path {
 	# Extra path variable to make execute failures less likely, merged below
 	my (@path);
+	@paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin /usr/X11R6/bin);
 	@path = split /:/, $ENV{'PATH'} if $ENV{'PATH'};
 	# print "paths: @paths\nPATH: $ENV{'PATH'}\n";
 	# Create a difference of $PATH and $extra_paths and add that to $PATH:
@@ -5852,19 +5860,24 @@ sub create_output_full {
 	main::key($num++,'model') => $cpu{'model_name'},
 	},);
 	@rows = (@rows,@data);
+	if ($extra > 1){
+		$properties{'bits-sys'} ||= 'N/A';
+		$rows[$j]{main::key($num++,'bits')} = $properties{'bits-sys'};
+	}
 	if ($type){
 		$rows[$j]{main::key($num++,'type')} = $type;
 	}
 	if ($extra > 0){
-		my $arch = $cpu{'arch'};
-		$arch ||= 'N/A';
-		$rows[$j]{main::key($num++,'arch')} = $arch;
-		if ( $arch ne 'N/A' && $cpu{'rev'} ){
+		$cpu{'arch'} ||= 'N/A';
+		$rows[$j]{main::key($num++,'arch')} = $cpu{'arch'};
+		if ( $cpu{'arch'} ne 'N/A' && $cpu{'rev'} ){
 			$rows[$j]{main::key($num++,'rev')} = $cpu{'rev'};
 		}
 	}
+	
 	$properties{'l2-cache'} ||= 'N/A';
 	$rows[$j]{main::key($num++,'L2 cache')} = $properties{'l2-cache'} if (!$b_arm || ($b_arm && $properties{'l2-cache'} ne 'N/A'));
+	
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split /\s+/, $cpu{'flags'} if $cpu{'flags'};
@@ -6618,7 +6631,11 @@ sub cpu_properties {
 		$speed = "$cpu{'cur-freq'} MHz";
  	}
  	
+ 	if ( $extra > 1 && !$bits_sys && !$b_arm && $cpu{'flags'} ){
+		$bits_sys = ($cpu{'flags'} =~ /\blm\b/) ? 64 : 32;
+	}
 	my %cpu_properties = (
+	'bits-sys' => $bits_sys,
 	'cpu-layout' => $cpu_layout,
 	'cpu-type' => $cpu_type,
 	'min-max-key' => $min_max_key,
