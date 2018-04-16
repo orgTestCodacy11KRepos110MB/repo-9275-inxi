@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.04';
-my $self_date='2018-04-15';
-my $self_patch='04';
+my $self_date='2018-04-16';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4751,6 +4751,7 @@ sub row_defaults {
 	'battery-data' => "No battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
 	'cpu-model-null' => "Model N/A",
+	'darwin-feature' => "Feature not supported iu Darwin/OSX.",
 	'disk-data-bsd' => "No disk data found for this BSD system.",
 	'disk-data' => "No Disk data was found.",
 	'disk-size-0' => "Total N/A",
@@ -9695,10 +9696,11 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	partition_data() if !$b_partitions;;
+	partition_data() if !$b_partitions;
  	if (!@partitions) {
 		$key1 = 'Message';
-		$val1 = main::row_defaults('partition-data');
+		$val1 = ($bsd_type && $bsd_type eq 'darwin') ? 
+		 main::row_defaults('darwin-feature') : main::row_defaults('partition-data');
 		@rows = ({main::key($num++,$key1) => $val1,});
  	}
  	else {
@@ -9779,6 +9781,7 @@ sub create_output {
 
 sub partition_data {
 	eval $start if $b_log;
+	return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mapper,@mount,@partitions_working);
 	my ($b_fs,$b_load,$cols,$roots) = (1,0,6,0);
 	my ($dev_base,$fs,$id,$label,$percent_used,$size,$type,$uuid,$used);
