@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.04';
-my $self_date='2018-04-16';
-my $self_patch='11';
+my $self_date='2018-04-17';
+my $self_patch='12';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3645,7 +3645,7 @@ sub get_options{
 		$b_arm = 1 },
 	'bsd:s' => sub { 
 		my ($opt,$arg) = @_;
-		if ($arg =~ /^dragonfly|freebsd|openbsd|netbsd$/i){
+		if ($arg =~ /^(darwin|dragonfly|freebsd|openbsd|netbsd)$/i){
 			$bsd_type = lc($arg);
 		}
 		else {
@@ -9783,7 +9783,8 @@ sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mapper,@mount,@partitions_working);
-	my ($b_fs,$b_load,$cols,$roots) = (1,0,6,0);
+	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
+	my ($back_size,$back_used) = (4,3);
 	my ($dev_base,$fs,$id,$label,$percent_used,$size,$type,$uuid,$used);
 	$b_partitions = 1;
 	set_lsblk() if !$bsd_type && !$b_lsblk;
@@ -9798,12 +9799,20 @@ sub partition_data {
 		}
 	}
 	else {
-		@partitions_working = main::grabber("df -T -k 2>/dev/null");
 		# this is missing the file system data
+		if ($bsd_type ne 'darwin'){
+			$cols = 5;
+			@partitions_working = main::grabber("df -T -k 2>/dev/null");
+		}
+		#Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
+		else {
+			$cols = 8;
+			$b_fake_map = 1;
+			($back_size,$back_used) = (7,6);
+		}
 		if (!@partitions_working){
 			@partitions_working = main::grabber("df -k 2>/dev/null");
 			$b_fs = 0;
-			$cols = 5;
 			if (my $path = main::check_program('mount')){
 				@mount = main::grabber("$path 2>/dev/null");
 			}
@@ -9824,6 +9833,8 @@ sub partition_data {
 	$filters .= 'fdescfs|iso9660|linprocfs|none|procfs|\/run(\/.*)?|run|squashfs|sys|\/sys\/.*|sysfs|';
 	$filters .= 'tmpfs|type|udev|unionfs|vartmp)$';
 	foreach (@partitions_working){
+		# stupid apple bullshit
+		$_ =~ s/^map\s+([\S]+)/map:\/$1/ if $b_fake_map;
 		my @row = split /\s+/, $_;
 		if ($row[0] =~ /$filters/ || $row[0] =~ /^ROOT/i){
 			next;
@@ -9889,8 +9900,8 @@ sub partition_data {
 			$fs = ($b_fs) ? $row[1]: get_bsd_fs($row[0],@mount);
 			$id = join ' ', @row[$cols .. $#row];
 			$id =~ s/\/home\/[^\/]+\/(.*)/\/home\/$filter_string\/$1/ if $show{'filter'};
-			$size = $row[$cols - 4];
-			$used = $row[$cols - 3];
+			$size = $row[$cols - $back_size];
+			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size);
 			@data = ({
 			'id' => $id,
@@ -9979,6 +9990,7 @@ sub swap_data {
 sub get_bsd_fs {
 	eval $start if $b_log;
 	my ($item,@mount) = @_;
+	$item =~ s/map:\/(\S+)/map $1/ if $bsd_type eq 'darwin';
 	return 'N/A' if ! @mount;
 	my ($fs) = ('');
 	# linux: /dev/sdb6 on /var/www/m type ext4 (rw,relatime,data=ordered)
