@@ -6755,14 +6755,13 @@ sub cpu_flags_bsd {
 	my ($flags,$sep) = ('','');
 	# this will be null if it was not readable
 	my $file = main::system_files('dmesg-boot');
-	
 	if ( $file && ! -r $file ){
 		$flags = main::row_defaults('dmesg-boot-permissions');
 	}
 	else {
 		foreach (@dmesg_boot){
-			if ( /Features/ || ( $bsd_type eq "openbsd" && /^cpu0.*\s[a-z][a-z][a-z](\s|,)[a-z][a-z][a-z](\s|,)/i ) ) {
-				my @line = split /:/, lc($_);
+			if ( /Features/ || ( $bsd_type eq "openbsd" && /^cpu0:\s*[a-z0-9]{2,3}(\s|,)[a-z0-9]{2,3}(\s|,)/i ) ) {
+				my @line = split /:\s*/, lc($_);
 				# free bsd has to have weird syntax: <....<b23>,<b34>>
 				# Features2=0x1e98220b<SSE3,PCLMULQDQ,MON,SSSE3,CX16,SSE4.1,SSE4.2,POPCNT,AESNI,XSAVE,OSXSAVE,AVX>
 				$line[1] =~ s/^[^<]*<|>[^>]*$//g;
@@ -6770,7 +6769,8 @@ sub cpu_flags_bsd {
 				$line[1] =~ s/<[^>]+>//g;
 				# and replace commas with spaces
 				$line[1] =~ s/,/ /g;
-				$flags .= ' ' . $line[1];
+				$flags .= $sep . $line[1];
+				$sep = ' ';
 			}
 			elsif (/real mem/){
 				last;
