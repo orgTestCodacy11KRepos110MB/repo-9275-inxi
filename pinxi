@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.06';
 my $self_date='2018-04-17';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6036,7 +6036,6 @@ sub data_cpuinfo {
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$starter);
 	# use --arm flag when testing arm cpus
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
@@ -6045,6 +6044,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
@@ -6394,16 +6394,21 @@ sub data_sysctl {
 
 sub cpu_properties {
 	my (%cpu) = @_;
-	my $b_xeon = ($cpu{'model_name'} && $cpu{'model_name'} =~ /Xeon/i) ? 1 : 0;
-	my ($b_amd_zen,$b_epyc,$b_ht,$b_ryzen);
-	if ( $cpu{'type'} && $cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) {
-		$b_amd_zen = 1;
-		if ($cpu{'model_name'} ){
-			if ($cpu{'model_name'} =~ /Ryzen/i ){ 
-				$b_ryzen = 1;
-			}
-			elsif ($cpu{'model_name'} =~ /EPYC/i){
-				$b_epyc = 1;
+	my ($b_amd_zen,$b_epyc,$b_ht,$b_intel,$b_ryzen,$b_xeon);
+	if ($cpu{'type'} ){
+		if ($cpu{'type'} eq 'intel'){
+			$b_intel = 1;
+			$b_xeon = 1 if $cpu{'model_name'} =~ /Xeon/i;
+		}
+		elsif ($cpu{'type'} eq 'amd' && $cpu{'family'} && $cpu{'family'} eq '17' ) {
+			$b_amd_zen = 1;
+			if ($cpu{'model_name'} ){
+				if ($cpu{'model_name'} =~ /Ryzen/i ){ 
+					$b_ryzen = 1;
+				}
+				elsif ($cpu{'model_name'} =~ /EPYC/i){
+					$b_epyc = 1;
+				}
 			}
 		}
 	}
@@ -6428,10 +6433,8 @@ sub cpu_properties {
 	#print "p count:$processors_count\n";
 	#print Data::Dumper::Dumper \@processors;
 	# $cpu_cores is per physical cpu
-	my ($cpu_layout,$cpu_type,$min_max,$min_max_key,$cache,$core_count,
-	   $cpu_cores,$die_count) = ('','','','',0,0,0,0);
-	my @cores;
-	
+	my ($cpu_layout,$cpu_type,$min_max,$min_max_key) = ('','','','');
+	my ($cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0);
 	foreach my $die_ref ( @phys ){
 		next if ! $die_ref;
 		my @dies = @$die_ref;
@@ -6451,18 +6454,8 @@ sub cpu_properties {
 			#print 'cores: ' . $core_count, "\n";
 		}
 	}
-	# like, intel core duo
-	# NOTE: sadly, not all core intel are HT/MT, oh well...
-	# if ($b_xeon || $cpu{'model_name'} =~ /intel.*core/i){
-	if ($b_xeon ){
-		$b_ht = 1;
-	}
 	# this covers potentially cases where ARM cpus have > 1 die 
 	$cpu{'dies'} = ($b_arm && $die_count <= 1 && $cpu{'dies'} > 1) ? $cpu{'dies'}: $die_count;
-	# Note: for > 1 phys cpu system, the die counts will be wrong
-	if ($phyical_count > 1 && $die_count > 1 ){
-	
-	}
 	# this is an attempt to fix the amd family 15 bug with reported cores vs actual cores
 	# NOTE: amd A6-4400M APU 2 core reports: cores: 1 siblings: 2
 	# NOTE: AMD A10-5800K APU 4 core reports: cores: 2 siblings: 4
@@ -6474,19 +6467,24 @@ sub cpu_properties {
 	}
 	#print "cpu-c:$cpu_cores\n";
 	#$cpu_cores = $cpu{'cores'}; 
+	# like, intel core duo
+	# NOTE: sadly, not all core intel are HT/MT, oh well...
 	# xeon may show wrong core / physical id count, if it does, fix it. A xeon
 	# may show a repeated core id : 0 which gives a fake num_of_cores=1
-	if ($b_xeon && $cpu{'siblings'} > 1){
-		if ($cpu{'siblings'}/2 == 3){
-			$b_xeon = 0;
-			$b_ht = 0;
-		}
-		else {
-			$cpu_cores = ($cpu{'siblings'}/2); 
+	if ($b_intel){
+		if ($cpu{'siblings'} && $cpu{'siblings'} > 1 && $cpu{'cores'} && $cpu{'cores'} > 1 ){
+			if ( $cpu{'siblings'}/$cpu{'cores'} == 1 ){
+				$b_intel = 0;
+				$b_ht = 0;
+			}
+			else {
+				$cpu_cores = ($cpu{'siblings'}/2); 
+				$b_ht = 1;
+			}
 		}
 	}
 	# ryzen is made out of blocks of 8 core dies
-	if ($b_ryzen){
+	elsif ($b_ryzen){
 		$cpu_cores = $cpu{'cores'}; 
 		 # note: posix ceil isn't present in Perl for some reason, deprecated?
 		my $working = $cpu_cores / 8;
@@ -6530,7 +6528,8 @@ sub cpu_properties {
 	#print "prc: $processors_count phc: $phyical_count coc: $core_count cpc: $cpu_cores\n";
 	if (!$b_arm && $processors_count == $phyical_count*$core_count && $cpu_cores > $core_count){
 		$b_ht = 0;
-		$b_xeon = 0;
+		#$b_xeon = 0;
+		$b_intel = 0;
 		$cpu_cores = 1;
 		$core_count = 1;
 		$cpu{'siblings'} = 1;
@@ -6542,16 +6541,16 @@ sub cpu_properties {
 	# if > 1 processor && processor id (physical id) != core id then Multi-Core Processors (MCP)
 	# if > 1 processor && processor ids (physical id) > 1 then Symmetric Multi Processing (SMP)
 	# if = 1 processor then single core/processor Uni-Processor (UP)
-	if ( $processors_count > 1 || ( $b_xeon && $cpu{'siblings'} > 0 ) ) {
+	if ( $processors_count > 1 || ( $b_intel && $cpu{'siblings'} > 0 ) ) {
 		# non-multicore MT
 		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
 			#print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
-		elsif ($b_xeon && $cpu{'siblings'} > 1){
-			#print "mt:2\n";
-			$cpu_type .= 'MT'; 
-		}
+# 		elsif ($b_xeon && $cpu{'siblings'} > 1){
+# 			#print "mt:2\n";
+# 			$cpu_type .= 'MT'; 
+# 		}
 		elsif ($cpu{'siblings'} > 1 && ($cpu{'siblings'} == 2 * $cpu_cores )){
 			#print "mt:3\n";
 			$cpu_type .= 'MT'; 
