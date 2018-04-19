@@ -1340,14 +1340,15 @@ sub disk_data {
 	['lsblk', '-fsr'],
 	['lsblk', '-fsP'],
 	['lsblk', '-a'],
+	['lsblk', '-aP'],
 	['lsblk', '-ar'],
 	['lsblk', '-p'],
 	['lsblk', '-pr'],
 	['lsblk', '-pP'],
 	['lsblk', '-r'],
-	['lsblk', '-r --output TYPE,NAME,PKNAME,RM,FSTYPE,SIZE'],
-	['lsblk', '-rb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE'],
-	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE'],
+	['lsblk', '-r --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
+	['lsblk', '-rb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
+	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
 	['gpart', 'list'],
 	['gpart', 'show'],
 	['gpart', 'status'],
@@ -10042,7 +10043,7 @@ sub set_lsblk {
 	$b_lsblk = 1;
 	my (@temp,@working);
 	if (my $program = main::check_program('lsblk')){
-		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE 2>/dev/null");
+		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT 2>/dev/null");
 		foreach (@working){
 			my ($name,$type,$rm,$fstype,$size) = ('','','','',''); 
 			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"/){
@@ -14258,6 +14259,7 @@ sub set_xprop {
 	if (my $program = main::check_program('xprop')){
 		@xprop = main::grabber("xprop -root $display_opt 2>/dev/null");
 		if (@xprop){
+			# add wm / de as required, but only add what is really tested for above
 			my $pattern = 'blackbox_pid|enlightenment|^_gnome|herbstluftwm|';
 			$pattern .= '^i3_|icewm|_marco|_muffin|openbox_pid|^windowmaker|^_wm2|xfce';
 			# let's only do these searches once
@@ -14917,17 +14919,19 @@ sub get_module_version {
 sub get_partition_extra_data {
 	eval $start if $b_log;
 	$b_partition_extra = 1;
-	if (!$bsd_type){
-		if (-d '/dev/disk/by-label'){
-			@labels = main::globber('/dev/disk/by-label/*');
+	if ( $show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
+		if (!$bsd_type){
+			if (-d '/dev/disk/by-label'){
+				@labels = main::globber('/dev/disk/by-label/*');
+			}
+			if (-d '/dev/disk/by-uuid'){
+				@uuids = main::globber('/dev/disk/by-uuid/*');
+			}
 		}
-		if (-d '/dev/disk/by-uuid'){
-			@uuids = main::globber('/dev/disk/by-uuid/*');
-		}
-	}
-	else {
-		if ( ($show{'unmounted'} || $show{'label'} || $show{'uuid'} ) && (my $path = main::check_program('gpart'))){
-			@gpart = main::grabber("$path list 2>/dev/null",'strip');
+		else {
+			if ( my $path = main::check_program('gpart')){
+				@gpart = main::grabber("$path list 2>/dev/null",'strip');
+			}
 		}
 	}
 	eval $end if $b_log;
