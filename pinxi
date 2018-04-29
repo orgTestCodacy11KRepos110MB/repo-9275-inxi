@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.07';
-my $self_date='2018-04-23';
-my $self_patch='02';
+my $self_date='2018-04-29';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -52,7 +52,7 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my ( %alerts, %client, %colors, %dl, %files, %rows, %system_files, %use );
+my ( %alerts,%client,%colors,%dl,%files,%rows,%system_files,%use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 to last
@@ -1348,7 +1348,8 @@ sub disk_data {
 	['lsblk', '-r'],
 	['lsblk', '-r --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
 	['lsblk', '-rb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
-	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
+	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE'],
+	['lsblk', '-Pb --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT'],
 	['gpart', 'list'],
 	['gpart', 'show'],
 	['gpart', 'status'],
@@ -9750,16 +9751,7 @@ sub create_output {
 		else {
 			$dev_type = 'dev';
 		}
-		%part = check_lsblk($row{'dev-base'},0) if (@lsblk && $row{'dev-base'} && $dev_type eq 'dev');
-		if (%part && $part{'fs'}){
-			$fs = lc($part{'fs'});
-		}
-		elsif ($row{'fs'}){
-			$fs = lc($row{'fs'});
-		}
-		else {
-			$fs = 'N/A';
-		}
+		$fs = ($row{'fs'}) ? lc($row{'fs'}): 'N/A';
 		$dev ||= 'N/A';
 		$j = scalar @rows;
 		@data = ({
@@ -9784,7 +9776,7 @@ sub create_output {
 sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
-	my (@data,@rows,@mapper,@mount,@partitions_working);
+	my (@data,@rows,@mapper,@mount,@partitions_working,%part);
 	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
 	my ($back_size,$back_used) = (4,3);
 	my ($dev_base,$fs,$id,$label,$percent_used,$size,$type,$uuid,$used);
@@ -9847,6 +9839,7 @@ sub partition_data {
 		$label = '';
 		$size = 0;
 		$used = 0;
+		%part = ();
 		$percent_used = 0;
 		$type = '';
 		$uuid = '';
@@ -9867,6 +9860,7 @@ sub partition_data {
 			}
 			$dev_base = $row[0];
 			$dev_base =~ s/^\/dev\///;
+			%part = check_lsblk($dev_base,0) if @lsblk;
 		}
 		# this handles zfs type devices/partitions, which do not start with / but contain /
 		# note: Main/jails/transmission_1 path can be > 1 deep 
@@ -9886,20 +9880,35 @@ sub partition_data {
 			$type = 'secondary';
 		}
 		if ($b_load){
-			if ($show{'label'} && @labels){
-				$label = get_label($row[0]);
-			}
-			if ($show{'uuid'} && @uuids){
-				$uuid = get_uuid($row[0]);
-			}
-			if ($bsd_type && @gpart && ($show{'label'} || $show{'uuid'} ) ){
-				my @extra = get_bsd_label_uuid("$dev_base");
-				if (@extra){
-					$label = $extra[0];
-					$uuid = $extra[1];
+			if (!$bsd_type){
+				$fs = (%part && $part{'fs'}) ? $part{'fs'} : $row[1];
+				if ($show{'label'}) {
+					if (%part && $part{'label'}) {
+						$label = $part{'label'};
+					}
+					elsif ( @labels){
+						$label = get_label($row[0]);
+					}
+				}
+				if ($show{'uuid'}) {
+					if (%part && $part{'uuid'}) {
+						$uuid = $part{'uuid'};
+					}
+					elsif ( @uuids){
+						$uuid = get_uuid($row[0]);
+					}
 				}
 			}
-			$fs = ($b_fs) ? $row[1]: get_bsd_fs($row[0],@mount);
+			else {
+				$fs = ($b_fs) ? $row[1]: get_bsd_fs($row[0],@mount);
+				if (@gpart && ($show{'label'} || $show{'uuid'} ) ){
+					my @extra = get_bsd_label_uuid("$dev_base");
+					if (@extra){
+						$label = $extra[0];
+						$uuid = $extra[1];
+					}
+				}
+			}
 			$id = join ' ', @row[$cols .. $#row];
 			$id =~ s/\/home\/[^\/]+\/(.*)/\/home\/$filter_string\/$1/ if $show{'filter'};
 			$size = $row[$cols - $back_size];
@@ -10043,15 +10052,21 @@ sub set_lsblk {
 	$b_lsblk = 1;
 	my (@temp,@working);
 	if (my $program = main::check_program('lsblk')){
-		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT 2>/dev/null");
+		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT 2>/dev/null");
 		foreach (@working){
-			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"/){
+			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"/){
+				my $size = ($5) ? $5/1024: 0;
+				# some versions of lsblk do not return serial, fs, uuid, or label
 				my @temp = ({
 				'name' => $1, 
 				'type' => $2,
 				'rm' => $3, 
 				'fs' => $4, 
-				'size' => $5
+				'size' => $size,
+				'label' => $6,
+				'uuid' => $7,
+				'serial' => $8,
+				'mount' => $9,
 				});
 				@lsblk = (@lsblk,@temp);
 			}
@@ -10069,12 +10084,11 @@ sub check_lsblk {
 		my %row = %$ref;
 		next if ! $row{'name'};
 		if ($name eq $row{'name'}){
-			$part{'fs'} = $row{'fs'};
-			$part{'size'} = $row{'size'}/ 1024 if $b_size && $row{'size'};
-			$part{'rm'} = $row{'rm'} if $row{'rm'};
+			%part = %row;
 			last;
 		}
 	}
+	# print Data::Dumper::Dumper \%part;
 	main::log_data('dump','%part',\%part) if $b_log;
 	eval $end if $b_log;
 	return %part;
@@ -13122,7 +13136,7 @@ sub create_output {
 sub unmounted_data {
 	eval $start if $b_log;
 	my ($file) = @_;
-	my ($fs,$size,@data,%part,@unmounted);
+	my ($fs,$label,$size,$uuid,@data,%part,@unmounted);
 	my @mounted = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
 	'dvd[0-9]*','dvdrw[0-9]*','fd[0-9]','ram[0-9]*');
 	my @mounts = main::reader($file,'strip');
@@ -13135,7 +13149,7 @@ sub unmounted_data {
 	@mounted = get_mounted(@mounted);
 	foreach (@mounts){
 		my @working = split /\s+/, $_;
-		($fs,$size) = ('','');
+		($fs,$label,$uuid,$size) = ('','','','');
 		# note that size 1 means it is a logical extended partition container
 		# lvm might have dm-1 type syntax
 		# need to exclude loop type file systems, squashfs for example
@@ -13143,15 +13157,17 @@ sub unmounted_data {
 		if ( $working[-1] !~ /^nvme[0-9]+n[0-9]+$/ && 
 		     $working[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && $working[2] != 1 && 
 		     $working[-1] !~ /loop/ && !(grep {$working[-1] =~ /$_/} @mounted)){
-		   my $label = PartitionData::get_label("/dev/$working[-1]");
-		   my $uuid = PartitionData::get_uuid("/dev/$working[-1]");
-		   %part = PartitionData::check_lsblk($working[-1],0) if (@lsblk && $working[-1]);
+			%part = PartitionData::check_lsblk($working[-1],0) if (@lsblk && $working[-1]);
 			if (%part){
 				$fs = $part{'fs'};
+				$label = $part{'label'};
+				$uuid = $part{'uuid'};
 				$size = $part{'size'} if $part{'size'} && !$working[2];
 			}
 			$size ||= $working[2];
-		   $fs = unmounted_filesystem($working[-1]) if ! $fs;
+		   $fs = unmounted_filesystem($working[-1]) if !$fs;
+		   $label = PartitionData::get_label("/dev/$working[-1]") if !$label;
+			$uuid = PartitionData::get_uuid("/dev/$working[-1]") if !$uuid;
 			@data = ({
 			'dev-base' => $working[-1],
 			'fs' => $fs,
