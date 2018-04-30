@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.07';
 my $self_date='2018-04-30';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7874,7 +7874,7 @@ sub display_data(){
 							if ($working[1] =~ /\*/){
 								$working[1] =~ s/\*|\+//g;
 								$working[1] = sprintf("%.0f",$working[1]);
-								$working[1] =  ($working[1]) ? "$working[1]" : 'N/A';
+								$working[1] =  ($working[1]) ? "$working[1]Hz" : 'N/A';
 								my $screen = "$working[0]~$working[1]";
 								if ($graphics{'screens'}){
 									$graphics{'screens'} = ([@{$graphics{'screens'}},$screen]);
@@ -12440,7 +12440,7 @@ sub sensors_data {
 		# note that because of charset issues, no "°" degree sign used, but it is required 
 		# in testing regex to avoid error. It might be because I got that data from a forum post,
 		# note directly via debugger.
-		if (/^(AMBIENT|M\/B|MB|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
+		if ($_ =~ /^(AMBIENT|M\/B|MB|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'mobo-temp'} = $2;
 			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -12452,29 +12452,29 @@ sub sensors_data {
 		# which is the maximum CPU temperature reported as critical temperature by coretemp"
 		# NOTE: I've seen an inexplicable case where: CPU:52.0°C fails to match with [\s°] but 
 		# does match with: [\s°]*. I can't account for this, but that's why the * is there
-		elsif (!$sensors{'cpu-temp'} && /^CPU.*:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif (!$sensors{'cpu-temp'} && $_ =~ /^CPU.*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'cpu-temp'} = $1;
 			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (/^PECI\sAgent\s0.*:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^PECI\sAgent\s0.*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'cpu-peci-temp'} = $1;
 			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (/^(P\/S|Power).*:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^(P\/S|Power).*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'psu-temp'} = $2;
 			$working_unit = $3;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (/^SODIMM.*:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^SODIMM.*:([0-9\.]+)[\s°]*(C|F)/i) {
 			$sensors{'sodimm-temp'} = $1;
 			$working_unit = $2;
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 			
 		}
 		# for temp1/2 only use temp1/2 if they are null or greater than the last ones
-		elsif (/^temp1:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^temp1:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp1'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -12482,7 +12482,7 @@ sub sensors_data {
 			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (/^temp2:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^temp2:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp2'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -12491,7 +12491,7 @@ sub sensors_data {
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# temp3 is only used as an absolute override for systems with all 3 present
-		elsif (/^temp3:([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^temp3:([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $1;
 			$working_unit = $2;
 			if ( !$sensors{'temp3'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -12501,7 +12501,7 @@ sub sensors_data {
 		}
 		# final fallback if all else fails, funtoo user showed sensors putting
 		# temp on wrapped second line, not handled
-		elsif (/^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
+		elsif ($_ =~ /^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $3;
 			$working_unit = $4;
 			if ( !$sensors{'core-0-temp'} || ( defined $temp_working && $temp_working > 0 ) ) {
@@ -12510,26 +12510,26 @@ sub sensors_data {
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# note: can be cpu fan:, cpu fan speed:, etc.
-		elsif (!$sensors{'fan-main'}[1] && /^(CPU|Processor).*:([0-9]+)[\s]RPM/i) {
+		elsif (!$sensors{'fan-main'}[1] && $_ =~ /^(CPU|Processor).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[1] = $2;
 		}
-		elsif (!$sensors{'fan-main'}[2] && /^(M\/B|MB|SYS).*:([0-9]+)[\s]RPM/i) {
+		elsif (!$sensors{'fan-main'}[2] && $_ =~ /^(M\/B|MB|SYS).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[2] = $2;
 		}
-		elsif (!$sensors{'fan-main'}[3] && /(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i) {
+		elsif (!$sensors{'fan-main'}[3] && $_ =~ /(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[3] = $2;
 		}
-		elsif (!$sensors{'fan-main'}[4] && /(SODIMM).*:([0-9]+)[\s]RPM/i) {
+		elsif (!$sensors{'fan-main'}[4] && $_ =~ /(SODIMM).*:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			$sensors{'fan-main'}[4] = $2;
 		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 		# note: cpu/mobo/ps/sodimm are 1/2/3/4
-		elsif (/^(AUX|CASE|CHASSIS).*:([0-9]+)[\s]RPM/i) {
+		elsif ($_ =~ /^(AUX|CASE|CHASSIS).*:([0-9]+)[\s]RPM/i) {
 			$temp_working = $2;
 			$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 			for ( my $i = 5; $i < 30; $i++ ){
@@ -12541,11 +12541,11 @@ sub sensors_data {
 			}
 		}
 		# in rare cases syntax is like: fan1: xxx RPM
-		elsif (/^FAN(1)?:([0-9]+)[\s]RPM/i) {
+		elsif ($_ =~ /^FAN(1)?:([0-9]+)[\s]RPM/i) {
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
 			$sensors{'fan-default'}[1] = $2;
 		}
-		elsif (/^FAN([2-9]|1[0-9]).*:([0-9]+)[\s]RPM/i) {
+		elsif ($_ =~ /^FAN([2-9]|1[0-9]).*:([0-9]+)[\s]RPM/i) {
 			$fan_working = $2;
 			$sys_fan_nu = $1;
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
@@ -12562,16 +12562,16 @@ sub sensors_data {
 			}
 		}
 		if ($extra > 0){
-			if (/^([+]?12 Volt).*:+([0-9\.]+)\sV/i) {
+			if ($_ =~ /^[+]?(12 Volt|12V).*:([0-9\.]+)\sV/i) {
 				$sensors{'volts-12'} = $2;
 			}
-			elsif (/^([+]?5 Volt).*:+([0-9\.]+)\sV/i) {
+			elsif ($_ =~ /^[+]?(5 Volt|5V).*:([0-9\.]+)\sV/i) {
 				$sensors{'volts-5'} = $2;
 			}
-			elsif (/^([+]?3\.3 Volt).*:+([0-9\.]+)\sV/i) {
+			elsif ($_ =~ /^[+]?(3\.3 Volt|3\.3V).*:([0-9\.]+)\sV/i) {
 				$sensors{'volts-3.3'} = $2;
 			}
-			elsif (/^(Vbat).*:+([0-9\.]+)\sV/i) {
+			elsif ($_ =~ /^(Vbat).*:([0-9\.]+)\sV/i) {
 				$sensors{'volts-vbat'} = $2;
 			}
 		}
@@ -12812,7 +12812,8 @@ sub data_processor {
 		$cpu3_temp = $sensors{'cpu3-temp'} if $sensors{'cpu3-temp'};
 		$cpu4_temp = $sensors{'cpu4-temp'} if $sensors{'cpu4-temp'};
 		# so far only for ipmi, sensors data is junk for volts
-		if ($extra > 0 && $sensors{'volts-12'} ){
+		if ($extra > 0 && 
+		    ($sensors{'volts-12'} || $sensors{'volts-5'} || $sensors{'volts-3.3'} || $sensors{'volts-vbat'}) ){
 			$v_12 = $sensors{'volts-12'} if $sensors{'volts-12'};
 			$v_5 = $sensors{'volts-5'} if $sensors{'volts-5'};
 			$v_3_3 = $sensors{'volts-3.3'} if  $sensors{'volts-3.3'};
@@ -12839,7 +12840,7 @@ sub data_processor {
 		if ($sodimm_temp){
 			$sensors{'sodimm-temp'} = $sodimm_temp;
 		}
-		if ($extra > 0 && ($v_12 || $v_5 || $v_3_3) ){
+		if ($extra > 0 && ($v_12 || $v_5 || $v_3_3 || $v_vbat) ){
 			$sensors{'volts-12'} = $v_12;
 			$sensors{'volts-5'} = $v_5;
 			$sensors{'volts-3.3'} = $v_3_3;
