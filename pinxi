@@ -35,8 +35,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.07';
-my $self_date='2018-04-30';
-my $self_patch='08';
+my $self_date='2018-05-04';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7126,6 +7126,9 @@ sub create_output {
 			if ($row{'type'}){
 				$rows[$j]{main::key($num++,'type')} = $row{'type'},
 			}
+			if ($row{'vendor'}){
+				$rows[$j]{main::key($num++,'vendor')} = $row{'vendor'},
+			}
 			$rows[$j]{main::key($num++,'model')} = $model;
 			$rows[$j]{main::key($num++,'size')} = $size;
 			if ($extra > 0 && $row{'speed'}){
@@ -7219,9 +7222,9 @@ sub proc_data {
 		# }
 		# special case from this data: 8     0  156290904 sda
 		# 43        0   48828124 nbd0
-		# note: known starters: vm: 252/253/254; grsec: 202; nvme: 259
-		if ( $row[0] =~ /^(3|8|22|33|43|202|252|253|254|259)$/ && 
-		     $row[-1] =~ /(n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|[hsv]d[a-z]+)$/ && 
+		# note: known starters: vm: 252/253/254; grsec: 202; nvme: 259 mmcblk: 179
+		if ( $row[0] =~ /^(3|8|22|33|43|179|202|252|253|254|259)$/ && 
+		     $row[-1] =~ /(mmcblk[0-9]+|n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|[hsv]d[a-z]+)$/ && 
 		     ( $row[1] % 16 == 0 || $row[1] % 16 == 8 ) ) {
 			$size += $row[2];
 		}
@@ -7247,11 +7250,19 @@ sub proc_data_advanced {
 	eval $start if $b_log;
 	my ($b_hdx,@drives) = @_;
 	my ($i) = (0);
-	my (@data,@rows,@scsi,@temp,@working);
+	my (@data,@disk_data,@rows,@scsi,@temp,@working);
 	my ($pt_cmd) = ('unset');
 	my ($block_type,$file,$firmware,$model,$path,$partition_scheme,
 	$serial,$vendor,$working_path);
 	@by_id = main::globber('/dev/disk/by-id/*');
+	# these do not contain any useful data, no serial or model name
+	# wwn-0x50014ee25fb50fc1 and nvme-eui.0025385b71b07e2e 
+	# scsi-SATA_ST980815A_ simply repeats ata-ST980815A_
+	# we also don't need the partition items
+	my $pattern = '^\/dev\/disk\/by-id\/scsi-SATA-|^\/dev\/disk\/by-id\/wwn-';
+	$pattern .= '|^\/dev\/disk\/by-id\/nvme-eui|-part[0-9]+$';
+	@by_id = grep {!/$pattern/} @by_id if @by_id;
+	# print join "\n", @by_id, "\n";
 	@by_path = main::globber('/dev/disk/by-path/*');
 	## check for all ide type drives, non libata, only do it if hdx is in array
 	## this is now being updated for new /sys type paths, this may handle that ok too
@@ -7269,7 +7280,7 @@ sub proc_data_advanced {
 	if ($file = main::system_files('scsi')){
 		@scsi = scsi_data($file);
 	}
-	#print 'drives:', Data::Dumper::Dumper \@drives;
+	# print 'drives:', Data::Dumper::Dumper \@drives;
 	for ($i = 1; $i < scalar @drives; $i++){
 		#next if $drives[$i]{'id'} =~ /^hd[a-z]/;
 		($block_type,$firmware,$model,$partition_scheme,
@@ -7280,6 +7291,8 @@ sub proc_data_advanced {
 			$drives[$i]{'partition-table'} = uc($data[1]) if $data[1];
 		}
 		#print "$drives[$i]{'id'}\n";
+		@disk_data = disk_data_by_id("/dev/$drives[$i]{'id'}");
+		main::log_data('dump','@disk_data', \@disk_data) if $b_log;
 		if ($drives[$i]{'id'} =~ /[sv]d[a-z]/){
 			$block_type = 'sdx';
 			$working_path = "/sys/block/$drives[$i]{'id'}/device/";
@@ -7297,7 +7310,27 @@ sub proc_data_advanced {
 			$working_path =~ s/nvme[^\/]*$//;
 		}
 		main::log_data('data',"working path: $working_path") if $b_log;
-		if ($block_type){
+		if ($block_type && @scsi && @by_id && ! -e "${working_path}model" && ! -e "${working_path}name"){
+			## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
+			# discovered disk name AND ends with the correct identifier, sdx
+			# get rid of whitespace for some drive names and ids, and extra data after - in name
+			foreach my $ref (@scsi){
+				my %row = %$ref;
+				if ($row{'model'}){
+					$row{'model'} =~ s/\s/_/g;
+					$row{'model'} = (split /-/,$row{'model'})[0];
+					foreach my $id (@by_id){
+						if ($id =~ /$row{'model'}/ && "/dev/$drives[$i]{'id'}" eq Cwd::abs_path($id)){
+							$drives[$i]{'firmware'} = $row{'firmware'};
+							$drives[$i]{'model'} = $row{'model'};
+							$drives[$i]{'vendor'} = $row{'vendor'};
+							last;
+						}
+					}
+				}
+			}
+		}
+		elsif ( (!@disk_data || !$disk_data[0] ) && $block_type){
 			# NOTE: while path ${working_path}vendor exists, it contains junk value, like: ATA
 			$path = "${working_path}model";
 			if ( -e $path){
@@ -7311,41 +7344,22 @@ sub proc_data_advanced {
 			}
 			elsif ($block_type eq 'mmc' && -e "${working_path}name"){
 				$path = "${working_path}name";
-				if ( -e $path){
-					$model = (main::reader($path,'strip'))[0];
-					if ($model){
-						$model =~ s/\s/_/g;
-						#@temp = split /-/, $model;
-						#$drives[$i]{'model'} = $temp[0];
-						$drives[$i]{'model'} = $model;
-					}
+				$model = (main::reader($path,'strip'))[0];
+				if ($model){
+					$model =~ s/\s/_/g;
+					#@temp = split /-/, $model;
+					#$drives[$i]{'model'} = $temp[0];
+					$drives[$i]{'model'} = $model;
 				}
 			}
-			elsif (@scsi && @by_id){
-				## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
-				# discovered disk name AND ends with the correct identifier, sdx
-				# get rid of whitespace for some drive names and ids, and extra data after - in name
-				foreach my $ref (@scsi){
-					my %row = %$ref;
-					if ($row{'model'}){
-						$row{'model'} =~ s/\s/_/g;
-						$row{'model'} = (split /-/,$row{'model'})[0];
-						foreach my $id (@by_id){
-							if ($id =~ /$row{'model'}/ && "/dev/$drives[$i]{'id'}" eq Cwd::abs_path($id)){
-								$drives[$i]{'firmware'} = $row{'firmware'};
-								$drives[$i]{'model'} = $row{'model'};
-								$drives[$i]{'vendor'} = $row{'vendor'};
-								last;
-							}
-						}
-					}
-				}
-			}
+		}
+		if (!$drives[$i]{'model'} && @disk_data){
+			$drives[$i]{'model'} = $disk_data[0] if $disk_data[0];
+			$drives[$i]{'vendor'} = $disk_data[1] if $disk_data[1];
+		}
+		if ($working_path){
 			$path = "${working_path}removable";
-			if (-e $path){
-				my $b_removable = (main::reader($path,'strip'))[0]; # 0/1 value
-				$drives[$i]{'type'} = 'Removable' if $b_removable;
-			}
+			$drives[$i]{'type'} = 'Removable' if -e $path && (main::reader($path,'strip'))[0]; # 0/1 value
 		}
 		my $peripheral = peripheral_data($drives[$i]{'id'});
 		# note: we only want to update type if we found a peripheral, otherwise preserve value
@@ -7354,15 +7368,20 @@ sub proc_data_advanced {
 		if ($extra > 0){
 			$drives[$i]{'temp'} = hdd_temp("/dev/$drives[$i]{'id'}");
 			if ($extra > 1){
-				$path = "${working_path}serial";
-				if ( -e $path){
-					$serial = (main::reader($path,'strip'))[0];
-					if ($serial){
-						$drives[$i]{'serial'} = $serial;
-					}
+				if (@disk_data && $disk_data[2]){
+					$drives[$i]{'serial'} = $disk_data[2];
 				}
 				else {
-					$drives[$i]{'serial'} = disk_serial_by_id("/dev/$drives[$i]{'id'}");
+					$path = "${working_path}serial";
+					if ( -e $path){
+						$serial = (main::reader($path,'strip'))[0];
+						if ($serial){
+							$drives[$i]{'serial'} = $serial;
+						}
+					}
+					else {
+						$drives[$i]{'serial'} = disk_data_by_id("/dev/$drives[$i]{'id'}");
+					}
 				}
 				if ($extra > 2){
 					$path = "${working_path}rev";
@@ -7447,6 +7466,9 @@ sub dmesg_boot_data {
 					$drives[$i]{'speed'} =~ s/\.[0-9]+// if $drives[$i]{'speed'};
 				}
 			}
+			my @device_data = device_vendor($drives[$i]{'model'});
+			$drives[$i]{'vendor'} = $device_data[0] if $device_data[0];
+			$drives[$i]{'model'} = $device_data[1] if $device_data[1];
 		}
 		if (!$size){
 			$size = main::row_defaults('data-bsd');
@@ -7592,22 +7614,68 @@ sub scsi_data {
 	eval $end if $b_log;
 	return @scsi;
 }
-
-sub disk_serial_by_id {
+# @b_id has already been cleaned of partitions, wwn-, nvme-eui
+sub disk_data_by_id {
 	eval $start if $b_log;
 	my ($device) = @_;
-	my ($serial) = ('');
+	my ($model,$serial,$vendor) = ('','','');
+	my (@disk_data);
 	foreach (@by_id){
 		if ($device eq Cwd::abs_path($_)){
 			my @data = split /_/, $_;
-			$serial = $data[-1];
+			my @device_data = ();
+			$serial = pop @data if @data;
+			# what is this from? find out
 			$serial =~ s/-[0-9]+:[0-9]+$//;
-			# print $device, ' ', Cwd::abs_path($_),' ', $serial,"\n";
+			$model = join ' ', @data;
+			# get rid of the ata-|nvme-|mmc- etc
+			$model =~ s/^\/dev\/disk\/by-id\/([^-]+-)?//;
+			@device_data = device_vendor($model);
+			$vendor = $device_data[0] if $device_data[0];
+			$model = $device_data[1] if $device_data[1];
+			# print $device, '::', Cwd::abs_path($_),'::', $model, '::', $vendor, '::', $serial, "\n";
+			(@disk_data) = ($model,$vendor,$serial);
 			last;
 		}
 	}
 	eval $end if $b_log;
-	return $serial;
+	return @disk_data;
+}
+# receives space separated string that may or may not contain vendor data
+sub device_vendor {
+	eval $start if $b_log;
+	my ($model) = @_;
+	my ($vendor) = ('');
+	my (@data);
+	return if !$model;
+	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial match
+	my @vendors = (
+	['(-CT|^M4-)','','Crucial',''],
+	['^(Fujitsu|MP)','^Fujitsu','Fujitsu',''],
+	['^(HitachiI|IC|HTS)','^Hitachi','Hitachi',''],
+	['^(D|IBM)','^IBM','IBM',''], # 'D' is probably too loose...
+	['InnoDisk( Corp.)?','InnoDisk( Corp.)?','InnoDisk',''],
+	['^Intel','^Intel','Intel',''],
+	['^Maxtor','^Maxtor','Maxtor',''],
+	['^Philips','^Philips','Philips',''],
+	['^Pioneer','^Pioneer','Pioneer',''],
+	['(^Quantum|Fireball)','^Quantum','Quantum',''],
+	['^Samsung','^Samsung','Samsung',''],
+	['^ST','','Seagate',''],
+	['^(Toshiba|MK)','^Toshiba','Toshiba',''],
+	['^WDC|\sWD','^WDC','Western Digital','^WD'],
+	);
+	foreach my $ref (@vendors){
+		my @row = @$ref;
+		if ($model =~ /$row[0]/i){
+			$vendor = $row[2];
+			$model =~ s/$row[1]//i if $row[1];
+			$model =~ s/^[\s\-_]+|[\s\-_]+$//g;
+			@data = ($vendor,$model);
+		}
+	}
+	eval $end if $b_log;
+	return @data;
 }
 # Normally hddtemp requires root, but you can set user rights in /etc/sudoers.
 # args: $1 - /dev/<disk> to be tested for
