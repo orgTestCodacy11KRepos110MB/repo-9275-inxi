@@ -36,7 +36,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.07';
 my $self_date='2018-05-05';
-my $self_patch='16';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -69,7 +69,8 @@ my @test = (0,0,0,0,0);
 ## Booleans
 my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
 $b_dmidecode_force,$b_fake_bsd,$b_force_display,$b_gpudata,$b_irc,$b_log,$b_log_colors,
-$b_log_full,$b_man,$b_mem,$b_pci,$b_root,$b_running_in_display,$b_sysctl,$b_usb_check);
+$b_log_full,$b_man,$b_mem,$b_pci,$b_root,$b_running_in_display,$b_sudo,$b_sysctl,
+$b_usb_check);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_lsblk,$b_partitions,
 $b_partition_extra,$b_raid);
@@ -83,7 +84,7 @@ my ($bits_sys);
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
-my $display_opt = '';
+my ($display_opt,$sudo) = ('','');
 
 ## Output
 my $extra = 0;# supported values: 0-3
@@ -282,7 +283,21 @@ sub check_tools {
 		%alerts = (%alerts, %hash);
 	}
 	# print Dumper \%alerts;
+	# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
+	# for some reason sudo -n with < 1.7 in Perl does not print to stderr
+	# sudo will just error out which is the safest course here for now,
+	# otherwise that interactive sudo password thing is too annoying
+	# important: -n makes it non interactive, no prompt for password
+	if (!$b_root && $b_sudo && (my $path = main::check_program('sudo') )) {
+		my @data = program_values('sudo');
+		my $version = program_version($path,$data[0],$data[1],$data[2],$data[5]);
+		$version =~ s/^([0-9]+\.[0-9]+).*/$1/;
+		$sudo = "$path -n " if $version >= 1.7;
+	}
 }
+# args: 1 - desktop/app command for --version; 2 - search string; 
+# 3 - space print number; 4 - [optional] version arg: -v, version, etc
+# 5 - [optional] exit first find 0/1; 6 - [optional] 0/1 stderr output
 sub set_basics {
 	### LOCALIZATION - DO NOT CHANGE! ###
 	# set to default LANG to avoid locales errors with , or .
@@ -2977,7 +2992,7 @@ sub program_values {
 	'clang' => ['clang',3,'--version','Clang',1,0,0],
 	'gcc' => ['^gcc',3,'--version','GCC',1,0,0],
 	'gcc-apple' => ['Apple[[:space:]]LLVM',2,'--version','LLVM',1,0,0],
-	'sudo' => ['^Sudo',3,'--version','Sudo',1,0,0],
+	'sudo' => ['^Sudo',3,'-V','Sudo',1,1,0], # sudo pre 1.7 does not have --version
 	);
 	if ( defined $data{$app} ){
 		my $ref = $data{$app};
@@ -3842,6 +3857,7 @@ sub get_options{
 	if ($show{'filter-override'}){
 		$show{'filter'} = 0;
 	}
+	$b_sudo = 1 if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	# override for things like -b or -v2 to -v3
 	$show{'cpu-basic'} = 0 if $show{'cpu'};
 	$show{'optical-basic'} = 0 if $show{'optical'};
@@ -4622,7 +4638,14 @@ sub cleaner {
 	$item =~ s/^\s+|\s+$//g;
 	return $item;
 }
-
+sub disk_cleaner {
+	my ($item) = @_;
+	return $item if !$item;
+	$item =~ s/vendor.*|product.*//gi;
+	$item =~ s/\s\s+/ /g;
+	$item =~ s/^\s+|\s+$//g;
+	return $item;
+}
 sub dmi_cleaner {
 	my ($string) = @_;
 	my $cleaner = '^Base Board .*|^Chassis .*|empty|Undefined.*|.*O\.E\.M\..*|.*OEM.*|^Not .*';
@@ -4829,6 +4852,8 @@ sub translate_size {
 	$size = int($size) if $size;
 	return $size;
 }
+
+
 
 #### -------------------------------------------------------------------
 #### GENERATE OUTPUT
@@ -7003,8 +7028,8 @@ sub cpu_cleaner {
 ## DiskData
 {
 package DiskData;
-my ($b_hddtemp,$b_nvme,$b_sudo);
-my ($hddtemp,$nvme,$sudo) = ('','','');
+my ($b_hddtemp,$b_nvme);
+my ($hddtemp,$nvme) = ('','');
 my (@by_id,@by_path);
 
 sub get {
@@ -7056,7 +7081,7 @@ sub get {
 		@data = OpticalData::get();
 		@rows = (@rows,@data);
 	}
-	($b_hddtemp,$b_nvme,$b_sudo,$hddtemp,$nvme,$sudo) = (undef,undef,undef,undef,undef,undef);
+	($b_hddtemp,$b_nvme,$hddtemp,$nvme) = (undef,undef,undef,undef,undef);
 	(@by_id,@by_path) = (undef,undef);
 	eval $end if $b_log;
 	return @rows;
@@ -7637,7 +7662,7 @@ sub disk_data_by_id {
 			$model = join ' ', @data;
 			# get rid of the ata-|nvme-|mmc- etc
 			$model =~ s/^\/dev\/disk\/by-id\/([^-]+-)?//;
-			$model = main::trimmer($model);
+			$model = main::disk_cleaner($model);
 			@device_data = device_vendor($model,$serial);
 			$vendor = $device_data[0] if $device_data[0];
 			$model = $device_data[1] if $device_data[1];
@@ -7659,12 +7684,13 @@ sub device_vendor {
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 	# https://elinux.org/RPi_SD_cards
 	# https://sd2snes.de/blog/card-list
+	# https://www.superbiiz.com # lists by real part numbers
 	my @vendors = (
 	# these go first because they are the most likely and common 
 	['^INTEL','^INTEL','Intel',''],
-	['^(SAMSUNG|MCG[0-9]+GC)','^SAMSUNG','Samsung',''], # maybe ^SM
-	['^STT','','Super Talent',''], # must be before seagate
-	['^(ST|[S]?SEAGATE|XF)','^[S]?SEAGATE','Seagate',''], # real, SSEAGATE Backup+
+	['^(SAMSUNG|M[UZ]|MCG[0-9]+GC)','^SAMSUNG','Samsung',''], # maybe ^SM
+	['^(STT|F[MNETU])','','Super Talent',''], # must be before seagate, _may_ start with F
+	['^(ST|[S]?SEAGATE|X[AFP])','^[S]?SEAGATE','Seagate',''], # real, SSEAGATE Backup+; XP1600HE30002
 	['^WD','^(WDC|WD\s)','Western Digital',''],
 	# then better known ones
 	['^(A-DATA|ADATA)','^(A-DATA|ADATA)','A-Data',''],
@@ -7677,7 +7703,7 @@ sub device_vendor {
 	# note: 2012:  wdc bought hgst
 	['(^Hitachi|^HGST|^IC|^HT|HU)','^Hitachi','Hitachi',''], # HTSG HUA
 	['^(HP[\s\-]|VB)','^HP[\s\-]','HP',''], # VB0250EAVER
-	['^(KINGSTON)','^KINGSTON','Kingston',''],
+	['^(KINGSTON|SMS|SHS|SUV)','^KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	['^(LSD|Lexar)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c
 	['^(MK|Mushkin)','^Mushkin','Mushkin',''], # MKNS
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
@@ -7688,7 +7714,7 @@ sub device_vendor {
 	['^(PNY)','^PNY\s','PNY','','^PNY'],
 	['^(PS[8F]|Patriot)','^Patriot','Patriot',''],
 	['^(SanDisk|SDS[S]?[DQ]|SL([0-9]+)G|AFGCE)','^SanDisk','SanDisk',''],
-	['^([S]?TOS|MK)','^[S]?TOSHIBA','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
+	['^([S]?TOS|M[DGK]|THN)','^[S]?TOSHIBA','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
 	['^(VBOX)','','VirtualBox',''],
 	# these go last because they are short and could lead to false ID or are unlikely
 	['^(AP)','','Apacer',''],
@@ -7702,24 +7728,24 @@ sub device_vendor {
 	['^(InnoDisk|Innolite)','^InnoDisk( Corp.)?','InnoDisk',''],
 	['^(Innostor)','^Innostor','Innostor',''],
 	['^(Intenso)','^Intenso','Intenso',''],
-	['^(LITE[\-]?ON)','^LITE[\-]?ON','LITE-ON',''], 
+	['^(LITE[\-]?ON|PH6)','^LITE[\-]?ON','LITE-ON',''], # PH6-CE240-L
 	['^M-Systems','^M-Systems','M-Systems',''],
 	['^MAXTOR','^MAXTOR','Maxtor',''],
 	['^(MT|M5|Micron)','^Micron','Micron',''],
 	['^(MARVELL)','^MARVELL','Marvell',''],
-	['^(PLEXTOR)','^PLEXTOR','Plextor',''],
+	['^(PLEXTOR|PX[\-\s])','^PLEXTOR','Plextor',''],
 	['(^Quantum|Fireball)','^Quantum','Quantum',''],
 	['^(R3)','','AMD Radeon',''], # ssd 
 	['^(RENICE)','^RENICE','Renice',''],
 	['^(RIM[\s])','^RIM','RIM',''],
-	['^(SK HYNIX|SKHYNIX)','^(SK HYNIX|SKHYNI)','SK Hynix',''],
+	['^(SK HYNIX|SKHYNIX|HFS)','^(SK HYNIX|SKHYNIX)','SK Hynix',''], # HFS128G39TND-N210A
 	['^(SMART( Storage Systems)?|TX)','^(SMART( Storage Systems)?)','Smart Storage Systems',''],
 	['^(STEK)','^STEK','sTec',''], # wd bought this one
 	['^(STORFLY)','^STORFLY','StorFly',''],
 	['^(S[FR]-|Sony)','^Sony','Sony',''],
 	['^(SPPC)','','Silicon Power',''],
-	['^(SF)','','Swissbit',''],
 	['^(SH)','','Smart Modular Tech.',''],
+	['^(SF)','','Swissbit',''],
 	# ['^(SUPERSPEED)','^SUPERSPEED','SuperSpeed',''], # superspeed is a generic term
 	['^(TEAC)','^TEAC','TEAC',''],
 	['^(TS|Transcend|JetFlash)','^Transcend','Transcend',''],
@@ -7749,12 +7775,6 @@ sub hdd_temp {
 	my ($device) = @_;
 	my ($path) = ('');
 	my (@data,$hdd_temp);
-	if (!$b_sudo){
-		$b_sudo = 1;
-		if (!$b_root && ($path = main::check_program('sudo') )) {
-			$sudo = "$path -n ";
-		}
-	}
 	if ($device =~ /nvme/i){
 		if (!$b_nvme){
 			$b_nvme = 1;
@@ -13356,7 +13376,7 @@ sub unmounted_filesystem {
 	eval $start if $b_log;
 	my ($item) = @_;
 	my ($data,%part);
-	my ($file,$fs,$path,$sudo) = ('','','','');
+	my ($file,$fs,$path) = ('','','');
 	if ($path = main::check_program('file')) {
 		$file = $path;
 	}
@@ -13366,13 +13386,6 @@ sub unmounted_filesystem {
 	'ffs','hammer','hfs\+','hfs\splus','hfs\sextended\sversion\s[1-9]','hfsj',
 	'hfs','jfs','nss','reiserfs','reiser4','ufs2','ufs','xfs','zfs');
 	if ($file){
-		# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
-		# sudo will just error out which is the safest course here for now,
-		# otherwise that interactive sudo password thing is too annoying
-		# important: -n makes it non interactive, no prompt for password
-		if (!$b_root && ($path = main::check_program('sudo') )) {
-			$sudo = "$path -n ";
-		}
 		# this will fail if regular user and no sudo present, but that's fine, it will just return null
 		# note the hack that simply slices out the first line if > 1 items found in string
 		# also, if grub/lilo is on partition boot sector, no file system data is available
