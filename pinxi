@@ -35,8 +35,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.07';
-my $self_date='2018-05-05';
-my $self_patch='21';
+my $self_date='2018-05-06';
+my $self_patch='23';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7693,7 +7693,7 @@ sub device_vendor {
 	['^(FUJITSU|MP)','^FUJITSU','Fujitsu',''],
 	# note: 2012:  wdc bought hgst
 	['(^Hitachi|^HGST|^IC|^HT|HU)','^Hitachi','Hitachi',''], # HTSG HUA
-	['^(HP[\s\-]|VB)','^HP[\s\-]','HP',''], # VB0250EAVER
+	['^(HP[\s\-])','^HP[\s\-]','HP',''], # vb: VB0250EAVER but clases with vbox
 	['^(KINGSTON|SMS|SHS|SUV)','^KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	['^(LSD|Lexar)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c
 	['^(MK|Mushkin)','^Mushkin','Mushkin',''], # MKNS
@@ -15649,19 +15649,27 @@ sub set_ifconfig {
 			}
 			$b_skip = 0;
 		}
-		elsif (!$b_skip && $bsd_type && /^\s+(ether|media|status)/){
+		# lladdr openbsd
+		elsif (!$b_skip && $bsd_type && /^\s+(ether|media|status|lladdr)/){
 			$_ =~ s/^\s+//;
 			# media: Ethernet 100baseTX <full-duplex> freebsd 7.3 
 			# media: Ethernet autoselect (1000baseT <full-duplex>) Freebsd 8.2
 			# 
 			if (/^media/){
-				$_ =~ /<([^>]+)>/;
-				$duplex = $1;
-				$_ =~ /[\s\(]([1-9][\S]+\s)/;
+				# openbsd: media: Ethernet autoselect (1000baseT full-duplex)
+				if ($bsd_type && $bsd_type eq 'openbsd'){
+					$_ =~ /\s\([\S]+\s([\S]+)\)/;
+					$duplex = $1;
+				}
+				else {
+					$_ =~ /<([^>]+)>/;
+					$duplex = $1;
+				}
+				$_ =~ /\s\(([1-9][\S]+\s)/;
 				$speed = $1;
 				$speed =~ s/\s+$// if $speed;
 			}
-			elsif (/^ether/){
+			elsif (!$mac && /^ether|lladdr/){
 				$mac = (split /\s+/, $_)[1];
 			}
 			elsif (/^status/){
