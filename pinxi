@@ -36,7 +36,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.07';
 my $self_date='2018-05-05';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7338,17 +7338,18 @@ sub proc_data_advanced {
 			## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
 			# discovered disk name AND ends with the correct identifier, sdx
 			# get rid of whitespace for some drive names and ids, and extra data after - in name
+			SCSI:
 			foreach my $ref (@scsi){
 				my %row = %$ref;
 				if ($row{'model'}){
-					$row{'model'} =~ s/\s/_/g;
-					$row{'model'} = (split /-/,$row{'model'})[0];
+					# $row{'model'} =~ s/\s/_/g;
+					$row{'model'} = (split /\s*-\s*/,$row{'model'})[0];
 					foreach my $id (@by_id){
 						if ($id =~ /$row{'model'}/ && "/dev/$drives[$i]{'id'}" eq Cwd::abs_path($id)){
 							$drives[$i]{'firmware'} = $row{'firmware'};
 							$drives[$i]{'model'} = $row{'model'};
 							$drives[$i]{'vendor'} = $row{'vendor'};
-							last;
+							last SCSI;
 						}
 					}
 				}
@@ -7373,8 +7374,6 @@ sub proc_data_advanced {
 				$model = (main::reader($path,'strip'))[0];
 				if ($model){
 					$model =~ s/\s/_/g;
-					#@temp = split /-/, $model;
-					#$drives[$i]{'model'} = $temp[0];
 					$drives[$i]{'model'} = $model;
 				}
 			}
@@ -7383,7 +7382,8 @@ sub proc_data_advanced {
 			$drives[$i]{'model'} = $disk_data[0] if $disk_data[0];
 			$drives[$i]{'vendor'} = $disk_data[1] if $disk_data[1];
 		}
-		elsif ($drives[$i]{'model'}) {
+		# maybe rework logic if find good scsi data example, but for now use this
+		elsif ($drives[$i]{'model'} && !$drives[$i]{'vendor'}) {
 			my @device_data = device_vendor($drives[$i]{'model'},'');
 			$drives[$i]{'model'} = $device_data[1] if $device_data[1];
 			$drives[$i]{'vendor'} = $device_data[0] if $device_data[0];
@@ -7406,16 +7406,11 @@ sub proc_data_advanced {
 					$path = "${working_path}serial";
 					if ( -e $path){
 						$serial = (main::reader($path,'strip'))[0];
-						if ($serial){
-							$drives[$i]{'serial'} = $serial;
-						}
-					}
-					else {
-						$drives[$i]{'serial'} = disk_data_by_id("/dev/$drives[$i]{'id'}");
+						$drives[$i]{'serial'} = $serial if $serial;
 					}
 				}
-				if ($extra > 2){
-					my @fm = ('rev','fmrev','firmware_rev'); # 0 ~ defualt; 1 ~ mmc; 2 ~ nvme
+				if ($extra > 2 && !$drives[$i]{'firmware'} ){
+					my @fm = ('rev','fmrev','firmware_rev'); # 0 ~ default; 1 ~ mmc; 2 ~ nvme
 					foreach my $firmware (@fm){
 						$path = "${working_path}$firmware";
 						if ( -e $path){
