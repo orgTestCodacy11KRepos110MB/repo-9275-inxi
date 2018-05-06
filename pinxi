@@ -36,7 +36,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.07';
 my $self_date='2018-05-06';
-my $self_patch='23';
+my $self_patch='24';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1532,7 +1532,7 @@ sub system_data {
 	my %data = (
 	'cc' => $ENV{'CC'},
 	# @(#)MIRBSD KSH R56 2018/03/09: ksh and mksh
-	'ksh-version' => $ENV{'KSH_VERSION'},
+	'ksh-version' => system('echo -n $KSH_VERSION'), # shell, not env, variable
 	'manpath' => $ENV{'MANPATH'},
 	'path' => $ENV{'PATH'},
 	'xdg-config-home' => $ENV{'XDG_CONFIG_HOME'},
@@ -3019,10 +3019,11 @@ sub program_version {
 	# mksh: @(#)MIRBSD KSH R56 2018/03/09
 	# loksh: @(#)PD KSH v5.2.14 99/07/13.2
 	# --version opens a new ksh, sigh... This so far does not work
-	# because the ENV variable is not visible internally
+	# because the ENV/Shell variable is not visible in subshells
 	if ($search eq 'ksh'){
-		if ( $ENV{'KSH_VERSION'} ){
-			my @temp = split /\s+/, $ENV{'KSH_VERSION'};
+		my $ksh = system('echo -n $KSH_VERSION');
+		if ( $ksh ){
+			my @temp = split /\s+/, $ksh;
 			if ($temp[2]){
 				$temp[2] =~ s/^v//i; # trim off leading v
 				log_data('data',"Program *ksh array: @temp version: $temp[2]") if $b_log;
@@ -7692,7 +7693,7 @@ sub device_vendor {
 	['(^Crucial|^CT|-CT|^M4-)','^Crucial','Crucial',''],
 	['^(FUJITSU|MP)','^FUJITSU','Fujitsu',''],
 	# note: 2012:  wdc bought hgst
-	['(^Hitachi|^HGST|^IC|^HT|HU)','^Hitachi','Hitachi',''], # HTSG HUA
+	['^(Hitachi|HGST|IC|HT|HU)','^Hitachi','Hitachi',''], # HGST HUA
 	['^(HP[\s\-])','^HP[\s\-]','HP',''], # vb: VB0250EAVER but clases with vbox
 	['^(KINGSTON|SMS|SHS|SUV)','^KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	['^(LSD|Lexar)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c
@@ -7706,7 +7707,7 @@ sub device_vendor {
 	['^(PS[8F]|Patriot)','^Patriot','Patriot',''],
 	['^(SanDisk|SDS[S]?[DQ]|SL([0-9]+)G|AFGCE)','^SanDisk','SanDisk',''],
 	['^([S]?TOS|M[DGK]|THN)','^[S]?TOSHIBA','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
-	['^(VBOX)','','VirtualBox',''],
+	
 	# these go last because they are short and could lead to false ID or are unlikely
 	['^(AP)','','Apacer',''],
 	['^(APPLE)','','APPLE( HDD)?','Apple'],
@@ -7716,15 +7717,18 @@ sub device_vendor {
 	['^(G[\.]?SKILL|FM)','^G[\.]?SKILL','G.SKILL',''],
 	['^(HUAWEI)','^HUAWEI','Huawei',''],
 	['^(IBM|DT)','^IBM','IBM',''], 
+	['^(Imation)','^Imation(\sImation)?','Imation',''], # Imation_ImationFlashDrive
 	['^(InnoDisk|Innolite)','^InnoDisk( Corp.)?','InnoDisk',''],
 	['^(Innostor)','^Innostor','Innostor',''],
 	['^(Intenso)','^Intenso','Intenso',''],
+	['^(LITE[\-]?ONIT)','^LITE[\-]?ONIT','Liteonit',''], # LITEONIT_LSS-24L6G
 	['^(LITE[\-]?ON|PH6)','^LITE[\-]?ON','LITE-ON',''], # PH6-CE240-L
 	['^M-Systems','^M-Systems','M-Systems',''],
 	['^MAXTOR','^MAXTOR','Maxtor',''],
 	['^(MT|M5|Micron)','^Micron','Micron',''],
 	['^(MARVELL)','^MARVELL','Marvell',''],
 	['^(PLEXTOR|PX[\-\s])','^PLEXTOR','Plextor',''],
+	['^(OEM)','^OEM','OEM',''],
 	['(^Quantum|Fireball)','^Quantum','Quantum',''],
 	['^(R3)','','AMD Radeon',''], # ssd 
 	['^(RENICE)','^RENICE','Renice',''],
@@ -7742,8 +7746,10 @@ sub device_vendor {
 	['^(TS|Transcend|JetFlash)','^Transcend','Transcend',''],
 	['^(TrekStor)','^TrekStor','TrekStor',''],
 	['^(UG)','','Unigen',''],
+	['^(VBOX)','','VirtualBox',''],
 	['^(Verbatim)','^Verbatim','Verbatim',''],
 	['^(VISIONTEK)','^VISIONTEK','VisionTek',''],
+	['^(VMware)','^VMware','VMware',''],
 	['^(Vseky|Vaseky]-)','^Vaseky','Vaseky',''], # ata-Vseky_V880_350G_
 	);
 	foreach my $ref (@vendors){
