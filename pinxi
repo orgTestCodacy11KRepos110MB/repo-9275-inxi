@@ -36,7 +36,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.07';
 my $self_date='2018-05-06';
-my $self_patch='24';
+my $self_patch='25';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -68,12 +68,12 @@ my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_arm,$b_console_irc,$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,
-$b_dmidecode_force,$b_fake_bsd,$b_force_display,$b_gpudata,$b_irc,$b_log,$b_log_colors,
-$b_log_full,$b_man,$b_mem,$b_pci,$b_root,$b_running_in_display,$b_sudo,$b_sysctl,
-$b_usb_check);
+$b_dmidecode_force,$b_fake_bsd,$b_force_display,$b_gpudata,$b_irc,$b_log,
+$b_log_colors,$b_log_full,$b_man,$b_mem,$b_pci,$b_root,$b_running_in_display,
+$b_sudo,$b_sysctl,$b_usb_check);
 ## Disk checks
-my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_lsblk,$b_partitions,
-$b_partition_extra,$b_raid);
+my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_label_uuid,$b_lsblk,
+$b_partitions,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
@@ -7686,10 +7686,10 @@ sub device_vendor {
 	['^WD','^(WDC|WD\s)','Western Digital',''],
 	# then better known ones
 	['^(A-DATA|ADATA)','^(A-DATA|ADATA)','A-Data',''],
-	['^(ADTRON)','^(ADTRON)','Adtron',''],
-	['^(ASUS)','^ASUS','ASUS',''],
-	['^(ATP)','^ATP[\s\-]','ATP',''],
-	['^(Corsair)','^Corsair','Corsair',''],
+	['^ADTRON','^(ADTRON)','Adtron',''],
+	['^ASUS','^ASUS','ASUS',''],
+	['^ATP','^ATP[\s\-]','ATP',''],
+	['^Corsair','^Corsair','Corsair',''],
 	['(^Crucial|^CT|-CT|^M4-)','^Crucial','Crucial',''],
 	['^(FUJITSU|MP)','^FUJITSU','Fujitsu',''],
 	# note: 2012:  wdc bought hgst
@@ -7700,57 +7700,63 @@ sub device_vendor {
 	['^(MK|Mushkin)','^Mushkin','Mushkin',''], # MKNS
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|TALOS2|TMSC|TRSAK)','^OCZ[\s\-]','OCZ',''],
-	['^(OWC)','^OWC[\s\-]','OWC',''],
+	['^OWC','^OWC[\s\-]','OWC',''],
 	['^Philips','^Philips','Philips',''],
 	['^PIONEER','^PIONEER','Pioneer',''],
-	['^(PNY)','^PNY\s','PNY','','^PNY'],
-	['^(PS[8F]|Patriot)','^Patriot','Patriot',''],
+	['^PNY','^PNY\s','PNY','','^PNY'],
 	['^(SanDisk|SDS[S]?[DQ]|SL([0-9]+)G|AFGCE)','^SanDisk','SanDisk',''],
 	['^([S]?TOS|M[DGK]|THN)','^[S]?TOSHIBA','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
-	
 	# these go last because they are short and could lead to false ID or are unlikely
-	['^(AP)','','Apacer',''],
-	['^(APPLE)','','APPLE( HDD)?','Apple'],
-	['^(BUFFALO)','^BUFFALO','Buffalo',''],
-	['^(EXCELSTOR)','^EXCELSTOR( TECHNOLOGY)?','Excelstor',''],
-	['^(GOODRAM)','^GOODRAM','GOODRAM',''],
+	['^Android','^Android','Android',''],
+	['^(AP|Apacer)','^Apacer','Apacer',''],
+	['^APPLE','','^APPLE','Apple'],
+	['^BUFFALO','^BUFFALO','Buffalo',''],
+	['^EXCELSTOR','^EXCELSTOR( TECHNOLOGY)?','Excelstor',''],
+	['^Generic','^Generic','Generic',''],
+	['^GOODRAM','^GOODRAM','GOODRAM',''],
 	['^(G[\.]?SKILL|FM)','^G[\.]?SKILL','G.SKILL',''],
-	['^(HUAWEI)','^HUAWEI','Huawei',''],
+	['^HUAWEI','^HUAWEI','Huawei',''],
 	['^(IBM|DT)','^IBM','IBM',''], 
-	['^(Imation)','^Imation(\sImation)?','Imation',''], # Imation_ImationFlashDrive
+	['^Imation','^Imation(\sImation)?','Imation',''], # Imation_ImationFlashDrive
 	['^(InnoDisk|Innolite)','^InnoDisk( Corp.)?','InnoDisk',''],
-	['^(Innostor)','^Innostor','Innostor',''],
-	['^(Intenso)','^Intenso','Intenso',''],
-	['^(LITE[\-]?ONIT)','^LITE[\-]?ONIT','Liteonit',''], # LITEONIT_LSS-24L6G
+	['^Innostor','^Innostor','Innostor',''],
+	['^Intenso','^Intenso','Intenso',''],
+	['^(LITE[\-]?ON[\s\-]?IT)','^LITE[\-]?ON[\s\-]?IT','LITE-ON IT',''], # LITEONIT_LSS-24L6G
 	['^(LITE[\-]?ON|PH6)','^LITE[\-]?ON','LITE-ON',''], # PH6-CE240-L
 	['^M-Systems','^M-Systems','M-Systems',''],
 	['^MAXTOR','^MAXTOR','Maxtor',''],
 	['^(MT|M5|Micron)','^Micron','Micron',''],
-	['^(MARVELL)','^MARVELL','Marvell',''],
+	['^MARVELL','^MARVELL','Marvell',''],
+	['^Medion','^Medion','Medion',''],
+	['^Motorola','^Motorola','Motorola',''],
+	['^(PS[8F]|Patriot)','^Patriot','Patriot',''],
+	['^PIX[\s]?JR','^PIX[\s]?JR','Disney',''],
 	['^(PLEXTOR|PX[\-\s])','^PLEXTOR','Plextor',''],
-	['^(OEM)','^OEM','OEM',''],
+	['^OEM','^OEM','OEM',''],
 	['(^Quantum|Fireball)','^Quantum','Quantum',''],
-	['^(R3)','','AMD Radeon',''], # ssd 
-	['^(RENICE)','^RENICE','Renice',''],
-	['^(RIM[\s])','^RIM','RIM',''],
+	['^R3','','AMD Radeon',''], # ssd 
+	['^RENICE','^RENICE','Renice',''],
+	['^RIM[\s]','^RIM','RIM',''],
 	['^(SK HYNIX|SKHYNIX|HFS)','^(SK HYNIX|SKHYNIX)','SK Hynix',''], # HFS128G39TND-N210A
 	['^(SMART( Storage Systems)?|TX)','^(SMART( Storage Systems)?)','Smart Storage Systems',''],
-	['^(STEK)','^STEK','sTec',''], # wd bought this one
-	['^(STORFLY)','^STORFLY','StorFly',''],
+	['^STEK','^STEK','sTec',''], # wd bought this one
+	['^STORFLY','^STORFLY','StorFly',''],
+	['^SigmaTel','^SigmaTel','SigmaTel',''],
+	['^SPPC','','Silicon Power',''],
+	['^SH','','Smart Modular Tech.',''],
 	['^(S[FR]-|Sony)','^Sony','Sony',''],
-	['^(SPPC)','','Silicon Power',''],
-	['^(SH)','','Smart Modular Tech.',''],
-	['^(SF)','','Swissbit',''],
+	['^SF','','Swissbit',''],
 	# ['^(SUPERSPEED)','^SUPERSPEED','SuperSpeed',''], # superspeed is a generic term
-	['^(TEAC)','^TEAC','TEAC',''],
+	['^TANDBERG','^TANDBERG','Tanberg',''],
+	['^TEAC','^TEAC','TEAC',''],
 	['^(TS|Transcend|JetFlash)','^Transcend','Transcend',''],
-	['^(TrekStor)','^TrekStor','TrekStor',''],
-	['^(UG)','','Unigen',''],
-	['^(VBOX)','','VirtualBox',''],
-	['^(Verbatim)','^Verbatim','Verbatim',''],
-	['^(VISIONTEK)','^VISIONTEK','VisionTek',''],
-	['^(VMware)','^VMware','VMware',''],
-	['^(Vseky|Vaseky]-)','^Vaseky','Vaseky',''], # ata-Vseky_V880_350G_
+	['^TrekStor','^TrekStor','TrekStor',''],
+	['^UG','','Unigen',''],
+	['^VBOX','','VirtualBox',''],
+	['^Verbatim','^Verbatim','Verbatim',''],
+	['^VISIONTEK','^VISIONTEK','VisionTek',''],
+	['^VMware','^VMware','VMware',''],
+	['^(Vseky|Vaseky)','^Vaseky','Vaseky',''], # ata-Vseky_V880_350G_
 	);
 	foreach my $ref (@vendors){
 		my @row = @$ref;
@@ -9938,7 +9944,7 @@ sub partition_data {
 	$b_partitions = 1;
 	set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
-	main::get_partition_extra_data() if !$b_partition_extra;
+	set_label_uuid() if !$b_label_uuid;
 	# most current OS support -T and -k, but -P means different things
 	# in freebsd. However since most use is from linux, we make that default
 	if (!$bsd_type){
@@ -10201,6 +10207,26 @@ sub get_bsd_label_uuid {
 	main::log_data('dump','@data',\@data) if $b_log;
 	eval $end if $b_log;
 	return @data;
+}
+sub set_label_uuid {
+	eval $start if $b_log;
+	$b_label_uuid = 1;
+	if ( $show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
+		if (!$bsd_type){
+			if (-d '/dev/disk/by-label'){
+				@labels = main::globber('/dev/disk/by-label/*');
+			}
+			if (-d '/dev/disk/by-uuid'){
+				@uuids = main::globber('/dev/disk/by-uuid/*');
+			}
+		}
+		else {
+			if ( my $path = main::check_program('gpart')){
+				@gpart = main::grabber("$path list 2>/dev/null",'strip');
+			}
+		}
+	}
+	eval $end if $b_log;
 }
 sub set_lsblk {
 	eval $start if $b_log;
@@ -13305,7 +13331,7 @@ sub unmounted_data {
 	PartitionData::set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	PartitionData::partition_data() if !$b_partitions;
-	main::get_partition_extra_data() if !$b_partition_extra;
+	PartitionData::set_label_uuid() if !$b_label_uuid;
 	RaidData::raid_data() if !$b_raid;
 	@mounted = get_mounted(@mounted);
 	foreach (@mounts){
@@ -15086,26 +15112,6 @@ sub get_module_version {
 	$version ||= '';
 	eval $end if $b_log;
 	return $version;
-}
-sub get_partition_extra_data {
-	eval $start if $b_log;
-	$b_partition_extra = 1;
-	if ( $show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
-		if (!$bsd_type){
-			if (-d '/dev/disk/by-label'){
-				@labels = main::globber('/dev/disk/by-label/*');
-			}
-			if (-d '/dev/disk/by-uuid'){
-				@uuids = main::globber('/dev/disk/by-uuid/*');
-			}
-		}
-		else {
-			if ( my $path = main::check_program('gpart')){
-				@gpart = main::grabber("$path list 2>/dev/null",'strip');
-			}
-		}
-	}
-	eval $end if $b_log;
 }
 # # check? /var/run/nologin for bsds?
 sub get_runlevel_data {
