@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.08';
-my $self_date='2018-05-09';
-my $self_patch='05';
+my $self_date='2018-05-10';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -76,9 +76,10 @@ my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
 my ($bsd_type,$language,$os) = ('','','');
+my ($bits_sys);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_count,$usb_level) = (0.35,4,10,5,0);
 my $sensors_cpu_nu = 0;
-my ($bits_sys);
+my $weather_unit='cf';
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
@@ -1023,6 +1024,7 @@ sub get_config_item {
 	elsif ($key eq 'PS_COUNT') {$ps_count = int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = int($val)}
+	elsif ($key eq 'WEATHER_UNIT') { $weather_unit = lc($val) if $val =~ /^(c|f|cf|fc)$/i}
 	# layout
 	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = int($val)}
 	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = int($val)}
@@ -3643,6 +3645,16 @@ sub get_options{
 		}
 		else {
 			error_handler('distro-block', $opt);
+		} },
+	'weather-unit:s' => sub {
+		my ($opt,$arg) = @_;
+		$arg ||= '';
+		$arg =~ s/\s//g;
+		if ($arg && $arg =~ /^(cf|fc|f|c)$/i){
+			$weather_unit = lc($arg);
+		}
+		else {
+			error_handler('bad-arg',$opt,$arg);
 		} },
 	'x|extra:i' => sub {
 		my ($opt,$arg) = @_;
@@ -13776,39 +13788,39 @@ sub create_output {
 		main::key($num++,'Message') => main::row_defaults('weather-null','weather data'),
 		});
 	}
-	if ($weather{'temp'} && $weather{'weather'} ){
-		$conditions = "$weather{'temp'} - $weather{'weather'}";
-	}
-	elsif ($weather{'temp'}){
-		$conditions = $weather{'temp'};
-	}
-	elsif ($weather{'weather'}) {
-		$conditions = $weather{'weather'};
-	}
+	$conditions = "$weather{'weather'}";
+	my $temp = unit_output($weather{'temp'},$weather{'temp-c'},'C',$weather{'temp-f'},'F');
 	@data = ({
+	main::key($num++,'Temperature') => $temp,
 	main::key($num++,'Conditions') => $conditions,
 	},);
 	@rows = (@rows,@data);
 	if ($extra > 0){
-		$rows[0]{main::key($num++,'Wind')} = $weather{'wind'};
+		my $pressure = unit_output($weather{'pressure'},$weather{'pressure-mb'},'mb',$weather{'pressure-in'},'in');
+		my $wind = wind_output($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
+		$weather{'wind-gust-mph'},$weather{'wind-gust-ms'});
+		$rows[0]{main::key($num++,'Wind')} = $wind;
 		$rows[0]{main::key($num++,'Humidity')} = $weather{'humidity'};
-		$rows[0]{main::key($num++,'Pressure')} = $weather{'pressure'};
+		$rows[0]{main::key($num++,'Pressure')} = $pressure;
 	}
 	if ($extra > 1){
 		if ($weather{'heat-index'}){
-			$rows[0]{main::key($num++,'Heat Index')} = $weather{'heat-index'};
+			my $heat = unit_output($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
+			$rows[0]{main::key($num++,'Heat Index')} = $heat;
 		}
 		if ($weather{'windchill'}){
-			$rows[0]{main::key($num++,'Wind Chill')} = $weather{'windchill'};
+			my $chill = unit_output($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
+			$rows[0]{main::key($num++,'Wind Chill')} = $chill ;
 		}
 		if ($weather{'dewpoint'}){
-			$rows[0]{main::key($num++,'Dew Point')} = $weather{'dewpoint'};
+			my $dew = unit_output($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
+			$rows[0]{main::key($num++,'Dew Point')} = $dew;
 		}
 	}
 	if ($extra > 2){
 		if (!$show{'filter'}){
 			$rows[0]{main::key($num++,'Location')} = $location[1];
-			$rows[0]{main::key($num++,'altitude')} = $weather{'elevation'};
+			$rows[0]{main::key($num++,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
 		}
 	}
 	$rows[0]{main::key($num++,'Time')} = $weather{'date-time'};
@@ -13817,6 +13829,103 @@ sub create_output {
 	}
 	eval $end if $b_log;
 	return @rows;
+}
+sub elevation_output {
+	eval $start if $b_log;
+	my ($meters,$feet) = @_;
+	my ($result,$i_unit,$m_unit) = ('','ft','m');
+	$feet = sprintf("%.0f", 3.28 * $meters) if defined $meters && !$feet;
+	$meters = sprintf("%.1f", $feet / 3.28 ) if defined $feet && !$meters;
+	if ( defined $meters  && $weather_unit eq 'cf' ){
+		$result = "$meters $m_unit ($feet $i_unit)";
+	}
+	elsif (defined $meters && $weather_unit eq 'fc' ){
+		$result = "$feet $i_unit ($meters $m_unit)";
+	}
+	elsif (defined $meters && $weather_unit eq 'c' ){
+		$result = "$meters $m_unit";
+	}
+	elsif (defined $feet && $weather_unit eq 'f' ){
+		$result = "$feet $i_unit";
+	}
+	else {
+		$result = 'N/A';
+	}
+	eval $end if $b_log;
+	return $result;
+}
+sub unit_output {
+	eval $start if $b_log;
+	my ($primary,$metric,$m_unit,$imperial,$i_unit) = @_;
+	my $result = '';
+	if ($metric && $imperial && $weather_unit eq 'cf' ){
+		$result = "$metric $m_unit ($imperial $i_unit)";
+	}
+	elsif ($metric && $imperial && $weather_unit eq 'fc' ){
+		$result = "$imperial $i_unit ($metric $m_unit)";
+	}
+	elsif ($metric && $weather_unit eq 'c' ){
+		$result = "$metric $m_unit";
+	}
+	elsif ($imperial && $weather_unit eq 'f' ){
+		$result = "$imperial $i_unit";
+	}
+	elsif ($primary){
+		$result = $primary;
+	}
+	else {
+		$result = 'N/A';
+	}
+	eval $end if $b_log;
+	return $result;
+}
+sub wind_output {
+	eval $start if $b_log;
+	my ($primary,$direction,$mph,$ms,$gust_mph,$gust_ms) = @_;
+	my ($result,$i_unit,$m_unit) = ('','mph','m/s');
+	$ms = sprintf("%0.1f", 0.44704 * $mph) if $mph && !$ms;
+	$gust_ms = sprintf("%0.1f", 0.44704 * $gust_mph) if $gust_mph && !$gust_ms;
+	$mph = sprintf("%0.1f", $ms * 2.23694) if $ms && !$mph;
+	$gust_mph = sprintf("%0.1f", $gust_ms * 2.23694) if $gust_ms && !$gust_mph;
+	if (!$mph && $primary){
+		$result = $primary;
+	}
+	elsif ($mph && $direction ){
+		if ( $weather_unit eq 'cf' ){
+			$result = "From the $direction at $ms $m_unit ($mph $i_unit)";
+		}
+		elsif ( $weather_unit eq 'fc' ){
+			$result = "From the $direction at $mph $i_unit ($ms $m_unit)";
+		}
+		elsif ( $weather_unit eq 'c' ){
+			$result = "From the $direction at $ms $m_unit";
+		}
+		elsif ( $weather_unit eq 'f' ){
+			$result = "From the $direction at $mph $i_unit";
+		}
+		if ($gust_mph){
+			if ( $weather_unit eq 'cf' ){
+				$result .= ". Gusting to $ms $m_unit ($mph $i_unit)";
+			}
+			elsif ( $weather_unit eq 'fc' ){
+				$result .= ". Gusting to $mph $i_unit ($ms $m_unit)";
+			}
+			elsif ( $weather_unit eq 'c' ){
+				$result .= ". Gusting to $ms $m_unit";
+			}
+			elsif ( $weather_unit eq 'f' ){
+				$result .= ". Gusting to $mph $i_unit";
+			}
+		}
+	}
+	elsif ($primary){
+		$result = $primary;
+	}
+	else {
+		$result = 'N/A';
+	}
+	eval $end if $b_log;
+	return $result;
 }
 sub get_weather {
 	eval $start if $b_log;
@@ -13865,35 +13974,34 @@ sub get_weather {
 	
 	foreach (@weather_data){
 		my @working = split /\s*\^\^\s*/,$_;
-		if ( $working[0] eq 'local_time' ){
-			$weather{'local-time'} = $working[1];
+		if ( $working[0] eq 'dewpoint_string' ){
+			$weather{'dewpoint'} = $working[1];
 		}
-		elsif ( $working[0] eq 'weather' ){
-			$weather{'weather'} = $working[1];
+		elsif ( $working[0] eq 'dewpoint_c' ){
+			$weather{'dewpoint-c'} = $working[1];
 		}
-		elsif ( $working[0] eq 'temperature_string' ){
-			$weather{'temp'} = $working[1];
-# 			$weather{'temp'} =~ s/\sF/\xB0 F/; # B0
-# 			$weather{'temp'} =~ s/\sF/\x{2109}/;
-# 			$weather{'temp'} =~ s/\sC/\x{2103}/;
+		elsif ( $working[0] eq 'dewpoint_f' ){
+			$weather{'dewpoint-f'} = $working[1];
 		}
-		elsif ( $working[0] eq 'relative_humidity' ){
-			$weather{'humidity'} = $working[1];
-		}
-		elsif ( $working[0] eq 'wind_string' ){
-			$weather{'wind'} = $working[1];
-		}
-		elsif ( $working[0] eq 'pressure_string' ){
-			$weather{'pressure'} = $working[1];
+		elsif (!$weather{'elevation-m'} && $working[0] eq 'elevation'){
+			# note: bug in source data uses ft for meters, not 100% of time, but usually
+			$weather{'elevation-m'} = $working[1];
+			$weather{'elevation-m'} =~ s/\s*(ft|m).*$//;
 		}
 		elsif ( $working[0] eq 'heat_index_string' ){
 			$weather{'heat-index'} = $working[1];
 		}
-		elsif ( $working[0] eq 'windchill_string' ){
-			$weather{'windchill'} = $working[1];
+		elsif ( $working[0] eq 'heat_index_c' ){
+			$weather{'heat-index-c'} = $working[1];
 		}
-		elsif ( $working[0] eq 'dewpoint_string' ){
-			$weather{'dewpoint'} = $working[1];
+		elsif ( $working[0] eq 'heat_index_f' ){
+			$weather{'heat-index-f'} = $working[1];
+		}
+		elsif ( $working[0] eq 'relative_humidity' ){
+			$weather{'humidity'} = $working[1];
+		}
+		elsif ( $working[0] eq 'local_time' ){
+			$weather{'local-time'} = $working[1];
 		}
 		elsif ( $working[0] eq 'observation_time_rfc822' ){
 			$weather{'observation-time-gmt'} = $working[1];
@@ -13905,10 +14013,68 @@ sub get_weather {
 			$weather{'observation-time-local'} = $working[1];
 			$weather{'observation-time-local'} =~ s/Last Updated on //;
 		}
-		elsif (!$weather{'elevation'} && $working[0] eq 'elevation'){
-			# note: bug in source data uses ft for meters, not 100% of time, but usually
-			$weather{'elevation'} = $working[1];
-			$weather{'elevation'} =~ s/ft/m/;
+		elsif ( $working[0] eq 'pressure_string' ){
+			$weather{'pressure'} = $working[1];
+		}
+		elsif ( $working[0] eq 'pressure_mb' ){
+			$weather{'pressure-mb'} = $working[1];
+		}
+		elsif ( $working[0] eq 'pressure_in' ){
+			$weather{'pressure-in'} = $working[1];
+		}
+		elsif ( $working[0] eq 'temperature_string' ){
+			$weather{'temp'} = $working[1];
+# 			$weather{'temp'} =~ s/\sF/\xB0 F/; # B0
+# 			$weather{'temp'} =~ s/\sF/\x{2109}/;
+# 			$weather{'temp'} =~ s/\sC/\x{2103}/;
+		}
+		elsif ( $working[0] eq 'temp_f' ){
+			$weather{'temp-f'} = $working[1];
+		}
+		elsif ( $working[0] eq 'temp_c' ){
+			$weather{'temp-c'} = $working[1];
+		}
+		elsif ( $working[0] eq 'visibility' ){
+			$weather{'visibility'} = $working[1];
+		}
+		elsif ( $working[0] eq 'visibility_km' ){
+			$weather{'visibility-km'} = $working[1];
+		}
+		elsif ( $working[0] eq 'visibility_mi' ){
+			$weather{'visibility-mi'} = $working[1];
+		}
+		elsif ( $working[0] eq 'weather' ){
+			$weather{'weather'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_degrees' ){
+			$weather{'wind-degrees'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_dir' ){
+			$weather{'wind-direction'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_mph' ){
+			$weather{'wind-mph'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_gust_mph' ){
+			$weather{'wind-gust-mph'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_gust_ms' ){
+			$weather{'wind-gust-ms'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_ms' ){
+			$weather{'wind-ms'} = $working[1];
+		}
+		elsif ( $working[0] eq 'wind_string' ){
+			$weather{'wind'} = $working[1];
+		}
+		elsif ( $working[0] eq 'windchill_string' ){
+			$weather{'windchill'} = $working[1];
+		}
+		elsif ( $working[0] eq 'windchill_c' ){
+			$weather{'windchill-c'} = $working[1];
+		}
+		elsif ( $working[0] eq 'windchill_f' ){
+			$weather{'windchill_f'} = $working[1];
 		}
 	}
 	if ($show{'weather-location'}){
