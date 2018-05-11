@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.08';
 my $self_date='2018-05-11';
-my $self_patch='16';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13893,45 +13893,46 @@ sub wind_output {
 	eval $start if $b_log;
 	my ($primary,$direction,$mph,$ms,$gust_mph,$gust_ms) = @_;
 	my ($result,$gust_kmh,$kmh,$i_unit,$m_unit,$km_unit) = ('','','','mph','m/s','km/h');
+	# get rid of possible gust values if they are the same as wind values
 	$gust_mph = undef if $gust_mph && $mph && $mph eq $gust_mph;
 	$gust_ms = undef if $gust_ms && $ms && $ms eq $gust_ms;
 	# calculate and round, order matters so that rounding only happens after math done
 	$ms = 0.44704 * $mph if $mph && !$ms;
+	$mph = $ms * 2.23694 if $ms && !$mph;
 	$kmh = sprintf("%.0f",  18 * $ms / 5) if $ms;
 	$ms = sprintf("%.0f", $ms ) if  $ms;
+	$mph = sprintf("%.0f", $mph) if $mph;
 	$gust_ms = 0.44704 * $gust_mph if $gust_mph && !$gust_ms;
 	$gust_kmh = 18 * $gust_ms / 5 if $gust_ms;
-	$gust_kmh = sprintf("%.0f", $gust_kmh) if $gust_kmh;
-	$gust_ms = sprintf("%.0f", $gust_ms ) if  $gust_ms;
-	$mph = $ms * 2.23694 if $ms && !$mph;
-	$mph = sprintf("%.0f", $mph) if $mph;
 	$gust_mph = $gust_ms * 2.23694 if $gust_ms && !$gust_mph;
 	$gust_mph = sprintf("%.0f", $gust_mph) if $gust_mph;
+	$gust_kmh = sprintf("%.0f", $gust_kmh) if $gust_kmh;
+	$gust_ms = sprintf("%.0f", $gust_ms ) if  $gust_ms;
 	if (!$mph && $primary){
 		$result = $primary;
 	}
 	elsif ($mph && $direction ){
 		if ( $weather_unit eq 'cf' ){
-			$result = "from $direction at $kmh $km_unit ($ms $m_unit - $mph $i_unit)";
+			$result = "from $direction at $ms $m_unit ($kmh $km_unit; $mph $i_unit)";
 		}
 		elsif ( $weather_unit eq 'fc' ){
-			$result = "from $direction at $mph $i_unit ($kmh $km_unit - $ms $m_unit)";
+			$result = "from $direction at $mph $i_unit ($ms $m_unit; $kmh $km_unit)";
 		}
 		elsif ( $weather_unit eq 'c' ){
-			$result = "from $direction at $kmh $km_unit ($ms $m_unit)";
+			$result = "from $direction at $ms $m_unit ($kmh $km_unit)";
 		}
 		elsif ( $weather_unit eq 'f' ){
 			$result = "from $direction at $mph $i_unit";
 		}
 		if ($gust_mph){
 			if ( $weather_unit eq 'cf' ){
-				$result .= ". Gusting to $kmh $km_unit ($ms $m_unit - $mph $i_unit)";
+				$result .= ". Gusting to $ms $m_unit ($kmh $km_unit; $mph $i_unit)";
 			}
 			elsif ( $weather_unit eq 'fc' ){
-				$result .= ". Gusting to $mph $i_unit ($kmh $km_unit - $ms $m_unit)";
+				$result .= ". Gusting to $mph $i_unit ($ms $m_unit; $kmh $km_unit)";
 			}
 			elsif ( $weather_unit eq 'c' ){
-				$result .= ". Gusting to $kmh $km_unit ($ms $m_unit)";
+				$result .= ". Gusting to $ms $m_unit ($kmh $km_unit)";
 			}
 			elsif ( $weather_unit eq 'f' ){
 				$result .= ". Gusting to $mph $i_unit";
