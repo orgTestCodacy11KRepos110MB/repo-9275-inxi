@@ -14825,7 +14825,7 @@ sub set_xprop {
 
 sub get_display_manager {
 	eval $start if $b_log;
-	my (@data,@found,$temp,$working);
+	my (@data,@found,$temp,$working,$b_run,$b_vrun,$b_vrunrc);
 	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
 	# extension in Arch note: to avoid positives with directories, test for -f 
 	# explicitly, not -e
@@ -14836,6 +14836,9 @@ sub get_display_manager {
 	# this is the only one I know of so far that has --version
 	# lightdm outputs to stderr, so it has to be redirected
 	my @dms_version = qw(lightdm);
+	$b_run = 1 if -d "/run";
+	$b_vrun = 1 if -d "/var/run";
+	$b_vrunrc = 1 if -d "/var/run/rc.d";
 	foreach my $id (@dms){
 		# note: ${dm_id%.*}/$dm_id will create a dir name out of the dm id, then 
 		# test if pid is in that note: sddm, in an effort to be unique and special, 
@@ -14845,9 +14848,9 @@ sub get_display_manager {
 		$working = $id;
 		$working =~ s/\.\S+$//;
 		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
-		if ( ( ( -d "/run" && ( -f "/run/$id" || -d "/run/$working" ) ) || 
-		   ( -d "/var/run" && ( -f "/var/run/$id" || -f "/var/run/$working" ) ) || 
-		   ( -d "/var/run/rc.d" && ( -f "/var/run/rc.d/$working" || -f "/var/run/rc.d/$id" ) ) ) && 
+		if ( ( ( $b_run && ( -f "/run/$id" || -d "/run/$working" ) ) || 
+		   ( $b_vrun && ( -f "/var/run/$id" || -f "/var/run/$working" ) ) || 
+		   ( $b_vrunrc && ( -f "/var/run/rc.d/$working" || -f "/var/run/rc.d/$id" ) ) ) && 
 		   ! grep {/$working/} @found ){
 			if ($extra > 2 && awk( \@dms_version, $working) ){
 				@data = main::grabber("$working --version 2>&1");
