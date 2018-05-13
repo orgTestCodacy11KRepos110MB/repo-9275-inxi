@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.09';
-my $self_date='2018-05-11';
-my $self_patch='05';
+my $self_date='2018-05-12';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9181,8 +9181,10 @@ sub card_data {
 	foreach (@pci){
 		$num = 1;
 		my @row = @$_;
-		#print "$row[0] $row[3]\n";
-		if ($row[0] eq 'network' || $row[0] eq 'ethernet' ){
+		#print "$row[0] $row[3]\n"; 
+		# NOTE: class 06 subclass 80 
+		# https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
+		if ($row[0] eq 'network' || $row[0] eq 'ethernet' || $row[1] eq '0680' ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			my $driver = $row[9];
@@ -9200,12 +9202,10 @@ sub card_data {
 			$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
 			#$card ||= 'N/A';
 			$driver ||= 'N/A';
-			@data = (
-			{
+			@data = ({
 			main::key($num++,'Card') => $card,
 			main::key($num++,'driver') => $driver,
-			},
-			);
+			},);
 			@rows = (@rows,@data);
 			if ($extra > 0){
 				if ($row[9] && !$bsd_type){
@@ -16155,6 +16155,8 @@ sub set_lspci_data {
 	my $path = check_program('lspci');
 	$content = qx($path -nnv 2>/dev/null) if $path;
 	@pcis = split /\n/, $content if $content;
+	#my $file = "$ENV{HOME}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
+	#@pcis = reader($file);
 	#print scalar @pcis;
 	@pcis = map {$_ =~ s/^\s+//; $_} @pcis if @pcis;
 	foreach (@pcis){
