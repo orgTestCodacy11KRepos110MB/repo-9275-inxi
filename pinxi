@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.09';
 my $self_date='2018-05-11';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -176,41 +176,33 @@ sub check_tools {
 	if ( $b_dmi ){
 		$action = 'use';
 		if ($program = check_program('dmidecode')) {
-			# my $result = system("$program -t chassis >/dev/null 2>&1");
-			@data = grabber("$program --type chassis 2>&1");
-			if (scalar @data < 11){
+			@data = grabber("$program --type processor 2>&1");
+			if (scalar @data < 15){
 				if ($b_root) {
-					if ( grep { $_ =~ /No SMBIOS/i } @data ){
-						$action = 'smbios';
-					}
-					# can say: Operation not permitted/Permission denied
-					elsif (grep { $_ =~ /^\/dev\/mem: Operation not permitted/i } @data){
-						$action = 'no-data';
+					foreach (@data){
+						if ($_ =~ /No SMBIOS/i){
+							$action = 'smbios';
+							last;
+						}
+						elsif ($_ =~ /^\/dev\/mem: Operation/i){
+							$action = 'no-data';
+							last;
+						}
+						else {
+							$action = 'unknown-error';
+							last;
+						}
 					}
 				}
 				else {
-					if (grep { $_ =~ /^\/dev\/mem: Permission denied/i } @data){
+					if (grep { $_ =~ /^\/dev\/mem: Permission/i } @data){
 						$action = 'permissions';
+					}
+					else {
+						$action = 'unknown-error';
 					}
 				}
 			}
-# 			if (!$result){
-# 				if ($b_root) {
-# 					@data = grabber("$program --type chassis");
-# 					if (scalar @data < 12){
-# 						if ( grep { $_ =~ /No SMBIOS/i } @data ){
-# 							$action = 'smbios';
-# 						}
-# 						# can say: Operation not permitted/Permission denied
-# 						elsif (grep { $_ =~ /^\/dev\/mem: Operation not permitted/i } @data){
-# 							$action = 'dev-mem';
-# 						}
-# 					}
-# 				}
-# 			}
-# 			elsif ($result){
-# 				$action = 'permissions';
-# 			}
 		}
 		else {
 			$action = 'missing';
@@ -222,6 +214,7 @@ sub check_tools {
 		'permissions' => 'Unable to run dmidecode. Are you root?',
 		'smbios' => 'No SMBIOS data for dmidecode to process',
 		'no-data' => 'dmidecode is unable to read /dev/mem',
+		'unknown-error' => 'dmidecode was unable to generate data',
 		},
 		);
 		%alerts = (%alerts, %hash);
