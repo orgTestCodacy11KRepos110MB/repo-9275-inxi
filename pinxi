@@ -176,23 +176,41 @@ sub check_tools {
 	if ( $b_dmi ){
 		$action = 'use';
 		if ($program = check_program('dmidecode')) {
-			my $result = system("$program -t chassis >/dev/null 2>&1");
-			if (!$result){
+			# my $result = system("$program -t chassis >/dev/null 2>&1");
+			@data = grabber("$program --type chassis 2>&1");
+			if (scalar @data < 11){
 				if ($b_root) {
-					@data = grabber("$program --type chassis");
-					if (scalar @data < 12){
-						if ( grep { $_ =~ /No SMBIOS/i } @data ){
-							$action = 'smbios';
-						}
-						elsif (grep { $_ =~ /^\/dev\/mem: Operation not/i } @data){
-							$action = 'dev-mem';
-						}
+					if ( grep { $_ =~ /No SMBIOS/i } @data ){
+						$action = 'smbios';
+					}
+					# can say: Operation not permitted/Permission denied
+					elsif (grep { $_ =~ /^\/dev\/mem: Operation not permitted/i } @data){
+						$action = 'no-data';
+					}
+				}
+				else {
+					if (grep { $_ =~ /^\/dev\/mem: Permission denied/i } @data){
+						$action = 'permissions';
 					}
 				}
 			}
-			elsif ($result){
-				$action = 'permissions';
-			}
+# 			if (!$result){
+# 				if ($b_root) {
+# 					@data = grabber("$program --type chassis");
+# 					if (scalar @data < 12){
+# 						if ( grep { $_ =~ /No SMBIOS/i } @data ){
+# 							$action = 'smbios';
+# 						}
+# 						# can say: Operation not permitted/Permission denied
+# 						elsif (grep { $_ =~ /^\/dev\/mem: Operation not permitted/i } @data){
+# 							$action = 'dev-mem';
+# 						}
+# 					}
+# 				}
+# 			}
+# 			elsif ($result){
+# 				$action = 'permissions';
+# 			}
 		}
 		else {
 			$action = 'missing';
@@ -203,7 +221,7 @@ sub check_tools {
 		'missing' => 'Required program dmidecode not available',
 		'permissions' => 'Unable to run dmidecode. Are you root?',
 		'smbios' => 'No SMBIOS data for dmidecode to process',
-		'dev-mem' => 'Unable to read /dev/mem',
+		'no-data' => 'dmidecode is unable to read /dev/mem',
 		},
 		);
 		%alerts = (%alerts, %hash);
