@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.09';
-my $self_date='2018-05-12';
-my $self_patch='06';
+my $self_date='2018-05-13';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14831,8 +14831,7 @@ sub get_display_manager {
 	# explicitly, not -e
 	my @dms = qw(entranced.pid gdm.pid gdm3.pid kdm.pid ldm.pid 
 	lightdm.pid lxdm.pid mdm.pid nodm.pid pcdm.pid 
-	sddm.pid sddm slim.lock 
-	tint2.pid wdm.pid xdm.pid xenodm.pid);
+	sddm.pid sddm slim.lock tint2.pid wdm.pid xdm.pid xenodm.pid);
 	# this is the only one I know of so far that has --version
 	# lightdm outputs to stderr, so it has to be redirected
 	my @dms_version = qw(lightdm);
@@ -14841,7 +14840,7 @@ sub get_display_manager {
 	$b_vrun = 1 if ( -d "/var/run" && readlink('/var/run') ne '/run' );
 	$b_vrunrc = 1 if -d "/var/run/rc.d";
 	foreach my $id (@dms){
-		# note: ${dm_id%.*}/$dm_id will create a dir name out of the dm id, then 
+		# note: $working will create a dir name out of the dm $id, then 
 		# test if pid is in that note: sddm, in an effort to be unique and special, 
 		# do not use a pid/lock file, but rather a random string inside a directory 
 		# called /run/sddm/ so assuming the existence of the pid inside a directory named
@@ -14850,11 +14849,11 @@ sub get_display_manager {
 		$working =~ s/\.\S+$//;
 		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
 		if ( ( ( $b_run && ( -f "/run/$id" || -d "/run/$working" ) ) || 
-		   ( $b_vrun && ( -f "/var/run/$id" || -f "/var/run/$working" ) ) || 
-		   ( $b_vrunrc && ( -f "/var/run/rc.d/$working" || -f "/var/run/rc.d/$id" ) ) ) && 
+		   ( $b_vrun && ( -f "/var/run/$id" || -d "/var/run/$working" ) ) || 
+		   ( $b_vrunrc && ( -f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id" ) ) ) && 
 		   ! grep {/$working/} @found ){
-			if ($extra > 2 && awk( \@dms_version, $working) ){
-				@data = main::grabber("$working --version 2>&1");
+			if ($extra > 2 && awk( \@dms_version, $working) && (my $path = main::check_program($working)) ){
+				@data = main::grabber("$path --version 2>&1");
 				$temp = awk(\@data,'\S',2,'\s+');
 				$working .= ' ' . $temp if $temp;
 			}
