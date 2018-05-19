@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.09';
-my $self_date='2018-05-18';
-my $self_patch='20';
+my $self_date='2018-05-19';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -79,7 +79,7 @@ my ($bsd_type,$language,$os) = ('','','');
 my ($bits_sys);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_count,$usb_level) = (0.35,4,10,5,0);
 my $sensors_cpu_nu = 0;
-my $weather_unit='cf';
+my $weather_unit='mi';
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
@@ -1041,7 +1041,14 @@ sub get_config_item {
 	elsif ($key eq 'PS_COUNT') {$ps_count = int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = int($val)}
-	elsif ($key eq 'WEATHER_UNIT') { $weather_unit = lc($val) if $val =~ /^(c|f|cf|fc)$/i}
+	elsif ($key eq 'WEATHER_UNIT') { 
+		$val = lc($val) if $val;
+		if ($val && $val =~ /^(c|f|cf|fc|i|m|im|mi)$/){
+			my %units = ('c'=>'m','f'=>'i','cf'=>'mi','fc'=>'im');
+			$val = $units{$val} if defined $units{$val};
+			$weather_unit = $val;
+		}
+	}
 	# layout
 	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = int($val)}
 	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = int($val)}
@@ -3668,8 +3675,11 @@ sub get_options{
 		my ($opt,$arg) = @_;
 		$arg ||= '';
 		$arg =~ s/\s//g;
-		if ($arg && $arg =~ /^(cf|fc|f|c)$/i){
-			$weather_unit = lc($arg);
+		$arg = lc($arg) if $arg;
+		if ($arg && $arg =~ /^(c|f|cf|fc|i|m|im|mi)$/){
+			my %units = ('c'=>'m','f'=>'i','cf'=>'mi','fc'=>'im');
+			$arg = $units{$arg} if defined $units{$arg};
+			$weather_unit = $arg;
 		}
 		else {
 			error_handler('bad-arg',$opt,$arg);
@@ -4080,8 +4090,8 @@ sub show_options {
 		Only use if you want the weather somewhere other than the machine running
 		$self_name. Use only ASCII characters, replace spaces in city/state/country names with '+'. 
 		Example:^$self_name^-W^new+york,ny"],
-		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (f), 
-		metric/imperial (cf), or imperial/metric (fc)."],
+		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (i), 
+		metric/imperial (mi), or imperial/metric (im)."],
 		);
 		push @data, @rows;
 	}
@@ -13929,16 +13939,16 @@ sub elevation_output {
 	$feet = sprintf("%.0f", 3.28 * $meters) if defined $meters && !$feet;
 	$meters = sprintf("%.1f", $feet / 3.28 ) if defined $feet && !$meters;
 	$meters = sprintf("%.0f", $meters) if $meters;
-	if ( defined $meters  && $weather_unit eq 'cf' ){
+	if ( defined $meters  && $weather_unit eq 'mi' ){
 		$result = "$meters $m_unit ($feet $i_unit)";
 	}
-	elsif (defined $meters && $weather_unit eq 'fc' ){
+	elsif (defined $meters && $weather_unit eq 'im' ){
 		$result = "$feet $i_unit ($meters $m_unit)";
 	}
-	elsif (defined $meters && $weather_unit eq 'c' ){
+	elsif (defined $meters && $weather_unit eq 'm' ){
 		$result = "$meters $m_unit";
 	}
-	elsif (defined $feet && $weather_unit eq 'f' ){
+	elsif (defined $feet && $weather_unit eq 'i' ){
 		$result = "$feet $i_unit";
 	}
 	else {
@@ -13951,16 +13961,16 @@ sub unit_output {
 	eval $start if $b_log;
 	my ($primary,$metric,$m_unit,$imperial,$i_unit) = @_;
 	my $result = '';
-	if ($metric && $imperial && $weather_unit eq 'cf' ){
+	if ($metric && $imperial && $weather_unit eq 'mi' ){
 		$result = "$metric $m_unit ($imperial $i_unit)";
 	}
-	elsif ($metric && $imperial && $weather_unit eq 'fc' ){
+	elsif ($metric && $imperial && $weather_unit eq 'im' ){
 		$result = "$imperial $i_unit ($metric $m_unit)";
 	}
-	elsif ($metric && $weather_unit eq 'c' ){
+	elsif ($metric && $weather_unit eq 'm' ){
 		$result = "$metric $m_unit";
 	}
-	elsif ($imperial && $weather_unit eq 'f' ){
+	elsif ($imperial && $weather_unit eq 'i' ){
 		$result = "$imperial $i_unit";
 	}
 	elsif ($primary){
@@ -13995,29 +14005,29 @@ sub wind_output {
 		$result = $primary;
 	}
 	elsif ($mph && $direction ){
-		if ( $weather_unit eq 'cf' ){
+		if ( $weather_unit eq 'mi' ){
 			$result = "from $direction at $ms $m_unit ($kmh $km_unit, $mph $i_unit)";
 		}
-		elsif ( $weather_unit eq 'fc' ){
+		elsif ( $weather_unit eq 'im' ){
 			$result = "from $direction at $mph $i_unit ($ms $m_unit, $kmh $km_unit)";
 		}
-		elsif ( $weather_unit eq 'c' ){
+		elsif ( $weather_unit eq 'm' ){
 			$result = "from $direction at $ms $m_unit ($kmh $km_unit)";
 		}
-		elsif ( $weather_unit eq 'f' ){
+		elsif ( $weather_unit eq 'i' ){
 			$result = "from $direction at $mph $i_unit";
 		}
 		if ($gust_mph){
-			if ( $weather_unit eq 'cf' ){
+			if ( $weather_unit eq 'mi' ){
 				$result .= ". Gusting to $ms $m_unit ($kmh $km_unit, $mph $i_unit)";
 			}
-			elsif ( $weather_unit eq 'fc' ){
+			elsif ( $weather_unit eq 'im' ){
 				$result .= ". Gusting to $mph $i_unit ($ms $m_unit, $kmh $km_unit)";
 			}
-			elsif ( $weather_unit eq 'c' ){
+			elsif ( $weather_unit eq 'm' ){
 				$result .= ". Gusting to $ms $m_unit ($kmh $km_unit)";
 			}
-			elsif ( $weather_unit eq 'f' ){
+			elsif ( $weather_unit eq 'i' ){
 				$result .= ". Gusting to $mph $i_unit";
 			}
 		}
