@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.10';
 my $self_date='2018-05-28';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8842,13 +8842,9 @@ sub create_output_arm {
 	if ($arm_machine{'device'} || $arm_machine{'model'}){
 		$rows[$j]{main::key($num++,'Type')} = 'ARM Device';
 		my $system = 'System';
-		if ($arm_machine{'model'}){
-			if ( !$arm_machine{'device'} || 
-			   (scalar(split(/\s+/, $arm_machine{'device'})) == 1 && 
-			    $arm_machine{'model'} !~ /$arm_machine{'device'}/) ){
-				$rows[$j]{main::key($num++,'System')} = $arm_machine{'model'};
-				$system = 'v';
-			}
+		if (defined $arm_machine{'model'}){
+			$rows[$j]{main::key($num++,'System')} = $arm_machine{'model'};
+			$system = 'v';
 		}
 		my $device = $arm_machine{'device'};
 		$device ||= 'N/A';
@@ -8956,8 +8952,16 @@ sub machine_data_arm {
 		}
 	}
 	if (-f '/proc/device-tree/model'){
-		$arm_machine{'model'} = (main::reader('/proc/device-tree/model'))[0];
-		$arm_machine{'model'} = ($arm_machine{'model'}) ? main::dmi_cleaner($arm_machine{'model'}) : '';
+		my $model  = (main::reader('/proc/device-tree/model'))[0];
+		main::log_data('data',"device-tree-model: $model") if $b_log;
+		if ( $model ){
+			$model = main::dmi_cleaner($model);
+			if ( !$arm_machine{'device'} || 
+				(scalar(split(/\s+/, $arm_machine{'device'})) == 1 && 
+					$model !~ /$arm_machine{'device'}/) ){
+				$arm_machine{'model'} = $model;
+			}
+		}
 	}
 	#print Data::Dumper::Dumper \%arm_machine;
 	eval $end if $b_log;
