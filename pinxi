@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.10';
 my $self_date='2018-05-30';
-my $self_patch='22';
+my $self_patch='23';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4030,7 +4030,7 @@ sub show_options {
 	['0', '', '', "Output Control Options:" ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
-	['1', '-B', '--battery', "Battery info, including charge and condition, plus 
+	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
 	extra info (if battery present)." ],
 	['1', '-c', '--color', "Set color scheme (0-42). Example:^$self_name^-c^11" ],
 	['1', '', '', "Color selectors let you set the config file value for the 
@@ -4913,7 +4913,7 @@ sub row_defaults {
 	my %unfound = (
 	'arm-cpu-f' => 'Use -f option to see features',
 	'arm-pci' => "PCI data type is not supported on ARM systems.",
-	'battery-data' => "No battery data found. Is one present?",
+	'battery-data' => "No system battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
 	'cpu-model-null' => "Model N/A",
 	'darwin-feature' => "Feature not supported iu Darwin/OSX.",
@@ -5890,9 +5890,12 @@ sub battery_data_sys {
 		$b_ma = 0;
 		$id = $item;
 		$id =~ s%/sys/class/power_supply/%%g;
+		my $purpose = ($id =~ /^(BAT|CMB).*$/) ? 'primary': 'device';
+		# don't create arrays of device data if it's not going to show
+		next if $extra == 0 && $purpose ne 'primary';
 		$battery{$id} = ({});
 		# NOTE: known ids: BAT[0-9] CMB[0-9]
-		$battery{$id}{'purpose'} = ($id =~ /^(BAT|CMB).*$/) ? 'primary': 'device';
+		$battery{$id}{'purpose'} = $purpose;
 		foreach $file (@items){
 			$path = "$item/$file";
 			$value = (-f $path) ? (main::reader($path))[0]: '';
