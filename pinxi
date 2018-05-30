@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.10';
-my $self_date='2018-05-29';
-my $self_patch='10';
+my $self_date='2018-05-30';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4138,9 +4138,10 @@ sub show_options {
 		push @data, @rows;
 	}
 	@rows = (
-	['1', '-x', '-extra', "Adds the following extra data (only works with 
+	['1', '-x', '--extra', "Adds the following extra data (only works with 
 	verbose or line output, not short form):" ],
-	['2', '-B', '', "Vendor/model, status (if available)." ],
+	['2', '-B', '', "Vendor/model, status (if available); attached devices 
+	(e.g. wireless mouse, keyboard, if present)." ],
 	['2', '-C', '', "CPU $flags, Bogomips on CPU; CPU microarchitecture + 
 	revision (if found)." ],
 	['2', '-d', '', "Extra optical drive features data; adds rev version to 
@@ -4223,6 +4224,9 @@ sub show_options {
 		push @data, @rows;
 	}
 	@rows = (
+	['1', '', '--admin', "Adds advanced sys admin data (only works with 
+	verbose or line output, not short form):" ],
+	['2', '-C', '', "CPU errata (bugs)." ],
 	['1', '-y', '--width', "Output line width max (integer >= 80). Overrides IRC/Terminal 
 	settings or actual widths. Example:^inxi^-y^130" ],
 	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial numbers, 
@@ -5747,6 +5751,7 @@ sub create_output {
 		$num = 0;
 		my ($charge,$condition,$model,$serial,$status,$volts) = ('','','','','','');
 		my ($chemistry,$cycles,$location) = ('','','');
+		next if $battery{$key}{'purpose'} ne 'primary';
 		# $battery{$key}{''};
 		# we need to handle cases where charge or energy full is 0
 		$charge = ($battery{$key}{'energy_now'} || $battery{$key}{'energy_now'} eq 0) ? "$battery{$key}{'energy_now'} Wh" : 'N/A';
@@ -5810,6 +5815,32 @@ sub create_output {
 				}
 			}
 		}
+		$battery{$key} = undef;
+	}
+	# now if there are any devices left, print them out, excluding Mains
+	if ($extra > 0){
+		foreach $key (sort keys %battery){
+			$num = 0;
+			my ($capacity,$model,$serial,$status,$vendor) = ('','','','','');
+			next if !defined $battery{$key} || $battery{$key}{'purpose'} eq 'mains';
+			$j = scalar @rows;
+			$model = ($battery{$key}{'capacity_level'}) ? $battery{$key}{'capacity_level'}: 'N/A' ;
+			$model = ($battery{$key}{'model_name'}) ? $battery{$key}{'model_name'}: 'N/A' ;
+			$status = ($battery{$key}{'status'}) ? $battery{$key}{'status'}: 'N/A' ;
+			$vendor = ($battery{$key}{'manufacturer'}) ? $battery{$key}{'manufacturer'}: 'N/A' ;
+			@data = ({
+			main::key($num++,'Device') => $key,
+			main::key($num++,'Vendor') => $vendor,
+			main::key($num++,'model') => $model,
+			main::key($num++,'capacity') => $capacity,
+			main::key($num++,'status') => $status,
+			},);
+			@rows = (@rows,@data);
+			if ($extra > 1){
+				$serial = main::apply_filter($battery{$key}{'serial_number'});
+				$rows[$j]{main::key($num++,'serial')} = $serial;
+			}
+		}
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -5821,9 +5852,9 @@ sub battery_data_sys {
 	my ($b_ma,%battery,$file,$id,$item,$path,$value);
 	my $num = 0;
 	# NOTE: known ids: BAT[0-9] CMB[0-9]
-	my @batteries = main::globber("/sys/class/power_supply/[BC][AM][TB]*/");
+	my @batteries = main::globber("/sys/class/power_supply/*");
 	# note: there is no 'location' file, but dmidecode has it
-	# 'type' is generic, like: Battery
+	# 'type' is generic, like: Battery, Mains
 	# capacity_level is a string, like: Normal
 	my @items = qw(alarm capacity capacity_level charge_full charge_full_design charge_now 
 	cycle_count energy_full energy_full_design energy_now location manufacturer model_name 
@@ -5832,10 +5863,15 @@ sub battery_data_sys {
 		$b_ma = 0;
 		$id = $item;
 		$id =~ s%/sys/class/power_supply/|\/$%%g;
+		$battery{$id}{'purpose'} = ($id =~ /^[BC][AM][TB].*$/) ? 'primary': 'device';
 		$battery{$id} = ({});
 		foreach $file (@items){
 			$path = "$item$file";
 			$value = (-f $path) ? (main::reader($path))[0]: '';
+			# mains
+			if ($file eq 'type' && $value && $value ne 'Battery' ){
+				$battery{$id}{'purpose'} = 'mains';
+			}
 			if ($value){
 				if ($file eq 'voltage_min_design'){
 					$value = sprintf("%.1f", $value/1000000);
@@ -5929,6 +5965,7 @@ sub battery_data_dmi {
 			$id = "BAT$i";
 			$i++;
 			$battery{$id} = ({});
+			$battery{$id}{'purpose'} = 'primary';
 			# skip first three row, we don't need that data
 			splice @ref, 0, 3 if @ref;
 			foreach my $item (@ref){
@@ -12948,9 +12985,13 @@ sub sensors_data {
 		# NOTE: I've seen an inexplicable case where: CPU:52.0°C fails to match with [\s°] but 
 		# does match with: [\s°]*. I can't account for this, but that's why the * is there
 		# Tdie is a new k10temp-pci syntax for cpu die temp
-		elsif (!$sensors{'cpu-temp'} && $_ =~ /^(CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i) {
-			$sensors{'cpu-temp'} = $2;
+		elsif ($_ =~ /^(CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i) {
+			$temp_working = $2;
 			$working_unit = $3;
+			if ( !$sensors{'cpu-temp'} || 
+			   ( defined $temp_working && $temp_working > 0 && $temp_working > $sensors{'cpu-temp'} ) ) {
+				$sensors{'cpu-temp'} = $temp_working;
+			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		elsif ($_ =~ /^PECI\sAgent\s0.*:([0-9\.]+)[\s°]*(C|F)/i) {
@@ -13002,7 +13043,8 @@ sub sensors_data {
 		elsif ($_ =~ /^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
 			$temp_working = $3;
 			$working_unit = $4;
-			if ( !$sensors{'core-0-temp'} || ( defined $temp_working && $temp_working > 0 ) ) {
+			if ( !$sensors{'core-0-temp'} || 
+			   ( defined $temp_working && $temp_working > 0 && $temp_working > $sensors{'core-0-temp'} ) ) {
 				$sensors{'core-0-temp'} = $temp_working;
 			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
