@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.10';
 my $self_date='2018-05-30';
-my $self_patch='23';
+my $self_patch='24';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7414,6 +7414,9 @@ sub create_output {
 				$rows[$j]{main::key($num++,'speed')} = $row{'speed'};
 				$rows[$j]{main::key($num++,'lanes')} = $row{'lanes'} if $row{'lanes'};
 			}
+			if ($extra > 2 && $row{'rotation'}){
+				$rows[$j]{main::key($num++,'rotation')} = $row{'rotation'};
+			}
 			if ($extra > 1){
 				my $serial = main::apply_filter($row{'serial'});
 				$rows[$j]{main::key($num++,'serial')} = $serial;
@@ -7565,9 +7568,10 @@ sub proc_data_advanced {
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
 		if ($extra > 2){
-			@data = partition_scheme($pt_cmd,$drives[$i]{'id'});
+			@data = advanced_disk_data($pt_cmd,$drives[$i]{'id'});
 			$pt_cmd = $data[0];
 			$drives[$i]{'partition-table'} = uc($data[1]) if $data[1];
+			$drives[$i]{'rotation'} = "$data[2] rpm" if $data[2];
 		}
 		#print "$drives[$i]{'id'}\n";
 		@disk_data = disk_data_by_id("/dev/$drives[$i]{'id'}");
@@ -7812,7 +7816,7 @@ sub peripheral_data {
 	eval $end if $b_log;
 	return $type;
 }
-sub partition_scheme {
+sub advanced_disk_data {
 	eval $start if $b_log;
 	my ($set_cmd,$id) = @_;
 	my ($cmd,$pt,$program,@data,@return);
@@ -7823,10 +7827,8 @@ sub partition_scheme {
 		# runs as user, but is SLOW: udisksctl info -b /dev/sda
 		# line: org.freedesktop.UDisks2.PartitionTable:
 		# Type:               dos
-		if (!$b_root){
-			if ($program = main::check_program('udevadm')){
-				$return[0] = "$program info -q property -n ";
-			}
+		if (!$b_root && ($program = main::check_program('udevadm'))){
+			$return[0] = "$program info -q property -n ";
 		}
 		if (!$return[0] && $b_root && -e "/lib/udev/udisks-part-id") {
 			$return[0] = "/lib/udev/udisks-part-id /dev/";
@@ -7858,6 +7860,17 @@ sub partition_scheme {
 			$return[1] = 'dos' if !$return[1];
 		}
 		else {
+			@data = sort(@data);
+			foreach (@data){
+				if ( /^(UDISKS_PARTITION_TABLE_SCHEME|ID_PART_TABLE_TYPE)/ ){
+					my @working = split /=/, $_;
+					$return[1] = $working[1];
+				}
+				elsif (/^ID_ATA_ROTATION_RATE_RPM/){
+					my @working = split /=/, $_;
+					$return[2] = $working[1];
+				}
+			}
 			$return[1] = main::awk(\@data,'^(UDISKS_PARTITION_TABLE_SCHEME|ID_PART_TABLE_TYPE)',2,'=');
 		}
 		$return[1] = 'mbr' if $return[1] && $return[1] eq 'dos';
