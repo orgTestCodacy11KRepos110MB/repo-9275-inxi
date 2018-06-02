@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.10';
-my $self_date='2018-05-30';
-my $self_patch='28';
+my $self_date='2018-06-02';
+my $self_patch='29';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15288,22 +15288,28 @@ sub get_linux_distro {
 		}
 	}
 	# otherwise try  the default debian/ubuntu /etc/issue file
+	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
+	# and then made that resulting file 700 permissions, which is obviously a mistake
 	elsif (-f $issue){
-		@working = main::reader($issue);
-		my $b_mint = scalar (grep {/mint/i} @working); 
+		@working = (-r $issue) ? main::reader($issue) : ();
+		my ($b_antergos,$b_mint);
+		if (@working){
+			$b_mint = 1 if @working && scalar(grep {/mint/i} @working);
+			$b_antergos = 1 if @working && scalar(grep {/antergos/i} @working);
+		}
 		# os-release/lsb gives more manageable and accurate output than issue, 
-		# but mint should use issue for now.
-		if ($b_os_release && !$b_mint){
+		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
+		if ($b_os_release && !$b_mint && !$b_antergos){
 			$distro = get_os_release();
 			$b_osr = 1;
 		}
-		elsif ($b_lsb && !$b_mint){
+		elsif ($b_lsb && !$b_mint && !$b_antergos){
 			$distro = get_lsb_release();
 		}
 		else {
-			# debian issue can end with weird escapes like \n \l
-			@working = main::reader($issue);
-			$distro = (map {s/\\[a-z]|,|\*|\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @working)[0] if @working;
+			# debian issue can end with weird escapes like \n \l 
+			# antergos: Antergos Linux \r (\l)
+			$distro = (map {s/\\[a-z]|,|\*|\||\"|[:\47]|^\s+|\s+$|n\/a//ig; s/\(\)//; $_} @working)[0] if @working;
 			# this handles an arch bug where /etc/arch-release is empty and /etc/issue 
 			# is corrupted only older arch installs that have not been updated should 
 			# have this fallback required, new ones use os-release
@@ -15345,6 +15351,7 @@ sub get_linux_distro {
 	eval $end if $b_log;
 	return $distro;
 }
+
 sub get_lsb_release {
 	eval $start if $b_log;
 	my ($distro,$id,$release,$codename,$description) = ('','','','','');
@@ -15414,7 +15421,8 @@ sub get_os_release {
 		}
 	}
 	# NOTE: tumbleweed has pretty name but pretty name does not have version id
-	if ($pretty_name && $pretty_name !~ /tumbleweed/i){
+	# arco shows only the release name, like kirk, in pretty name
+	if ($pretty_name && ($pretty_name !~ /tumbleweed/i || ($name && lc($name) ne 'arcolinux') )){
 		$distro = $pretty_name;
 	}
 	elsif ($name){
