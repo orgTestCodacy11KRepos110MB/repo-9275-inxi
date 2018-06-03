@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.10';
-my $self_date='2018-06-02';
-my $self_patch='30';
+my $self_date='2018-06-03';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4765,11 +4765,13 @@ sub clean_characters {
 	my ($data) = @_;
 	# newline, pipe, brackets, + sign, with space, then clear doubled
 	# spaces and then strip out trailing/leading spaces.
-	$data =~ s/\n|\|\+|\[\s\]|\s\s+/ /g if $data; 
-	$data =~ s/^\s+|\s+$//g if $data;
+	# etc/issue often has junk stuff like (\l)  \n \l
+	return if ! $data;
+	$data =~ s/[:\47]|\\[a-z]|\n|,|\"|\*|\||\+|\[\s\]|n\/a|\s\s+/ /g; 
+	$data =~ s/\(\)//;
+	$data =~ s/^\s+|\s+$//g;
 	return $data;
 }
-
 sub cleaner {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or ''
@@ -15202,7 +15204,7 @@ sub get_bsd_os {
 sub get_linux_distro {
 	eval $start if $b_log;
 	my ($distro_file) = ('');
-	my ($b_osr,@working);
+	my ($b_antergos,$b_osr,@working);
 	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
 	mandrake-release manjaro-release mx-version pardus-release porteus-version sabayon-release 
 	siduction-version sidux-version slitaz-release solusos-release turbolinux-release 
@@ -15220,18 +15222,29 @@ sub get_linux_distro {
 	# uses this method
 	my @distro_files = glob('/etc/*[-_]{[rR]elease,[vV]ersion}*');
 	my $lsb_release = '/etc/lsb-release';
-	my $issue = '/etc/issue';
+	my ($etc_issue,$issue) = ('','/etc/issue');
 	my $os_release = '/etc/os-release';
-	my $b_os_release = ( -f $os_release ) ? 1 : 0;
-	my $b_lsb = ( -f $lsb_release ) ? 1 : 0;
+	my $b_issue = 1 if -f $issue;
+	my $b_os_release = 1 if -f $os_release;
+	my $b_lsb = 1 if -f $lsb_release;
+	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
+	# and then made that resulting file 700 permissions, which is obviously a mistake
+	$etc_issue = (main::reader($issue))[0] if $b_issue && -r $issue;
+	# debian issue can end with weird escapes like \n \l 
+	# antergos: Antergos Linux \r (\l)
+	if ($etc_issue){
+		$etc_issue = main::clean_characters($etc_issue);
+		$b_antergos = 1 if $etc_issue =~ /antergos/i;
+	}
 	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
 	if ( scalar @distro_files == 1 ){
 		$distro_file = $distro_files[0];
 	}
 	elsif (scalar @distro_files > 1) {
-		# special case, to force manjaro which also has arch-release
+		# special case, to force manjaro/antergos which also have arch-release
 		# manjaro should use lsb, which has the full info, arch uses os release
-		if (grep {/manjaro/} @distro_files){
+		# antergos should use /etc/issue
+		if ($b_antergos || grep {/manjaro/} @distro_files){
 			@distro_files = grep {!/arch-release/} @distro_files;
 		}
 		my $distro_files_s = join "|", @distro_files;
@@ -15292,15 +15305,9 @@ sub get_linux_distro {
 		}
 	}
 	# otherwise try  the default debian/ubuntu /etc/issue file
-	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
-	# and then made that resulting file 700 permissions, which is obviously a mistake
-	elsif (-f $issue){
-		@working = (-r $issue) ? main::reader($issue) : ();
-		my ($b_antergos,$b_mint);
-		if (@working){
-			$b_mint = 1 if @working && scalar(grep {/mint/i} @working);
-			$b_antergos = 1 if @working && scalar(grep {/antergos/i} @working);
-		}
+	elsif ($b_issue){
+		my ($b_mint);
+		$b_mint = 1 if $etc_issue && $etc_issue =~ /mint/i;
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
 		if ($b_os_release && !$b_mint && !$b_antergos){
@@ -15310,10 +15317,8 @@ sub get_linux_distro {
 		elsif ($b_lsb && !$b_mint && !$b_antergos){
 			$distro = get_lsb_release();
 		}
-		else {
-			# debian issue can end with weird escapes like \n \l 
-			# antergos: Antergos Linux \r (\l)
-			$distro = (map {s/\\[a-z]|,|\*|\||\"|[:\47]|^\s+|\s+$|n\/a//ig; s/\(\)//; $_} @working)[0] if @working;
+		elsif ($etc_issue) {
+			$distro =  $etc_issue;
 			# this handles an arch bug where /etc/arch-release is empty and /etc/issue 
 			# is corrupted only older arch installs that have not been updated should 
 			# have this fallback required, new ones use os-release
