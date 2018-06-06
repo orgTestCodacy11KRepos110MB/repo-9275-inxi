@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.12';
 my $self_date='2018-06-06';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1273,7 +1273,7 @@ sub run_debugger {
 	print $line3;
 	if (!$b_debug){
 		if ( -d '/sys' && main::count_dir_files('/sys') ){
-			sys_tree();
+			build_tree('sys');
 			sys_traverse_data();
 		}
 		else {
@@ -1281,6 +1281,7 @@ sub run_debugger {
 		}
 		print $line3;
 		if ( -d '/proc' && main::count_dir_files('/proc') ){
+			build_tree('proc');
 			proc_traverse_data();
 		}
 		else {
@@ -1710,7 +1711,18 @@ sub system_files {
 	);
 	copy_files(\@files,'system-bsd');
 }
+## SELF EXECUTE FOR LOG/OUTPUT
+sub run_self {
+	print "Creating $self_name output file now. This can take a few seconds...\n";
+	print "Starting $self_name from: $self_path\n";
+	my $i = ($option eq 'main-full')? ' -i' : '';
+	my $cmd = "$self_path/$self_name -FRfrploudmxxx$i -c 0 --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmxxxyusbslots120.txt 2>&1";
+	system($cmd);
+	copy($log_file, "$data_dir") or main::error_handler('copy-failed', "$log_file", "$!");
+	system("$self_path/$self_name --recommends -y 120 > $data_dir/$self_name-recommends-120.txt 2>&1");
+}
 
+## UTILITIES COPY/CMD/WRITE
 sub copy_files {
 	my ($files_ref,$type,$alt_dir) = @_;
 	my ($absent,$error,$good,$name,$unreadable);
@@ -1740,7 +1752,6 @@ sub copy_files {
 		}
 	}
 }
-
 sub run_commands {
 	my ($cmds,$type) = @_;
 	my $holder = '';
@@ -1796,20 +1807,11 @@ sub write_data {
 		}
 	}
 }
-
-sub run_self {
-	print "Creating $self_name output file now. This can take a few seconds...\n";
-	print "Starting $self_name from: $self_path\n";
-	my $i = ($option eq 'main-full')? ' -i' : '';
-	my $cmd = "$self_path/$self_name -FRfrploudmxxx$i -c 0 --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmxxxyusbslots120.txt 2>&1";
-	system($cmd);
-	copy($log_file, "$data_dir") or main::error_handler('copy-failed', "$log_file", "$!");
-	system("$self_path/$self_name --recommends -y 120 > $data_dir/$self_name-recommends-120.txt 2>&1");
-}
-
-sub sys_tree {
-	print "Constructing /sys tree data...\n";
-	if ( main::check_program('tree') ){
+## TOOLS FOR DIRECTORY TREE/LS/TRAVERSE; UPLOADER
+sub build_tree {
+	my ($which) = @_;
+	if ( $which eq 'sys' && main::check_program('tree') ){
+		print "Constructing /$which tree data...\n";
 		my $dirname = '/sys';
 		my $cmd;
 		system("tree -a -L 10 /sys > $data_dir/sys-data-tree-full-10.txt");
@@ -1823,23 +1825,37 @@ sub sys_tree {
 			system($cmd);
 		}
 	}
-	# for now, we want all of these as well for better debugging
-	#else {
-		sys_ls(1);
-		sys_ls(2);
-		sys_ls(3);
-		sys_ls(4);
-	#}
+	print "Constructing /$which ls data...\n";
+	if ($which eq 'sys'){
+		directory_ls($which,1);
+		directory_ls($which,2);
+		directory_ls($which,3);
+		directory_ls($which,4);
+	}
+	elsif ($which eq 'proc') {
+		directory_ls('proc',1);
+		directory_ls('proc',2,'[a-z]');
+		# don't want the /proc/self or /proc/thread-self directories, those are 
+		# too invasive
+		#directory_ls('proc',3,'[a-z]');
+		#directory_ls('proc',4,'[a-z]');
+	}
 }
-sub sys_ls {
-	my ( $depth) = @_;
+
+# include is basic regex for ls path syntax, like [a-z]
+sub directory_ls {
+	my ( $dir,$depth,$include) = @_;
+	$include ||= '';
+	my ($exclude) = ('');
+	# wd do NOT want to see anything in self or thread-self!!
+	# $exclude = 'I self -I thread-self' if $dir eq 'proc';
 	my $cmd = do {
-		if ( $depth == 1 ){ 'ls -l /sys/ 2>/dev/null' }
-		elsif ( $depth == 2 ){ 'ls -l /sys/*/ 2>/dev/null' }
-		elsif ( $depth == 3 ){ 'ls -l /sys/*/*/ 2>/dev/null' }
-		elsif ( $depth == 4 ){ 'ls -l /sys/*/*/*/ 2>/dev/null' }
-		elsif ( $depth == 5 ){ 'ls -l /sys/*/*/*/*/ 2>/dev/null' }
-		elsif ( $depth == 5 ){ 'ls -l /sys/*/*/*/*/ 2>/dev/null' }
+		if ( $depth == 1 ){ "ls -l $exclude /$dir/$include 2>/dev/null" }
+		elsif ( $depth == 2 ){ "ls -l $exclude /$dir/$include*/ 2>/dev/null" }
+		elsif ( $depth == 3 ){ "ls -l $exclude /$dir/$include*/*/ 2>/dev/null" }
+		elsif ( $depth == 4 ){ "ls -l $exclude /$dir/$include*/*/*/ 2>/dev/null" }
+		elsif ( $depth == 5 ){ "ls -l $exclude /$dir/$include*/*/*/*/ 2>/dev/null" }
+		elsif ( $depth == 5 ){ "ls -l $exclude /$dir/$include*/*/*/*/ 2>/dev/null" }
 	};
 	my @working = ();
 	my $output = '';
@@ -1870,65 +1886,46 @@ sub sys_ls {
 		}
 	}
 	close $ch;
-	my $file = "$data_dir/sys-data-ls-$depth.txt";
+	my $file = "$data_dir/$dir-data-ls-$depth.txt";
 	open my $fh, '>', $file or main::error_handler('create',"$file", "$!");
 	print $fh $output;
 	close $fh;
 	# print "$output\n";
 }
-
-sub sys_traverse_data {
-	print "Parsing /sys files...\n";
-	# get rid pointless error:Can't cd to (/sys/kernel/) debug: Permission denied
-	no warnings 'File::Find';
-	$parse_src = 'sys';
-	File::Find::find( \&wanted, "/sys");
-	process_sys_data();
-	@content = ();
-}
 sub proc_traverse_data {
-	print "Parsing /proc files...\n";
+	print "Building /proc file list...\n";
 	# get rid pointless error:Can't cd to (/sys/kernel/) debug: Permission denied
 	no warnings 'File::Find';
 	$parse_src = 'proc';
 	File::Find::find( \&wanted, "/proc");
-	process_proc_data();
+	proc_traverse_processor();
 	@content = ();
 }
-sub wanted {
-	return if -d; # not directory
-	return unless -e; # Must exist
-	return unless -f; # Must be file
-	return unless -r; # Must be readable
-	if ($parse_src eq 'sys'){
-		# note: a new file in 4.11 /sys can hang this, it is /parameter/ then
-		# a few variables. Since inxi does not need to see that file, we will
-		# not use it. Also do not need . files or __ starting files
-		# print $File::Find::name . "\n";
-		# block maybe: cfgroup\/
-		return if $File::Find::name =~ /\/(\.[a-z]|kernel\/|parameters\/|debug\/)/;
-		# comment this one out if you experience hangs or if 
-		# we discover syntax of foreign language characters
-		# Must be ascii like. This is questionable and might require further
-		# investigation, it is removing some characters that we might want
-		# NOTE: this made a bunch of files on arm systems unreadable
-		# return unless -T; 
-	}
-	elsif ($parse_src eq 'proc') {
-		return if $File::Find::name =~ /^\/proc\/[0-9]+\//;
-		return if $File::Find::name =~ /^\/proc\/bus\/pci\//;
-		return if $File::Find::name =~ /^\/proc\/irq\//;
-		# these choke on sudo/root: kmsg kcore kpage and we don't want keys or kallsyms
-		return if $File::Find::name =~ /^\/proc\/k/; 
-		return if $File::Find::name =~ /(\/mb_groups|debug)$/;
-	}
-	# print $File::Find::name . "\n";
-	push (@content, $File::Find::name);
-	return;
+sub proc_traverse_processor {
+	my ($data,$fh,$result,$row,$sep);
+	my $proc_dir = "$data_dir/proc";
+	print "Adding /proc files...\n";
+	mkdir $proc_dir or main::error_handler('mkdir', "$proc_dir", "$!");
+	# @content = sort @content; 
+	copy_files(\@content,'proc',$proc_dir);
+# 	foreach (@content){
+# 		print "$_\n";
+# 	}
 }
-sub process_sys_data {
+
+sub sys_traverse_data {
+	print "Building /sys file list...\n";
+	# get rid pointless error:Can't cd to (/sys/kernel/) debug: Permission denied
+	no warnings 'File::Find';
+	$parse_src = 'sys';
+	File::Find::find( \&wanted, "/sys");
+	sys_traverse_processsor();
+	@content = ();
+}
+sub sys_traverse_processsor {
 	my ($data,$fh,$result,$row,$sep);
 	my $filename = "sys-data-parse.txt";
+	print "Parsing /sys files...\n";
 	# no sorts, we want the order it comes in
 	# @content = sort @content; 
 	foreach (@content){
@@ -1956,15 +1953,37 @@ sub process_sys_data {
 	close $fh;
 	# print $fh "$result";
 }
-sub process_proc_data {
-	my ($data,$fh,$result,$row,$sep);
-	my $proc_dir = "$data_dir/proc";
-	mkdir $proc_dir or main::error_handler('mkdir', "$proc_dir", "$!");
-	# @content = sort @content; 
-	copy_files(\@content,'proc',$proc_dir);
-# 	foreach (@content){
-# 		print "$_\n";
-# 	}
+sub wanted {
+	return if -d; # not directory
+	return unless -e; # Must exist
+	return unless -f; # Must be file
+	return unless -r; # Must be readable
+	if ($parse_src eq 'sys'){
+		# note: a new file in 4.11 /sys can hang this, it is /parameter/ then
+		# a few variables. Since inxi does not need to see that file, we will
+		# not use it. Also do not need . files or __ starting files
+		# print $File::Find::name . "\n";
+		# block maybe: cfgroup\/
+		return if $File::Find::name =~ /\/(\.[a-z]|kernel\/|parameters\/|debug\/)/;
+		# comment this one out if you experience hangs or if 
+		# we discover syntax of foreign language characters
+		# Must be ascii like. This is questionable and might require further
+		# investigation, it is removing some characters that we might want
+		# NOTE: this made a bunch of files on arm systems unreadable so we handle 
+		# the readable tests in copy_files()
+		# return unless -T; 
+	}
+	elsif ($parse_src eq 'proc') {
+		return if $File::Find::name =~ /^\/proc\/[0-9]+\//;
+		return if $File::Find::name =~ /^\/proc\/bus\/pci\//;
+		return if $File::Find::name =~ /^\/proc\/irq\//;
+		# these choke on sudo/root: kmsg kcore kpage and we don't want keys or kallsyms
+		return if $File::Find::name =~ /^\/proc\/k/; 
+		return if $File::Find::name =~ /(\/mb_groups|debug)$/;
+	}
+	# print $File::Find::name . "\n";
+	push (@content, $File::Find::name);
+	return;
 }
 # args: 1 - path to file to be uploaded
 # args: 2 - optional: alternate ftp upload url
