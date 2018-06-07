@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.12';
-my $self_date='2018-06-06';
-my $self_patch='06';
+my $self_date='2018-06-07';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5264,6 +5264,7 @@ sub print_data {
 			'array' => 1,
 			'Battery' => 1,
 			'Card' => 1,
+			'cpu' => 1, # arm > 1 cpu type
 			'Device' => 1,
 			'Floppy' => 1,
 			'ID' => 1,
@@ -6166,6 +6167,13 @@ sub create_output_full {
 	main::key($num++,'Topology') => $properties{'cpu-layout'},
 	main::key($num++,'model') => $cpu{'model_name'},
 	},);
+	if ($cpu{'arm-cpus'}){
+		my $ref = $cpu{'arm-cpus'};
+		my %arm_cpus = %$ref;
+		foreach my $key (%arm_cpus){
+			$rows[$j]{main::key($num++,'cpu')} = $arm_cpus{$key};
+		}
+	}
 	@rows = (@rows,@data);
 	$properties{'bits-sys'} ||= 'N/A';
 	$rows[$j]{main::key($num++,'bits')} = $properties{'bits-sys'};
@@ -6568,12 +6576,18 @@ sub data_cpuinfo {
 	}
 	$cpu{'phys'} = scalar @phys_cpus;
 	$cpu{'dies'} = $die_id++; # count starts at 0, all cpus have 1 die at least
-	if ($b_arm && $cpu{'dies'} <= 1){
-		my $arm_dies = cpu_dies_sys();
-		# case were 4 core arm returned 4 sibling lists, obviously wrong
-		$cpu{'dies'} = $arm_dies if $arm_dies && $proc_count != $arm_dies;
+	if ($b_arm){
+		if ($cpu{'dies'} <= 1){
+			my $arm_dies = cpu_dies_sys();
+			# case were 4 core arm returned 4 sibling lists, obviously wrong
+			$cpu{'dies'} = $arm_dies if $arm_dies && $proc_count != $arm_dies;
+		}
+		$cpu{'type'} = 'arm' if !$cpu{'type'};
+		if (!$bsd_type){
+			my %arm_cpus = arm_cpu_name();
+			$cpu{'arm-cpus'} = \%arm_cpus if %arm_cpus;
+		}
 	}
-	$cpu{'type'} = 'arm' if $b_arm && !$cpu{'type'};
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
 		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'});
@@ -7139,6 +7153,22 @@ sub cpu_vendor {
 	}
 	eval $end if $b_log;
 	return $vendor;
+}
+
+sub arm_cpu_name {
+	eval $start if $b_log;
+	my (%cpus,$compat);
+	if ( -e '/sys/firmware/devicetree/base/cpus/cpu@2/compatible' ){
+		my @working = main::globber('/sys/firmware/devicetree/base/cpus/cpu@*/compatible');
+		foreach my $file (@working){
+			$compat = (main::reader($file))[0];
+			$compat = (split /,\s*/, $compat)[-1] if $compat;
+			$cpus{$compat} = (defined $cpus{$compat}) ? $cpus{$compat}++: 1;
+		}
+	}
+	main::log_data('dump','%cpus',\%cpus) if $b_log;
+	eval $end if $b_log;
+	return %cpus;
 }
 
 sub cpu_arch {
