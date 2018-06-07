@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.12';
 my $self_date='2018-06-06';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15976,31 +15976,26 @@ sub get_shell_source {
 			log_data('data',$msg);
 		}
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
-		if ( $shell_parent && ( $shell_parent eq 'su' || 
-		     $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ) ){
-			my $shell = $1; # we want the first set only if shell is parent
-			# no idea why have to do script_parent action twice in su case, but you do.
-			$self_parent = get_start_parent($self_parent);
-			$shell_parent = get_shell_parent($self_parent) if $shell;
-			#print "shell parent 2: $shell_parent\n";
-			if ($b_log){
-				$msg = ($shell_parent) ? "shell parent 2: $shell_parent": "shell parent 2: undefined";
-				log_data('data',$msg);
-			}
-			if (!$shell || 
-			    $shell_parent =~ /^(bash|csh|ksh|lksh|loksh|mksh|pdksh|sh|dash|perl|zsh|tcsh)$/ ){
+		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
+		for my $i (2..4){
+			if ( $shell_parent && 
+		     $shell_parent =~ /^(bash|csh|dash|ksh|lksh|loksh|mksh|pdksh|perl|sh|su|sudo|tcsh|zsh)$/ ){
+				# no idea why have to do script_parent action twice in su case, but you do.
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
+				#print "shell parent 2: $shell_parent\n";
+				if ($b_log){
+					$msg = ($shell_parent) ? "shell parent $i: $shell_parent": "shell parent $i: undefined";
+					log_data('data',$msg);
+				}
 			}
-			#print "shell parent 3: $shell_parent\n";
-			if ($b_log){
-				$msg = ($shell_parent) ? "shell parent 3: $shell_parent": "shell parent 3: undefined";
-			log_data('data',$msg);
+			else {
+				last;
 			}
 		}
 		# to work around a ps -p or gnome-terminal bug, which returns 
 		# gnome-terminal- trim - off end 
-		$shell_parent =~ s/-$//;
+		$shell_parent =~ s/-$// if $shell_parent;
 	}
 	if ($b_log){
 		$self_parent ||= '';
