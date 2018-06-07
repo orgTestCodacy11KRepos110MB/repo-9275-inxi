@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.12';
 my $self_date='2018-06-07';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5264,12 +5264,12 @@ sub print_data {
 			'array' => 1,
 			'Battery' => 1,
 			'Card' => 1,
-			'cpu' => 1, # arm > 1 cpu type
 			'Device' => 1,
 			'Floppy' => 1,
 			'ID' => 1,
 			'IF-ID' => 1,
 			'Optical' => 1,
+			'variant' => 1, # arm > 1 cpu type
 			);
 			$array_holder = 1;
 			foreach my $val1 (@{$data{$key1}}){
@@ -6167,14 +6167,14 @@ sub create_output_full {
 	main::key($num++,'Topology') => $properties{'cpu-layout'},
 	main::key($num++,'model') => $cpu{'model_name'},
 	},);
+	@rows = (@rows,@data);
 	if ($cpu{'arm-cpus'}){
 		my $ref = $cpu{'arm-cpus'};
 		my %arm_cpus = %$ref;
-		foreach my $key (%arm_cpus){
-			$rows[$j]{main::key($num++,'cpu')} = $arm_cpus{$key};
+		foreach my $key (keys %arm_cpus){
+			$rows[$j]{main::key($num++,'variant')} = $key;
 		}
 	}
-	@rows = (@rows,@data);
 	$properties{'bits-sys'} ||= 'N/A';
 	$rows[$j]{main::key($num++,'bits')} = $properties{'bits-sys'};
 	if ($type){
@@ -7163,7 +7163,7 @@ sub arm_cpu_name {
 		foreach my $file (@working){
 			$compat = (main::reader($file))[0];
 			$compat = (split /,\s*/, $compat)[-1] if $compat;
-			$cpus{$compat} = (defined $cpus{$compat}) ? $cpus{$compat}++: 1;
+			$cpus{$compat} = ($cpus{$compat}) ? ++$cpus{$compat}: 1;
 		}
 	}
 	main::log_data('dump','%cpus',\%cpus) if $b_log;
