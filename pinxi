@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.12';
 my $self_date='2018-06-12';
-my $self_patch='12';
+my $self_patch='13';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5481,7 +5481,7 @@ sub get {
 		@data = card_data();
 		@rows = (@rows,@data);
 	}
-	if ( ( ($b_arm && !$b_arm_audio ) || !@rows ) && (my $file = main::system_files('asound-cards') ) ){
+	if ( ( ($b_arm ) || !@rows ) && (my $file = main::system_files('asound-cards') ) ){
 		@data = asound_data($file);
 		@rows = (@rows,@data);
 	}
@@ -5529,10 +5529,10 @@ sub card_data {
 				}
 			}
 			if ($extra > 0){
-				$rows[$j]{main::key($num++,'bus ID')} = "$row[2].$row[3]";
+				$rows[$j]{main::key($num++,'bus ID')} = ($b_arm) ? 'N/A' : "$row[2].$row[3]";
 			}
 			if ($extra > 1){
-				$rows[$j]{main::key($num++,'chip ID')} = "$row[5]:$row[6]";
+				$rows[$j]{main::key($num++,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
 			}
 		}
 		#print "$row[0]\n";
@@ -8385,10 +8385,10 @@ sub card_data {
 				$rows[$j]{main::key($num++,'v')} = $version;
 			}
 			if ($extra > 0){
-				$rows[$j]{main::key($num++,'bus ID')} = "$row[2].$row[3]";
+				$rows[$j]{main::key($num++,'bus ID')} = ($b_arm) ? 'N/A' : "$row[2].$row[3]";
 			}
 			if ($extra > 1){
-				$rows[$j]{main::key($num++,'chip ID')} = "$row[5]:$row[6]";
+				$rows[$j]{main::key($num++,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
 			}
 		}
 		#print "$row[0]\n";
@@ -9776,7 +9776,7 @@ sub advanced_data_sys {
 				$data2 = (defined $data2 && $data2 eq '0001' && defined $chip && $chip eq '1000') ? '1000' : $data2;
 			}
 			else {
-				$path = abs_path($_);
+				$path = Cwd::abs_path($_);
 				$path =~ /($chip)/;
 				if ($1){
 					$data1 = $1;
@@ -16738,7 +16738,7 @@ sub set_pciconf_data {
 # "OF_COMPATIBLE_0=allwinner,sun8i-h3-mali", "OF_COMPATIBLE_1=allwinner,sun7i-a20-mali", 
 # "OF_COMPATIBLE_2=arm,mali-400", "OF_COMPATIBLE_N=3", 
 # "MODALIAS=of:NgpuT<NULL>Callwinner,sun8i-h3-maliCallwinner,sun7i-a20-maliCarm,mali-400"]
-sub set_soc_data {
+sub set_arm_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
 	foreach my $item (qw(audio fb gpu ethernet)){
@@ -16746,7 +16746,6 @@ sub set_soc_data {
 		foreach my $file (@files){
 			my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
 			$type,$type_id,$vendor_id);
-			@working = reader($file, 'strip');
 			$chip_id = $file;
 			# variants: 20100000.ethernet soc:audio
 			$chip_id =~ /\/sys\/devices\/platform\/soc\/([^\/]+)[\.:]$item\/uevent/;
@@ -16755,25 +16754,26 @@ sub set_soc_data {
 			$b_arm_audio = 1 if $type eq 'audio';
 			$b_arm_gpu = 1 if ($type eq 'gpu' || $type eq 'fb');
 			$b_arm_nic = 1 if $type eq 'network';
+			@working = reader($file, 'strip');
 			foreach my $data (@working){
 				@temp2 = split /=/, $data;
 				if ($temp2[0] eq 'DRIVER'){
-					$driver = $temp2[0];
+					$driver = $temp2[1];
 				}
 				elsif ($temp2[0] eq 'OF_COMPATIBLE_0'){
 					@temp3 = split /,/, $temp2[1];
 					$device = $temp3[-1];
 					$vendor_id = $temp3[0];
 				}
-				$busid =  '';
-				$busid_nu =  '';
-				$type_id =  '';
-				$port = '';
-				$rev = '';
-				$modules = '';
-				@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
-				@pci = (@pci,[@temp3]);
 			}
+			$busid =  '';
+			$busid_nu =  0;
+			$type_id =  '';
+			$port = '';
+			$rev = '';
+			$modules = '';
+			@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
+			@pci = (@pci,[@temp3]);
 		}
 	}
 	print Dumper \@pci if $test[4];
