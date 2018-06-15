@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.12';
-my $self_date='2018-06-13';
-my $self_patch='17';
+my $self_date='2018-06-15';
+my $self_patch='18';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15293,7 +15293,7 @@ sub get_display_manager {
 ## Get DistroData
 {
 package DistroData;
-my ($distro);
+my (@distro_data);
 sub get {
 	eval $start if $b_log;
 	if ($bsd_type){
@@ -15303,11 +15303,12 @@ sub get {
 		get_linux_distro();
 	}
 	eval $end if $b_log;
-	return $distro;
+	return @distro_data;
 }
 
 sub get_bsd_os {
 	eval $start if $b_log;
+	my ($distro) = ('');
 	if ($bsd_type eq 'darwin'){
 		my $file = '/System/Library/CoreServices/SystemVersion.plist';
 		if (-f $file){
@@ -15321,14 +15322,14 @@ sub get_bsd_os {
 	else {
 		$distro = "$uname[0] $uname[2]";
 	}
+	@distro_data = ($distro,'');
 	eval $end if $b_log;
-	return $distro;
 }
 
 sub get_linux_distro {
 	eval $start if $b_log;
-	my ($distro_file) = ('');
-	my ($b_antergos,$b_osr,@working);
+	my ($distro,$distro_file,$system_base) = ('','','');
+	my ($b_antergos,$b_armbian,$b_base_default,$b_mint,$b_osr,@working);
 	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
 	mandrake-release manjaro-release mx-version pardus-release porteus-version sabayon-release 
 	siduction-version sidux-version slitaz-release solusos-release turbolinux-release 
@@ -15337,14 +15338,15 @@ sub get_linux_distro {
 	my @primary = qw(arch-release gentoo-release redhat-release slackware-version 
 	SuSE-release);
 	my $primary_s = join "|", @primary;
+	my $base_default_s = 'antix-version|mx-version|siduction-version';
 	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
-	my $os_release_good_s = 'arch-release|SuSE-release';
+	my $os_release_good_s = 'arch-release|rpi-issue|SuSE-release';
 	# note: always exceptions, so wild card after release/version: 
 	# /etc/lsb-release-crunchbang
 	# wait to handle since crunchbang file is one of the few in the world that 
 	# uses this method
-	my @distro_files = glob('/etc/*[-_]{[rR]elease,[vV]ersion}*');
+	my @distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
 	my $lsb_release = '/etc/lsb-release';
 	my ($etc_issue,$issue) = ('','/etc/issue');
 	my $os_release = '/etc/os-release';
@@ -15370,7 +15372,10 @@ sub get_linux_distro {
 		# antergos should use /etc/issue
 		if ($b_antergos || grep {/manjaro/} @distro_files){
 			@distro_files = grep {!/arch-release/} @distro_files;
+			$system_base = 'Arch Linux';
 		}
+		$b_armbian = 1 if grep {/armbian/} @distro_files;
+		$b_base_default = 1 if grep {/\etc\/($base_default_s)/} @distro_files;
 		my $distro_files_s = join "|", @distro_files;
 		@working = (@derived,@primary);
 		foreach my $file (@working){
@@ -15430,7 +15435,7 @@ sub get_linux_distro {
 	}
 	# otherwise try  the default debian/ubuntu /etc/issue file
 	elsif ($b_issue){
-		my $b_mint = ( $etc_issue && $etc_issue =~ /mint/i ) ? 1 : 0;
+		$b_mint = ( $etc_issue && $etc_issue =~ /mint/i ) ? 1 : 0;
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
 		if ($b_os_release && !$b_mint && !$b_antergos){
@@ -15479,10 +15484,19 @@ sub get_linux_distro {
 			$distro = $distro_file;
 		}
 	}
+	if ($b_os_release && $extra > 2){
+		if ($b_base_default ){
+			$system_base = get_os_release('default');
+		}
+		elsif ($b_mint){
+			$system_base = get_os_release('mint');
+		}
+	}
+	$distro =~ s/Debian/Armbian/ if $distro && $b_armbian;
 	## finally, if all else has failed, give up
 	$distro ||= 'unknown';
+	@distro_data = ($distro,$system_base);
 	eval $end if $b_log;
-	return $distro;
 }
 
 sub get_lsb_release {
@@ -15507,15 +15521,15 @@ sub get_lsb_release {
 				$id = $working[1];
 			}
 		}
-		if ($working[0] eq 'DISTRIB_RELEASE' && $working[1]){
+		elsif ($working[0] eq 'DISTRIB_RELEASE' && $working[1]){
 			$release = $working[1];
 		}
-		if ($working[0] eq 'DISTRIB_CODENAME' && $working[1]){
+		elsif ($working[0] eq 'DISTRIB_CODENAME' && $working[1]){
 			$codename = $working[1];
 		}
 		# sometimes some distros cannot do their lsb-release files correctly, 
 		# so here is one last chance to get it right.
-		if ($working[0] eq 'DISTRIB_DESCRIPTION' && $working[1]){
+		elsif ($working[0] eq 'DISTRIB_DESCRIPTION' && $working[1]){
 			$description = $working[1];
 		}
 	}
@@ -15531,8 +15545,9 @@ sub get_lsb_release {
 }
 sub get_os_release {
 	eval $start if $b_log;
-	my ($pretty_name,$lc_name,$name,$version_name,$version_id,
-	$distro_name,$distro) = ('','','','','','','');
+	my ($base_type) = @_;
+	my ($base_name,$base_version,$distro,$distro_name,$pretty_name,$lc_name,$name,
+	$version_name,$version_id) = ('','','','','','','','','');
 	my @content = main::reader('/etc/os-release');
 	main::log_data('dump','@content',\@content) if $b_log;
 	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
@@ -15543,30 +15558,53 @@ sub get_os_release {
 		if ($working[0] eq 'PRETTY_NAME' && $working[1]){
 			$pretty_name = $working[1];
 		}
-		if ($working[0] eq 'NAME' && $working[1]){
+		elsif ($working[0] eq 'NAME' && $working[1]){
 			$name = $working[1];
 			$lc_name = lc($name);
 		}
-		if ($working[0] eq 'VERSION' && $working[1]){
+		elsif ($working[0] eq 'VERSION' && $working[1]){
 			$version_name = $working[1];
 		}
-		if ($working[0] eq 'VERSION_ID' && $working[1]){
+		elsif ($working[0] eq 'VERSION_ID' && $working[1]){
 			$version_id = $working[1];
+		}
+		# for mint system base
+		if ($base_type && $base_type eq 'mint'){
+			if ($working[0] eq 'ID_LIKE' && $working[1]){
+				$base_name = ucfirst($working[1]);
+			}
+			elsif ($working[0] eq 'UBUNTU_CODENAME' && $working[1]){
+				$base_version = ucfirst($working[1]);
+			}
 		}
 	}
 	# NOTE: tumbleweed has pretty name but pretty name does not have version id
 	# arco shows only the release name, like kirk, in pretty name
-	if ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
-		$distro = $pretty_name;
-	}
-	elsif ($name){
-		$distro = $name;
-		$distro = 'Arco Linux' if $lc_name eq 'arcolinux';
-		if ($version_name){
-			$distro .= ' ' . $version_name;
+	if (!$base_type){
+		if ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
+			$distro = $pretty_name;
 		}
-		elsif ($version_id){
-			$distro .= ' ' . $version_id;
+		elsif ($name){
+			$distro = $name;
+			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
+			if ($version_name){
+				$distro .= ' ' . $version_name;
+			}
+			elsif ($version_id){
+				$distro .= ' ' . $version_id;
+			}
+		}
+	}
+	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
+	else {
+		if ($base_name && $base_version){
+			$distro = "$base_name $base_version";
+		}
+		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_id) ) ){
+			$distro = ($pretty_name) ? $pretty_name : "$name $version_id";
+		}
+		elsif ( $base_type eq 'mint' && $lc_name eq 'ubuntu' && $pretty_name){
+			$distro = $pretty_name;
 		}
 	}
 	eval $end if $b_log;
@@ -16741,40 +16779,40 @@ sub set_pciconf_data {
 sub set_arm_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
-	foreach my $item (qw(audio fb gpu hdmi ethernet)){
-		@files = globber("/sys/devices/platform/soc*/*.$item/uevent");
-		foreach my $file (@files){
-			my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
-			$type,$type_id,$vendor_id);
-			$chip_id = $file;
-			# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
-			$chip_id =~ /\/sys\/devices\/platform\/soc[^\/]*\/([^\/]+)[\.:]$item\/uevent/;
-			$chip_id = $1;
-			$type = $item;
-			$b_arm_audio = 1 if $type eq 'audio' || ($type eq 'hdmi' );
-			$b_arm_gfx = 1 if ($type eq 'gpu' || $type eq 'fb');
-			$b_arm_net = 1 if $type eq 'ethernet';
-			@working = reader($file, 'strip');
-			foreach my $data (@working){
-				@temp2 = split /=/, $data;
-				if ($temp2[0] eq 'DRIVER'){
-					$driver = $temp2[1];
-				}
-				elsif ($temp2[0] eq 'OF_COMPATIBLE_0'){
-					@temp3 = split /,/, $temp2[1];
-					$device = $temp3[-1];
-					$vendor_id = $temp3[0];
-				}
+	@files = globber("/sys/devices/platform/soc*/*/uevent");
+	foreach my $file (@files){
+		my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
+		$type,$type_id,$vendor_id);
+		$chip_id = $file;
+		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
+		$chip_id =~ /\/sys\/devices\/platform\/soc[^\/]*\/([^\/]+)[\.:][^\/]+\/uevent/;
+		$chip_id = $1;
+		@working = reader($file, 'strip');
+		foreach my $data (@working){
+			@temp2 = split /=/, $data;
+			if ($temp2[0] eq 'DRIVER'){
+				$driver = $temp2[1];
 			}
-			$busid =  '';
-			$busid_nu =  0;
-			$type_id =  '';
-			$port = '';
-			$rev = '';
-			$modules = '';
-			@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
-			@pci = (@pci,[@temp3]);
+			elsif ($temp2[0] eq 'OF_NAME'){
+				$type = $temp2[1];
+			}
+			elsif ($temp2[0] eq 'OF_COMPATIBLE_0'){
+				@temp3 = split /,/, $temp2[1];
+				$device = $temp3[-1];
+				$vendor_id = $temp3[0];
+			}
 		}
+		$b_arm_audio = 1 if $type eq 'audio' || ($type eq 'hdmi' );
+		$b_arm_gfx = 1 if ($type eq 'gpu' || $type eq 'fb');
+		$b_arm_net = 1 if $type eq 'ethernet';
+		$busid =  '';
+		$busid_nu =  0;
+		$type_id =  '';
+		$port = '';
+		$rev = '';
+		$modules = '';
+		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
+		@pci = (@pci,[@temp3]);
 	}
 	print Dumper \@pci if $test[4];
 	main::log_data('dump','@pci',\@pci) if $b_log;
@@ -17519,11 +17557,14 @@ sub generate_system_data {
 		$dms ||= 'N/A';
 		$data{$data_name}[$index]{main::key($num++,'dm')} = $dms;
 	}
-	my $distro_key = ($bsd_type) ? 'OS': 'Distro' ;
-	my $distro = DistroData::get();
+	my $distro_key = ($bsd_type) ? 'OS': 'Distro';
+	my @distro_data = DistroData::get();
+	my $distro = $distro_data[0];
 	$distro ||= 'N/A';
 	$data{$data_name}[$index]{main::key($num++,$distro_key)} = $distro;
-	
+	if ($extra > 2 && $distro_data[1]){
+		$data{$data_name}[$index]{main::key($num++,'System Base')} = $distro_data[1];
+	}
 	eval $end if $b_log;
 	return %data;
 }
