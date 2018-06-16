@@ -15330,7 +15330,7 @@ sub get_bsd_os {
 sub get_linux_distro {
 	eval $start if $b_log;
 	my ($distro,$distro_file,$system_base) = ('','','');
-	my ($b_antergos,$b_armbian,$b_base_default,$b_mint,$b_osr,@working);
+	my ($b_antergos,$b_armbian,$b_base_default,$b_mint,$b_osr,$b_raspbian,@working);
 	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
 	mandrake-release manjaro-release mx-version pardus-release porteus-version sabayon-release 
 	siduction-version sidux-version slitaz-release solusos-release turbolinux-release 
@@ -15339,7 +15339,7 @@ sub get_linux_distro {
 	my @primary = qw(arch-release gentoo-release redhat-release slackware-version 
 	SuSE-release);
 	my $primary_s = join "|", @primary;
-	my $base_default_s = 'antix-version|mx-version|siduction-version';
+	my $base_default_s = 'antix-version|mx-version';
 	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
 	my $os_release_good_s = 'arch-release|rpi-issue|SuSE-release';
@@ -15362,6 +15362,10 @@ sub get_linux_distro {
 	if ($etc_issue){
 		$etc_issue = main::clean_characters($etc_issue);
 		$b_antergos = 1 if $etc_issue =~ /antergos/i;
+		if ($etc_issue =~ /raspbian/i){
+			$b_raspbian = 1;
+			$os_release_good_s .= '|debian_version';
+		}
 	}
 	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
 	if ( scalar @distro_files == 1 ){
@@ -15485,15 +15489,18 @@ sub get_linux_distro {
 			$distro = $distro_file;
 		}
 	}
-	if ($b_os_release && $extra > 2){
-		if ($b_base_default ){
-			$system_base = get_os_release('default');
+	if ($extra > 2){
+		if ($b_os_release){
+			if ($b_base_default ){
+				$system_base = get_os_release('default');
+			}
+			elsif ($b_mint){
+				$system_base = get_os_release('mint');
+			}
 		}
-		elsif ($b_mint){
-			$system_base = get_os_release('mint');
-		}
+		$system_base = 'Debian' if $b_armbian || $b_raspbian;
 	}
-	$distro =~ s/Debian/Armbian/ if $distro && $b_armbian;
+	$distro =~ s/Debian/Armbian/ if ($distro && $b_armbian);
 	## finally, if all else has failed, give up
 	$distro ||= 'unknown';
 	@distro_data = ($distro,$system_base);
@@ -15570,11 +15577,11 @@ sub get_os_release {
 			$version_id = $working[1];
 		}
 		# for mint system base
-		if ($base_type && $base_type eq 'mint'){
+		if ($base_type ){
 			if ($working[0] eq 'ID_LIKE' && $working[1]){
 				$base_name = ucfirst($working[1]);
 			}
-			elsif ($working[0] eq 'UBUNTU_CODENAME' && $working[1]){
+			elsif ($base_type eq 'mint' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
 				$base_version = ucfirst($working[1]);
 			}
 		}
