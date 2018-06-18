@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.12';
 my $self_date='2018-06-17';
-my $self_patch='25';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15297,7 +15297,7 @@ sub get_display_manager {
 ## Get DistroData
 {
 package DistroData;
-my (@distro_data);
+my (@distro_data,@osr);
 sub get {
 	eval $start if $b_log;
 	if ($bsd_type){
@@ -15352,14 +15352,14 @@ sub get_linux_distro {
 	# uses this method
 	my @distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
 	my $lsb_release = '/etc/lsb-release';
-	my ($etc_issue,$issue) = ('','/etc/issue');
-	my $os_release = '/etc/os-release';
-	my $b_issue = 1 if -f $issue;
-	my $b_os_release = 1 if -f $os_release;
 	my $b_lsb = 1 if -f $lsb_release;
+	my ($etc_issue,$issue) = ('','/etc/issue');
+	my $b_issue = 1 if -f $issue;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
 	# and then made that resulting file 700 permissions, which is obviously a mistake
-	$etc_issue = (main::reader($issue))[0] if $b_issue && -r $issue;
+	$etc_issue = (main::reader($issue))[0] if -r $issue;
+	my $os_release = '/etc/os-release';
+	@osr = main::reader($os_release) if -r $os_release;
 	# debian issue can end with weird escapes like \n \l 
 	# antergos: Antergos Linux \r (\l)
 	if ($etc_issue){
@@ -15377,13 +15377,16 @@ sub get_linux_distro {
 	elsif (scalar @distro_files > 1) {
 		# special case, to force manjaro/antergos which also have arch-release
 		# manjaro should use lsb, which has the full info, arch uses os release
-		# antergos should use /etc/issue
-		if ($b_antergos || grep {/manjaro/} @distro_files){
-			@distro_files = grep {!/arch-release/} @distro_files;
+		# antergos should use /etc/issue. Note that antergos changed this around 
+		# 2018-05, and now lists antergos in os-release, sigh...
+		if ($b_antergos || grep {/manjaro|chakra/} @distro_files){
+			if ( @osr && (grep {/manjaro|antergos|chakra/i} @osr ) ){
+				@distro_files = grep {!/arch-release/} @distro_files;
+			}
 			# $system_base = 'Arch Linux';
 		}
 		$b_armbian = 1 if grep {/armbian/} @distro_files;
-		$b_base_default = 1 if grep {/\etc\/($base_default_s)/} @distro_files;
+		$b_base_default = 1 if grep {/\/etc\/($base_default_s)/} @distro_files;
 		my $distro_files_s = join "|", @distro_files;
 		@working = (@derived,@primary);
 		foreach my $file (@working){
@@ -15395,7 +15398,7 @@ sub get_linux_distro {
 				if ($b_lsb && $file =~ /$lsb_good_s/){
 					$distro_file = $lsb_release;
 				}
-				elsif ($b_os_release && $file =~ /($os_release_good_s)$/){
+				elsif (@osr && $file =~ /($os_release_good_s)$/){
 					$distro_file = $os_release;
 				}
 				else {
@@ -15419,7 +15422,7 @@ sub get_linux_distro {
 	elsif ($distro_file && $b_lsb && ($distro_file =~ /\/etc\/($lsb_good_s)$/ || $distro_file eq $lsb_release) ){
 		$distro = get_lsb_release();
 	}
-	elsif ($distro_file eq $os_release){
+	elsif ($distro_file && $distro_file eq $os_release){
 		$distro = get_os_release();
 		$b_osr = 1;
 	}
@@ -15446,7 +15449,7 @@ sub get_linux_distro {
 		$b_mint = ( $etc_issue && $etc_issue =~ /mint/i ) ? 1 : 0;
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
-		if ($b_os_release && !$b_mint && !$b_antergos){
+		if (@osr && !$b_mint && !$b_antergos){
 			$distro = get_os_release();
 			$b_osr = 1;
 		}
@@ -15467,16 +15470,18 @@ sub get_linux_distro {
 	# exists then let's use that if it wasn't tried already. Maybe that will be better.
 	# not handling the corrupt data, maybe later if needed. 10 + distro: (8) + string
 	if ($distro && length($distro) > 60 ){
-		if (!$b_osr && $b_os_release){
+		if (!$b_osr && @osr){
 			$distro = get_os_release();
+			$b_osr = 1;
 		}
 	}
 	# test for /etc/lsb-release as a backup in case of failure, in cases 
 	# where > one version/release file were found but the above resulted 
 	# in null distro value. 
 	if (!$distro){
-		if (!$b_osr && $b_os_release){
+		if (!$b_osr && @osr){
 			$distro = get_os_release();
+			$b_osr = 1;
 		}
 		elsif ($b_lsb){
 			$distro = get_lsb_release();
@@ -15493,7 +15498,7 @@ sub get_linux_distro {
 		}
 	}
 	if ($extra > 2){
-		if ($b_os_release){
+		if (@osr){
 			if ($b_base_default ){
 				$system_base = get_os_release('default');
 			}
@@ -15558,7 +15563,7 @@ sub get_os_release {
 	my ($base_type) = @_;
 	my ($base_name,$base_version,$distro,$distro_name,$pretty_name,$lc_name,$name,
 	$version_name,$version_id) = ('','','','','','','','','');
-	my @content = main::reader('/etc/os-release');
+	my @content = @osr;
 	main::log_data('dump','@content',\@content) if $b_log;
 	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
 	foreach (@content){
@@ -15589,18 +15594,23 @@ sub get_os_release {
 		}
 	}
 	# NOTE: tumbleweed has pretty name but pretty name does not have version id
-	# arco shows only the release name, like kirk, in pretty name
+	# arco shows only the release name, like kirk, in pretty name. Too many distros 
+	# are doing pretty name wrong, and just putting in the NAME value there
 	if (!$base_type){
-		if ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
+		if ($name && $version_name){
+			$distro = $name;
+			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
+			if ($version_id && $version_name !~ /$version_id/){
+				$distro .= ' ' . $version_id;
+			}
+			$distro .= " $version_name";
+		}
+		elsif ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
 			$distro = $pretty_name;
 		}
 		elsif ($name){
 			$distro = $name;
-			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
-			if ($version_name){
-				$distro .= ' ' . $version_name;
-			}
-			elsif ($version_id){
+			if ($version_id){
 				$distro .= ' ' . $version_id;
 			}
 		}
@@ -15612,7 +15622,7 @@ sub get_os_release {
 			$distro = "$base_name $base_version";
 		}
 		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name) ) ){
-			$distro = ($pretty_name) ? $pretty_name : "$name $version_name";
+			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
 		}
 		elsif ( $base_type eq 'mint' && $lc_name eq 'ubuntu' && $pretty_name){
 			$distro = $pretty_name;
