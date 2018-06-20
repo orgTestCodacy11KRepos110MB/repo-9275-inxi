@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.12';
-my $self_date='2018-06-19';
-my $self_patch='32';
+my $self_date='2018-06-20';
+my $self_patch='33';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -60,8 +60,8 @@ my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@pci,@ps_aux,
 @ps_cmd,@sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,
 @uname,@usb);
 ## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,
-@partitions,@raid,@sysctl_disks,@uuids);
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
+@lsblk,@partitions,@raid,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
 ## Booleans
@@ -4021,7 +4021,7 @@ sub get_options{
 	     ( ( $bsd_type || $b_dmidecode_force ) && ($show{'machine'} || $show{'battery'}) ) ){
 		$b_dmi = 1;
 	}
-	if ($show{'audio'} || $show{'graphic'} || $show{'network'} ){
+	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} || $show{'raid-forced'} ){
 		$b_pci = 1;
 	}
 	if ($show{'usb'} || $show{'audio'}  || $show{'network'} ){
@@ -11100,7 +11100,6 @@ sub throttled {
 package RaidData;
 # debugger switches
 my ($b_md,$b_zfs);
-my (@hardware_raid);
 
 sub get {
 	eval $start if $b_log;
@@ -11108,7 +11107,7 @@ sub get {
 	my $num = 0;
 	raid_data() if !$b_raid;
 	#print 'get: ', Data::Dumper::Dumper \@raid;
-	if (!@raid){
+	if (!@raid && !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('raid-data');
@@ -11383,14 +11382,14 @@ sub raid_data {
 # 10 modules
 sub hardware_raid {
 	eval $start if $b_log;
-	my ($driver,%data,@working);
+	my ($driver,@data,@working);
 	foreach my $ref (@pci){
 		@working = @$ref;
 		next if $working[1] ne '0104';
 		$driver = ($working[9]) ? lc($working[9]): '';
 		$driver =~ s/-/_/g if $driver;
 		my $driver_version = ($driver) ? main::get_module_version($driver): '';
-		%data = (
+		@data = ({
 		'bus-id' => $working[2],
 		'chip-id' => $working[6],
 		'device' => $working[4],
@@ -11400,11 +11399,10 @@ sub hardware_raid {
 		'rev' => $working[7],
 		'sub-id' => $working[3],
 		'vendor-id' => $working[5],
-		);
-		
-		@hardware_raid = (@hardware_raid,[%data]);
+		});
+		@hardware_raid = (@hardware_raid,@data);
 	}
-	print Data::Dumper::Dumper \@hardware_raid;
+	# print Data::Dumper::Dumper \@hardware_raid;
 	main::log_data('dump','@hardware_raid',\@hardware_raid) if $b_log;
 	eval $end if $b_log;
 }
@@ -16766,7 +16764,8 @@ sub set_lspci_data {
 	$content = qx($path -nnv 2>/dev/null) if $path;
 	@pcis = split /\n/, $content if $content;
 	#my $file = "$ENV{HOME}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
-	#@pcis = reader($file);
+	my $file = "$ENV{HOME}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
+	@pcis = reader($file);
 	#print scalar @pcis;
 	@pcis = map {$_ =~ s/^\s+//; $_} @pcis if @pcis;
 	$b_pci_tool = 1 if @pcis && scalar @pcis > 10;
@@ -17342,6 +17341,7 @@ sub generate_lines {
 			assign_data(%row);
 		}
 		if ( $show{'raid'} ){
+			set_pci_data() if !$b_pci_check; 
 			%row = line_handler('RAID','raid');
 			assign_data(%row);
 		}
