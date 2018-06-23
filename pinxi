@@ -31,9 +31,9 @@ use POSIX qw(uname strftime ttyname);
 
 ## INXI INFO ##
 my $self_name='pinxi';
-my $self_version='3.0.12';
-my $self_date='2018-06-22';
-my $self_patch='37';
+my $self_version='3.0.13';
+my $self_date='2018-06-23';
+my $self_patch='01';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15619,7 +15619,7 @@ sub get_linux_distro {
 				$system_base = get_os_release('default');
 			}
 			elsif ($b_mint){
-				$system_base = get_os_release('mint');
+				$system_base = get_os_release('ubuntu');
 			}
 		}
 	}
@@ -15677,8 +15677,8 @@ sub get_lsb_release {
 sub get_os_release {
 	eval $start if $b_log;
 	my ($base_type) = @_;
-	my ($base_name,$base_version,$distro,$distro_name,$pretty_name,$lc_name,$name,
-	$version_name,$version_id) = ('','','','','','','','','');
+	my ($base_id,$base_name,$base_version,$distro,$distro_name,$pretty_name,
+	$lc_name,$name,$version_name,$version_id) = ('','','','','','','','','','');
 	my @content = @osr;
 	main::log_data('dump','@content',\@content) if $b_log;
 	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
@@ -15703,9 +15703,10 @@ sub get_os_release {
 		# for mint system base
 		if ($base_type ){
 			if ($working[0] eq 'ID_LIKE' && $working[1]){
+				$working[1] =~ s/ubuntu\sdebian/ubuntu/ if $base_type eq 'ubuntu';
 				$base_name = ucfirst($working[1]);
 			}
-			elsif ($base_type eq 'mint' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
+			elsif ($base_type eq 'ubuntu' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
 				$base_version = ucfirst($working[1]);
 			}
 		}
@@ -15736,18 +15737,48 @@ sub get_os_release {
 	else {
 		# mint 17 used ubuntu os-release,  so won't have $base_version
 		if ($base_name && $base_version){
-			$distro = "$base_name $base_version";
+			$base_id = ubuntu_id($base_version) if $base_type eq 'ubuntu' && $base_version;
+			$base_id = '' if $base_id && "$base_name$base_version" =~ /$base_id/;
+			$base_id .= ' ' if $base_id;
+			$distro = "$base_name $base_id$base_version";
 		}
 		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name) ) ){
 			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
 		}
 		# maybe lmde, if that exists?
-		elsif ( $base_type eq 'mint' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
+		elsif ( $base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
 			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
 		}
 	}
 	eval $end if $b_log;
 	return $distro;
+}
+# note, these are only for matching derived names, no need to go
+# all the way back here, update as new names are known. This is because 
+# Mint is using UBUNTU_CODENAME without ID data.
+sub ubuntu_id {
+	eval $start if $b_log;
+	my ($codename) = lc(@_);
+	my ($id) = ('');
+	my %codenames = (
+	'cosmic' => '18.10',
+	'bionic' => '18.04 LTS',
+	'artful' => '17.10',
+	'zesty' => '17.04',
+	'yakkety' => '16.10',
+	'xenial' => '16.04 LTS',
+	'wily' => '15.10',
+	'vivid' => '15.04',
+	'utopic' => '14.10',
+	'trusty' => '14.04 LTS ',
+	'saucy' => '13.10',
+	'raring' => '13.04',
+	'quantal' => '12.10',
+	'precise' => '12.04 LTS ',
+	);
+	$id = $codenames{$codename} if defined $codenames{$codename};
+	eval $end if $b_log;
+	return $id;
 }
 }
 
@@ -16979,7 +17010,7 @@ sub set_ps_aux {
 	$_=lc for @ps_aux; # this is a super fast way to set to lower
 	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
 	# for pinxi, we want to see the useage data for cpu/ram
-	@ps_aux = grep {!/\b$self_name\b/} @ps_aux if $self_name eq 'inxi';
+	@ps_aux = grep {!/\/$self_name\b/} @ps_aux if $self_name eq 'inxi';
 	# this is for testing for the presence of the command
 	@ps_cmd = map {
 		my @split = split /\s+/, $_;
