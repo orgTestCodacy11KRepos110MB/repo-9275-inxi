@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.14';
 my $self_date='2018-06-30';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8795,14 +8795,27 @@ sub x_drivers {
 				$drivers{$driver}="unloaded" ;
 			}
 			# verify that the driver actually started the desktop, even with false failed messages 
-			# which can occur. This is the driver that is actually driving the display
+			# which can occur. This is the driver that is actually driving the display.
+			# note that xorg will often load several modules, like modesetting,fbdev,nouveau
+			# NOTE:
+			#(II) UnloadModule: "nouveau"
+			#(II) Unloading nouveau
+			#(II) Failed to load module "nouveau" (already loaded, 0)
+			#(II) LoadModule: "modesetting"
 			elsif (/Failed.*($list)\"?(_drv.so)?$/i ) {
-				$driver=lc($1);
-				# we need to make sure that the driver has already been truly loaded, not just 
-				# discussed, also set driver to lower case because sometimes it will show as 
+				# Set driver to lower case because sometimes it will show as 
 				# RADEON or NVIDIA in the actual x start
+				$driver=lc($1);
+				# we need to make sure that the driver has already been truly loaded, 
+				# not just discussed
 				if (exists $drivers{$driver}){
-					$drivers{$driver}="failed";
+					if ( $_ !~ /\(already loaded/){
+						$drivers{$driver}="failed";
+					}
+					# reset the previous line's 'unloaded' to 'loaded' as well
+					else {
+						$drivers{$driver}='loaded';
+					}
 				}
 			}
 		}
