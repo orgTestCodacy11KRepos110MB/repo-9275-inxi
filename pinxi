@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.14';
-my $self_date='2018-06-30';
-my $self_patch='09';
+my $self_date='2018-07-01';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4289,6 +4289,8 @@ sub show_options {
 	verbose or line output, not short form):" ],
 	['2', '-C', '', "If available: CPU errata (bugs); family, model-id, stepping - format:
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
+	['2', '-G', '', "If available, shows missing Xorg drivers. Missing means in default
+	check list of Xorg for the vendor, but not installed on system." ],
 	['1', '-y', '--width', "Output line width max (integer >= 80). Overrides IRC/Terminal 
 	settings or actual widths. Example:^inxi^-y^130" ],
 	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial numbers, 
@@ -8541,7 +8543,6 @@ sub display_data(){
 								}
 							}
 						}
-						
 					}
 				}
 			}
@@ -8607,6 +8608,9 @@ sub display_data(){
 			}
 			if ($drivers[1]){
 				$row[0]{main::key($num++,'unloaded')} = $drivers[1];
+			}
+			if ($b_admin && $drivers[3]){
+				$row[0]{main::key($num++,'missing')} = $drivers[3];
 			}
 			if ($graphics{'compositor'}){
 				$row[0]{main::key($num++,'compositor')} = $graphics{'compositor'};
@@ -8766,15 +8770,15 @@ sub tty_data(){
 sub x_drivers {
 	eval $start if $b_log;
 	my ($driver,@driver_data,,%drivers);
-	my ($failed,$loaded,$sep,$unloaded) = ('','','','');
+	my ($failed,$loaded,$missing,$sep,$unloaded) = ('','','','','');
 	if (my $log = main::system_files('xorg-log')){
 		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
 		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-all41-mint.txt";
 		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-phd21-mint.txt";
 		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-gm10.log";
 		my @xorg = main::reader($log);
-		# list is from sgfxi plus non-free drivers
-		my $list = 'amdgpu|apm|ark|ati|chips|cirrus|cyrix|fbdev|fglrx|glint|';
+		# list is from sgfxi plus non-free drivers, plus ARM drivers
+		my $list = 'amdgpu|apm|ark|armsoc|ati|chips|cirrus|cyrix|fbdev|fbturbo|fglrx|glint|';
 		$list .= 'i128|i740|i810|iftv|imstt|intel|ivtv|mach64|mesa|mga|modesetting|';
 		$list .= 'neomagic|newport|nouveau|nsc|nvidia|nv|openchrome|radeonhd|radeon|';
 		$list .= 'rendition|s3virge|s3|savage|siliconmotion|sisimedia|sisusb|sis|tdfx|';
@@ -8793,11 +8797,11 @@ sub x_drivers {
 				$drivers{$driver}='loaded';
 			}
 			# openbsd uses UnloadModule: 
-			elsif (/(Unloading\s|UnloadModule).*($list)(_drv.so)?$/i ) {
+			elsif (/(Unloading\s|UnloadModule).*\"?($list)(_drv.so)?\"?$/i ) {
 				$driver=lc($2);
 				# we get all the actually loaded drivers first, we will use this to compare the
 				# failed/unloaded, which have not always actually been truly loaded
-				if (exists $drivers{$driver}){
+				if (exists $drivers{$driver} && $drivers{$driver} ne 'missing'){
 					$drivers{$driver}='unloaded';
 				}
 			}
@@ -8824,6 +8828,9 @@ sub x_drivers {
 						$drivers{$driver}='loaded';
 					}
 				}
+				elsif ($b_admin && $_ =~ /module does not exist/){
+					$drivers{$driver}='missing';
+				}
 			}
 		}
 		my $sep = '';
@@ -8840,9 +8847,13 @@ sub x_drivers {
 				$sep = ($failed) ? ',' : '';
 				$failed .= $sep . $_;
 			}
+			elsif ($b_admin && $drivers{$_} eq 'missing') {
+				$sep = ($missing) ? ',' : '';
+				$missing .= $sep . $_;
+			}
 		}
 		$loaded ||= 'none';
-		@driver_data = ($loaded,$unloaded,$failed);
+		@driver_data = ($loaded,$unloaded,$failed,$missing);
 	}
 	eval $end if $b_log;
 	return @driver_data;
