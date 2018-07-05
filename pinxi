@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.15';
 my $self_date='2018-07-05';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4257,7 +4257,7 @@ sub show_options {
 	shows progress bar. Hardware RAID Chip vendor:product ID." ],
 	['2', '-s', '', "DIMM/SOC voltages (ipmi only)." ],
 	['2', '-S', '', "Display manager (dm) in desktop output if in X (e.g. kdm, 
-	gdm3, lightdm)." ],
+	gdm3, lightdm). Adds active window manager if detected." ],
 	['2', '--slots', '', "Slot length." ],
 	['2', '--usb', '', "Vendor:chip ID." ],
 	);
@@ -4280,7 +4280,7 @@ sub show_options {
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
 	Hardware RAID rev, ports." ],
 	['2', '-S', '', "Panel/shell info in desktop output, if in X (like gnome-shell, 
-	cinnamon, mate-panel); (if available) dm version number, active window manager." ]
+	cinnamon, mate-panel); (if available) dm version number." ]
 	);
 	push @data, @rows;
 	if ( $b_weather ){
@@ -14915,7 +14915,7 @@ sub get {
 	if ($extra > 2 && @desktop){
 		set_info_data();
 	}
-	if ($b_display && !$b_force_display && $extra > 2){
+	if ($b_display && !$b_force_display && $extra > 1){
 		get_wm();
 	}
 	main::log_data('dump','@desktop', \@desktop) if $b_log;
@@ -15008,26 +15008,14 @@ sub get_env_de_data {
 	elsif ( $xdg_desktop eq 'lxqt' ){
 		@data = main::program_values('lxqt');
 		$desktop[0] = $data[3];
-		$desktop[0] ||= 'LXQt';
 		# BAD: lxqt-about opens dialogue, sigh
 		$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		if ( $extra > 0 ){
-			my $kde_version = $kde_session_version;
-			if (!$kde_version){
-				if (main::check_program("kded6") ){$kde_version = 6;}
-				elsif (main::check_program("kded5") ){$kde_version = 5;}
-				elsif (main::check_program("kded4") ){$kde_version = 4;}
-			}
-			$kde_version ||= '';
-			if ($program = main::check_program("kded$kde_version") ){
-				@version_data = main::grabber("$program --version 2>/dev/null");
-				$desktop[2] = 'Qt';
-				$desktop[3] = main::awk(\@version_data,'^Qt:',2);
-			}
-			elsif ($program = main::check_program("qtdiag") ){
-				@data = main::program_values('qtdiag');
-				$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
-				$desktop[2] = $data[3];
+			set_qt_data();
+			if ( $extra > 1 ){
+				@data = main::program_values('openbox');
+				$desktop[6] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+				$desktop[5] = $data[3] if $desktop[6];
 			}
 		}
 	}
@@ -15168,6 +15156,7 @@ sub get_xprop_de_data {
 				$desktop[0] = 'LX-Qt-Variant';
 			}
 			$desktop[5] = 'Openbox';
+			set_qt_data();
 		}
 		else {
 			$desktop[0] = 'Openbox';
@@ -15292,6 +15281,29 @@ sub get_ps_de_data {
 		@data = main::program_values('afterstep');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('afterstep',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
+	eval $end if $b_log;
+}
+
+sub get_qt_version {
+	eval $start if $b_log;
+	my ($program,@data,@version_data);
+	my $kde_version = $kde_session_version;
+	$program = '';
+	if (!$kde_version){
+		if ($program = main::check_program("kded6") ){$kde_version = 6;}
+		elsif ($program = main::check_program("kded5") ){$kde_version = 5;}
+		elsif ($program = main::check_program("kded4") ){$kde_version = 4;}
+	}
+	if ($program){
+		@version_data = main::grabber("$program --version 2>/dev/null");
+		$desktop[2] = 'Qt';
+		$desktop[3] = main::awk(\@version_data,'^Qt:',2);
+	}
+	elsif ($program = main::check_program("qtdiag") ){
+		@data = main::program_values('qtdiag');
+		$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
+		$desktop[2] = $data[3];
 	}
 	eval $end if $b_log;
 }
@@ -17845,8 +17857,10 @@ sub generate_system_data {
 			$desktop_info = $desktop_data[4];
 		}
 		# don't print the desktop if it's a wm and the same
-		if ($desktop_data[5] && (!$desktop_data[0] || index(lc($desktop_data[5]),lc($desktop_data[0])) == -1 )){
+		if ($extra > 1 && $desktop_data[5] && 
+		    (!$desktop_data[0] || index(lc($desktop_data[5]),lc($desktop_data[0])) == -1 )){
 			$wm = $desktop_data[5];
+			$wm .= ' ' . $desktop_data[6] if $desktop_data[6];
 		}
 	}
 	if (!$b_display || ( ! $desktop && $b_root)) {
@@ -17870,11 +17884,12 @@ sub generate_system_data {
 		if ($desktop_info){
 			$data{$data_name}[$index]{main::key($num++,'info')} = $desktop_info;
 		}
-		if ($wm){
-			$data{$data_name}[$index]{main::key($num++,'wm')} = $wm;
-		}
 	}
 	if ($extra > 1){
+		if ($wm){
+			$data{$data_name}[$index]{main::key($num++,'wm')} = $wm;
+			
+		}
 		my $dms = get_display_manager();
 		$dms ||= 'N/A';
 		$data{$data_name}[$index]{main::key($num++,'dm')} = $dms;
