@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.15';
-my $self_date='2018-07-03';
-my $self_patch='01';
+my $self_date='2018-07-04';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15526,28 +15526,25 @@ sub get_linux_distro {
 	my @distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
 	my $lsb_release = '/etc/lsb-release';
 	my $b_lsb = 1 if -f $lsb_release;
-	my ($etc_issue,$issue) = ('','/etc/issue');
+	my ($etc_issue,$issue,$lc_issue) = ('','/etc/issue','');
 	$b_issue = 1 if -f $issue;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
 	# and then made that resulting file 700 permissions, which is obviously a mistake
 	$etc_issue = (main::reader($issue))[0] if -r $issue;
+	$etc_issue = main::clean_characters($etc_issue);
 	my $os_release = '/etc/os-release';
 	@osr = main::reader($os_release) if -r $os_release;
 	# debian issue can end with weird escapes like \n \l 
 	# antergos: Antergos Linux \r (\l)
 	if ($etc_issue){
-		$etc_issue = main::clean_characters($etc_issue);
-		if ($etc_issue =~ /antergos/i){
-			$distro_id = 'antergos';
+		$lc_issue = lc($etc_issue) if $etc_issue;
+		if ($lc_issue =~ /(antergos|grml|linux lite)/){
+			$distro_id = $1;
 			$b_use_issue = 1;
 		}
-		if (lc($etc_issue) =~ /(raspbian|peppermint)/){
+		elsif ($lc_issue =~ /(raspbian|peppermint)/){
 			$distro_id = $1;
 			$distro_file = $os_release if @osr;
-		}
-		elsif (lc($etc_issue) =~ /(grml)/){
-			$distro_id = $1;
-			$b_use_issue = 1;
 		}
 	}
 	# Note that antergos changed this around 	# 2018-05, and now lists 
@@ -15633,7 +15630,7 @@ sub get_linux_distro {
 	}
 	# otherwise try  the default debian/ubuntu /etc/issue file
 	elsif ($b_issue){
-		if ( !$distro_id && $etc_issue && lc($etc_issue) =~ /(mint|lmde)/ ){
+		if ( !$distro_id && $etc_issue && $lc_issue =~ /(mint|lmde)/ ){
 			$distro_id = $1;
 			$b_use_issue = 1;
 		}
@@ -15692,12 +15689,13 @@ sub get_linux_distro {
 		my $base_issue = 'bunsen';
 		my $base_manual = 'kali';
 		my $base_osr = 'aptosid|grml|siduction';
+		my $base_osr_issue = 'linux lite';
 		if (@osr){
 			my ($base_type) = ('');
 			if ($etc_issue && (grep {/($base_issue)/i} @osr)){
 				$system_base = $etc_issue;
 			}
-			elsif ($etc_issue && lc($etc_issue) =~ /($base_manual)/){
+			elsif ($etc_issue && $lc_issue =~ /($base_manual)/){
 				my $id = $1;
 				my %manual = (
 				'kali' => 'Debian testing',
@@ -15711,7 +15709,8 @@ sub get_linux_distro {
 			elsif ($distro_id && $distro_id =~ /(mint)/){
 				$base_type = 'ubuntu';
 			}
-			elsif (@distro_files && (grep {/($base_osr)/} @distro_files) && !(grep {/($base_osr)/i} @osr)){
+			elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || (@distro_files && (grep {/($base_osr)/} @distro_files)) ) && 
+			      !(grep {/($base_osr)/i} @osr)){
 				$system_base = get_os_release();
 			}
 			if (!$system_base && $base_type){
