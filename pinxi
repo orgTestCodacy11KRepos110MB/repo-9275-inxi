@@ -15693,17 +15693,25 @@ sub get_linux_distro {
 		my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
 		my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
 		my $base_upstream_osr = '/etc/upstream-release/os-release';
-		if (@osr){
+		# first try, some distros have upstream-release, elementary, new mint
+		if ( -r $base_upstream_osr){
+			my @osr_working = main::reader($base_upstream_osr);
+			if ( @osr_working){
+				my (@osr_temp);
+				@osr_temp = @osr;
+				@osr = @osr_working;
+				$system_base = get_os_release();
+				@osr = @osr_temp if !$system_base;
+				(@osr_temp,@osr_working) = (undef,undef);
+			}
+		}
+		elsif ( -r $base_upstream_lsb){
+			$system_base = get_lsb_release($base_upstream_lsb);
+		}
+		if (!$system_base && @osr){
 			my ($base_type) = ('');
 			if ($etc_issue && (grep {/($base_issue)/i} @osr)){
 				$system_base = $etc_issue;
-			}
-			elsif ($etc_issue && $lc_issue =~ /($base_manual)/){
-				my $id = $1;
-				my %manual = (
-				'kali' => 'Debian testing',
-				);
-				$system_base = $manual{$id};
 			}
 			# more tests added here for other ubuntu derived distros
 			elsif ( @distro_files && (grep {/($base_default)/} @distro_files) ){
@@ -15720,15 +15728,13 @@ sub get_linux_distro {
 			if (!$system_base && $base_type){
 				$system_base = get_os_release($base_type);
 			}
-			if (!$system_base){
-				if ( -r $base_upstream_osr){
-					@osr = main::reader($base_upstream_osr);
-					$system_base = get_os_release();
-				}
-				elsif ( -r $base_upstream_lsb){
-					$system_base = get_lsb_release($base_upstream_lsb);
-				}
-			}
+		}
+		if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
+			my $id = $1;
+			my %manual = (
+			'kali' => 'Debian testing',
+			);
+			$system_base = $manual{$id};
 		}
 	}
 	$distro =~ s/Debian/Armbian/ if ($distro && $distro_id eq 'armbian');
