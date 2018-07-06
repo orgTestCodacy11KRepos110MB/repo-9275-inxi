@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.15';
 my $self_date='2018-07-06';
-my $self_patch='21';
+my $self_patch='22';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17155,10 +17155,13 @@ sub set_pciconf_data {
 # "OF_COMPATIBLE_0=allwinner,sun8i-h3-mali", "OF_COMPATIBLE_1=allwinner,sun7i-a20-mali", 
 # "OF_COMPATIBLE_2=arm,mali-400", "OF_COMPATIBLE_N=3", 
 # "MODALIAS=of:NgpuT<NULL>Callwinner,sun8i-h3-maliCallwinner,sun7i-a20-maliCarm,mali-400"]
+## 5
+# /sys/devices/platform/soc/soc:internal-regs/d0018180.gpio/uevent
 sub set_arm_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
 	@files = globber("/sys/devices/platform/soc*/*/uevent");
+	@files = globber("/sys/devices/platform/soc*/soc*/*/uevent") if !@files;
 	# not sure why, but even as root/sudo, /subsystem/uevent is unreadable with -r test true
 	@files = grep {!/subsystem/} @files if @files;
 	foreach my $file (@files){
@@ -17166,8 +17169,8 @@ sub set_arm_soc_data {
 		$type,$type_id,$vendor_id,@working);
 		$chip_id = $file;
 		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
-		$chip_id =~ /\/sys\/devices\/platform\/soc[^\/]*\/([^\/]+)[\.:][^\/]+\/uevent/;
-		$chip_id = $1;
+		$chip_id =~ /\/sys\/devices\/platform\/(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)[\.:][^\/]+\/uevent/;
+		$chip_id = $2;
 		@working = reader($file, 'strip') if -r $file;
 		foreach my $data (@working){
 			@temp2 = split /=/, $data;
