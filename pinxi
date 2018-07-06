@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.15';
-my $self_date='2018-07-05';
-my $self_patch='16';
+my $self_date='2018-07-06';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15089,7 +15089,12 @@ sub get_xprop_de_data {
 	#print join "\n", @xprop, "\n";
 	# String: "This is xfdesktop version 4.2.12"
 	# alternate: xfce4-about --version > xfce4-about 4.10.0 (Xfce 4.10)
-	if ($xdg_desktop eq 'xfce' || main::awk(\@xprop,'xfce' )){
+	# note: some distros/wm (e.g. bunsen) set xdg to xfce to solve some other 
+	# issues so don't test for that. $xdg_desktop eq 'xfce'
+	# the sequence here matters, some desktops like icewm, razor, let you set different 
+	# wm, so we want to get the main controlling desktop first, then fall back to the wm
+	# detections. get_wm() will handle alternate wm detections.
+	if ((main::check_program('xfdesktop')) && main::awk(\@xprop,'^(xfdesktop|xfce)' )){
 		# this is a very expensive test that doesn't usually result in a find
 		# talk to xfce to see what id they will be using for xfce 5
 # 		if (main::awk(\@xprop, 'xfce4')){
@@ -15126,19 +15131,7 @@ sub get_xprop_de_data {
 			$desktop[2] = $data[3];
 		}
 	}
-	elsif ( (main::check_program('blackbox') || main::check_program('fluxbox')) && main::awk(\@xprop,'blackbox_pid' )){
-		if (grep {/fluxbox/} @ps_cmd){
-			@data = main::program_values('fluxbox');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('fluxbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-		else {
-			@data = main::program_values('blackbox');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('blackbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-	}
-	# debian package: lxde-core
+	# debian package: lxde-core. NOTE: this fails if alternate wm is used, so we need a better test.
 	elsif ( (main::check_program('lxpanel') || main::check_program('lxqt-session') ||
 	     main::check_program('razor-session')) && main::awk(\@xprop,'openbox_pid' )){
 		# note: openbox-lxde --version may be present, but returns openbox data
@@ -15205,6 +15198,18 @@ sub get_xprop_de_data {
 		@data = main::program_values('herbstluftwm');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('herbstluftwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
+	elsif ( (main::check_program('blackbox') || main::check_program('fluxbox')) && main::awk(\@xprop,'blackbox_pid' )){
+		if (grep {/fluxbox/} @ps_cmd){
+			@data = main::program_values('fluxbox');
+			$desktop[0] = $data[3];
+			$desktop[1] = main::program_version('fluxbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		}
+		else {
+			@data = main::program_values('blackbox');
+			$desktop[0] = $data[3];
+			$desktop[1] = main::program_version('blackbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		}
 	}
 	elsif (main::check_program('openbox') && main::awk(\@xprop,'openbox_pid' )){
 		@data = main::program_values('openbox');
@@ -15453,7 +15458,8 @@ sub set_xprop {
 		if (@xprop){
 			# add wm / de as required, but only add what is really tested for above
 			my $pattern = 'blackbox_pid|enlightenment|^_gnome|herbstluftwm|';
-			$pattern .= '^i3_|icewm|_marco|_muffin|openbox_pid|^_?windowmaker|^_wm2|xfce';
+			# XFDESKTOP_IMAGE_FILE; XFCE_DESKTOP
+			$pattern .= '^i3_|icewm|_marco|_muffin|openbox_pid|^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
 			# let's only do these searches once
 			@xprop = grep {/^\S/ && /($pattern)/i} @xprop;
 			$_ = lc for @xprop;
