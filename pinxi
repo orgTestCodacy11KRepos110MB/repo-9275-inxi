@@ -15155,7 +15155,7 @@ sub get_xprop_de_data {
 				# BAD: lxqt-about opens dialogue, sigh
 				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
 			}
-			elsif (main::awk(\@ps_cmd, 'razor-desktop')){
+			elsif (main::awk(\@ps_cmd, 'razor-session')){
 				$desktop[0] = 'Razor-Qt';
 			}
 			else {
@@ -15300,14 +15300,20 @@ sub set_qt_data {
 		if ($program = main::check_program("kded6") ){$kde_version = 6;}
 		elsif ($program = main::check_program("kded5") ){$kde_version = 5;}
 		elsif ($program = main::check_program("kded4") ){$kde_version = 4;}
-		elsif ($program = main::check_program("kded") ){$kde_version = 3;}
+		elsif ($program = main::check_program("kded") ){$kde_version = '';}
 	}
-	if ($program){
+	if (($program = main::check_program("kf$kde_version-config") )){
 		@version_data = main::grabber("$program --version 2>/dev/null");
 		$desktop[2] = 'Qt';
 		$desktop[3] = main::awk(\@version_data,'^Qt:',2);
 	}
-	elsif ($program = main::check_program("qtdiag") ){
+	# note: qt 5 does not show qt version in kded5, sigh
+	if ($desktop[3] && ($program = main::check_program("kded$kde_version"))){
+		@version_data = main::grabber("$program --version 2>/dev/null");
+		$desktop[2] = 'Qt';
+		$desktop[3] = main::awk(\@version_data,'^Qt:',2);
+	}
+	if ($desktop[3] && ($program = main::check_program("qtdiag") )){
 		@data = main::program_values('qtdiag');
 		$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
 		$desktop[2] = $data[3];
@@ -15329,7 +15335,7 @@ sub get_wm {
 			$desktop[5] = main::trimmer($desktop[5]);
 			my $temp = (split /\s+/, $desktop[5])[0];
 			if ($temp){
-				$temp = (split /\s*/, $temp)[0];
+				$temp = (split /\s+/, $temp)[0];
 				$temp = lc($temp);
 				@data = main::program_values($temp);
 				# print Data::Dumper::Dumper \@data;
@@ -15412,8 +15418,8 @@ sub set_gtk_data {
 sub set_info_data {
 	eval $start if $b_log;
 	my (@data,@info,$item);
-	my $pattern = 'gnome-panel|kicker|lxpanel|lxqt-panel|mate-panel|';
-	$pattern .= 'plasma-desktop|plasma-netbook|razorqt-panel|xfce4-panel';
+	my $pattern = 'gnome-panel|kicker|lxpanel|lxqt-panel|mate-panel|plasma-desktop|';
+	$pattern .= 'plasma-netbook|razor-panel|razorqt-panel|xfce4-panel';
 	if (@data = grep {/($pattern)(\s|$)/} @ps_cmd ) {
 		# only one entry per type, can be multiple
 		foreach $item (@data){
