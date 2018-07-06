@@ -15137,39 +15137,6 @@ sub get_xprop_de_data {
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('icewm',$data[0],$data[1],$data[2],$data[5],$data[6]);
 	}
-	# debian package: lxde-core. NOTE: this fails if alternate wm is used, so we need a better test.
-	elsif ( (main::check_program('lxpanel') || main::check_program('lxqt-session') ||
-	     main::check_program('razor-session')) && main::awk(\@xprop,'openbox_pid' )){
-		# note: openbox-lxde --version may be present, but returns openbox data
-		@data = main::program_values('openbox');
-		$desktop[6] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_cmd, 'lxsession')){
-			@data = main::program_values('lxde');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_cmd, 'razor-desktop|lxqt-session')) {
-			if (main::awk(\@ps_cmd,'lxqt-session' )){
-				@data = main::program_values('lxqt');
-				$desktop[0] = $data[3];
-				# BAD: lxqt-about opens dialogue, sigh
-				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-			}
-			elsif (main::awk(\@ps_cmd, 'razor-session')){
-				$desktop[0] = 'Razor-Qt';
-			}
-			else {
-				$desktop[0] = 'LX-Qt-Variant';
-			}
-			$desktop[5] = 'Openbox';
-			set_qt_data();
-		}
-		else {
-			$desktop[0] = 'Openbox';
-			$desktop[1] = $desktop[6];
-			$desktop[6] = undef;
-		}
-	}
 	elsif (main::check_program('enlightenment') && main::awk(\@xprop,'enlightenment' )){
 		$desktop[0] = 'Enlightenment';
 		# no -v or --version but version is in xprop -root
@@ -15212,10 +15179,39 @@ sub get_xprop_de_data {
 			$desktop[1] = main::program_version('blackbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
 	}
-	elsif (main::check_program('openbox') && main::awk(\@xprop,'openbox_pid' )){
+	# debian package: lxde-core. NOTE: this fails if alternate wm is used, so we need a better test.
+	elsif ( (main::check_program('openbox') || main::check_program('lxpanel') || 
+	     main::check_program('lxqt-session') ||main::check_program('razor-session')) && 
+	     main::awk(\@xprop,'openbox_pid' )){
+		# note: openbox-lxde --version may be present, but returns openbox data
 		@data = main::program_values('openbox');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		$desktop[6] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_cmd, 'lxsession')){
+			@data = main::program_values('lxde');
+			$desktop[0] = $data[3];
+			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		}
+		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_cmd, 'razor-desktop|lxqt-session')) {
+			if (main::awk(\@ps_cmd,'lxqt-session' )){
+				@data = main::program_values('lxqt');
+				$desktop[0] = $data[3];
+				# BAD: lxqt-about opens dialogue, sigh
+				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+			}
+			elsif (main::awk(\@ps_cmd, 'razor-session')){
+				$desktop[0] = 'Razor-Qt';
+			}
+			else {
+				$desktop[0] = 'LX-Qt-Variant';
+			}
+			$desktop[5] = 'Openbox';
+			set_qt_data();
+		}
+		else {
+			$desktop[0] = 'Openbox';
+			$desktop[1] = $desktop[6];
+			$desktop[6] = undef;
+		}
 	}
 	# need to check starts line because it's so short
 	eval $end if $b_log;
