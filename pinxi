@@ -15007,18 +15007,32 @@ sub get_env_de_data {
 		$desktop[1] = main::program_version('budgie-desktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		set_gtk_data() if $extra > 0;
 	}
-	elsif ( $xdg_desktop eq 'lxqt' ){
-		@data = main::program_values('lxqt');
-		$desktop[0] = $data[3];
-		# BAD: lxqt-about opens dialogue, sigh
-		$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		if ( $extra > 0 ){
-			set_qt_data();
-			if ( $extra > 1 ){
-				@data = main::program_values('openbox');
-				$desktop[6] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-				$desktop[5] = $data[3] if $desktop[6];
+	# debian package: lxde-core. 
+	# NOTE: some distros fail to set XDG data for root
+	elsif ( (main::check_program('lxpanel') || main::check_program('lxqt-session') ||
+	        main::check_program('razor-session')) && 
+	        ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || main::awk(\@ps_cmd, '(razor-session|lxsession|lxqt-session)' ) )){
+		# note: openbox-lxde --version may be present, but returns openbox data
+		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_cmd, 'lxsession')){
+			@data = main::program_values('lxde');
+			$desktop[0] = $data[3];
+			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		}
+		# NOTE: lxqt-about opens a gui dialog
+		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_cmd, 'razor-desktop|lxqt-session')) {
+			if (main::awk(\@ps_cmd,'lxqt-session' )){
+				@data = main::program_values('lxqt');
+				$desktop[0] = $data[3];
+				# BAD: lxqt-about opens dialogue, sigh
+				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
 			}
+			elsif (main::awk(\@ps_cmd, 'razor-session')){
+				$desktop[0] = 'Razor-Qt';
+			}
+			else {
+				$desktop[0] = 'LX-Qt-Variant';
+			}
+			set_qt_data();
 		}
 	}
 	# note, X-Cinnamon value strikes me as highly likely to change, so just 
@@ -15080,33 +15094,6 @@ sub get_env_xprop_de_data {
 		}
 		set_gtk_data() if $extra > 0;
 		$desktop[0] = ( $data[3] ) ? $data[3] : 'Gnome';
-	}
-	# debian package: lxde-core. NOTE: this fails if alternate wm is used, so we need a better test.
-	# NOTE: some distros fail to set XDG data for root
-	elsif ( (main::check_program('lxpanel') || main::check_program('lxqt-session') ||
-	        main::check_program('razor-session')) && 
-	        ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || main::awk(\@ps_cmd, '(razor-session|lxsession|lxqt-session)' ) )){
-		# note: openbox-lxde --version may be present, but returns openbox data
-		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_cmd, 'lxsession')){
-			@data = main::program_values('lxde');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_cmd, 'razor-desktop|lxqt-session')) {
-			if (main::awk(\@ps_cmd,'lxqt-session' )){
-				@data = main::program_values('lxqt');
-				$desktop[0] = $data[3];
-				# BAD: lxqt-about opens dialogue, sigh
-				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-			}
-			elsif (main::awk(\@ps_cmd, 'razor-session')){
-				$desktop[0] = 'Razor-Qt';
-			}
-			else {
-				$desktop[0] = 'LX-Qt-Variant';
-			}
-			set_qt_data();
-		}
 	}
 	eval $end if $b_log;
 }
