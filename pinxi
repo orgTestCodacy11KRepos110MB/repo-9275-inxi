@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.15';
 my $self_date='2018-07-06';
-my $self_patch='25';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3107,6 +3107,7 @@ sub program_values {
 	'mate-about' => ['^MATE[[:space:]]DESKTOP',-1,'--version','MATE',0,1,0],
 	# note, mate-session when launched with full path returns full path in version string
 	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0], 
+	'metacity' => ['^metacity',2,'--version','metacity',0,1,0],
 	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
 	'pekwm' => ['^pekwm',3,'--version','pekwm',0,1,0],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
@@ -3161,6 +3162,7 @@ sub program_version {
 	my ($cmd,$line,$output);
 	my $version_nu = '';
 	my $count = 0;
+	#print "app:$app\n";
 	$exit ||= 100; # basically don't exit ever
 	$version ||= '--version';
 	# adjust to array index, not human readable
@@ -15347,11 +15349,12 @@ sub get_wm_manual {
 	my ($wms,$working);
 	if ($b_xprop){
 		#KWIN_RUNNING
-		$wms = 'blackbox|kwin|openbox|herbstluftwm|wm2|windowmaker|i3';
+		$wms = 'blackbox|kwin|marco|muffin|openbox|herbstluftwm|wm2|windowmaker|i3';
 		foreach (@xprop){
 			if (/($wms)/){
 				$working = $1;
 				$working = 'wmaker' if $working eq 'windowmaker';
+				$working = "metacity $working" if $working eq 'marco' && main::check_program('metacity');
 				last;
 			}
 		}
@@ -15359,11 +15362,13 @@ sub get_wm_manual {
 	if (!$desktop[5]){
 		# order matters, see above logic
 		$wms = 'afterstep|awesome|fluxbox|blackbox|\bdwm|flwm\b|fvwm-crystal|fvwm2|fvwm|';
-		$wms .= 'gnome-shell|\bjwm|matchbox-panel|openbox|sawfish|scrotwm|spectrwm|\btwm|';
+		$wms .= 'gnome-shell|\bjwm|matchbox-panel|\bmarco\b|metacity|openbox|sawfish|scrotwm|';
+		$wms .= 'spectrwm|\btwm|';
 		$wms .= 'wmii2|wmii|xfwm4|xfwm5';
 		foreach (@ps_cmd){
 			if (/^[\S]*($wms)/){
 				$working = $1;
+				$working = "metacity $working" if $working eq 'marco' && main::check_program('metacity');
 				last;
 			}
 		}
@@ -15375,18 +15380,18 @@ sub get_wm_manual {
 sub get_wm_version {
 	eval $start if $b_log;
 	my ($type,$wm) = @_;
-	return if ! $wm;
+	# we don't want the gnome-shell version, and the others have no --version
+	return if ! $wm || $wm =~ /^(gnome-shell|flwm|twm)$/;
 	my $temp = (split /\s+/, $wm)[0];
 	if ($temp){
 		$temp = (split /\s+/, $temp)[0];
 		$temp = lc($temp);
 		my @data = main::program_values($temp);
+		return if !@data;
 		# print Data::Dumper::Dumper \@data;
-		if (@data && $wm ne 'gnome-shell'){
-			$desktop[5] = $data[3] if $type eq 'manual';
-			my $version = main::program_version($temp,$data[0],$data[1],$data[2],$data[5],$data[6]);
-			$desktop[6] = $version if $version;
-		}
+		$desktop[5] = $data[3] if $type eq 'manual';
+		my $version = main::program_version($temp,$data[0],$data[1],$data[2],$data[5],$data[6]);
+		$desktop[6] = $version if $version;
 	}
 	eval $end if $b_log;
 }
