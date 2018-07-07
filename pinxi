@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.15';
-my $self_date='2018-07-06';
-my $self_patch='30';
+my $self_date='2018-07-07';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4281,12 +4281,14 @@ sub show_options {
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	for 'running in:' adds (SSH) if SSH session." ],
 	['2', '-m', '', "Width of memory bus, data and total (if present and greater 
-	than data); Detail for Type, if present; module voltage, if available; serial number." ],
+	than data); Detail for Type, if present; module voltage, if available; serial 
+	number." ],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
 	Hardware RAID rev, ports." ],
 	['2', '-S', '', "Panel/shell info in desktop output, if in X (like lxpanel, 
-	xfce4-panel, mate-panel); (if available) dm version number." ]
+	xfce4-panel, mate-panel); (if available) dm version number, window manager
+	version number." ]
 	);
 	push @data, @rows;
 	if ( $b_weather ){
@@ -15384,7 +15386,8 @@ sub get_wm_version {
 	eval $start if $b_log;
 	my ($type,$wm) = @_;
 	# we don't want the gnome-shell version, and the others have no --version
-	return if ! $wm || $wm =~ /^(gnome-shell|flwm|twm)$/;
+	# we also don't want to run --version again on stuff we already have tested
+	return if ! $wm || $wm =~ /^(gnome-shell|flwm|twm)$/ || ($desktop[0] && lc($desktop[0]) eq lc($wm) );
 	my $temp = (split /\s+/, $wm)[0];
 	if ($temp){
 		$temp = (split /\s+/, $temp)[0];
@@ -15393,8 +15396,10 @@ sub get_wm_version {
 		return if !@data;
 		# print Data::Dumper::Dumper \@data;
 		$desktop[5] = $data[3] if $type eq 'manual';
-		my $version = main::program_version($temp,$data[0],$data[1],$data[2],$data[5],$data[6]);
-		$desktop[6] = $version if $version;
+		if ($extra > 2){
+			my $version = main::program_version($temp,$data[0],$data[1],$data[2],$data[5],$data[6]);
+			$desktop[6] = $version if $version;
+		}
 	}
 	eval $end if $b_log;
 }
@@ -15557,7 +15562,7 @@ sub get_display_manager {
 	# unknown dm, so we'll keep output to N/A
 	log_data('dump','display manager: @found',\@found) if $b_log;
 	eval $end if $b_log;
-	return join ',', @found if @found;
+	return join ', ', @found if @found;
 }
 
 ## Get DistroData
@@ -17930,7 +17935,7 @@ sub generate_system_data {
 		    (!$desktop_data[0] || $desktop_data[5] =~ /gnome[\s\-_]shell/i || 
 		    index(lc($desktop_data[5]),lc($desktop_data[0])) == -1 )){
 			$wm = $desktop_data[5];
-			$wm .= ' ' . $desktop_data[6] if $desktop_data[6];
+			$wm .= ' ' . $desktop_data[6] if $extra > 2 && $desktop_data[6];
 		}
 	}
 	if (!$b_display || ( ! $desktop && $b_root)) {
