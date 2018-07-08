@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.15';
-my $self_date='2018-07-07';
-my $self_patch='35';
+my $self_date='2018-07-08';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -66,11 +66,12 @@ my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_admin,$b_arm,$b_arm_audio,$b_arm_gfx,$b_arm_net,$b_console_irc,
-$b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
-$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,$b_fake_sysctl,$b_fake_usbdevs,
-$b_force_display,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,
-$b_man,$b_mem,$b_pci,$b_pci_tool,$b_proc_debug,$b_ps_gui,$b_root,
-$b_running_in_display,$b_slot_tool,$b_sudo,$b_sysctl,$b_usb_check);
+$b_debug_gz,$b_debug_timers,$b_display,$b_dmesg_boot_check,
+$b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
+$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
+$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_pci,$b_pci_tool,
+$b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
+$b_sudo,$b_sysctl,$b_usb_check,$b_wm_ps);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
@@ -138,7 +139,7 @@ sub main {
 	eval $start if $b_log;
 	initialize();
 	## use for start client debugging
-	# $debug = 10;
+	# $debug = 3; # 3 prints timers
 	# set_debugger(); # for debugging of konvi issues
 	#my $ob_start = StartClient->new();
 	#$ob_start->get_client_data();
@@ -1089,9 +1090,10 @@ sub begin_logging {
 	$end='main::log_data("fe", (caller(1))[3], "");';
 	$start='main::log_data("fs", (caller(1))[3], \@_);';
 	#$t3 = tv_interval ($t0, [gettimeofday]);
-	 $t3 = eval 'Time::HiRes::tv_interval (\@t0, [Time::HiRes::gettimeofday()]);' if $b_hires;
+	$t3 = eval 'Time::HiRes::tv_interval (\@t0, [Time::HiRes::gettimeofday()]);' if $b_hires;
 	#print Dumper $@;
 	my $now = strftime "%Y-%m-%d %H:%M:%S", localtime;
+	return if $b_debug_timers;
 	# do the rotation if logfile exists
 	if ( -f $log_file ){
 		# copy if present second to third
@@ -1127,8 +1129,7 @@ sub begin_logging {
 sub log_data {
 	return if ! $b_log;
 	my ($one, $two, $three) = @_;
-	my $args = '';
-	my $data = '';
+	my ($args,$data,$timer) = ('','','');
 	my $spacer = '   ';
 	# print "1: $one 2: $two 3: $three\n";
 	if ($one eq 'fs') {
@@ -1146,6 +1147,7 @@ sub log_data {
 		#print Dumper $@;
 		$data = "Start: Function: $two$args\n${spacer}Elapsed: $t3\n";
 		$spacer='';
+		$timer = $data if $b_debug_timers;
 	}
 	elsif ( $one eq 'fe') {
 		# print 'timer:', Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()]),"\n";
@@ -1154,6 +1156,7 @@ sub log_data {
 		#print Dumper $t3;
 		$data = "${spacer}Elapsed: $t3\nEnd: Function: $two\n";
 		$spacer='';
+		$timer = $data if $b_debug_timers;
 	}
 	elsif ( $one eq 'cat') {
 		if ( $b_log_full ){
@@ -1195,25 +1198,24 @@ sub log_data {
 	else {
 		$data = "$two\n";
 	}
-	# print "d: $data";
-	if ($data){
+	if ($b_debug_timers){
+		print $timer if $timer;
+	}
+	#print "d: $data";
+	elsif ($data){
 		print $fh_l "$spacer$data";
 	}
 }
 
 sub set_debugger {
-	if ( $debug < 10 || $debug > 12){
-		$end = '';
-		$start = '';
-		if ( $debug >= 20 ){
-			error_handler('not-in-irc', 'debug data generator') if $b_irc;
-			my $option = ( $debug > 22 ) ? 'main-full' : 'main';
-			$b_debug_gz = 1 if ($debug == 22 || $debug == 24);
-			my $ob_sys = SystemDebugger->new($option);
-			$ob_sys->run_debugger();
-			$ob_sys->upload_file($ftp_alt) if $debug > 20;
-			exit 0;
-		}
+	if ( $debug >= 20){
+		error_handler('not-in-irc', 'debug data generator') if $b_irc;
+		my $option = ( $debug > 22 ) ? 'main-full' : 'main';
+		$b_debug_gz = 1 if ($debug == 22 || $debug == 24);
+		my $ob_sys = SystemDebugger->new($option);
+		$ob_sys->run_debugger();
+		$ob_sys->upload_file($ftp_alt) if $debug > 20;
+		exit 0;
 	}
 	elsif ($debug >= 10 && $debug <= 12){
 		$b_log = 1;
@@ -1224,6 +1226,17 @@ sub set_debugger {
 			$b_log_colors = 1;
 		}
 		begin_logging();
+	}
+	elsif ($debug <= 3){
+		if ($debug == 3){
+			$b_log = 1;
+			$b_debug_timers = 1;
+			begin_logging();
+		}
+		else {
+			$end = '';
+			$start = '';
+		}
 	}
 }
 
@@ -3871,7 +3884,7 @@ sub get_options{
 		}},
 	'debug:i' => sub { 
 		my ($opt,$arg) = @_;
-		if ($arg =~ /^[1-3]|1[0-2]|2[0-4]$/){
+		if ($arg =~ /^[1-3]|1[0-3]|2[0-4]$/){
 			$debug=$arg;
 		}
 		else {
@@ -4014,6 +4027,8 @@ sub get_options{
 		} },
 	'V|version' => sub { 
 		$b_version = 1 },
+	'wm' => sub { 
+		$b_wm_ps = 1 },
 	'<>' => sub {
 		my ($opt) = @_;
 		error_handler('unknown-option', "$opt", "" ); }
@@ -4398,6 +4413,7 @@ sub show_options {
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
+	['1', '', '--wm', "Force wm: to use ps (not wmctrl) as data source." ],
 	['0', '', '', $line ],
 	);
 	push @data, @rows;
@@ -15245,10 +15261,16 @@ sub set_qt_data {
 		elsif ($program = main::check_program("kded4") ){$kde_version = 4;}
 		elsif ($program = main::check_program("kded") ){$kde_version = '';}
 	}
-	if (($program = main::check_program("qmake"))){
+	# alternate: qt4-default, qt4-qmake or qt5-default, qt5-qmake
+	if (!$desktop[3] && ($program = main::check_program("qmake"))){
 		@version_data = main::grabber("$program --version 2>/dev/null");
 		$desktop[2] = 'Qt';
 		$desktop[3] = main::awk(\@version_data,'^Using Qt version',4) if @version_data;
+	}
+	if (!$desktop[3] && ($program = main::check_program("qtdiag") )){
+		@data = main::program_values('qtdiag');
+		$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
+		$desktop[2] = $data[3];
 	}
 	if (!$desktop[3] && ($program = main::check_program("kf$kde_version-config") )){
 		@version_data = main::grabber("$program --version 2>/dev/null");
@@ -15261,17 +15283,12 @@ sub set_qt_data {
 		$desktop[2] = 'Qt';
 		$desktop[3] = main::awk(\@version_data,'^Qt:',2) if @version_data;
 	}
-	if (!$desktop[3] && ($program = main::check_program("qtdiag") )){
-		@data = main::program_values('qtdiag');
-		$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
-		$desktop[2] = $data[3];
-	}
 	eval $end if $b_log;
 }
 
 sub get_wm {
 	eval $start if $b_log;
-	if ( my $program =  main::check_program('wmctrl')){
+	if ( !$b_wm_ps && (my $program =  main::check_program('wmctrl'))){
 		my $cmd = "$program -m 2>/dev/null";
 		my @data = main::grabber($cmd,'','strip');
 		main::log_data('dump','@data',\@data) if $b_log;
@@ -17218,7 +17235,6 @@ sub set_arm_soc_data {
 	main::log_data('dump','@pci',\@pci) if $b_log;
 	eval $end if $b_log;
 }
-
 sub set_ps_aux {
 	eval $start if $b_log;
 	@ps_aux = split "\n",qx(ps aux);;
@@ -17228,7 +17244,7 @@ sub set_ps_aux {
 	# for pinxi, we want to see the useage data for cpu/ram
 	@ps_aux = grep {!/\/$self_name\b/} @ps_aux if $self_name eq 'inxi';
 	# this is for testing for the presence of the command
-	@ps_cmd = map {
+	@ps_cmd = grep {!/^\[/} map {
 		my @split = split /\s+/, $_;
 		# slice out 10th to last elements of ps aux rows
 		my $final = $#split;
@@ -17237,7 +17253,9 @@ sub set_ps_aux {
 		@split = @split[10 .. $final ];
 		join " ", @split;
 	} @ps_aux;
-	print Dumper \@ps_aux if $test[5];
+	#@ps_cmd = grep {!/^\[/} @ps_cmd;
+	# never, because ps loaded before option handler
+	print Dumper \@ps_cmd if $test[5];
 	eval $end if $b_log;
 }
 
