@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.15';
 my $self_date='2018-07-07';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -57,7 +57,7 @@ my ( %alerts,%client,%colors,%dl,%files,%rows,%system_files,%use );
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
 my (@app,@dmesg_boot,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@pci,@ps_aux,
-@ps_cmd,@sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,
+@ps_cmd,@ps_gui,@sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,
 @uname,@usb);
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
@@ -69,7 +69,7 @@ my ($b_admin,$b_arm,$b_arm_audio,$b_arm_gfx,$b_arm_net,$b_console_irc,
 $b_debug_gz,$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,$b_fake_sysctl,$b_fake_usbdevs,
 $b_force_display,$b_gpudata,$b_irc,$b_log,$b_log_colors,$b_log_full,
-$b_man,$b_mem,$b_pci,$b_pci_tool,$b_proc_debug,$b_root,
+$b_man,$b_mem,$b_pci,$b_pci_tool,$b_proc_debug,$b_ps_gui,$b_root,
 $b_running_in_display,$b_slot_tool,$b_sudo,$b_sysctl,$b_usb_check);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
@@ -3077,7 +3077,7 @@ sub program_values {
 	'weechat-curses' => ['[0-9.]+',1,'-v','WeeChat',1,0,0],
 	'xchat-gnome' => ['[0-9.]+',2,'-v','X-Chat-Gnome',1,1,0],
 	'xchat' => ['[0-9.]+',2,'-v','X-Chat',1,1,0],
-	## Desktops 
+	## Desktops / wm
 	'afterstep' => ['^afterstep',3,'--version','AfterStep',0,1,0],
 	'awesome' => ['^awesome',2,'--version','Awesome',0,1,0],
 	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0],
@@ -3108,17 +3108,17 @@ sub program_values {
 	'mate-about' => ['^MATE[[:space:]]DESKTOP',-1,'--version','MATE',0,1,0],
 	# note, mate-session when launched with full path returns full path in version string
 	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0], 
-	'metacity' => ['^metacity',2,'--version','metacity',0,1,0],
+	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0],
 	'muffin' => ['^muffin',2,'--version','muffin',0,1,0],
 	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
 	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
 	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0],
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
-	'scrotwm' => ['^welcome.*scrotwm',4,'-v','Scrotwm',0,1,1],
-	'spectrwm' => ['^spectrwm.*welcome.*spectrwm',5,'-v','Spectrwm',0,1,0],
+	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','Scrotwm',0,1,1],
+	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','Spectrwm',0,1,0],
 	'unity' => ['^unity',2,'--version','Unity',0,1,0],
-	'wm2' => ['^wm2',-1,'--version','WM2',0,1,0],
+	'wm2' => ['^wm2',-1,'--version','wm2',0,1,0],
 	'wmaker' => ['^Window[[:space:]]*Maker',-1,'--version','WindowMaker',0,1,0],
 	'wmii' => ['^wmii',1,'--version','wmii',0,1,0], # note: in debian, wmii is wmii3
 	'wmii2' => ['^wmii2',1,'--version','wmii2',0,1,0],
@@ -3289,6 +3289,7 @@ sub uniq {
 	my %seen;
 	grep !$seen{$_}++, @_;
 }
+
 
 # arg: 1 file full  path to write to; 2 - arrayof data to write. 
 # note: turning off strict refs so we can pass it a scalar or an array reference.
@@ -8905,73 +8906,45 @@ sub display_compositor {
 	eval $start if $b_log;
 	my ($protocol) = @_; 
 	my ($compositor) = ('');
-	# NOTE: chains of greps of ps data are VERY expensive, so check for program presence
-	if (main::check_program('mutter') && (grep {/mutter/} @ps_cmd ) ) {
-		$compositor = 'mutter';
-	}
-	elsif (main::check_program('kwin_wayland') && (grep {/\bkwin_wayland\b/} @ps_cmd ) ) {
-		$compositor = 'kwin_wayland';
-	}
-	elsif (main::check_program('kwin') && (grep {/\bkwin\b/} @ps_cmd ) ) {
-		$compositor = 'kwin';
-	}
-	elsif (main::check_program('muffin') && (grep {/muffin/} @ps_cmd ) ) {
-		$compositor = 'muffin';
-	}
-	# Note: other strings have gnome-shell in them, so important to get exact one. Since we 
-	# can't fully trust how this will appear, the pattern should tighten it
-	elsif (main::check_program('gnome-shell') && (grep {/^(\/[\S]+\/)?gnome-shell(\s|$)/} @ps_cmd ) ) {
-		$compositor = 'gnome-shell';
-	}
-	elsif (main::check_program('weston') && (grep {/weston/} @ps_cmd ) ) {
-		$compositor = 'weston';
-	}
-	elsif (main::check_program('compton') && (grep {/compton/} @ps_cmd ) ) {
-		$compositor = 'compton';
-	}
-	# owned by: compiz-core in debian
-	elsif (main::check_program('compiz') && (grep {/compiz/} @ps_cmd ) ) {
-		$compositor = 'compiz';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('moblin') && (grep {/moblin/} @ps_cmd ) ) {
-		$compositor = 'moblin';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('kmscon') && (grep {/kmscon/} @ps_cmd ) ) {
-		$compositor = 'kmscon';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('sway') && (grep {/\bsway\b/} @ps_cmd ) ) {
-		$compositor = 'sway';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('grefson') && (grep {/grefson/} @ps_cmd ) ) {
-		$compositor = 'grefson';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('westford') && (grep {/westford/} @ps_cmd ) ) {
-		$compositor = 'westford';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('rustland') && (grep {/rustland/} @ps_cmd ) ) {
-		$compositor = 'rustland';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('ireplace') && (grep {/fireplace/} @ps_cmd ) ) {
-		$compositor = 'fireplace';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('wayhouse') && (grep {/wayhouse/} @ps_cmd ) ) {
-		$compositor = 'wayhouse';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('swc') && (grep {/\bswc\b/} @ps_cmd ) ) {
-		$compositor = 'swc';
-	}
-	# did not find in debian apt
-	elsif (main::check_program('dwc') && (grep {/\bdwc\b/} @ps_cmd ) ) {
-		$compositor = 'dwc';
+	main::set_ps_gui() if ! $b_ps_gui;
+	if (@ps_gui){
+		# 1 check program; 2 search; 3 unused version; 4 print
+		my @compositors = (
+		['compton','compton','','compton'],
+		['gnome-shell','gnome-shell','','gnome-shell'],
+		['kwin_wayland','kwin_wayland','','kwin wayland'],
+		['kwin','kwin','','kwin'],
+		['marco','marco','','marco'],
+		['muffin','muffin','','muffin'],
+		['mutter','mutter','','mutter'],
+		['weston','weston','','weston'],
+		# owned by: compiz-core in debian
+		['compiz','compiz','','compiz'],
+		# did not find follwing in debian apt
+		['3dwm','3dwm','','3dwm'],
+		['dwc','dwc','','dwc'],
+		['grefson','grefson','','grefson'],
+		['ireplace','ireplace','','ireplace'],
+		['kmscon','kmscon','','kmscon'],
+		['metisse','metisse','','metisse'],
+		['mir','mir','','mir'],
+		['moblin','moblin','','moblin'],
+		['rustland','rustland','','rustland'],
+		['sway','sway','','sway'],
+		['swc','swc','','swc'],
+		['unagi','unagi','','unagi'],
+		['wayhouse','wayhouse','','wayhouse'],
+		['westford','westford','','westford'],
+		['xcompmgr','xcompmgr','','xcompmgr'],
+		);
+		
+		foreach my $ref (@compositors){
+			my @item = @$ref;
+			if (main::check_program($item[0]) && (grep {/^$item[1]$/} @ps_gui ) ){
+				$compositor = $item[3];
+				last;
+			}
+		}
 	}
 	main::log_data('data',"compositor: $compositor") if $b_log;
 	eval $end if $b_log;
@@ -15001,7 +14974,7 @@ sub get_kde_data {
 sub get_env_de_data {
 	eval $start if $b_log;
 	my ($program,@version_data);
-	
+	main::set_ps_gui() if ! $b_ps_gui;
 	if ($xdg_desktop eq 'unity'){
 		@data = main::program_values('unity');
 		$desktop[0] = $data[3];
@@ -15019,22 +14992,22 @@ sub get_env_de_data {
 	# NOTE: some distros fail to set XDG data for root
 	elsif ( (main::check_program('lxpanel') || main::check_program('lxqt-session') ||
 	        main::check_program('razor-session')) && 
-	        ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || main::awk(\@ps_cmd, '(razor-session|lxsession|lxqt-session)' ) )){
+	        ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || main::awk(\@ps_gui, '(razor-session|lxsession|lxqt-session)' ) )){
 		# note: openbox-lxde --version may be present, but returns openbox data
-		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_cmd, 'lxsession')){
+		if ($xdg_desktop eq 'lxde' || main::awk(\@ps_gui, 'lxsession')){
 			@data = main::program_values('lxde');
 			$desktop[0] = $data[3];
 			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
 		# NOTE: lxqt-about opens a gui dialog
-		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_cmd, 'razor-desktop|lxqt-session')) {
-			if (main::awk(\@ps_cmd,'lxqt-session' )){
+		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || main::awk(\@ps_gui, 'razor-desktop|lxqt-session')) {
+			if (main::awk(\@ps_gui,'lxqt-session' )){
 				@data = main::program_values('lxqt');
 				$desktop[0] = $data[3];
 				# BAD: lxqt-about opens dialogue, sigh
 				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
 			}
-			elsif (main::awk(\@ps_cmd, 'razor-session')){
+			elsif (main::awk(\@ps_gui, 'razor-session')){
 				$desktop[0] = 'Razor-Qt';
 			}
 			else {
@@ -15212,87 +15185,48 @@ sub get_xprop_de_data {
 sub get_ps_de_data {
 	eval $start if $b_log;
 	my ($program,@version_data);
-	if ( main::check_program('fvwm-crystal') && main::awk(\@ps_cmd,'fvwm-crystal' )){
-		@data = main::program_values('fvwm-crystal');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('fvwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif ((main::check_program('fvwm2') || main::check_program('fvwm')) && main::awk(\@ps_cmd,'fvwm' )){
-		@data = main::program_values('fvwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('fvwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('pekwm') && main::awk(\@ps_cmd,'pekwm' )){
-		@data = main::program_values('pekwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('pekwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('awesome') && main::awk(\@ps_cmd,'awesome' )){
-		@data = main::program_values('awesome');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('awesome',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('blackbox') && main::awk(\@ps_cmd,'blackbox' )){
-		@data = main::program_values('blackbox');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('blackbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	# not in debian apt
-	elsif (main::check_program('scrotwm') && main::awk(\@ps_cmd,'scrotwm' )){
-		@data = main::program_values('scrotwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('scrotwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('spectrwm') && main::awk(\@ps_cmd,'spectrwm' )){
-		@data = main::program_values('spectrwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('spectrwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('twm') && main::awk(\@ps_cmd,'(\s|\/)twm' )){
-		# no version
-		$desktop[0] = 'Twm';
-	}
-	# note: built from source, but I assume it will show: /usr/bin/dwm
-	elsif (main::check_program('dwm') && main::awk(\@ps_cmd,'(\s|\/)dwm' )){
-		@data = main::program_values('dwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('dwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	# not in debian apt, current is wmii, version 3
-	elsif (main::check_program('wmii2') && main::awk(\@ps_cmd,'wmii2' )){
-		@data = main::program_values('wmii2');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('wmii2',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('wmii') && main::awk(\@ps_cmd,'wmii' )){
-		@data = main::program_values('wmii');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('wmii',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('flwm') && main::awk(\@ps_cmd,'flwm' )){
-		# @data = main::program_values('');
-		$desktop[0] = 'FLWM';
-		#$desktop[1] = main::program_version('flwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('jwm') && main::awk(\@ps_cmd,'(\s|\/)jwm' )){
-		@data = main::program_values('jwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('jwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('sawfish') && main::awk(\@ps_cmd,'sawfish' )){
-		@data = main::program_values('sawfish');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('sawfish',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('matchbox-panel') && main::awk(\@ps_cmd,'matchbox-panel' )){
-		@data = main::program_values('matchbox-panel');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('matchbox-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif ( main::check_program('afterstep') && grep {/afterstep/} @ps_cmd){
-		@data = main::program_values('afterstep');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('afterstep',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	main::set_ps_gui() if !$b_ps_gui;
+	if (@ps_gui){
+		# 1 check program; 2 search; 3 values; 4 version; 5 -optional: print value
+		my @desktops =(
+		['fvwm-crystal','fvwm-crystal','fvwm-crystal','fvwm'],
+		['fvwm2','fvwm','fvwm','fvwm'],
+		['fvwm','fvwm','fvwm','fvwm'],
+		['pekwm','pekwm','pekwm','pekwm'],
+		['awesome','awesome','awesome','awesome'],
+		['blackbox','blackbox','blackbox','blackbox'],
+		# not in debian apt
+		['scrotwm','scrotwm','scrotwm','scrotwm'],
+		['spectrwm','spectrwm','spectrwm','spectrwm'],
+		['twm','twm','','','twm'],
+		# note: built from source, but I assume it will show: /usr/bin/dwm
+		['dwm','dwm','dwm','dwm'],
+		# not in debian apt, current is wmii, version 3
+		['wmii2','wmii2','wmii2','wmii2'],
+		['wmii','wmii','wmii','wmii'],
+		['flwm','flwm','','','FLVM'],
+		['jwm','jwm','jwm','jwm'],
+		['sawfish','sawfish','sawfish','sawfish'],
+		['matchbox-panel','matchbox-panel','matchbox-panel','matchbox-panel'],
+		['afterstep','afterstep','afterstep','afterstep'],
+		['WindowMaker','WindowMaker','wmaker','wmaker'],
+		);
+		foreach my $ref (@desktops){
+			my @item = @$ref;
+			if ( main::check_program($item[0]) && (grep {/^$item[1]$/} @ps_gui)){
+				if ($item[2]){
+					@data = main::program_values($item[2]);
+					$desktop[0] = $data[3];
+				}
+				else {
+					$desktop[0] = $item[4];
+				}
+				if (@data && $item[3]){
+					$desktop[1] = main::program_version($item[3],$data[0],$data[1],$data[2],$data[5],$data[6]);
+				}
+				last;
+			}
+		}
 	}
 	eval $end if $b_log;
 }
@@ -15329,7 +15263,7 @@ sub set_qt_data {
 
 sub get_wm {
 	eval $start if $b_log;
-	if ( my $program =  main::check_program('wmctrl') ){
+	if ( !(my $program =  main::check_program('wmctrl')) ){
 		my $cmd = "$program -m 2>/dev/null";
 		my @data = main::grabber($cmd,'','strip');
 		main::log_data('dump','@data',\@data) if $b_log;
@@ -15357,9 +15291,9 @@ sub get_wm_manual {
 	# xprop is set only if not kde/gnome/cinnamon/mate/budgie/lx..
 	if ($b_xprop){
 		#KWIN_RUNNING
-		$wms = 'blackbox|kwin|marco|muffin|openbox|herbstluftwm|wm2|windowmaker|i3';
+		$wms = 'blackbox|kwin_wayland|kwin|marco|muffin|openbox|herbstluftwm|wm2|windowmaker|i3';
 		foreach (@xprop){
-			if (/($wms)/){
+			if (/\b($wms)\b/){
 				$working = $1;
 				$working = 'wmaker' if $working eq 'windowmaker';
 				last;
@@ -15367,12 +15301,13 @@ sub get_wm_manual {
 		}
 	}
 	if (!$desktop[5]){
+		main::set_ps_gui() if ! $b_ps_gui;
 		# order matters, see above logic
-		$wms = 'afterstep|awesome|fluxbox|blackbox|\bdwm|flwm\b|fvwm-crystal|fvwm2|fvwm|';
-		$wms .= 'gnome-shell|\bi3\b|\bjwm|kwin\b|matchbox-panel|\bmarco\b|muffin|mutter|metacity|';
-		$wms .= 'openbox|sawfish|scrotwm|spectrwm|\btwm|WindowMaker|wm2\b|wmii2|wmii|xfwm4|xfwm5';
-		foreach (@ps_cmd){
-			if (/^[\S]*($wms)/){
+		$wms = 'afterstep|awesome|fluxbox|blackbox|dwm|flwm|fvwm-crystal|fvwm2|fvwm|';
+		$wms .= 'gnome-shell|i3|jwm|kwin_wayland|kwin|matchbox-panel|marco|muffin|mutter|metacity|';
+		$wms .= 'openbox|sawfish|scrotwm|spectrwm|twm|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5';
+		foreach (@ps_gui){
+			if (/^($wms)$/){
 				$working = $1;
 				last;
 			}
@@ -15392,6 +15327,7 @@ sub get_wm_version {
 	if ($temp){
 		$temp = (split /\s+/, $temp)[0];
 		$temp = lc($temp);
+		$temp = 'wmaker' if $temp eq 'windowmaker';
 		my @data = main::program_values($temp);
 		return if !@data;
 		# print Data::Dumper::Dumper \@data;
@@ -15475,7 +15411,7 @@ sub set_info_data {
 	my (@data,@info,$item);
 	my $pattern = 'gnome-panel|kicker|lxpanel|lxqt-panel|mate-panel|plasma-desktop|';
 	$pattern .= 'plasma-netbook|razor-panel|razorqt-panel|xfce4-panel';
-	if (@data = grep {/($pattern)(\s|$)/} @ps_cmd ) {
+	if (@data = grep {/^($pattern)$/} @ps_gui ) {
 		# only one entry per type, can be multiple
 		foreach $item (@data){
 			if (! grep {$item =~ /$_/} @info){
@@ -16667,6 +16603,56 @@ sub get_usb_path {
 	}
 	eval $end if $b_log;
 	return $path
+}
+
+sub set_ps_gui {
+	eval $start if $b_log;
+	$b_ps_gui = 1;
+	my ($working,@match,@temp);
+	# desktops
+	if ($show{'system'}){
+		@temp=qw(razor-desktop razor-session lxsession lxqt-session);
+		@match = (@match,@temp);
+		@temp=qw(afterstep awesome blackbox 3dwm dwm fluxbox flwm 
+		fvwm-crystal fvwm2 fvwm i3 jwm kwin_wayland kwin matchbox-panel 
+		openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii);
+		@match = (@match,@temp);
+	}
+	# wm:
+	if ($show{'system'} && $extra > 1){
+		@temp=qw(afterstep awesome blackbox compiz 3dwm dwm fluxbox 
+		flwm fvwm-crystal fvwm2 fvwm gnome-shell i3 jwm kwin_wayland 
+		kwin matchbox-panel marco metacity metisse mir muffin mutter 
+		openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii 
+		xfwm4 xfwm5);
+		@match = (@match,@temp);
+	}
+	# info: 
+	if ($show{'system'} && $extra > 2){
+		@temp=qw(gnome-panel kicker lxpanel lxqt-panel mate-panel 
+		plasma-desktop plasma-netbook razor-panel razorqt-panel 
+		xfce4-panel);
+		@match = (@match,@temp);
+	}
+	# compositors (for wayland these are also the server, note 
+	if ($show{'graphic'} && $extra > 1){
+		@temp=qw(compiz compton dwc dcompmgr grefson ireplace kmscon 
+		metisse mir moblin rustland sway swc unagi wayhouse westford 
+		weston xcompmgr kate bash);
+		@match = (@match,@temp);
+	}
+	@match = uniq(@match);
+	my $matches = join '|', @match;
+	foreach (@ps_cmd){
+		if (/^[\S]*\b($matches)(\s|$)/){
+			$working = $1;
+			push @ps_gui, $working; # deal with duplicates with uniq
+		}
+	}
+	@ps_gui = uniq(@ps_gui) if @ps_gui;
+	print Dumper \@ps_gui if $test[5];
+	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
+	eval $end if $b_log;
 }
 
 #### -------------------------------------------------------------------
