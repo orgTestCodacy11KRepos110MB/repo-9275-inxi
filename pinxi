@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.16';
 my $self_date='2018-07-09';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4958,21 +4958,27 @@ sub memory_data_full {
 	my ($source) = @_;
 	my $num = 0;
 	my ($memory,@rows);
-	my ($percent,$total,$used) = ('','','');
+	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
 	if (!$show{'info'}){
 		$memory = get_memory_data('splits');
 		if ($memory){
 			my @temp = split /:/, $memory;
 			my @temp2 = get_size($temp[0]);
+			$gpu_ram = $temp[3] if $temp[3];
 			$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
 			@temp2 = get_size($temp[1]);
 			$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
 			$used .= " ($temp[2]%)" if $temp[2];
+			if ($gpu_ram){
+				@temp2 = get_size($gpu_ram);
+				$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
+			}
 		}
 		my $key = ($source eq 'process') ? 'System RAM': 'RAM';
 		$rows[0]{main::key($num++,$key)} = '';
 		$rows[0]{main::key($num++,'total')} = $total;
 		$rows[0]{main::key($num++,'used')} = $used;
+		$rows[0]{main::key($num++,'gpu')} = $gpu_ram if $gpu_ram;
 	}
 	$b_mem = 1;
 	eval $end if $b_log;
@@ -16022,13 +16028,7 @@ sub get_gpu_ram {
 		# "VCHI initialization failed" - you need to add video group to your user
 		my $working = (grabber("$program get_mem gpu 2>/dev/null"))[0];
 		$working = (split /\s*=\s*/, $working)[1] if $working;
-		if ($working){
-			$working = translate_size($working);
-			if ($working){
-				my @data = get_size($working);
-				$gpu_ram = "$data[0] $data[1]" if $data[1];
-			}
-		}
+		$gpu_ram = translate_size($working) if $working;
 	}
 	eval $end if $b_log;
 	return $gpu_ram;
@@ -16193,9 +16193,7 @@ sub get_memory_data {
 sub get_memory_data_linux {
 	eval $start if $b_log;
 	my ($type,$file) = @_;
-	my $memory = '';
-	my $total = 0;
-	my $not_used = 0;
+	my ($gpu,$memory,$not_used,$total) = (0,'',0,0);
 	my @data = reader($file);
 	foreach (@data){
 		if ($_ =~ /^MemTotal:/){
@@ -16205,14 +16203,17 @@ sub get_memory_data_linux {
 			$not_used +=  get_piece($_,2);
 		}
 	}
-	my $used = $total - $not_used;
+	$gpu = get_gpu_ram() if $b_arm;
+	#$gpu = translate_size('128M');
+	$total += $gpu;
+	my $used = $total - ($not_used);
 	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
 	if ($type eq 'string'){
 		$percent = " ($percent%)" if $percent;
 		$memory = sprintf("%.1f/%.1f MiB", $used/1024, $total/1024) . $percent;
 	}
 	else {
-		$memory = "$total:$used:$percent";
+		$memory = "$total:$used:$percent:$gpu";
 	}
 	log_data('data',"memory: $memory") if $b_log;
 	eval $end if $b_log;
@@ -16308,7 +16309,7 @@ sub get_memory_data_bsd {
 			$memory = "$used/$real_mem MB" . $percent;
 		}
 		else {
-			$memory = "$real_mem:$used:$percent";
+			$memory = "$real_mem:$used:$percent:0";
 		}
 	}
 	eval $end if $b_log;
@@ -17833,7 +17834,7 @@ sub generate_info_data {
 	my $running_in = '';
 	my $data_name = main::key($prefix++,'Info');
 	my ($b_gcc,%row,$gcc,$index,$ref);
-	my ($gpu_ram,$parent,$percent,$total,$used) = ('','','','','');
+	my ($gpu_ram,$parent,$percent,$total,$used) = (0,'','','','');
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
 	my @gccs = get_gcc_data();
@@ -17868,10 +17869,15 @@ sub generate_info_data {
 	if ($memory){
 		my @temp = split /:/, $memory;
 		my @temp2 = get_size($temp[0]);
+		$gpu_ram = $temp[3] if $temp[3];
 		$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
 		@temp2 = get_size($temp[1]);
 		$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
 		$used .= " ($temp[2]%)" if $temp[2];
+		if ($gpu_ram){
+			@temp2 = get_size($gpu_ram);
+			$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
+		}
 	}
 	$memory ||= 'N/A';
 	my %data = (
@@ -17882,11 +17888,10 @@ sub generate_info_data {
 		},],
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
-	$gpu_ram = get_gpu_ram() if $b_arm;
+	$data{$data_name}[$index]{main::key($num++,'used')} = $used;
 	if ($gpu_ram){
 		$data{$data_name}[$index]{main::key($num++,'gpu')} = $gpu_ram;
 	}
-	$data{$data_name}[$index]{main::key($num++,'used')} = $used;
 	if ( (!$b_display || $b_force_display) || $extra > 0 ){
 		my %init = get_init_data();
 		my $init_type = ($init{'init-type'}) ? $init{'init-type'}: 'N/A';
