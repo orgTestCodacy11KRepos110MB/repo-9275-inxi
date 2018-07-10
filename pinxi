@@ -8927,10 +8927,11 @@ sub display_compositor {
 	if (@ps_gui){
 		# 1 check program; 2 search; 3 unused version; 4 print
 		my @compositors = (
+		['budgie-wm','budgie-wm','','budgie-wm'],
 		['compton','compton','','compton'],
 		['gnome-shell','gnome-shell','','gnome-shell'],
 		['kwin_wayland','kwin_wayland','','kwin wayland'],
-		#['kwin_x11','kwin_wayland','','kwin x11'],
+		['kwin_x11','kwin_x11','','kwin x11'],
 		#['kwin','kwin','','kwin'],
 		['marco','marco','','marco'],
 		['muffin','muffin','','muffin'],
@@ -15225,12 +15226,14 @@ sub get_ps_de_data {
 	if (@ps_gui){
 		# 1 check program; 2 search; 3 values; 4 version; 5 -optional: print value
 		my @desktops =(
+		['fluxbox','fluxbox','fluxbox','fluxbox'],
 		['fvwm-crystal','fvwm-crystal','fvwm-crystal','fvwm'],
 		['fvwm2','fvwm2','fvwm2','fvwm2'],
 		['fvwm','fvwm','fvwm','fvwm'],
 		['pekwm','pekwm','pekwm','pekwm'],
 		['awesome','awesome','awesome','awesome'],
 		['blackbox','blackbox','blackbox','blackbox'],
+		['openbox','openbox','openbox','openbox'],
 		# not in debian apt
 		['scrotwm','scrotwm','scrotwm','scrotwm'],
 		['spectrwm','spectrwm','spectrwm','spectrwm'],
@@ -15348,10 +15351,11 @@ sub get_wm_manual {
 	if (!$desktop[5]){
 		main::set_ps_gui() if ! $b_ps_gui;
 		# order matters, see above logic
-		$wms = 'afterstep|awesome|fluxbox|blackbox|dwm|flwm|fvwm-crystal|fvwm2|fvwm|';
-		$wms .= 'gnome-shell|i3|jwm|kwin_wayland|kwin_x11|kwin|matchbox-panel|marco|';
-		$wms .= 'muffin|mutter|metacity|openbox|sawfish|scrotwm|spectrwm|twm|';
-		$wms .= 'WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5';
+		$wms = 'afterstep|awesome|budgie-wm|fluxbox|blackbox|dwm|flwm|';
+		$wms .= 'fvwm-crystal|fvwm2|fvwm|gnome-shell|i3|jwm|';
+		$wms .= 'kwin_wayland|kwin_x11|kwin|matchbox-panel|marco|';
+		$wms .= 'muffin|mutter|metacity|openbox|sawfish|scrotwm|spectrwm|';
+		$wms .= 'twm|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5';
 		foreach (@ps_gui){
 			if (/^($wms)$/){
 				$working = $1;
@@ -15456,7 +15460,7 @@ sub set_info_data {
 	eval $start if $b_log;
 	my (@data,@info,$item);
 	my $pattern = 'gnome-panel|kicker|lxpanel|lxqt-panel|mate-panel|plasma-desktop|';
-	$pattern .= 'plasma-netbook|razor-panel|razorqt-panel|xfce4-panel';
+	$pattern .= 'plasma-netbook|razor-panel|razorqt-panel|xfce4-panel|xfce5-panel';
 	if (@data = grep {/^($pattern)$/} @ps_gui ) {
 		# only one entry per type, can be multiple
 		foreach $item (@data){
@@ -16651,58 +16655,8 @@ sub get_usb_path {
 	return $path
 }
 
-sub set_ps_gui {
-	eval $start if $b_log;
-	$b_ps_gui = 1;
-	my ($working,@match,@temp);
-	# desktops
-	if ($show{'system'}){
-		@temp=qw(razor-desktop razor-session lxsession lxqt-session);
-		@match = (@match,@temp);
-		@temp=qw(afterstep awesome blackbox 3dwm dwm fluxbox flwm 
-		fvwm-crystal fvwm2 fvwm i3 jwm matchbox-panel openbox sawfish 
-		scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii);
-		@match = (@match,@temp);
-	}
-	# wm:
-	if ($show{'system'} && $extra > 1){
-		@temp=qw(afterstep awesome blackbox compiz 3dwm dwm fluxbox 
-		flwm fvwm-crystal fvwm2 fvwm gnome-shell i3 jwm kwin_wayland 
-		kwin_x11 kwin matchbox-panel marco metacity metisse mir muffin mutter 
-		openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii 
-		xfwm4 xfwm5);
-		@match = (@match,@temp);
-	}
-	# info: 
-	if ($show{'system'} && $extra > 2){
-		@temp=qw(gnome-panel kicker lxpanel lxqt-panel mate-panel 
-		plasma-desktop plasma-netbook razor-panel razorqt-panel 
-		xfce4-panel);
-		@match = (@match,@temp);
-	}
-	# compositors (for wayland these are also the server, note 
-	if ($show{'graphic'} && $extra > 1){
-		@temp=qw(compiz compton dwc dcompmgr grefson ireplace kmscon 
-		kwin_wayland metisse mir moblin rustland sway swc unagi 
-		wayhouse westford weston xcompmgr);
-		@match = (@match,@temp);
-	}
-	@match = uniq(@match);
-	my $matches = join '|', @match;
-	foreach (@ps_cmd){
-		if (/^[\S]*\b($matches)(\s|$)/){
-			$working = $1;
-			push @ps_gui, $working; # deal with duplicates with uniq
-		}
-	}
-	@ps_gui = uniq(@ps_gui) if @ps_gui;
-	print Dumper \@ps_gui if $test[5];
-	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
-	eval $end if $b_log;
-}
-
 #### -------------------------------------------------------------------
-#### INITIALIZE DATA VALUES
+#### SET DATA VALUES
 #### -------------------------------------------------------------------
 
 sub set_dmesg_boot_data {
@@ -17275,6 +17229,55 @@ sub set_ps_aux {
 	#@ps_cmd = grep {!/^\[/} @ps_cmd;
 	# never, because ps loaded before option handler
 	print Dumper \@ps_cmd if $test[5];
+	eval $end if $b_log;
+}
+sub set_ps_gui {
+	eval $start if $b_log;
+	$b_ps_gui = 1;
+	my ($working,@match,@temp);
+	# desktops
+	if ($show{'system'}){
+		@temp=qw(razor-desktop razor-session lxsession lxqt-session);
+		@match = (@match,@temp);
+		@temp=qw(afterstep awesome blackbox 3dwm dwm fluxbox flwm 
+		fvwm-crystal fvwm2 fvwm i3 jwm matchbox-panel openbox sawfish 
+		scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii);
+		@match = (@match,@temp);
+	}
+	# wm:
+	if ($show{'system'} && $extra > 1){
+		@temp=qw(afterstep awesome blackbox budgie-wm compiz 3dwm dwm fluxbox 
+		flwm fvwm-crystal fvwm2 fvwm gnome-shell i3 jwm kwin_wayland 
+		kwin_x11 kwin matchbox-panel marco metacity metisse mir muffin mutter 
+		openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii 
+		xfwm4 xfwm5);
+		@match = (@match,@temp);
+	}
+	# info: 
+	if ($show{'system'} && $extra > 2){
+		@temp=qw(budgie-panel gnome-panel kicker lxpanel lxqt-panel 
+		mate-panel plasma-desktop plasma-netbook razor-panel 
+		razorqt-panel xfce4-panel xfce5-panel);
+		@match = (@match,@temp);
+	}
+	# compositors (for wayland these are also the server, note 
+	if ($show{'graphic'} && $extra > 1){
+		@temp=qw(budgie-wm compiz compton dwc dcompmgr grefson ireplace 
+		kmscon kwin_wayland kwin_x11 metisse mir moblin rustland sway swc 
+		unagi wayhouse westford weston xcompmgr);
+		@match = (@match,@temp);
+	}
+	@match = uniq(@match);
+	my $matches = join '|', @match;
+	foreach (@ps_cmd){
+		if (/^[\S]*\b($matches)(\s|$)/){
+			$working = $1;
+			push @ps_gui, $working; # deal with duplicates with uniq
+		}
+	}
+	@ps_gui = uniq(@ps_gui) if @ps_gui;
+	print Dumper \@ps_gui if $test[5];
+	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
 	eval $end if $b_log;
 }
 
