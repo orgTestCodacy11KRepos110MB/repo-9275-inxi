@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.16';
 my $self_date='2018-07-10';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4995,7 +4995,7 @@ sub memory_data_full {
 sub pci_cleaner {
 	my ($string,$type) = @_;
 	#print "st1 $type:$string\n";
-	my $filter = 'compatible\scontroller|\b(device|controller|multimedia)\b|\([^)]+\)';
+	my $filter = 'compatible\scontroller|\b(device|controller|connection|multimedia)\b|\([^)]+\)';
 	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
 	$filter = '\[[^\]]+\]$|' . $filter if $type eq 'pci';
 	$string =~ s/$filter//ig;
@@ -5003,6 +5003,16 @@ sub pci_cleaner {
 	$string =~ s/^\s+|\s+$//g;
 	#print "st2 $type:$string\n";
 	$string = remove_duplicates($string) if $string;
+	return $string;
+}
+sub pci_cleaner_subsystem {
+	my ($string) = @_;
+	# we only need filters for features that might use vendor, -AGN
+	my $filter = 'adapter|(hd\s)?audio|definition|desktop|ethernet|gigabit|graphics|';
+	$filter .= 'high|integrated|network|pci\s?express';
+	$string =~ s/\b($filter)\b//gi;
+	$string =~ s/\s\s+/ /g;
+	$string =~ s/^\s+|\s+$//g;
 	return $string;
 }
 
@@ -12364,7 +12374,8 @@ sub get_repos_linux {
 		push @files, $apt;
 		main::log_data('data',"apt repo files:\n" . main::joiner(\@files, "\n", 'unset') ) if $b_log;
 		foreach ( sort @files){
-			@data = repo_builder($_,'apt','^\s*deb') if -r $_;
+			# altlinux uses rpms in apt files!
+			@data = repo_builder($_,'apt','^\s*(deb|rpm)') if -r $_;
 			@rows = (@rows,@data);
 		}
 		#@files = main::globber("$ENV{'HOME'}/bin/scripts/inxi/data/repo/apt/*.sources");
@@ -15612,12 +15623,12 @@ sub get_linux_distro {
 	siduction-version sidux-version slitaz-release solusos-release turbolinux-release 
 	zenwalk-version);
 	my $derived_s = join "|", @derived;
-	my @primary = qw(arch-release gentoo-release redhat-release slackware-version 
+	my @primary = qw(altlinux-release arch-release gentoo-release redhat-release slackware-version 
 	SuSE-release);
 	my $primary_s = join "|", @primary;
 	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
-	my $os_release_good_s = 'arch-release|rpi-issue|SuSE-release';
+	my $os_release_good_s = 'altlinux-release|arch-release|rpi-issue|SuSE-release';
 	# note: always exceptions, so wild card after release/version: 
 	# /etc/lsb-release-crunchbang
 	# wait to handle since crunchbang file is one of the few in the world that 
@@ -16028,8 +16039,8 @@ sub get_gcc_data {
 	eval $end if $b_log;
 	return @gccs;
 }
-
-sub get_gpu_ram {
+# rasberry pi only
+sub get_gpu_ram_arm {
 	eval $start if $b_log;
 	my ($gpu_ram) = (0);
 	if (my $program = check_program('vcgencmd')){
@@ -16040,6 +16051,13 @@ sub get_gpu_ram {
 		$gpu_ram = translate_size($working) if $working;
 	}
 	log_data('data',"gpu ram: $gpu_ram") if $b_log;
+	eval $end if $b_log;
+	return $gpu_ram;
+}
+# standard systems
+sub get_gpu_ram {
+	eval $start if $b_log;
+	my ($gpu_ram) = (0);
 	eval $end if $b_log;
 	return $gpu_ram;
 }
@@ -16213,7 +16231,7 @@ sub get_memory_data_linux {
 			$not_used +=  get_piece($_,2);
 		}
 	}
-	$gpu = get_gpu_ram() if $b_arm;
+	$gpu = get_gpu_ram_arm() if $b_arm;
 	#$gpu = translate_size('128M');
 	$total += $gpu;
 	my $used = $total - ($not_used);
@@ -17021,10 +17039,12 @@ sub set_pci_data {
 # 9 driver
 # 10 modules
 # 11 driver_nu [bsd, like: em0 - driver em; nu 0. Used to match IF in -n
+# 12 subsystem/vendor
+# 13 subsystem vendor:chip id
 sub set_lspci_data {
 	eval $start if $b_log;
 	my ($busid,$busid_nu,$content,$port,$driver,$modules,$device,$vendor_id,$chip_id,$rev,
-	$type,$type_id,@pcis,@temp,@working);
+	$subsystem,$subsystem_id,$type,$type_id,@pcis,@temp,@working);
 	# my @pcis = grabber('lspci -nnv','\n','strip');
 	my $path = check_program('lspci');
 	$content = qx($path -nnv 2>/dev/null) if $path;
@@ -17040,10 +17060,19 @@ sub set_lspci_data {
 		if ($device){
 			if ($_ =~ /^\s*$/) {
 				@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
-				$rev,$port,$driver,$modules);
+				$rev,$port,$driver,$modules,$subsystem,$subsystem_id);
 				@pci = (@pci,[@temp]);
 				$device = '';
 				#print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
+			}
+			elsif ($_ =~ /^Subsystem.*\[([a-f0-9]{4}:[a-f0-9]{4})\]/){
+				$subsystem_id = $1;
+				$subsystem = (split /^Subsystem:\s*/,$_)[1];
+				$subsystem =~ s/(\s?\[[^\]]+\])+$//g;
+				$subsystem = cleaner($subsystem);
+				$subsystem = pci_cleaner($subsystem,'pci');
+				$subsystem = pci_cleaner_subsystem($subsystem);
+				#print "ss:$subsystem\n";
 			}
 			elsif ($_ =~ /^I\/O\sports/){
 				$port = (split /\s+/,$_)[3];
@@ -17055,7 +17084,6 @@ sub set_lspci_data {
 			elsif ($_ =~ /^Kernel\smodules/i){
 				$modules = (split /:\s*/,$_)[1];
 			}
-			
 		}
 		# note: arm servers can have more complicated patterns
 		# 0002:01:02.0 Ethernet controller [0200]: Cavium, Inc. THUNDERX Network Interface Controller virtual function [177d:a034] (rev 08)
@@ -17078,10 +17106,13 @@ sub set_lspci_data {
 			$port = '';
 			$driver = '';
 			$modules = '';
+			$subsystem = '';
+			$subsystem_id = '';
 		}
 	}
 	if ($device && $busid){
-		@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
+		@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
+		$rev,$port,$driver,$modules,$subsystem,$subsystem_id);
 		@pci = (@pci,[@temp]);
 		$device = '';
 	}
