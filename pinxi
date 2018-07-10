@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.16';
 my $self_date='2018-07-10';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14932,10 +14932,11 @@ sub get_compiler_version_linux {
 # 6 - wm version
 {
 package DesktopEnvironment;
-my ($b_xprop,$kde_session_version,$xdg_desktop,@desktop,@data,@xprop);
+my ($b_xprop,$desktop_session,$kde_session_version,$xdg_desktop,@desktop,@data,@xprop);
 sub get {
 	# NOTE $XDG_CURRENT_DESKTOP envvar is not reliable, but it shows certain desktops better.
 	# most desktops are not using it as of 2014-01-13 (KDE, UNITY, LXDE. Not Gnome)
+	$desktop_session = ( $ENV{'DESKTOP_SESSION'} ) ? lc($ENV{'DESKTOP_SESSION'}) : '';
 	$xdg_desktop = ( $ENV{'XDG_CURRENT_DESKTOP'} ) ? lc($ENV{'XDG_CURRENT_DESKTOP'}) : '';
 	$kde_session_version = ($ENV{'KDE_SESSION_VERSION'}) ? $ENV{'KDE_SESSION_VERSION'} : '';
 	get_kde_data();
@@ -15041,7 +15042,18 @@ sub get_env_de_data {
 	eval $start if $b_log;
 	my ($program,@version_data);
 	main::set_ps_gui() if ! $b_ps_gui;
-	if ($xdg_desktop eq 'unity'){
+	if ($desktop_session eq 'trinity' || (grep {/^tde/} @ps_gui) ){
+		$desktop[0] = 'Trinity';
+		if ($program = main::check_program('kdesktop')){
+			@version_data = main::grabber("$program --version 2>/dev/null");
+			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
+		}
+		if ($extra > 0 && @version_data){
+			$desktop[2] = 'Qt';
+			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
+		}
+	}
+	elsif ($xdg_desktop eq 'unity'){
 		@data = main::program_values('unity');
 		$desktop[0] = $data[3];
 		$desktop[0] ||= 'Unity';
@@ -15366,7 +15378,7 @@ sub get_wm_manual {
 	if ($b_xprop){
 		#KWIN_RUNNING
 		$wms = 'blackbox|kwin_wayland|kwin_x11|kwin|marco|muffin|';
-		$wms .= 'openbox|herbstluftwm|wm2|windowmaker|i3';
+		$wms .= 'openbox|herbstluftwm|twin|wm2|windowmaker|i3';
 		foreach (@xprop){
 			if (/\b($wms)\b/){
 				$working = $1;
@@ -15380,7 +15392,7 @@ sub get_wm_manual {
 		# order matters, see above logic
 		$wms = 'afterstep|awesome|budgie-wm|fluxbox|blackbox|dwm|flwm|';
 		$wms .= 'fvwm-crystal|fvwm2|fvwm|gnome-shell|i3|jwm|';
-		$wms .= 'kwin_wayland|kwin_x11|kwin|matchbox-panel|marco|';
+		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|matchbox-panel|marco|';
 		$wms .= 'muffin|mutter|metacity|openbox|sawfish|scrotwm|spectrwm|';
 		$wms .= 'twm|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5';
 		foreach (@ps_gui){
@@ -15628,7 +15640,7 @@ sub get_linux_distro {
 	my $primary_s = join "|", @primary;
 	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
-	my $os_release_good_s = 'altlinux-release|arch-release|rpi-issue|SuSE-release';
+	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
 	# note: always exceptions, so wild card after release/version: 
 	# /etc/lsb-release-crunchbang
 	# wait to handle since crunchbang file is one of the few in the world that 
@@ -17300,7 +17312,7 @@ sub set_ps_gui {
 	my ($working,@match,@temp);
 	# desktops
 	if ($show{'system'}){
-		@temp=qw(razor-desktop razor-session lxsession lxqt-session);
+		@temp=qw(razor-desktop razor-session lxsession lxqt-session tdelauncher tdeinit_phase1);
 		@match = (@match,@temp);
 		@temp=qw(afterstep awesome blackbox 3dwm dwm fluxbox flwm 
 		fvwm-crystal fvwm2 fvwm i3 jwm matchbox-panel openbox sawfish 
