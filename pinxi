@@ -1506,6 +1506,7 @@ sub display_data {
 	'vdpau-driver' => $ENV{'VDPAU_DRIVER'},
 	'xdg-current-desktop' => $ENV{'XDG_CURRENT_DESKTOP'},
 	'xdg-session-desktop' => $ENV{'XDG_SESSION_DESKTOP'},
+	'xdg-vtnr' => $ENV{'XDG_VTNR'},
 	# wayland data collectors:
 	'xdg-session-type' => $ENV{'XDG_SESSION_TYPE'},
 	'wayland-display' =>  $ENV{'WAYLAND_DISPLAY'},
@@ -2824,8 +2825,8 @@ sub item_data {
 	'rpm' => 'glx-utils (openSUSE 12.3 and later Mesa-demo-x)',
 	}),
 	'wmctrl' => ({
-	'info' => '-S active window manager (not all wm)',
-	'info-bsd' => '-S active window managerr (not all wm)',
+	'info' => '-S active window manager (fallback)',
+	'info-bsd' => '-S active window managerr (fallback)',
 	'apt' => 'wmctrl',
 	'pacman' => 'wmctrl',
 	'rpm' => 'wmctrl',
@@ -8819,7 +8820,7 @@ sub tty_data(){
 		$tty = "$size{'term-cols'}x$size{'term-lines'}";
 	}
 	elsif ($b_irc && $client{'console-irc'}){
-		my $tty_working = main::get_tty_console_irc();
+		my $tty_working = main::get_tty_console_irc('tty');
 		if (my $program = main::check_program('stty')){
 			my $tty_arg = ($bsd_type) ? '-f' : '-F';
 			$tty = (main::grabber("$program $tty_arg /dev/pts/$tty_working size 2>/dev/null"))[0];
@@ -16625,10 +16626,16 @@ sub get_ssh_status {
 
 sub get_tty_console_irc {
 	eval $start if $b_log;
-	return $tty_session if $tty_session;
-	my $ppid = getppid();
-	$tty_session = awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
-	$tty_session =~ s/^[^[0-9]+// if $tty_session;
+	my ($type) = @_;
+	return $tty_session if defined $tty_session;
+	if ( $type eq 'vtrn' && defined $ENV{'XDG_VTNR'} ){
+		$tty_session = $ENV{'XDG_VTNR'};
+	}
+	else {
+		my $ppid = getppid();
+		$tty_session = awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
+		$tty_session =~ s/^[^[0-9]+// if $tty_session;
+	}
 	$tty_session = '' if ! defined $tty_session;
 	log_data('data',"conole-irc-tty:$tty_session") if $b_log;
 	eval $end if $b_log;
@@ -16637,9 +16644,15 @@ sub get_tty_console_irc {
 
 sub get_tty_number {
 	eval $start if $b_log;
-	my $tty = POSIX::ttyname(1);
-	#variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
-	$tty =~ s/.*\/[^0-9]*//g if defined $tty;
+	my ($tty);
+	if ( defined $ENV{'XDG_VTNR'} ){
+		$tty = $ENV{'XDG_VTNR'};
+	}
+	else {
+		$tty = POSIX::ttyname(1);
+		#variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
+		$tty =~ s/.*\/[^0-9]*//g if defined $tty;
+	}
 	$tty = '' if ! defined $tty;
 	log_data('data',"tty:$tty") if $b_log;
 	eval $end if $b_log;
@@ -18095,14 +18108,14 @@ sub generate_system_data {
 			$wm .= ' ' . $desktop_data[6] if $extra > 2 && $desktop_data[6];
 		}
 	}
-	if (!$b_display || ( ! $desktop && $b_root)) {
+	if (!$b_display || ( !$desktop && $b_root)) {
 		my $tty = get_tty_number();
 		if (!$desktop){
 			$desktop_info = '';
 		}
 		# it is defined, as ''
 		if ( $tty eq '' && $client{'console-irc'}){
-			$tty = get_tty_console_irc();
+			$tty = get_tty_console_irc('vtnr');
 		}
 		$desktop = "tty $tty" if $tty ne '';
 		$desktop_key = 'Console';
@@ -18118,13 +18131,14 @@ sub generate_system_data {
 		}
 	}
 	if ($extra > 1){
-		if ($wm){
-			$data{$data_name}[$index]{main::key($num++,'wm')} = $wm;
-			
-		}
+		$data{$data_name}[$index]{main::key($num++,'wm')} = $wm if $wm;
 		my $dms = get_display_manager();
 		$dms ||= 'N/A';
 		$data{$data_name}[$index]{main::key($num++,'dm')} = $dms;
+	}
+	if ($extra > 2 && $desktop_key ne 'Console'){
+		my $tty = get_tty_number();
+		$data{$data_name}[$index]{main::key($num++,'vc')} = $tty if $tty ne '';
 	}
 	my $distro_key = ($bsd_type) ? 'OS': 'Distro';
 	my @distro_data = DistroData::get();
