@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.16';
 my $self_date='2018-07-10';
-my $self_patch='15';
+my $self_patch='16';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4279,7 +4279,7 @@ sub show_options {
 	['2', '-R', '', "md-raid: Superblock (if present), algorithm. If resync, 
 	shows progress bar. Hardware RAID Chip vendor:product ID." ],
 	['2', '-s', '', "DIMM/SOC voltages (ipmi only)." ],
-	['2', '-S', '', "Display manager (dm) in desktop output if in X (e.g. kdm, 
+	['2', '-S', '', "Display manager (dm) in desktop output (e.g. kdm, 
 	gdm3, lightdm). Adds active window manager if detected." ],
 	['2', '--slots', '', "Slot length." ],
 	['2', '--usb', '', "Vendor:chip ID." ],
@@ -8470,13 +8470,15 @@ sub card_data {
 			if (length($card) > 85 || $size{'max'} < 110){
 				$card = main::pci_long_filter($card);
 			}
-			@data = (
-			{
+			@data = ({
 			main::key($num++,'Card') => $card,
-			main::key($num++,'driver') => $driver,
-			},
-			);
+			},);
 			@rows = (@rows,@data);
+			if ($extra > 2 && $row[11] && $b_pci_tool){
+				my $vendor = main::get_pci_vendor($row[4],$row[11]);
+				$rows[$j]{main::key($num++,'vendor')} = $vendor if $vendor;
+			}
+			$rows[$j]{main::key($num++,'driver')} = $driver;
 			if ($row[9] && !$bsd_type){
 				my $version = main::get_module_version($row[9]);
 				$version ||= 'N/A';
@@ -16380,6 +16382,26 @@ sub get_module_version {
 	return $version;
 }
 
+# args: 1 - pci device string; 2 - pci cleaned subsystem string
+sub get_pci_vendor {
+	eval $start if $b_log;
+	my ($device, $subsystem) = @_;
+	return if !$subsystem;
+	my ($vendor,$sep) = ('','');
+	my @data = split /\s+/, $subsystem;
+	foreach (@data){
+		if ($device !~ !/\b$_\b/){
+			$vendor .= $sep . $_;
+			$sep = ' ';
+		}
+		else {
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $vendor;
+}
+
 # # check? /var/run/nologin for bsds?
 sub get_runlevel_data {
 	eval $start if $b_log;
@@ -16716,6 +16738,7 @@ sub get_usb_path {
 	eval $end if $b_log;
 	return $path
 }
+
 
 #### -------------------------------------------------------------------
 #### SET DATA VALUES
