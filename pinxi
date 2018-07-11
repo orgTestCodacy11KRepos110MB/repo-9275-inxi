@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.16';
-my $self_date='2018-07-10';
-my $self_patch='20';
+my $self_date='2018-07-11';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -71,7 +71,7 @@ $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_pci,$b_pci_tool,
 $b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
-$b_sudo,$b_sysctl,$b_usb_check,$b_wm_ps);
+$b_sudo,$b_sysctl,$b_usb_check,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
@@ -3068,6 +3068,7 @@ sub joiner {
 sub program_values {
 	my ($app) = @_;
 	my (@client_data);
+	# note: setting index 1 and 2 to 0 will trip flags to not do version
 	my %data = (
 	## Clients
 	'bitchx' => ['bitchx',2,'','BitchX',1,0,0],# special
@@ -3098,6 +3099,7 @@ sub program_values {
 	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0],
 	'dwm' => ['^dwm',1,'-v','Dwm',0,1,1],
 	'fluxbox' => ['^fluxbox',2,'--version','Fluxbox',0,1,0],
+	'flwm' => ['^flwm',0,'0','FLWM',0,0,1],
 	'fvwm' => ['^fvwm',2,'--version','FVWM',0,0,1],
 	'fvwm2' => ['^fvwm',2,'--version','FVWM2',0,0,1],
 	# command: fvwm
@@ -3124,6 +3126,7 @@ sub program_values {
 	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0], 
 	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0],
 	'muffin' => ['^muffin',2,'--version','muffin',0,1,0],
+	'mwm' => ['^mwm',0,'0','MWM',0,1,0],
 	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
 	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
@@ -3131,6 +3134,7 @@ sub program_values {
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
 	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','Scrotwm',0,1,1],
 	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','Spectrwm',0,1,0],
+	'twm' => ['^twm',0,'0','twm',0,1,0],
 	'unity' => ['^unity',2,'--version','Unity',0,1,0],
 	'wm2' => ['^wm2',-1,'--version','wm2',0,1,0],
 	'wmaker' => ['^Window[[:space:]]*Maker',-1,'--version','WindowMaker',0,1,0],
@@ -4028,7 +4032,7 @@ sub get_options{
 	'V|version' => sub { 
 		$b_version = 1 },
 	'wm' => sub { 
-		$b_wm_ps = 1 },
+		$b_wmctrl = 1 },
 	'<>' => sub {
 		my ($opt) = @_;
 		error_handler('unknown-option', "$opt", "" ); }
@@ -4413,7 +4417,7 @@ sub show_options {
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
-	['1', '', '--wm', "Force wm: to use ps (not wmctrl) as data source." ],
+	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps." ],
 	['0', '', '', $line ],
 	);
 	push @data, @rows;
@@ -15209,12 +15213,6 @@ sub get_xprop_de_data {
 			$desktop[2] = $data[3];
 		}
 	}
-	# must come right after xfce 
-	elsif (main::check_program('icewm') && main::awk(\@xprop,'icewm' )){
-		@data = main::program_values('icewm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('icewm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
 	elsif (main::check_program('enlightenment') && main::awk(\@xprop,'enlightenment' )){
 		$desktop[0] = 'Enlightenment';
 		# no -v or --version but version is in xprop -root
@@ -15223,11 +15221,22 @@ sub get_xprop_de_data {
 		$desktop[1] = (split /"/, $desktop[1])[1] if $desktop[1];
 		$desktop[1] = (split /\s+/, $desktop[1])[1] if $desktop[1];
 	}
+	# must come right after xfce 
+	elsif (main::check_program('icewm') && main::awk(\@xprop,'icewm' )){
+		@data = main::program_values('icewm');
+		$desktop[0] = $data[3];
+		$desktop[1] = main::program_version('icewm',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
 	# debian package: i3-wm
 	elsif (main::check_program('i3') && main::awk(\@xprop,'^i3_' )){
 		@data = main::program_values('i3');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('i3',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
+	elsif (main::check_program('mwm') && main::awk(\@xprop,'^_motif' )){
+		@data = main::program_values('mwm');
+		$desktop[0] = $data[3];
+		# $desktop[1] = main::program_version('mwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
 	}
 	# debian package name: wmaker
 	elsif (main::check_program('WindowMaker') && main::awk(\@xprop,'^_?windowmaker' )){
@@ -15283,14 +15292,15 @@ sub get_ps_de_data {
 		# not in debian apt
 		['scrotwm','scrotwm','scrotwm','scrotwm'],
 		['spectrwm','spectrwm','spectrwm','spectrwm'],
-		['twm','twm','','','twm'],
+		['twm','twm','twm','twm'],
 		# note: built from source, but I assume it will show: /usr/bin/dwm
 		['dwm','dwm','dwm','dwm'],
 		# not in debian apt, current is wmii, version 3
 		['wmii2','wmii2','wmii2','wmii2'],
 		['wmii','wmii','wmii','wmii'],
-		['flwm','flwm','','','FLVM'],
+		['flwm','flwm','flwm','flwm'],
 		['jwm','jwm','jwm','jwm'],
+		['mwm','mwm','mwm','mwm'],
 		['sawfish','sawfish','sawfish','sawfish'],
 		['matchbox-panel','matchbox-panel','matchbox-panel','matchbox-panel'],
 		['afterstep','afterstep','afterstep','afterstep'],
@@ -15301,14 +15311,9 @@ sub get_ps_de_data {
 			# no need to use check program with short list of ps_gui
 			# if ( main::check_program($item[0]) && (grep {/^$item[1]$/} @ps_gui)){
 			if (grep {/^$item[1]$/} @ps_gui){
-				if ($item[2]){
-					@data = main::program_values($item[2]);
-					$desktop[0] = $data[3];
-				}
-				else {
-					$desktop[0] = $item[4];
-				}
-				if (@data && $item[3]){
+				@data = main::program_values($item[2]);
+				$desktop[0] = $data[3];
+				if ($data[1] && $data[2]){
 					$desktop[1] = main::program_version($item[3],$data[0],$data[1],$data[2],$data[5],$data[6]);
 				}
 				last;
@@ -15356,7 +15361,11 @@ sub set_qt_data {
 
 sub get_wm {
 	eval $start if $b_log;
-	if ( !$b_wm_ps && (my $program =  main::check_program('wmctrl'))){
+	
+	if (!$b_wmctrl) {
+		get_wm_manual();
+	}
+	elsif ( my $program =  main::check_program('wmctrl')){
 		my $cmd = "$program -m 2>/dev/null";
 		my @data = main::grabber($cmd,'','strip');
 		main::log_data('dump','@data',\@data) if $b_log;
@@ -15374,9 +15383,7 @@ sub get_wm {
 			get_wm_version('wmctrl',$desktop[5]);
 		}
 	}
-	else {
-		get_wm_manual();
-	}
+	
 	eval $end if $b_log;
 }
 sub get_wm_manual {
@@ -15401,7 +15408,7 @@ sub get_wm_manual {
 		$wms = 'afterstep|awesome|budgie-wm|fluxbox|blackbox|dwm|flwm|';
 		$wms .= 'fvwm-crystal|fvwm2|fvwm|gnome-shell|i3|jwm|';
 		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|matchbox-panel|marco|';
-		$wms .= 'muffin|mutter|metacity|openbox|sawfish|scrotwm|spectrwm|';
+		$wms .= 'muffin|mutter|metacity|mwm|openbox|sawfish|scrotwm|spectrwm|';
 		$wms .= 'twm|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5';
 		foreach (@ps_gui){
 			if (/^($wms)$/){
@@ -15419,7 +15426,7 @@ sub get_wm_version {
 	my ($type,$wm) = @_;
 	# we don't want the gnome-shell version, and the others have no --version
 	# we also don't want to run --version again on stuff we already have tested
-	return if ! $wm || $wm =~ /^(budgie-wm|gnome-shell|flwm|twm)$/ || ($desktop[0] && lc($desktop[0]) eq lc($wm) );
+	return if ! $wm || $wm =~ /^(budgie-wm|gnome-shell)$/ || ($desktop[0] && lc($desktop[0]) eq lc($wm) );
 	my $temp = (split /\s+/, $wm)[0];
 	if ($temp){
 		$temp = (split /\s+/, $temp)[0];
@@ -15429,7 +15436,8 @@ sub get_wm_version {
 		return if !@data;
 		# print Data::Dumper::Dumper \@data;
 		$desktop[5] = $data[3] if $type eq 'manual';
-		if ($extra > 2){
+		# note: if values returns 0 for 1 and 2, it doesn't support versioning
+		if ($extra > 2 && $data[1] && $data[2]){
 			my $version = main::program_version($temp,$data[0],$data[1],$data[2],$data[5],$data[6]);
 			$desktop[6] = $version if $version;
 		}
@@ -15528,9 +15536,10 @@ sub set_xprop {
 		@xprop = main::grabber("xprop -root $display_opt 2>/dev/null");
 		if (@xprop){
 			# add wm / de as required, but only add what is really tested for above
-			my $pattern = 'blackbox_pid|enlightenment|^_gnome|herbstluftwm|^kwin_|';
 			# XFDESKTOP_IMAGE_FILE; XFCE_DESKTOP
-			$pattern .= '^i3_|icewm|_marco|_muffin|openbox_pid|^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
+			my $pattern = 'blackbox_pid|enlightenment|^_gnome|herbstluftwm|';
+			$pattern .= '^kwin_|^i3_|icewm|_marco|^_motif|_muffin|openbox_pid|';
+			$pattern .= '^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
 			# let's only do these searches once
 			@xprop = grep {/^\S/ && /($pattern)/i} @xprop;
 			$_ = lc for @xprop;
@@ -17355,7 +17364,7 @@ sub set_ps_gui {
 		@temp=qw(afterstep awesome blackbox budgie-wm compiz 3dwm dwm fluxbox 
 		flwm fvwm-crystal fvwm2 fvwm gnome-shell i3 jwm twin kwin_wayland 
 		kwin_x11 kwin matchbox-panel marco metacity metisse mir muffin mutter 
-		openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii 
+		mwm openbox sawfish scrotwm spectrwm twm WindowMaker wm2 wmii2 wmii 
 		xfwm4 xfwm5);
 		@match = (@match,@temp);
 	}
