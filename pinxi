@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.16';
 my $self_date='2018-07-11';
-my $self_patch='30';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11235,10 +11235,11 @@ sub create_output {
 			my $driver = ($row{'driver'}) ? $row{'driver'}: 'N/A';
 			@data = ({
 			main::key($num++,'Hardware') => $device,
-			main::key($num++,'driver') => $driver,
 			});
 			@rows = (@rows,@data);
 			$j = scalar @rows - 1;
+			$rows[$j]{main::key($num++,'vendor')} = $row{'vendor'} if $row{'vendor'};
+			$rows[$j]{main::key($num++,'driver')} = $driver;
 			if ($extra > 0){
 				my $driver_version = ($row{'driver-version'}) ?  $row{'driver-version'}: 'N/A' ;
 				$rows[$j]{main::key($num++,'v')} = $driver_version;
@@ -11477,13 +11478,16 @@ sub raid_data {
 # 10 modules
 sub hardware_raid {
 	eval $start if $b_log;
-	my ($driver,@data,@working);
+	my ($driver,$vendor,@data,@working);
 	foreach my $ref (@pci){
 		@working = @$ref;
 		next if $working[1] ne '0104';
 		$driver = ($working[9]) ? lc($working[9]): '';
 		$driver =~ s/-/_/g if $driver;
 		my $driver_version = ($driver) ? main::get_module_version($driver): '';
+		if ($extra > 2 && $b_pci_tool && $working[11]){
+			$vendor = main::get_pci_vendor($working[4],$working[11]);
+		}
 		@data = ({
 		'bus-id' => $working[2],
 		'chip-id' => $working[6],
@@ -11494,6 +11498,7 @@ sub hardware_raid {
 		'rev' => $working[7],
 		'sub-id' => $working[3],
 		'vendor-id' => $working[5],
+		'vendor' => $vendor,
 		});
 		@hardware_raid = (@hardware_raid,@data);
 	}
