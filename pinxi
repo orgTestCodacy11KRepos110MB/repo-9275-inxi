@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.17';
-my $self_date='2018-07-12';
-my $self_patch='02';
+my $self_date='2018-07-13';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -65,13 +65,13 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_arm,$b_arm_audio,$b_arm_gfx,$b_arm_net,$b_console_irc,
-$b_debug_gz,$b_debug_timers,$b_display,$b_dmesg_boot_check,
+my ($b_admin,$b_arm,$b_console_irc,$b_debug_gz,$b_debug_timers,
+$b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_pci,$b_pci_tool,
 $b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
-$b_sudo,$b_sysctl,$b_usb_check,$b_wmctrl);
+$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sudo,$b_sysctl,$b_usb_check,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
@@ -1316,7 +1316,7 @@ sub create_debug_directory {
 	my $host = main::get_hostname();
 	$host =~ s/ /-/g;
 	$host = 'no-host' if !$host || $host eq 'N/A';
-	my ($arm_string,$bsd_string,$root_string) = ('','','');
+	my ($alt_string,$bsd_string,$root_string) = ('','','');
 	# note: Time::Piece was introduced in perl 5.9.5
 	my ($sec,$min,$hour,$mday,$mon,$year) = localtime;
 	$year = $year+1900;
@@ -1333,8 +1333,9 @@ sub create_debug_directory {
 		$root_string = '-root';
 	}
 	$bsd_string = "-BSD-$bsd_type" if $bsd_type;
-	$arm_string = '-ARM' if $b_arm;
-	$debug_dir = "$self_name$arm_string$bsd_string-$host-$today$root_string-$self_version";
+	if ($b_arm ){$alt_string = '-ARM'}
+	elsif ($b_mips) {$alt_string = '-MIPS'}
+	$debug_dir = "$self_name$alt_string$bsd_string-$host-$today$root_string-$self_version";
 	$debug_gz = "$debug_dir.tar.gz";
 	$data_dir = "$user_data_dir/$debug_dir";
 	if ( -d $data_dir ){
@@ -5063,6 +5064,7 @@ sub row_defaults {
 	'machine-data-bsd' => "No machine data: Is dmidecode installed? Try -M --dmidecode.",
 	'machine-data-dmidecode' => "No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.",
 	'machine-data-force-dmidecode' => "No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.",
+	'mips-pci' => "No MIPS data found for this feature.",
 	'optical-data' => "No Optical or Floppy data was found.",
 	'optical-data-bsd' => "No floppy or optical data found for this BSD system.",
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
@@ -5556,10 +5558,10 @@ sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
 	my $num = 0;
-	if ($b_arm && !$b_arm_audio && !$b_pci_tool){
-		my $key = 'ARM';
+	if (($b_arm || $b_mips) && !$b_soc_audio && !$b_pci_tool){
+		my $key = ($b_arm) ? 'ARM' : 'MIPS';
 		@data = ({
-		main::key($num++,$key) => main::row_defaults('arm-pci',''),
+		main::key($num++,$key) => main::row_defaults(lc($key) . '-pci',''),
 		},);
 		@rows = (@rows,@data);
 	}
@@ -5567,7 +5569,8 @@ sub get {
 		@data = card_data();
 		@rows = (@rows,@data);
 	}
-	if ( ( ($b_arm && !$b_arm_audio && !$b_pci_tool) || !@rows ) && (my $file = main::system_files('asound-cards') ) ){
+	if ( ( (($b_arm || $b_mips) && !$b_soc_audio && !$b_pci_tool) || !@rows ) && 
+	   (my $file = main::system_files('asound-cards') ) ){
 		@data = asound_data($file);
 		@rows = (@rows,@data);
 	}
@@ -8428,10 +8431,10 @@ sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
 	my $num = 0;
-	if ($b_arm && !$b_arm_gfx && !$b_pci_tool){
-		my $key = 'ARM';
+	if (($b_arm || $b_mips) && !$b_soc_gfx && !$b_pci_tool){
+		my $key = ($b_arm) ? 'ARM' : 'MIPS';
 		@data = ({
-		main::key($num++,$key) => main::row_defaults('arm-pci',''),
+		main::key($num++,$key) => main::row_defaults(lc($key) . '-pci',''),
 		},);
 		@rows = (@rows,@data);
 	}
@@ -9023,7 +9026,7 @@ package MachineData;
 
 sub get {
 	eval $start if $b_log;
-	my (%arm_machine,@data,@rows,$key1,$val1,$which);
+	my (%soc_machine,@data,@rows,$key1,$val1,$which);
 	my $num = 0;
 	if ($bsd_type && @sysctl_machine && !$b_dmidecode_force ){
 		@data = machine_data_sysctl();
@@ -9056,11 +9059,9 @@ sub get {
 	}
 	elsif (!$bsd_type) {
 		# this uses /proc/cpuinfo so only GNU/Linux
-		if ($b_arm){
-			%arm_machine = machine_data_arm();
-			if (%arm_machine){
-				@data = create_output_arm(%arm_machine);
-			}
+		if ($b_arm || $b_mips){
+			%soc_machine = machine_data_soc();
+			@data = create_output_soc(%soc_machine) if %soc_machine;
 		}
 		if (!@data){
 			$key1 = 'Message';
@@ -9206,37 +9207,38 @@ sub create_output {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_arm {
+sub create_output_soc {
 	my (%data,@row,@rows);
-	my (%arm_machine) = @_;
+	my (%soc_machine) = @_;
 	my $num = 0;
 	my $j = 0;
-	#print Data::Dumper::Dumper \%arm_machine;
+	#print Data::Dumper::Dumper \%soc_machine;
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
-	if ($arm_machine{'device'} || $arm_machine{'model'}){
-		$rows[$j]{main::key($num++,'Type')} = 'ARM Device';
+	if ($soc_machine{'device'} || $soc_machine{'model'}){
+		my $key = ($b_arm) ? 'ARM Device': 'MIPS Device';
+		$rows[$j]{main::key($num++,'Type')} = $key;
 		my $system = 'System';
-		if (defined $arm_machine{'model'}){
-			$rows[$j]{main::key($num++,'System')} = $arm_machine{'model'};
+		if (defined $soc_machine{'model'}){
+			$rows[$j]{main::key($num++,'System')} = $soc_machine{'model'};
 			$system = 'details';
 		}
-		my $device = $arm_machine{'device'};
+		my $device = $soc_machine{'device'};
 		$device ||= 'N/A';
 		$rows[$j]{main::key($num++,$system)} = $device;
 	}
 	# we're going to print N/A for 0000 values sine the item was there.
-	if ($arm_machine{'firmware'}){
+	if ($soc_machine{'firmware'}){
 		# most samples I've seen are like: 0000
-		$arm_machine{'firmware'} =~ s/^[0]+$//;
-		$arm_machine{'firmware'} ||= 'N/A';
-		$rows[$j]{main::key($num++,'rev')} = $arm_machine{'firmware'};
+		$soc_machine{'firmware'} =~ s/^[0]+$//;
+		$soc_machine{'firmware'} ||= 'N/A';
+		$rows[$j]{main::key($num++,'rev')} = $soc_machine{'firmware'};
 	}
 	# sometimes has value like: 0000
-	if (defined $arm_machine{'serial'}){
+	if (defined $soc_machine{'serial'}){
 		# most samples I've seen are like: 0000
-		$arm_machine{'serial'} =~ s/^[0]+$//;
-		$rows[$j]{main::key($num++,'serial')} = main::apply_filter($arm_machine{'serial'});
+		$soc_machine{'serial'} =~ s/^[0]+$//;
+		$rows[$j]{main::key($num++,'serial')} = main::apply_filter($soc_machine{'serial'});
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -9305,25 +9307,31 @@ sub machine_data_sys {
 # which will be used for alt ARM machine data in cases 
 # where no dmi data present, or by cpu data to guess at 
 # certain actions for arm only.
-sub machine_data_arm {
+sub machine_data_soc {
 	eval $end if $b_log;
-	my (%arm_machine,@temp);
+	my (%soc_machine,@temp);
 	if (my $file = main::system_files('cpuinfo')){
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
 		my @data = main::reader($file);
 		foreach (@data){
-			if (/^Hardware/i){
+			if (/^(Hardware|system type\s*:)/i){
 				@temp = split /\s*:\s*/, $_;
 				$temp[1] = main::arm_cleaner($temp[1]);
-				$arm_machine{'device'} = main::cleaner($temp[1]);
+				$temp[1] = main::dmi_cleaner($temp[1]);
+				$soc_machine{'device'} = main::cleaner($temp[1]);
+			}
+			elsif (/^machine\s*:/i){
+				@temp = split /\s*:\s*/, $_;
+				$temp[1] = main::dmi_cleaner($temp[1]);
+				$soc_machine{'model'} = main::cleaner($temp[1]);
 			}
 			elsif (/^Revision/i){
 				@temp = split /\s*:\s*/, $_;
-				$arm_machine{'firmware'} = $temp[1];
+				$soc_machine{'firmware'} = $temp[1];
 			}
 			elsif (/^Serial/i){
 				@temp = split /\s*:\s*/, $_;
-				$arm_machine{'serial'} = $temp[1];
+				$soc_machine{'serial'} = $temp[1];
 			}
 		}
 	}
@@ -9335,22 +9343,22 @@ sub machine_data_arm {
 			$model = (split /\x01|\x02|\x03|\x00/, $model)[0] if $model;
 			# idea was to use only first part of string, but now try using all
 			#my (@result) = ();
-			#@result = split(/\s+/, $arm_machine{'device'}) if $arm_machine{'device'};
-			if ( !$arm_machine{'device'} || ($model && $model !~ /$arm_machine{'device'}/i) ){
+			#@result = split(/\s+/, $soc_machine{'device'}) if $soc_machine{'device'};
+			if ( !$soc_machine{'device'} || ($model && $model !~ /$soc_machine{'device'}/i) ){
 				$model = main::arm_cleaner($model);
-				$arm_machine{'model'} = $model;
+				$soc_machine{'model'} = $model;
 			}
 		}
 	}
-	if (!$arm_machine{'serial'} && -f '/proc/device-tree/serial-number'){
+	if (!$soc_machine{'serial'} && -f '/proc/device-tree/serial-number'){
 		my $serial  = (main::reader('/proc/device-tree/serial-number'))[0];
 		$serial = (split /\x01|\x02|\x03|\x00/, $serial)[0] if $serial;
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
-		$arm_machine{'serial'} = $serial if $serial;
+		$soc_machine{'serial'} = $serial if $serial;
 	}
-	#print Data::Dumper::Dumper \%arm_machine;
+	#print Data::Dumper::Dumper \%soc_machine;
 	eval $end if $b_log;
-	return %arm_machine;
+	return %soc_machine;
 }
 
 # bios_date: 09/07/2010
@@ -9651,7 +9659,7 @@ sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
 	my $num = 0;
-	if ($b_arm && !$b_arm_net && !$b_pci_tool){
+	if (($b_arm || $b_mips) && !$b_soc_net && !$b_pci_tool){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
 	}
@@ -9662,10 +9670,10 @@ sub get {
 	@data = usb_data();
 	@rows = (@rows,@data) if @data;
 	# note: rasberry pi uses usb networking only 
-	if (!@rows && $b_arm){
-		my $key = 'ARM';
+	if (!@rows && ($b_arm || $b_mips)){
+		my $key = ($b_arm) ? 'ARM' : 'MIPS';
 		@data = ({
-		main::key($num++,$key) => main::row_defaults('arm-pci',''),
+		main::key($num++,$key) => main::row_defaults(lc($key) . '-pci',''),
 		},);
 		@rows = (@rows,@data);
 	}
@@ -9749,7 +9757,12 @@ sub card_data {
 				$row[8] ||= 'N/A';
 				# as far as I know, wifi has no port, but in case it does in future, use it
 				$rows[$j]{main::key($num++,'port')} = $row[8] if (!$b_wifi || ( $b_wifi && $row[8] ne 'N/A') );
-				$rows[$j]{main::key($num++,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
+				my $bus_id = 'N/A';
+				# note: for arm/mips we want to see the single item bus id, why not?
+				if ($row[2] && $row[3]){$bus_id = "$row[2].$row[3]"}
+				elsif ($row[2]){$bus_id = $row[2]}
+				elsif ($row[3]){$bus_id = $row[3]}
+				$rows[$j]{main::key($num++,'bus ID')} = $bus_id;
 			}
 			if ($extra > 1){
 				$rows[$j]{main::key($num++,'chip ID')} = $chip_id;
@@ -17098,8 +17111,8 @@ sub set_pci_data {
 			# ! -d '/proc/bus/pci'
 			# this is sketchy, a sbc won't have pci, but a non sbc arm may have it, so 
 			# build up both and see what happens
-			if ($b_arm ){
-				set_arm_soc_data();
+			if ($b_arm || $b_mips){
+				set_soc_data();
 			}
 		}
 		else {
@@ -17306,12 +17319,19 @@ sub set_pciconf_data {
 # "MODALIAS=of:NgpuT<NULL>Callwinner,sun8i-h3-maliCallwinner,sun7i-a20-maliCarm,mali-400"]
 ## 5
 # /sys/devices/platform/soc/soc:internal-regs/d0018180.gpio/uevent
-sub set_arm_soc_data {
+## 6
+# /sys/devices/soc.0/1180000001800.mdio/8001180000001800:05/uevent
+#  ["DRIVER=AR8035", "OF_NAME=ethernet-phy"
+sub set_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
 	@files = globber("/sys/devices/platform/soc*/*/uevent");
 	@temp2 = globber("/sys/devices/platform/soc*/soc*/*/uevent");
 	@files = (@files,@temp2) if @temp2;
+	if ($b_mips){
+		@temp2 = globber("/sys/devices/soc*/*/*/uevent");
+		@files = (@files,@temp2) if @temp2;
+	}
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem/uevent is unreadable with -r test true
 	@files = grep {!/subsystem/} @files if @files;
@@ -17320,8 +17340,16 @@ sub set_arm_soc_data {
 		$type,$type_id,$vendor_id,@working);
 		$chip_id = $file;
 		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
-		$chip_id =~ /\/sys\/devices\/platform\/(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)[\.:][^\/]+\/uevent/;
-		$chip_id = $2;
+		if ($b_arm){
+			$chip_id =~ /\/sys\/devices\/platform\/(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)[\.:]([^\/]+)\/uevent/;
+			$chip_id = $2;
+			$busid = $3;
+		}
+		elsif ($b_mips){
+			$chip_id =~ /\/sys\/devices\/(platform\/)?(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)?([^\/]+)[\.:]([^\/]+)\/uevent/;
+			$chip_id = $4;
+			$busid = $5;
+		}
 		@working = reader($file, 'strip') if -r $file;
 		foreach my $data (@working){
 			@temp2 = split /=/, $data;
@@ -17340,15 +17368,15 @@ sub set_arm_soc_data {
 		}
 		$type = '' if ! defined $type;
 		$driver = '' if ! defined $driver;
-		$busid =  '';
+		$busid =  '' if ! defined $busid;
 		$busid_nu =  0;
 		$type_id =  '';
 		$port = '';
 		$rev = '';
 		$modules = '';
-		$b_arm_audio = 1 if ($type eq 'audio' || $type eq 'hdmi' );
-		$b_arm_gfx = 1 if ($type eq 'gpu' || $type eq 'fb' || $type eq 'hdmi');
-		$b_arm_net = 1 if $type eq 'ethernet' || $type =~ /wifi/;
+		$b_soc_audio = 1 if ($type eq 'audio' || $type eq 'hdmi' );
+		$b_soc_gfx = 1 if ($type eq 'gpu' || $type eq 'fb' || $type eq 'hdmi');
+		$b_soc_net = 1 if $type eq 'ethernet' || $type =~ /wifi/ || $type eq 'ethernet-phy';
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
 		@pci = (@pci,[@temp3]);
 	}
