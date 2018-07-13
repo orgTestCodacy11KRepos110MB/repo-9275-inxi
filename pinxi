@@ -17337,19 +17337,20 @@ sub set_soc_data {
 	@files = grep {!/subsystem/} @files if @files;
 	foreach my $file (@files){
 		my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
-		$type,$type_id,$vendor_id,@working);
+		$temp,$type,$type_id,$vendor_id,@working);
 		$chip_id = $file;
 		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
 		if ($b_arm){
 			$chip_id =~ /\/sys\/devices\/platform\/(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)[\.:]([^\/]+)\/uevent/;
 			$chip_id = $2;
-			$busid = $3;
+			$temp = $3;
 		}
 		elsif ($b_mips){
 			$chip_id =~ /\/sys\/devices\/(platform\/)?(soc[^\/]*\/)?soc[^\/]*\/([^\/]+)?([^\/]+)[\.:]([^\/]+)\/uevent/;
 			$chip_id = $4;
-			$busid = $5;
+			$temp = $5;
 		}
+		$busid = $temp if defined $temp && $temp =~ /^[0-9]$/;
 		@working = reader($file, 'strip') if -r $file;
 		foreach my $data (@working){
 			@temp2 = split /=/, $data;
@@ -17368,7 +17369,7 @@ sub set_soc_data {
 		}
 		$type = '' if ! defined $type;
 		$driver = '' if ! defined $driver;
-		$busid =  '' if ! defined $busid;
+		$busid = (defined $temp && $temp =~ /^[0-9]$/) ? $temp: '';
 		$busid_nu =  0;
 		$type_id =  '';
 		$port = '';
