@@ -69,7 +69,7 @@ my ($b_admin,$b_arm,$b_arm_audio,$b_arm_gfx,$b_arm_net,$b_console_irc,
 $b_debug_gz,$b_debug_timers,$b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
-$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_pci,$b_pci_tool,
+$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_pci,$b_pci_tool,
 $b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
 $b_sudo,$b_sysctl,$b_usb_check,$b_wmctrl);
 ## Disk checks
@@ -412,7 +412,8 @@ sub set_os {
 	@uname = uname();
 	$os = lc($uname[0]);
 	my $type = lc($uname[-1]);
-	$b_arm = 1 if $type =~ /arm|aarch/;
+	if ($type =~ /arm|aarch/){$b_arm = 1}
+	elsif ($type =~ /mips/) {$b_mips = 1}
 	if ($type =~ /(armv[1-7]|aarch32|sparc_v9)/){
 		$bits_sys = 32;
 	}
@@ -6491,6 +6492,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -6581,7 +6583,7 @@ sub data_cpuinfo {
 			$cpu{'model_id'} =~ s/^0X//;
 		}
 		# cpu can show in arm
-		elsif (!$cpu{'model_name'} &&( $line[0] eq 'model name' || $line[0] eq 'cpu' )){
+		elsif (!$cpu{'model_name'} && ( $line[0] eq 'model name' || $line[0] eq 'cpu' || $line[0] eq 'cpu model' )){
 			$cpu{'model_name'} = main::cleaner($line[1]);
 			$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
 			if ( $b_arm || $line[1] =~ /ARM|AArch/i){
@@ -6596,6 +6598,9 @@ sub data_cpuinfo {
 					}
 					#$cpu{'processors'}[$proc_count] = 0;
 				}
+			}
+			elsif ($b_mips){
+				$cpu{'type'} = 'mips';
 			}
 		}
 		elsif ( $line[0] eq 'cpu mhz' ){
