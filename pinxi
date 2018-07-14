@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.17';
 my $self_date='2018-07-13';
-my $self_patch='11';
+my $self_patch='12';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17338,6 +17338,10 @@ sub set_pciconf_data {
 ## 6
 # /sys/devices/soc.0/1180000001800.mdio/8001180000001800:05/uevent
 #  ["DRIVER=AR8035", "OF_NAME=ethernet-phy"
+## 7
+# /sys/devices/soc.0/1c30000.eth/uevent
+## 8
+# /sys/devices/wlan.26/uevent [from pine64]
 sub set_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
@@ -17351,11 +17355,14 @@ sub set_soc_data {
 		@files = (@files,@temp2) if @temp2;
 		@temp2 = globber('/sys/devices/soc*/*/*/uevent');
 		@files = (@files,@temp2) if @temp2;
+		@temp2 = globber('/sys/devices/*/uevent'); # see case 8
+		@files = (@files,@temp2) if @temp2;
 	}
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem/uevent is unreadable with -r test true
 	@files = grep {!/subsystem/} @files if @files;
 	foreach my $file (@files){
+		next if -z $file;
 		my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
 		$temp,$type,$type_id,$vendor_id,@working);
 		$chip_id = $file;
@@ -17380,7 +17387,8 @@ sub set_soc_data {
 				$vendor_id = $temp3[0];
 			}
 		}
-		$type = '' if ! defined $type;
+		# it's worthless, we can't use it
+		next if ! defined $type;
 		$driver = '' if ! defined $driver;
 		$busid = (defined $temp && $temp =~ /^[0-9]+$/) ? $temp: 0;
 		$busid_nu =  0;
