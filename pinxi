@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.17';
 my $self_date='2018-07-13';
-my $self_patch='10';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5598,7 +5598,7 @@ sub card_data {
 	foreach (@pci){
 		$num = 1;
 		my @row = @$_;
-		if ($row[0] =~ /^(audio|multimedia|hdmi)$/){
+		if ($row[0] =~ /^(audio|daudio|hdmi|multimedia)$/){
 			$j = scalar @rows;
 			my $driver = $row[9];
 			$driver ||= 'N/A';
@@ -8484,7 +8484,7 @@ sub card_data {
 		$num = 1;
 		my @row = @$_;
 		#print "$row[0] $row[3]\n";
-		if ($row[3] == 0 && ( $row[0] =~ /^(vga|display|3d|fb|gpu|hdmi)$/ ) ){
+		if ($row[3] == 0 && ( $row[0] =~ /^(vga|disp|display|3d|fb|gpu|hdmi)$/ ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			$driver = $row[9];
@@ -9722,7 +9722,7 @@ sub card_data {
 		#print "$row[0] $row[3]\n"; 
 		# NOTE: class 06 subclass 80 
 		# https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
-		if ($row[0] eq 'wifi' || $row[0] eq 'network' || $row[0] eq 'ethernet' || $row[1] eq '0680' ){
+		if (($row[0] && $row[0] =~ /^(eth|ethernet|ethernet-phy|network|wifi|wlan)$/ )|| ($row[1] && $row[1] eq '0680' ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			my $driver = $row[9];
@@ -17381,10 +17381,6 @@ sub set_soc_data {
 			}
 		}
 		$type = '' if ! defined $type;
-		if ($type){
-			$type =~ s/^(ethernet-phy)$/ethernet/ if $type;
-			$type =~ s/^(daudio)$/audio/ if $type;
-		}
 		$driver = '' if ! defined $driver;
 		$busid = (defined $temp && $temp =~ /^[0-9]+$/) ? $temp: 0;
 		$busid_nu =  0;
@@ -17392,9 +17388,10 @@ sub set_soc_data {
 		$port = '';
 		$rev = '';
 		$modules = '';
-		$b_soc_audio = 1 if ($type eq 'audio' || $type eq 'daudio' || $type eq 'hdmi' );
-		$b_soc_gfx = 1 if ($type eq 'gpu' || $type eq 'fb' || $type eq 'hdmi');
-		$b_soc_net = 1 if $type eq 'ethernet' || $type =~ /wifi/ || $type eq 'ethernet-phy';
+		# note: use these for main Card match for -AGN
+		$b_soc_audio = 1 if $type =~ /^(audio|daudio|hdmi|multimedia)$/;
+		$b_soc_gfx = 1 if $type =~ /^(vga|disp|display|3d|fb|gpu|hdmi)$/;
+		$b_soc_net = 1 if $type =~ /^(eth|ethernet|ethernet-phy|network|wifi|wlan)$/;
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
 		@pci = (@pci,[@temp3]);
 	}
