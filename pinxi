@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.17';
 my $self_date='2018-07-13';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -79,7 +79,7 @@ my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
 my ($bsd_type,$language,$os) = ('','','');
-my ($bits_sys);
+my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_count,$usb_level) = (0.35,4,10,5,0);
 my $sensors_cpu_nu = 0;
 my $weather_unit='mi';
@@ -411,13 +411,14 @@ sub set_fake_tools {
 sub set_os {
 	@uname = uname();
 	$os = lc($uname[0]);
-	my $type = lc($uname[-1]);
-	if ($type =~ /arm|aarch/){$b_arm = 1}
-	elsif ($type =~ /mips/) {$b_mips = 1}
-	if ($type =~ /(armv[1-7]|aarch32|sparc_v9)/){
+	$cpu_arch = lc($uname[-1]);
+	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1}
+	elsif ($cpu_arch =~ /mips/) {$b_mips = 1}
+	# aarch32 mips32 intel/amd handled in cpu
+	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9)/){
 		$bits_sys = 32;
 	}
-	elsif ($type =~ /(alpha|64)/){
+	elsif ($cpu_arch =~ /(alpha|64)/){
 		$bits_sys = 64;
 	}
 	if ( $os =~ /(bsd|dragonfly|darwin)/ ){
@@ -6708,6 +6709,7 @@ sub data_cpuinfo {
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
 		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'});
+		$cpu{'arch'} = $cpu_arch if (!$cpu{'arch'} && $cpu_arch && ($b_mips || $b_arm))
 		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
 	if (!$speeds{'cur-freq'}){
@@ -9316,7 +9318,7 @@ sub machine_data_soc {
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
 		my @data = main::reader($file);
 		foreach (@data){
-			if (/^(Hardware|system type\s*:)/i){
+			if (/^(Hardware|system type)\s*:/i){
 				@temp = split /\s*:\s*/, $_;
 				$temp[1] = main::arm_cleaner($temp[1]);
 				$temp[1] = main::dmi_cleaner($temp[1]);
@@ -9337,7 +9339,7 @@ sub machine_data_soc {
 			}
 		}
 	}
-	if (-f '/proc/device-tree/model'){
+	if (!$soc_machine{'model'} && -f '/proc/device-tree/model'){
 		my $model  = (main::reader('/proc/device-tree/model'))[0];
 		main::log_data('data',"device-tree-model: $model") if $b_log;
 		if ( $model ){
@@ -9720,7 +9722,7 @@ sub card_data {
 		#print "$row[0] $row[3]\n"; 
 		# NOTE: class 06 subclass 80 
 		# https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
-		if ($row[0] eq 'network' || $row[0] eq 'ethernet' || $row[1] eq '0680' ){
+		if ($row[0] eq 'wifi' || $row[0] eq 'network' || $row[0] eq 'ethernet' || $row[1] eq '0680' ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			my $driver = $row[9];
@@ -14170,7 +14172,7 @@ sub unmounted_data {
 		# need to exclude loop type file systems, squashfs for example
 		# NOTE: nvme needs special treatment because the main device is: nvme0n1
 		# note: $working[2] != 1 is wrong, it's not related
-		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk)[0-9]+$/ && 
+		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk|mntblk|mntblock)[0-9]+$/ && 
 		     $working[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && $working[-1] !~ /loop/ && 
 		     !(grep {$working[-1] =~ /$_/} @mounted)){
 			%part = PartitionData::check_lsblk($working[-1],0) if (@lsblk && $working[-1]);
@@ -17377,8 +17379,9 @@ sub set_soc_data {
 			}
 		}
 		$type = '' if ! defined $type;
+		$type =~ s/^(ethernet-phy)$/ethernet/ if $type;
 		$driver = '' if ! defined $driver;
-		$busid = (defined $temp && $temp =~ /^[0-9]$/) ? $temp: '';
+		$busid = (defined $temp && $temp =~ /^[0-9]+$/) ? $temp: 0;
 		$busid_nu =  0;
 		$type_id =  '';
 		$port = '';
