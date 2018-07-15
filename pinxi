@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.17';
 my $self_date='2018-07-13';
-my $self_patch='15';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13166,6 +13166,10 @@ sub create_output {
 		my $psu_temp = $sensors{'psu-temp'} . $temp_unit;
 		$rows[$j]{main::key($num++,'psu')} = $psu_temp;
 	}
+	if (defined $sensors{'ambient-temp'}){
+		my $ambient_temp = $sensors{'ambient-temp'} . $temp_unit;
+		$rows[$j]{main::key($num++,'ambient')} = $ambient_temp;
+	}
 	if (scalar @gpu == 1){
 		my $gpu_temp = $gpu[0]{'temp'};
 		my $gpu_type = $gpu[0]{'type'};
@@ -13296,8 +13300,14 @@ sub ipmi_data {
 		@row = split /\s*\|\s*/, $_;
 		next if $row[$i_value] !~ /^[0-9\.]+$/i;
 		# print "$row[$i_key] - $row[$i_value]\n";
-		if ($row[$i_key] =~ /^System[\s_]Temp$/i){
+		if ($row[$i_key] =~ /^(System[\s_]Temp|System[\s_]?Board)$/i){
 			$sensors{'mobo-temp'} = int($row[$i_value]);
+			$working_unit = $row[$i_unit];
+			$working_unit =~ s/degrees\s// if $b_ipmitool; 
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+		}
+		elsif ($row[$i_key] =~ /^(Ambient)$/i){
+			$sensors{'ambient-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -13347,6 +13357,12 @@ sub ipmi_data {
 			if ( !$sensors{'temp3'} || ( defined $temp_working && $temp_working > 0 ) ) {
 				$sensors{'temp3'} = $temp_working;
 			}
+			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+		}
+		elsif (!$sensors{'sodimm-temp'} && $row[$i_key] =~ /^(DIMM-[0-9][A-Z]?)$/i){
+			$sensors{'sodimm-temp'} = int($row[$i_value]);
+			$working_unit = $row[$i_unit];
+			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# note: can be cpu fan:, cpu fan speed:, etc.
@@ -13828,7 +13844,7 @@ sub data_processor {
 		%sensors = ();
 	}
 	else {
-		my ($psu_fan,$psu1_fan,$psu2_fan,$psu_temp,$sodimm_temp,
+		my ($ambient_temp,$psu_fan,$psu1_fan,$psu2_fan,$psu_temp,$sodimm_temp,
 		$v_12,$v_5,$v_3_3,$v_dimm_p1,$v_dimm_p2,$v_soc_p1,$v_soc_p2,$v_vbat);
 		$psu_temp = $sensors{'psu-temp'} if $sensors{'psu-temp'};
 		# sodimm fan is fan_main[4]
@@ -13836,6 +13852,7 @@ sub data_processor {
 		$cpu2_temp = $sensors{'cpu2-temp'} if $sensors{'cpu2-temp'};
 		$cpu3_temp = $sensors{'cpu3-temp'} if $sensors{'cpu3-temp'};
 		$cpu4_temp = $sensors{'cpu4-temp'} if $sensors{'cpu4-temp'};
+		$ambient_temp = $sensors{'ambient-temp'} if $sensors{'ambient-temp'};
 		$psu_fan = $sensors{'fan-psu'} if $sensors{'fan-psu'};
 		$psu1_fan = $sensors{'fan-psu-1'} if $sensors{'fan-psu-1'};
 		$psu2_fan = $sensors{'fan-psu-2'} if $sensors{'fan-psu-2'};
@@ -13852,6 +13869,7 @@ sub data_processor {
 			$v_soc_p2 = $sensors{'volts-soc-p2'} if $sensors{'volts-soc-p2'};
 		}
 		%sensors = (
+		'ambient-temp' => $ambient_temp,
 		'cpu-temp' => $cpu_temp,
 		'cpu2-temp' => $cpu2_temp,
 		'cpu3-temp' => $cpu3_temp,
