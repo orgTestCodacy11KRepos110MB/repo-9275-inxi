@@ -3104,6 +3104,7 @@ sub program_values {
 	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0],
 	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0],
 	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0],
+	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0],
 	'dwm' => ['^dwm',1,'-v','Dwm',0,1,1],
 	'fluxbox' => ['^fluxbox',2,'--version','Fluxbox',0,1,0],
 	'flwm' => ['^flwm',0,'0','FLWM',0,0,1],
@@ -3136,7 +3137,7 @@ sub program_values {
 	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0], 
 	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0],
 	'muffin' => ['^muffin',2,'--version','muffin',0,1,0],
-	'mwm' => ['^mwm',0,'0','MWM',0,1,0],
+	'mwm' => ['^mwm',0,'0','mwm',0,1,0],
 	'notion' => ['^.',1,'--version','notion',0,1,0],
 	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
 	'pantheon' => ['^pantheon',0,'0','Pantheon',0,1,0],
@@ -4299,7 +4300,8 @@ sub show_options {
 	shows progress bar. Hardware RAID Chip vendor:product ID." ],
 	['2', '-s', '', "DIMM/SOC voltages (ipmi only)." ],
 	['2', '-S', '', "Display manager (dm) in desktop output (e.g. kdm, 
-	gdm3, lightdm). Adds active window manager if detected." ],
+	gdm3, lightdm); active window manager if detected; desktop toolkit, 
+	if available (Xfce/KDE/Trinity only)." ],
 	['2', '--slots', '', "Slot length." ],
 	['2', '--usb', '', "Vendor:chip ID." ],
 	);
@@ -4326,7 +4328,7 @@ sub show_options {
 	Hardware RAID rev, ports, specific vendor/product information." ],
 	['2', '-S', '', "Panel/shell info in desktop output, if in X (like lxpanel, 
 	xfce4-panel, mate-panel); (if available) dm version number, window manager
-	version number; desktop toolkit, if available (Xfce/KDE/Trinity only)." ]
+	version number." ]
 	);
 	push @data, @rows;
 	if ( $b_weather ){
@@ -15112,7 +15114,7 @@ sub get_kde_data {
 			$desktop[1] = ($kde_session_version) ? $kde_session_version: main::row_defaults('unknown-desktop-version');
 		}
 		# print Data::Dumper::Dumper \@version_data;
-		if ($extra > 2){
+		if ($extra > 1){
 			if (@version_data){
 				$desktop[3] = main::awk(\@version_data,'^Qt:', 2,'\s+');
 			}
@@ -15135,7 +15137,7 @@ sub get_kde_data {
 		if (!$desktop[1]){
 			$desktop[1] = '3.5';
 		}
-		if ($extra > 2 && @version_data){
+		if ($extra > 1 && @version_data){
 			$desktop[2] = 'Qt';
 			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
 		}
@@ -15152,7 +15154,7 @@ sub get_env_de_data {
 			@version_data = main::grabber("$program --version 2>/dev/null");
 			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
 		}
-		if ($extra > 2 && @version_data){
+		if ($extra > 1 && @version_data){
 			$desktop[2] = 'Qt';
 			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
 		}
@@ -15162,7 +15164,7 @@ sub get_env_de_data {
 		$desktop[0] = $data[3];
 		$desktop[0] ||= 'Unity';
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 2;
+		#set_gtk_data() if $extra > 1;
 	}
 	elsif ( $xdg_desktop =~ /budgie/ ){
 		@data = main::program_values('budgie');
@@ -15192,7 +15194,7 @@ sub get_env_de_data {
 			else {
 				$desktop[0] = 'LX-Qt-Variant';
 			}
-			set_qt_data() if $extra > 2;
+			set_qt_data() if $extra > 1;
 		}
 	}
 	# note, X-Cinnamon value strikes me as highly likely to change, so just 
@@ -15201,13 +15203,13 @@ sub get_env_de_data {
 		@data = main::program_values('cinnamon');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 2;
+		#set_gtk_data() if $extra > 1;
 	}
 	elsif ($xdg_desktop eq 'pantheon' || $desktop_session eq 'pantheon'){
 		@data = main::program_values('pantheon');
 		$desktop[0] = $data[3];
 		#$desktop[1] = main::program_version('pantheon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 2;
+		#set_gtk_data() if $extra > 1;
 	}
 	eval $end if $b_log;
 }
@@ -15226,7 +15228,7 @@ sub get_env_xprop_de_data {
 		@data = main::program_values('cinnamon');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 2;
+		#set_gtk_data() if $extra > 1;
 		$desktop[0] ||= 'Cinnamon';
 	}
 	elsif ($xdg_desktop eq 'mate' || ( $b_xprop && main::awk(\@xprop,'_marco') )){
@@ -15239,7 +15241,7 @@ sub get_env_xprop_de_data {
 			$desktop[0] = $data[3];
 			$desktop[1] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
-		#set_gtk_data() if $extra > 2;
+		#set_gtk_data() if $extra > 1;
 		$desktop[0] ||= 'MATE';
 	}
 	# note, GNOME_DESKTOP_SESSION_ID is deprecated so we'll see how that works out
@@ -15255,7 +15257,7 @@ sub get_env_xprop_de_data {
 			@data = main::program_values('gnome-shell');
 			$desktop[1] = main::program_version('gnome-shell',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
-		# set_gtk_data() if $extra > 2;
+		# set_gtk_data() if $extra > 1;
 		$desktop[0] = ( $data[3] ) ? $data[3] : 'Gnome';
 	}
 	eval $end if $b_log;
@@ -15301,7 +15303,7 @@ sub get_xprop_de_data {
 		}
 		$desktop[0] ||= 'Xfce';
 		$desktop[1] ||= ''; # xfce isn't going to be 4 forever
-		if ($extra > 2){
+		if ($extra > 1){
 			@data = main::program_values('xfdesktop-toolkit');
 			#$desktop[3] = main::program_version('xfdesktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
 			$desktop[3] = main::awk(\@version_data,$data[0],$data[1],'\s+');
