@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.17';
-my $self_date='2018-07-13';
-my $self_patch='19';
+my $self_date='2018-07-16';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3096,10 +3096,10 @@ sub program_values {
 	'xchat-gnome' => ['[0-9.]+',2,'-v','X-Chat-Gnome',1,1,0],
 	'xchat' => ['[0-9.]+',2,'-v','X-Chat',1,1,0],
 	## Desktops / wm
-	'3dwm' => ['^3dwm',0,'0','3dwm',0,1,1], # unknown syntax
-	'9wm' => ['^9wm',3,'-version','9wm',0,1,1],
+	'3dwm' => ['^3dwm',0,'0','3dwm',0,1,0], # unknown syntax
+	'9wm' => ['^9wm',3,'-version','9wm',0,1,0],
 	'afterstep' => ['^afterstep',3,'--version','AfterStep',0,1,0],
-	'amiwm' => ['^amiwm',0,'0','AmiWM',0,1,1],
+	'amiwm' => ['^amiwm',0,'0','AmiWM',0,1,0],
 	'awesome' => ['^awesome',2,'--version','Awesome',0,1,0],
 	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0],
 	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0],
@@ -4233,8 +4233,8 @@ sub show_options {
 		['1', '-W', '--weather-location', "[location] Supported options for 
 		[location]: postal code; city, state/country; latitude, longitude. 
 		Only use if you want the weather somewhere other than the machine running
-		$self_name. Use only ASCII characters, replace spaces in city/state/country names with '+'. 
-		Example:^$self_name^-W^new+york,ny"],
+		$self_name. Use only ASCII characters, replace spaces in city/state/country 
+		names with '+'. Example:^$self_name^-W^new+york,ny"],
 		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (i), 
 		metric/imperial (mi), or imperial/metric (im)."],
 		);
@@ -4266,8 +4266,8 @@ sub show_options {
 	blocks, chunk size, bitmap (if present). Resync line, shows blocks 
 	synced/total blocks. Hardware RAID driver version, bus ID." ],
 	['2', '-s', '', "Basic voltages (ipmi, lm-sensors if present): 12v, 5v, 3.3v, vbat." ],
-	['2', '-S', '', "Desktop toolkit, if available (Xfce/KDE/Trinity only); 
-	Kernel gcc version; system base of distro (if relevant and detected)" ],
+	['2', '-S', '', "Kernel gcc version; system base of distro (if relevant 
+	and detected)" ],
 	['2', '-t', '', "Adds memory use output to CPU (-xt c), and CPU use to 
 	memory (-xt m)." ],
 	['2', '--usb', '', "For Devices, shows USB version/speed." ],
@@ -4326,7 +4326,7 @@ sub show_options {
 	Hardware RAID rev, ports, specific vendor/product information." ],
 	['2', '-S', '', "Panel/shell info in desktop output, if in X (like lxpanel, 
 	xfce4-panel, mate-panel); (if available) dm version number, window manager
-	version number." ]
+	version number; desktop toolkit, if available (Xfce/KDE/Trinity only)." ]
 	);
 	push @data, @rows;
 	if ( $b_weather ){
@@ -15112,7 +15112,7 @@ sub get_kde_data {
 			$desktop[1] = ($kde_session_version) ? $kde_session_version: main::row_defaults('unknown-desktop-version');
 		}
 		# print Data::Dumper::Dumper \@version_data;
-		if ($extra > 0){
+		if ($extra > 2){
 			if (@version_data){
 				$desktop[3] = main::awk(\@version_data,'^Qt:', 2,'\s+');
 			}
@@ -15135,7 +15135,7 @@ sub get_kde_data {
 		if (!$desktop[1]){
 			$desktop[1] = '3.5';
 		}
-		if ($extra > 0 && @version_data){
+		if ($extra > 2 && @version_data){
 			$desktop[2] = 'Qt';
 			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
 		}
@@ -15152,7 +15152,7 @@ sub get_env_de_data {
 			@version_data = main::grabber("$program --version 2>/dev/null");
 			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
 		}
-		if ($extra > 0 && @version_data){
+		if ($extra > 2 && @version_data){
 			$desktop[2] = 'Qt';
 			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
 		}
@@ -15162,13 +15162,12 @@ sub get_env_de_data {
 		$desktop[0] = $data[3];
 		$desktop[0] ||= 'Unity';
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 0;
+		#set_gtk_data() if $extra > 2;
 	}
 	elsif ( $xdg_desktop =~ /budgie/ ){
 		@data = main::program_values('budgie');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('budgie-desktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 0;
 	}
 	# debian package: lxde-core. 
 	# NOTE: some distros fail to set XDG data for root
@@ -15193,7 +15192,7 @@ sub get_env_de_data {
 			else {
 				$desktop[0] = 'LX-Qt-Variant';
 			}
-			set_qt_data();
+			set_qt_data() if $extra > 2;
 		}
 	}
 	# note, X-Cinnamon value strikes me as highly likely to change, so just 
@@ -15202,13 +15201,13 @@ sub get_env_de_data {
 		@data = main::program_values('cinnamon');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 0;
+		#set_gtk_data() if $extra > 2;
 	}
 	elsif ($xdg_desktop eq 'pantheon' || $desktop_session eq 'pantheon'){
 		@data = main::program_values('pantheon');
 		$desktop[0] = $data[3];
 		#$desktop[1] = main::program_version('pantheon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 0;
+		#set_gtk_data() if $extra > 2;
 	}
 	eval $end if $b_log;
 }
@@ -15227,7 +15226,7 @@ sub get_env_xprop_de_data {
 		@data = main::program_values('cinnamon');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		#set_gtk_data() if $extra > 0;
+		#set_gtk_data() if $extra > 2;
 		$desktop[0] ||= 'Cinnamon';
 	}
 	elsif ($xdg_desktop eq 'mate' || ( $b_xprop && main::awk(\@xprop,'_marco') )){
@@ -15240,7 +15239,7 @@ sub get_env_xprop_de_data {
 			$desktop[0] = $data[3];
 			$desktop[1] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
-		#set_gtk_data() if $extra > 0;
+		#set_gtk_data() if $extra > 2;
 		$desktop[0] ||= 'MATE';
 	}
 	# note, GNOME_DESKTOP_SESSION_ID is deprecated so we'll see how that works out
@@ -15256,7 +15255,7 @@ sub get_env_xprop_de_data {
 			@data = main::program_values('gnome-shell');
 			$desktop[1] = main::program_version('gnome-shell',$data[0],$data[1],$data[2],$data[5],$data[6]);
 		}
-		# set_gtk_data() if $extra > 0;
+		# set_gtk_data() if $extra > 2;
 		$desktop[0] = ( $data[3] ) ? $data[3] : 'Gnome';
 	}
 	eval $end if $b_log;
@@ -15302,7 +15301,7 @@ sub get_xprop_de_data {
 		}
 		$desktop[0] ||= 'Xfce';
 		$desktop[1] ||= ''; # xfce isn't going to be 4 forever
-		if ($extra > 0){
+		if ($extra > 2){
 			@data = main::program_values('xfdesktop-toolkit');
 			#$desktop[3] = main::program_version('xfdesktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
 			$desktop[3] = main::awk(\@version_data,$data[0],$data[1],'\s+');
@@ -15366,6 +15365,11 @@ sub get_xprop_de_data {
 		@data = main::program_values('openbox');
 		$desktop[0] = $data[3];
 		$desktop[1] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
+	elsif (main::check_program('amiwm') && main::awk(\@xprop,'amiwm' )){
+		@data = main::program_values('amiwm');
+		$desktop[0] = $data[3];
+		#$desktop[1] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
 	}
 	# need to check starts line because it's so short
 	eval $end if $b_log;
@@ -15645,7 +15649,7 @@ sub set_xprop {
 		if (@xprop){
 			# add wm / de as required, but only add what is really tested for above
 			# XFDESKTOP_IMAGE_FILE; XFCE_DESKTOP
-			my $pattern = 'blackbox_pid|compiz|enlightenment|^_gnome|herbstluftwm|';
+			my $pattern = '^amiwm|blackbox_pid|compiz|enlightenment|^_gnome|herbstluftwm|';
 			$pattern .= '^kwin_|^i3_|icewm|_marco|^_motif|_muffin|openbox_pid|';
 			$pattern .= '^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
 			# let's only do these searches once
