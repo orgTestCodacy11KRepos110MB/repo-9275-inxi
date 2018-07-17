@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.18';
 my $self_date='2018-07-17';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -875,7 +875,7 @@ sub get_selection {
 	@data = ();
 	my $response = <STDIN>;
 	chomp $response;
-	if ($response =~ /([^0-9]|^$)/ || ( $response =~ /^[0-9]+$/ && $response > ($count + 3) )){
+	if (!main::check_int($response) || $response > ($count + 3) ){
 		@data = (
 		[0, '', '', "Error - Invalid Selection. You entered this: $response. Hit <ENTER> to continue."],
 		[0, '', '',  "$line1"],
@@ -2986,9 +2986,9 @@ sub check_module {
 	return $b_present;
 }
 
-# receives string, returns boolean 0/1 if numeric.
+# receives string, returns boolean 0/1 if numeric. tr/.// is faster than /\./g
 sub check_numeric {
-	return 1 if ($_[0] =~ /^[0-9\.]+$/ && $_[0] =~ /\d/ && (my $c = () = $_[0] =~ /\./g ) <= 1);
+	return 1 if ($_[0] =~ /^[0-9\.]+$/ && $_[0] =~ /\d/ && (my $c = $_[0] =~ tr/.// ) <= 1);
 }
 
 # arg: 1 - string or path to search gneerated @paths data for.
@@ -4953,7 +4953,7 @@ sub get_size {
 	my ($size,$b_int) = @_;
 	my (@data);
 	return ('','') if ! defined $size;
-	if ($size !~ /^[0-9\.]+$/){
+	if (!check_numeric($size)){
 		$data[0] = $size;
 		$data[1] = '';
 	}
@@ -10015,7 +10015,7 @@ sub advanced_data_sys {
 			$b_wifi = 1 if !$b_wifi && ( -e "$_$if/wireless" || $if =~ /^(wl|ww)/);
 			if (!$b_wifi && $state ne 'down' && $state ne 'no'){
 				# make sure the value is strictly numeric before appending Mbps
-				$speed = ($speed =~ /^[0-9]+$/) ? "$speed Mbps" : $speed;
+				$speed = ( main::check_int($speed) ) ? "$speed Mbps" : $speed;
 				$row[0]{main::key($num++,'speed')} = $speed;
 				$row[0]{main::key($num++,'duplex')} = $duplex;
 			}
@@ -10083,7 +10083,7 @@ sub advanced_data_bsd {
 				# for 'down' string in that to skip showing speed/duplex
 				if (!$b_wifi && $state ne 'down' && $state ne 'no'){
 					# make sure the value is strictly numeric before appending Mbps
-					$speed = ($speed =~ /^[0-9]+$/) ? "$speed Mbps" : $speed;
+					$speed = ( main::check_int($speed) ) ? "$speed Mbps" : $speed;
 					$row[0]{main::key($num++,'speed')} = $speed;
 					$row[0]{main::key($num++,'duplex')} = $duplex;
 				}
@@ -13417,7 +13417,7 @@ sub ipmi_data {
 		# note: cpu/mobo/ps are 1/2/3
 		elsif ($row[$i_key] =~ /^(SYS[\s_])?FAN[\s_]?([0-9A-F]+)/i) {
 			$sys_fan_nu = hex($2);
-			next if $row[$i_value] !~ /^[0-9\.]+$/;
+			next if !main::check_numeric( $row[$i_value] );
 			$fan_working = int($row[$i_value]);
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
 			if ( $sys_fan_nu =~ /^([0-9]+)$/ ) {
@@ -14400,7 +14400,7 @@ sub usb_data {
 				@row = split /:/, $line;
 				next if ! defined $row[0];
 				if ($row[0] eq 'bcdUSB' && defined $row[1]){
-					$speed  = ($row[1] =~ /^[0-9,\.]+$/) ? sprintf("%1.1f",$row[1]) : $row[1];
+					$speed  = ( main::check_numeric($row[1]) ) ? sprintf("%1.1f",$row[1]) : $row[1];
 				}
 				elsif ($row[0] eq '~bInterfaceProtocol' && $row[2] ){
 					$protocol = $row[2];
@@ -17486,7 +17486,7 @@ sub set_soc_data {
 		# it's worthless, we can't use it
 		next if ! defined $type;
 		$driver = '' if ! defined $driver;
-		$busid = (defined $temp && $temp =~ /^[0-9]+$/) ? $temp: 0;
+		$busid = (defined $temp && check_int($temp)) ? $temp: 0;
 		$busid_nu =  0;
 		$type_id =  '';
 		$port = '';
@@ -18053,14 +18053,14 @@ sub generate_short_data {
 	my (@temp,$size_holder,$used_holder);
 	if (@disk){
 		$size = $disk[0]{'size'};
-		if ($disk[0]{'size'} && $disk[0]{'size'} =~ /^[0-9\.]+$/){
+		if ($disk[0]{'size'} && main::check_numeric($disk[0]{'size'}) ){
 			$size_holder = $disk[0]{'size'};
 			@temp = get_size($size);
 			$size = $temp[0];
 			$size_type = " $temp[1]";
 		}
 		$used = $disk[0]{'used'};
-		if (defined $disk[0]{'used'} && $disk[0]{'used'} =~ /^[0-9\.]+$/){
+		if (defined $disk[0]{'used'} && main::check_numeric($disk[0]{'used'}) ){
 			$used_holder = $disk[0]{'used'};
 			@temp = get_size($used);
 			$used = $temp[0];
