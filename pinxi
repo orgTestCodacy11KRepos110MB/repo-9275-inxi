@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.18';
 my $self_date='2018-07-17';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1072,7 +1072,7 @@ sub get_config_item {
 	elsif ($key eq 'SEP[23]_CONSOLE') {$sep{'s2-console'} = $val}
 	# size
 	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = $val if check_int($val)}
-	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = int($val)}
+	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = $val if check_int($val)}
 	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = $val if check_int($val)}
 	elsif ($key eq 'INDENT') {$size{'indent'} = $val if check_int($val)}
 	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = $val if check_int($val)}
@@ -6342,7 +6342,7 @@ sub create_output_full {
 		$b_flags = 1;
 	}
 	if ($extra > 0 && !$bsd_type){
-		my $bogomips = ($cpu{'bogomips'}) ? int($cpu{'bogomips'}) : 'N/A';
+		my $bogomips = ($cpu{'bogomips'} && main::check_numeric($cpu{'bogomips'})) ? int($cpu{'bogomips'}) : 'N/A';
 		$rows[$j]{main::key($num++,'bogomips')} = $bogomips;
 	}
 	$j = scalar @rows;
@@ -13317,6 +13317,13 @@ sub ipmi_data {
 	$temp_working,$working_unit);
 	$program ||= 'ipmi-sensors'; # only for debugging, will always exist if reaches here
 	my ($b_ipmitool,$i_key,$i_value,$i_unit);
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
+	#@data = main::reader($file);
 	if ($program =~ /ipmi-sensors$/){
 		$cmd = $program;
 		($b_ipmitool,$i_key,$i_value,$i_unit) = (0,1,3,4);
@@ -13326,22 +13333,16 @@ sub ipmi_data {
 		($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2);
 	}
 	@data = main::grabber("$cmd 2>/dev/null");
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";$program='ipmi-sensors';
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmi-sensors';
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
-	#@data = main::reader($file);
 	# print join ("\n", @data), "\n";
 	return if ! @data;
 	foreach (@data){
 		next if /^\s*$/;
 		# print "$_\n";
 		@row = split /\s*\|\s*/, $_;
-		next if $row[$i_value] !~ /^[0-9\.]+$/i;
+		#print "$row[$i_value]\n";
+		next if !main::check_numeric($row[$i_value]);
 		# print "$row[$i_key] - $row[$i_value]\n";
-		if ($row[$i_key] =~ /^(System[\s_]Temp|System[\s_]?Board)$/i){
+		if (!$sensors{'mobo-temp'} && $row[$i_key] =~ /^(MB_TEMP[0-9]|System[\s_]Temp|System[\s_]?Board)$/i){
 			$sensors{'mobo-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -13400,7 +13401,7 @@ sub ipmi_data {
 			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (!$sensors{'sodimm-temp'} && $row[$i_key] =~ /^(DIMM-[0-9][A-Z]?)$/i){
+		elsif (!$sensors{'sodimm-temp'} && $row[$i_key] =~ /^(DIMM[-_]([A-Z][0-9][-_])?[A-Z]?[0-9][A-Z]?)$/i){
 			$sensors{'sodimm-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -17721,8 +17722,8 @@ sub set_lsusb_data_long {
 		#elsif (/^Bus\s/){
 			#if (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
 				$j = scalar @usb;
-				$bus_id = int($1);
-				$device_id = int($2);
+				$bus_id = $1;
+				$device_id = $2;
 				$id = $3;
 				$b_skip = 0;
 				# we don't need 32, system boot, or 127, end of table
