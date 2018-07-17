@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.18';
-my $self_date='2018-07-16';
-my $self_patch='01';
+my $self_date='2018-07-17';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1015,10 +1015,11 @@ sub get_configs {
 			s/^\s+//;
 			s/\s+$//;
 			s/'|"//g;
-			s/true/1/; # switch to 1/0 perl boolean
-			s/false/0/; # switch to 1/0 perl boolean
+			s/true/1/i; # switch to 1/0 perl boolean
+			s/false/0/i; # switch to 1/0 perl boolean
 			next unless length;
 			($key, $val) = split(/\s*=\s*/, $_, 2);
+			next unless length($val);
 			get_config_item($key,$val);
 			# print "f: $file key: $key val: $val\n";
 		}
@@ -1026,13 +1027,15 @@ sub get_configs {
 	}
 }
 
+# note: someone managed to make a config file with corrupted values, so check int 
+# explicitly, don't assume it was done correctly.
 # args: 0: key; 1: value
 sub get_config_item {
 	my ($key,$val) = @_;
-	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$b_update = int($val)}
-	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$b_weather = int($val)}
-	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if $val =~ /^[0-9\.]$/}
-	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = int($val)}
+	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$b_update = $val if check_int($val)}
+	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$b_weather = $val if check_int($val)}
+	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if check_numeric($val)}
+	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = $val if check_int($val)}
 	elsif ($key eq 'DOWNLOADER') {
 		if ($val =~ /^(curl|fetch|ftp|perl|wget)$/){
 			# this dumps all the other data and resets %dl for only the
@@ -1042,11 +1045,11 @@ sub get_config_item {
 		}}
 	elsif ($key eq 'FILTER_STRING') {$filter_string = $val}
 	elsif ($key eq 'LANGUAGE') {$language = $val if $val =~ /^(en)$/}
-	elsif ($key eq 'LIMIT') {$limit = int($val)}
-	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^json|screen|xml/}
-	elsif ($key eq 'PS_COUNT') {$ps_count = int($val) }
-	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = int($val)}
-	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = int($val)}
+	elsif ($key eq 'LIMIT') {$limit = $val if check_int($val)}
+	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
+	elsif ($key eq 'PS_COUNT') {$ps_count = $val if check_int($val) }
+	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if check_int($val)}
+	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = $val if check_int($val)}
 	elsif ($key eq 'WEATHER_UNIT') { 
 		$val = lc($val) if $val;
 		if ($val && $val =~ /^(c|f|cf|fc|i|m|im|mi)$/){
@@ -1056,23 +1059,23 @@ sub get_config_item {
 		}
 	}
 	# layout
-	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = int($val)}
-	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = int($val)}
-	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = int($val)}
-	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = int($val)}
-	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = int($val)}
-	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = int($val)}
+	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = $val if check_int($val)}
+	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = $val if check_int($val)}
+	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = $val if check_int($val)}
+	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = $val if check_int($val)}
+	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = $val if check_int($val)}
+	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = $val if check_int($val)}
 	# note: not using the old short SEP1/SEP2
 	elsif ($key eq 'SEP1_IRC') {$sep{'s1-irc'} = $val}
 	elsif ($key eq 'SEP1_CONSOLE') {$sep{'s1-console'} = $val}
 	elsif ($key eq 'SEP[23]_IRC') {$sep{'s2-irc'} = $val}
 	elsif ($key eq 'SEP[23]_CONSOLE') {$sep{'s2-console'} = $val}
 	# size
-	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = int($val)}
+	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = $val if check_int($val)}
 	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = int($val)}
-	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = int($val)}
-	elsif ($key eq 'INDENT') {$size{'indent'} = int($val)}
-	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = int($val)}
+	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = $val if check_int($val)}
+	elsif ($key eq 'INDENT') {$size{'indent'} = $val if check_int($val)}
+	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = $val if check_int($val)}
 	#  print "mc: key: $key val: $val\n";
 	# print Dumper (keys %size) . "\n";
 }
@@ -2969,6 +2972,10 @@ sub awk {
 	eval $end if $b_log;
 	return $result;
 }
+# receives string, returns boolean 0/1 if integer
+sub check_int {
+	return 1 if $_[0] =~ /^[0-9]+$/;
+}
 
 # $1 - Perl module to check
 sub check_module {
@@ -2977,6 +2984,11 @@ sub check_module {
 	eval "require $module";
 	$b_present = 1 if !$@;
 	return $b_present;
+}
+
+# receives string, returns boolean 0/1 if numeric
+sub check_numeric {
+	return 1 if $_[0] =~ /^[0-9\.]+$/;
 }
 
 # arg: 1 - string or path to search gneerated @paths data for.
