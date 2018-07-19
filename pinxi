@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.18';
-my $self_date='2018-07-18';
-my $self_patch='10';
+my $self_date='2018-07-19';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -445,8 +445,7 @@ sub set_path {
 	my (@path);
 	# NOTE: recent Xorg's show error if you try /usr/bin/Xorg -version but work 
 	# if you use the /usr/lib/xorg-server/Xorg path.
-	@paths = qw(/sbin /bin /usr/sbin /usr/lib/xorg /usr/lib/xorg-server /usr/X11R6/bin 
-	/usr/bin /usr/local/sbin /usr/local/bin);
+	@paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin);
 	@path = split /:/, $ENV{'PATH'} if $ENV{'PATH'};
 	# print "paths: @paths\nPATH: $ENV{'PATH'}\n";
 	# Create a difference of $PATH and $extra_paths and add that to $PATH:
@@ -3139,6 +3138,7 @@ sub program_values {
 	'deepin' => ['^deepin',0,'0','Deepin',0,0,1],
 	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0],
 	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0],
+	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0],
 	'dwm' => ['^dwm',1,'-v','Dwm',0,1,1],
 	'fluxbox' => ['^fluxbox',2,'--version','Fluxbox',0,1,0],
 	'flwm' => ['^flwm',0,'0','FLWM',0,0,1],
@@ -9003,9 +9003,14 @@ sub x_drivers {
 	eval $end if $b_log;
 	return @driver_data;
 }
+# fallback if no glx x version data found
 sub x_version {
 	eval $start if $b_log;
 	my ($version,@data,$program);
+	# load the extra X paths, it's important that these are first, because
+	# later Xorg versions show error if run in console or ssh if the true path 
+	# is not used.
+	@paths = ( qw(/usr/lib/xorg /usr/lib/xorg-server /usr/X11R6/bin), @paths );
 	# IMPORTANT: both commands send version data to stderr!
 	if ($program = main::check_program('Xorg')){
 		@data = main::grabber("$program -version 2>&1");
@@ -9013,21 +9018,22 @@ sub x_version {
 	elsif ($program = main::check_program('X')){
 		@data = main::grabber("$program -version 2>&1");
 	}
+	#print join(' - ', @paths), " ::$program\n";
 	#print Data::Dumper::Dumper \@data;
 	if (@data){
 		foreach (@data){
 			if (/^X.org X server/i){
-				my @working = split /\s+/, $_;
-				$version = $working[3];
+				$version = (split /\s+/, $_)[3];
 				last;
 			}
 			elsif (/^X Window System Version/i) {
-				my @working = split /\s+/, $_;
-				$version = $working[4];
+				$version = (split /\s+/, $_)[4];
 				last;
 			}
 		}
 	}
+	# remove extra X paths
+	@paths = grep { !/xorg|X11R6/ } @paths;
 	eval $end if $b_log;
 	return $version;
 }
