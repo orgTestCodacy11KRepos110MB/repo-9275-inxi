@@ -1,0 +1,105 @@
+================================================================================
+INXI FRAGMENTS
+================================================================================
+FILE:    inxi-fragmentsg.txt
+VERSION: 1.0
+DATE:    2018-07-20
+
+----------------------------------------
+See: optimization.txt
+See: perl-setup.txt
+See: perl-version_support.txt
+
+----------------------------------------
+Comments:
+
+These fragments were in inxi / pinxi, but were removed because they are no 
+longer needed or used in this form.
+
+================================================================================
+
+Sections:
+1. FRAGMENTS
+
+================================================================================
+FRAGMENTS
+--------------------------------------------------------------------------------
+
+========================================
+get_gtk_version()
+----------------------------------------
+
+Because this test was absurdly slow, and almost always fails on newer systems,
+I believe it used to work but this is such a hack, and so slow, that I removed 
+it completely in 3.0.19, and all calls to it were removed in 3.0.18 
+
+I left in a stub that is commented out in case we want to have real gtk toolkit.
+
+This was located in DesktopData 
+
+sub set_gtk_data {
+	eval $start if $b_log;
+	my ($version,$program,@data);
+	# this is a hack, and has to be changed with every toolkit version change, and 
+	# only dev systems 	# have this installed, but it's a cross distro command try it.
+	if ($program = main::check_program('pkg-config')){
+		@data = main::grabber("$program --modversion gtk+-4.0 2>/dev/null");
+		$version = main::awk(\@data,'\S');
+		# note: opensuse gets null output here, we need the command to get version and output sample
+		if ( !$version ){
+			@data = main::grabber("$program --modversion gtk+-3.0 2>/dev/null");
+			$version = main::awk(\@data,'\S');
+		}
+		if ( !$version ){
+			@data = main::grabber("$program --modversion gtk+-2.0 2>/dev/null");
+			$version = main::awk(\@data,'\S');
+		}
+	}
+	# now let's go to more specific version tests, this will never cover everything and that's fine.
+	if (!$version){
+		# we'll try some known package managers next. dpkg will handle a lot of distros 
+		# this is the most likely order as of: 2014-01-13. Not going to try to support all 
+		# package managers too much work, just the very biggest ones.
+		if ($program = main::check_program('dpkg')){
+			@data = main::grabber("$program -s libgtk-3-0 2>/dev/null");
+			$version = main::awk(\@data,'^\s*Version',2,'\s+');
+			# just guessing on gkt 4 package name
+			if (!$version){
+				@data = main::grabber("$program -s libgtk-4-0 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s+');
+			}
+			if (!$version){
+				@data = main::grabber("$program -s libgtk2.0-0 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s+');
+			}
+		}
+		elsif ($program = main::check_program('pacman')){
+			@data = main::grabber("$program -Qi gtk3 2>/dev/null");
+			$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			# just guessing on gkt 4 package name
+			if (!$version){
+				@data = main::grabber("$program -Qi gtk4 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			}
+			if (!$version){
+				@data = main::grabber("$program -Qi gtk2 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			}
+		}
+		elsif ($program = main::check_program('rpm')){
+			@data = main::grabber("$program -qi libgtk-3-0 2>/dev/null");
+			$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			# just guessing on gkt 4 package name
+			if (!$version){
+				@data = main::grabber("$program -qi libgtk-4-0 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			}
+			if (!$version){
+				@data = main::grabber("$program -qi libgtk-3-0 2>/dev/null");
+				$version = main::awk(\@data,'^\s*Version',2,'\s*:\s*');
+			}
+		}
+	}
+	$desktop[2] = 'Gtk';
+	eval $end if $b_log;
+}
