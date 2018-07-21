@@ -26,6 +26,83 @@ FRAGMENTS
 --------------------------------------------------------------------------------
 
 ========================================
+get_env_de_data()
+----------------------------------------
+
+This was completely rewritten in version 3.0.19, but I want to keep this logic 
+in case something goes wrong with the matches of the new looping method.
+
+sub get_env_de_data {
+	eval $start if $b_log;
+	my ($program,@version_data);
+	main::set_ps_gui() if ! $b_ps_gui;
+	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || (grep {/^tde/} @ps_gui) ){
+		$desktop[0] = 'Trinity';
+		if ($program = main::check_program('kdesktop')){
+			@version_data = main::grabber("$program --version 2>/dev/null");
+			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
+		}
+		if ($extra > 1 && @version_data){
+			$desktop[2] = 'Qt';
+			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
+		}
+	}
+	elsif ($xdg_desktop eq 'unity'){
+		@data = main::program_values('unity');
+		$desktop[0] = $data[3];
+		$desktop[0] ||= 'Unity';
+		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		#set_gtk_data() if $extra > 1;
+	}
+	elsif ( $xdg_desktop =~ /budgie/ ){
+		@data = main::program_values('budgie');
+		$desktop[0] = $data[3];
+		$desktop[1] = main::program_version('budgie-desktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	}
+	# debian package: lxde-core. 
+	# NOTE: some distros fail to set XDG data for root
+	elsif ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || (grep {/^(razor-session|lxsession|lxqt-session)$/} @ps_gui)){
+		# note: openbox-lxde --version may be present, but returns openbox data
+		if ($xdg_desktop eq 'lxde' || (grep {/^lxsession$/} @ps_gui )){
+			@data = main::program_values('lxde');
+			$desktop[0] = $data[3];
+			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		}
+		# NOTE: lxqt-about opens a gui dialog
+		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || (grep {/^(razor-desktop|lxqt-session)$/} @ps_gui)) {
+			if (grep {/^lxqt-session$/} @ps_gui){
+				@data = main::program_values('lxqt');
+				$desktop[0] = $data[3];
+				# BAD: lxqt-about opens dialogue, sigh
+				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+			}
+			elsif (grep {/^razor-session$/} @ps_gui){
+				$desktop[0] = 'Razor-Qt';
+			}
+			else {
+				$desktop[0] = 'LX-Qt-Variant';
+			}
+			set_qt_data() if $extra > 1;
+		}
+	}
+	# note, X-Cinnamon value strikes me as highly likely to change, so just 
+	# search for the last part
+	elsif ( $xdg_desktop =~ /cinnamon/ ){
+		@data = main::program_values('cinnamon');
+		$desktop[0] = $data[3];
+		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		#set_gtk_data() if $extra > 1;
+	}
+	elsif ($xdg_desktop eq 'pantheon' || $desktop_session eq 'pantheon'){
+		@data = main::program_values('pantheon');
+		$desktop[0] = $data[3];
+		#$desktop[1] = main::program_version('pantheon',$data[0],$data[1],$data[2],$data[5],$data[6]);
+		#set_gtk_data() if $extra > 1;
+	}
+	eval $end if $b_log;
+}
+
+========================================
 get_gtk_version()
 ----------------------------------------
 

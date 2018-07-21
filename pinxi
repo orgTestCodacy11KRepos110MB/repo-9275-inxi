@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.18';
-my $self_date='2018-07-20';
-my $self_patch='16';
+my $self_date='2018-07-21';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3132,6 +3132,7 @@ sub program_values {
 	'amiwm' => ['^amiwm',0,'0','AmiWM',0,1,0],
 	'awesome' => ['^awesome',2,'--version','Awesome',0,1,0],
 	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0],
+	'bspwm' => ['^\S',1,'-v','bspwm',0,1,0],
 	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0],
 	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0],
 	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0],
@@ -3163,6 +3164,7 @@ sub program_values {
 	'lxde' => ['^lxpanel',2,'--version','LXDE',0,1,0],
 	# command: lxqt-panel
 	'lxqt' => ['^lxqt-panel',2,'--version','LXQt',0,1,0],
+	'lxqt-variant' => ['^lxqt-panel',0,'0','LXQt-Variant',0,1,0],
 	'lxsession' => ['^lxsession',0,'0','lxsession',0,1,0],
 	'marco' => ['^marco',2,'--version','marco',0,1,0],
 	'matchbox' => ['^matchbox',0,'0','Matchbox',0,1,0],
@@ -3179,6 +3181,7 @@ sub program_values {
 	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
 	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0],
+	'razor' => ['^razor',0,'0','Razor-Qt',0,1,0],
 	'ratpoison' => ['^ratpoison',2,'--version','Ratpoison',0,1,0],
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
 	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','Scrotwm',0,1,1],
@@ -15222,64 +15225,42 @@ sub get_env_de_data {
 			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
 		}
 	}
-	elsif ($xdg_desktop eq 'unity'){
-		@data = main::program_values('unity');
-		$desktop[0] = $data[3];
-		$desktop[0] ||= 'Unity';
-		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		# $b_gtk = 1;
-	}
-	elsif ( $xdg_desktop =~ /budgie/ ){
-		@data = main::program_values('budgie');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('budgie-desktop',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	# debian package: lxde-core. 
-	# NOTE: some distros fail to set XDG data for root
-	elsif ( $xdg_desktop =~ /^(lxde|razor|lxqt)$/ || (grep {/^(razor-session|lxsession|lxqt-session)$/} @ps_gui)){
-		# note: openbox-lxde --version may be present, but returns openbox data
-		if ($xdg_desktop eq 'lxde' || (grep {/^lxsession$/} @ps_gui )){
-			@data = main::program_values('lxde');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('lxpanel',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-		# NOTE: lxqt-about opens a gui dialog
-		elsif ($xdg_desktop eq 'razor' || $xdg_desktop eq 'lxqt' || (grep {/^(razor-desktop|lxqt-session)$/} @ps_gui)) {
-			if (grep {/^lxqt-session$/} @ps_gui){
-				@data = main::program_values('lxqt');
+	if (!$desktop[0]){
+		# 1 equals 1/0; 2 env var search; 3 values; 4 version; 5 - gtk tk; 6 - qt tk
+		my @desktops =(
+		[1,'unity','unity','cinnamon',0,0],
+		[0,'budgie','budgie','budgie-desktop',0,0],
+		# debian package: lxde-core. 
+		# NOTE: some distros fail to set XDG data for root
+		[1,'lxde','lxde','lxpanel',0,0,'^lxsession$'],
+		[1,'razor','razor','razor-session',0,1,'^razor-session$'],
+		# BAD: lxqt-about opens dialogue, sigh. 
+		# Checked, lxqt-panel does show same version as lxqt-about
+		[1,'lxqt','lxqt','lxqt-panel',0,1,'^lxqt-session$'],
+		[0,'^(razor|lxqt)$','lxqt-variant','lxqt-panel',0,1,'^(razor-session|lxqt-session)$'],
+		# note, X-Cinnamon value strikes me as highly likely to change, so just 
+		# search for the last part
+		[0,'cinnamon','cinnamon','cinnamon',0,0],
+		# these two so far have no cli version data
+		[1,'pantheon','pantheon','pantheon',0,0],
+		[1,'deepin','deepin','deepin',0,1],
+		);
+		foreach my $ref (@desktops){
+			my @item = @$ref;
+			# Check if in xdg_desktop OR desktop_session OR if in $item[6] and in ps_gui
+			if ( (($item[0] && ($xdg_desktop eq $item[1] || $desktop_session eq $item[1] )) ||
+			   (!$item[0] && ($xdg_desktop =~ /$item[1]/ || $desktop_session  =~ /$item[1]/ )) ) ||
+			   ($item[6] && @ps_gui && (grep {/$item[6]/} @ps_gui) ) ){
+				@data = main::program_values($item[2]);
 				$desktop[0] = $data[3];
-				# BAD: lxqt-about opens dialogue, sigh. 
-				# Checked, and lxqt-panel does show same version as lxqt-about
-				$desktop[1] = main::program_version('lxqt-panel',$data[0],$data[1],$data[2],$data[5],$data[6]);
+				$b_gtk = $item[4];
+				$b_qt = $item[5];
+				if ($data[1] && $data[2]){
+					$desktop[1] = main::program_version($item[3],$data[0],$data[1],$data[2],$data[5],$data[6]);
+				}
+				last;
 			}
-			elsif (grep {/^razor-session$/} @ps_gui){
-				$desktop[0] = 'Razor-Qt';
-			}
-			else {
-				$desktop[0] = 'LX-Qt-Variant';
-			}
-			$b_qt = 1;
 		}
-	}
-	# note, X-Cinnamon value strikes me as highly likely to change, so just 
-	# search for the last part
-	elsif ( $xdg_desktop =~ /cinnamon/ ){
-		@data = main::program_values('cinnamon');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('cinnamon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		# $b_gtk = 1;
-	}
-	elsif ($xdg_desktop eq 'pantheon' || $desktop_session eq 'pantheon'){
-		@data = main::program_values('pantheon');
-		$desktop[0] = $data[3];
-		#$desktop[1] = main::program_version('pantheon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		# $b_gtk = 1;
-	}
-	elsif ($xdg_desktop eq 'deepin' || $desktop_session eq 'deepin'){
-		@data = main::program_values('deepin');
-		$desktop[0] = $data[3];
-		#$desktop[1] = main::program_version('pantheon',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		$b_qt = 1;
 	}
 	eval $end if $b_log;
 }
@@ -15340,9 +15321,6 @@ sub get_xprop_de_data {
 	# alternate: xfce4-about --version > xfce4-about 4.10.0 (Xfce 4.10)
 	# note: some distros/wm (e.g. bunsen) set xdg to xfce to solve some other 
 	# issues so don't test for that. $xdg_desktop eq 'xfce'
-	# the sequence here matters, some desktops like icewm, razor, let you set different 
-	# wm, so we want to get the main controlling desktop first, then fall back to the wm
-	# detections. get_wm() will handle alternate wm detections.
 	if ((main::check_program('xfdesktop')) && main::awk(\@xprop,'^(xfdesktop|xfce)' )){
 		# this is a very expensive test that doesn't usually result in a find
 		# talk to xfce to see what id they will be using for xfce 5
@@ -15388,60 +15366,37 @@ sub get_xprop_de_data {
 		$desktop[1] = (split /"/, $desktop[1])[1] if $desktop[1];
 		$desktop[1] = (split /\s+/, $desktop[1])[1] if $desktop[1];
 	}
-	# must come right after xfce 
-	elsif (main::check_program('icewm') && main::awk(\@xprop,'icewm' )){
-		@data = main::program_values('icewm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('icewm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	# debian package: i3-wm
-	elsif (main::check_program('i3') && main::awk(\@xprop,'^i3_' )){
-		@data = main::program_values('i3');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('i3',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('mwm') && main::awk(\@xprop,'^_motif' )){
-		@data = main::program_values('mwm');
-		$desktop[0] = $data[3];
-		# $desktop[1] = main::program_version('mwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	# debian package name: wmaker
-	elsif (main::check_program('WindowMaker') && main::awk(\@xprop,'^_?windowmaker' )){
-		@data = main::program_values('wmaker');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('wmaker',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('wm2') && main::awk(\@xprop,'^_wm2' )){
-		@data = main::program_values('wm2');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('wm2',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('herbstluftwm') && main::awk(\@xprop,'herbstluftwm' )){
-		@data = main::program_values('herbstluftwm');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('herbstluftwm',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif ( (main::check_program('blackbox') || main::check_program('fluxbox')) && main::awk(\@xprop,'blackbox_pid' )){
-		if (@ps_gui && (grep {/^fluxbox$/} @ps_gui )){
-			@data = main::program_values('fluxbox');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('fluxbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
+	# the sequence here matters, some desktops like icewm, razor, let you set different 
+	# wm, so we want to get the main controlling desktop first, then fall back to the wm
+	# detections. get_ps_de_data() and get_wm() will handle alternate wm detections.
+	if (!$desktop[0]){
+		# 1 check program; 2 xprop search; 3 values; 4 version; 5 - optional: ps_gui search
+		my @desktops =(
+		['icewm','icewm','icewm','icewm'],
+		# debian package: i3-wm
+		['i3','i3','i3','i3'],
+		['mwm','^_motif','mwm','mwm'],
+		# debian package name: wmaker
+		['WindowMaker','^_?windowmaker','wmaker','wmaker'],
+		['wm2','^_wm2','wm2','wm2'],
+		['herbstluftwm','herbstluftwm','herbstluftwm','herbstluftwm'],
+		['fluxbox','blackbox_pid','fluxbox','fluxbox','^fluxbox$'],
+		['blackbox','blackbox_pid','blackbox','blackbox'],
+		['openbox','openbox_pid','openbox','openbox'],
+		['amiwm','amiwm','amiwm','amiwm'],
+		);
+		foreach my $ref (@desktops){
+			my @item = @$ref;
+			if (main::check_program($item[0]) && main::awk(\@xprop,$item[1]) && 
+			    (!$item[4] || (@ps_gui && (grep {/$item[4]/} @ps_gui ))) ){
+				@data = main::program_values($item[2]);
+				$desktop[0] = $data[3];
+				if ($data[1] && $data[2]){
+					$desktop[1] = main::program_version($item[3],$data[0],$data[1],$data[2],$data[5],$data[6]);
+				}
+				last;
+			}
 		}
-		else {
-			@data = main::program_values('blackbox');
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version('blackbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
-	}
-	elsif (main::check_program('openbox') && main::awk(\@xprop,'openbox_pid' )){
-		@data = main::program_values('openbox');
-		$desktop[0] = $data[3];
-		$desktop[1] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
-	}
-	elsif (main::check_program('amiwm') && main::awk(\@xprop,'amiwm' )){
-		@data = main::program_values('amiwm');
-		$desktop[0] = $data[3];
-		#$desktop[1] = main::program_version('openbox',$data[0],$data[1],$data[2],$data[5],$data[6]);
 	}
 	# need to check starts line because it's so short
 	eval $end if $b_log;
@@ -15451,7 +15406,7 @@ sub get_ps_de_data {
 	my ($program,@version_data);
 	main::set_ps_gui() if !$b_ps_gui;
 	if (@ps_gui){
-		# 1 check program; 2 search; 3 values; 4 version; 5 -optional: print value
+		# 1 check program; 2 ps_gui search; 3 values; 4 version
 		my @desktops =(
 		['fluxbox','fluxbox','fluxbox','fluxbox'],
 		['fvwm-crystal','fvwm-crystal','fvwm-crystal','fvwm'],
@@ -15481,6 +15436,7 @@ sub get_ps_de_data {
 		['matchbox-window-manager','matchbox-window-manager',
 		  'matchbox-window-manager','matchbox-window-manager'],
 		['afterstep','afterstep','afterstep','afterstep'],
+		['bspwm','bspwm','bspwm','bspwm'],
 		['WindowMaker','WindowMaker','wmaker','wmaker'],
 		['windowlab','windowlab','windowlab','windowlab'],
 		['xmonad','xmonad','xmonad','xmonad'],
@@ -15556,7 +15512,7 @@ sub get_wm_main {
 	# xprop is set only if not kde/gnome/cinnamon/mate/budgie/lx..
 	if ($b_xprop){
 		#KWIN_RUNNING
-		$wms = 'amiwm|blackbox|compiz|kwin_wayland|kwin_x11|kwin|marco|';
+		$wms = 'amiwm|blackbox|bspwm|compiz|kwin_wayland|kwin_x11|kwin|marco|';
 		$wms .= 'motif|muffin|openbox|herbstluftwm|twin|wm2|windowmaker|i3';
 		foreach (@xprop){
 			if (/($wms)/){
@@ -15569,7 +15525,7 @@ sub get_wm_main {
 	if (!$desktop[5]){
 		main::set_ps_gui() if ! $b_ps_gui;
 		# order matters, see above logic
-		$wms = '9wm|afterstep|amiwm|awesome|budgie-wm|compiz|fluxbox|blackbox|';
+		$wms = '9wm|afterstep|amiwm|awesome|bspwm|budgie-wm|compiz|fluxbox|blackbox|';
 		$wms .= 'deepin-wm|dwm|flwm|fvwm-crystal|fvwm2|fvwm|gala|gnome-shell|i3|jwm|';
 		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|matchbox-window-manager|marco|';
 		$wms .= 'muffin|deepin-mutter|mutter|deepin-metacity|metacity|mwm|';
@@ -15661,9 +15617,9 @@ sub set_xprop {
 		if (@xprop){
 			# add wm / de as required, but only add what is really tested for above
 			# XFDESKTOP_IMAGE_FILE; XFCE_DESKTOP
-			my $pattern = '^amiwm|blackbox_pid|compiz|enlightenment|^_gnome|herbstluftwm|';
-			$pattern .= '^kwin_|^i3_|icewm|_marco|^_motif|_muffin|openbox_pid|';
-			$pattern .= '^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
+			my $pattern = '^amiwm|blackbox_pid|bspwm|compiz|enlightenment|^_gnome|';
+			$pattern .= 'herbstluftwm|^kwin_|^i3_|icewm|_marco|^_motif|_muffin|';
+			$pattern .= 'openbox_pid|^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
 			# let's only do these searches once
 			@xprop = grep {/^\S/ && /($pattern)/i} @xprop;
 			$_ = lc for @xprop;
@@ -17522,7 +17478,7 @@ sub set_ps_gui {
 	}
 	# wm:
 	if ($show{'system'} && $extra > 1){
-		@temp=qw(9wm 3dwm afterstep amiwm awesome blackbox budgie-wm compiz 
+		@temp=qw(9wm 3dwm afterstep amiwm awesome blackbox bspwm budgie-wm compiz 
 		deepin-wm dwm fluxbox flwm fvwm-crystal fvwm2 fvwm gala gnome-shell i3 jwm 
 		twin kwin_wayland kwin_x11 kwin marco matchbox-window-manager 
 		deepin-metacity metacity metisse mir muffin deepin-mutter mutter mwm 
