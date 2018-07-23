@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.18';
-my $self_date='2018-07-22';
-my $self_patch='31';
+my $self_date='2018-07-23';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3140,7 +3140,7 @@ sub program_values {
 	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0],
 	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0],
 	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0],
-	'deepin' => ['^deepin',0,'0','Deepin',0,0,1],
+	'deepin' => ['^Version',2,'file','Deepin',0,'=','/etc/deepin-version'],
 	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0],
 	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0],
 	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0],
@@ -3237,7 +3237,7 @@ sub program_values {
 # 5 - [optional] exit first find 0/1; 6 - [optional] 0/1 stderr output
 sub program_version {
 	eval $start if $b_log;
-	my ($app, $search, $num,$version,$exit,$b_stderr) = @_;
+	my ($app, $search, $num,$version,$exit,$stderr) = @_;
 	my ($cmd,$line,$output);
 	my $version_nu = '';
 	my $count = 0;
@@ -3275,21 +3275,30 @@ sub program_version {
 		}
 	}
 	# note, some wm/apps send version info to stderr instead of stdout
-	if ( $b_stderr ) {
+	if ( $stderr && $stderr ne 'file' ) {
 		$cmd = "$app $version 2>&1";
 	}
 # 	elsif ( $app eq 'csh' ){
 # 		$app = 'tcsh';
 # 	}
 	# quick debian/buntu hack until I find a universal way to get version for these
-	elsif ( $app eq 'dash' ){
+	elsif ( $app =~ /dash$/ ){
+		$app =~ s/^.*\///;
 		$cmd = "dpkg -l $app 2>/dev/null";
 	}
 	else {
 		$cmd = "$app $version 2>/dev/null";
 	}
 	log_data('data',"version: $version num: $num search: $search command: $cmd") if $b_log;
-	$output = qx($cmd);
+	# special case, in rare instances version comes from file
+	if ($version eq 'file' && $stderr){
+		my @data = reader($stderr,'strip');
+		@data = map {s/$exit/ /;$_} @data;
+		$output = join "\n",@data;
+	}
+	else {
+		$output = qx($cmd);
+	}
 	# print "$cmd : $output\n";
 	# sample: dwm-5.8.2, ©.. etc, why no space? who knows. Also get rid of v in number string
 	# xfce, and other, output has , in it, so dump all commas and parentheses
