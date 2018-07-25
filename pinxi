@@ -5773,7 +5773,6 @@ sub usb_data {
 		if (@ids){
 			if (!$bsd_type && !$b_usb_check){
 				main::set_usb_data();
-				$b_usb_check = 1;
 			}
 		}
 		main::log_data('dump','@ids',\@ids) if $b_log;
@@ -16978,6 +16977,7 @@ sub set_dmesg_boot_data {
 # got here, we're good. 
 sub set_dmi_data {
 	eval $start if $b_log;
+	$_[0] = 1; # check boolean passed by reference
 	if ($alerts{'dmidecode'}{'action'} eq 'use' ){
 		set_dmidecode_data();
 	}
@@ -17214,6 +17214,7 @@ sub set_ifconfig {
 
 sub set_pci_data {
 	eval $start if $b_log;
+	$_[0] = 1; # check boolean passed by reference
 	if ( $b_pci ){
 		if (!$bsd_type){
 			if ($alerts{'lspci'}{'action'} eq 'use' ){
@@ -17626,6 +17627,7 @@ sub set_sysctl_data {
 # http://www.usb.org/developers/defined_class
 sub set_usb_data {
 	eval $start if $b_log;
+	$b_usb_check = 1;
 	if ($alerts{'lsusb'}{'action'} eq 'use' ){
 		#$usb_level = 2;
 		# NOTE: we can't get reliable usb network device with short
@@ -17869,62 +17871,50 @@ sub generate_lines {
 			assign_data(%row);
 		}
 		if ( $show{'machine'} ){
-			if ($b_dmi && !$b_dmi_check ){
-				set_dmi_data() ; 
-				$b_dmi_check = 1;
-			}
+			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 			%row = line_handler('Machine','machine');
 			assign_data(%row);
 		}
 		if ( $show{'battery'} ){
-			set_dmi_data() if $b_dmi && !$b_dmi_check; 
-			$b_dmi_check = 1;
+			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('Battery','battery');
 			if (%row || $show{'battery-forced'}){
 				assign_data(%row);
 			}
 		}
 		if ( $show{'ram'} ){
-			set_dmi_data() if $b_dmi && !$b_dmi_check; 
-			$b_dmi_check = 1;
+			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('Memory','ram');
 			assign_data(%row);
 		}
 		if ( $show{'slot'} ){
-			set_dmi_data() if $b_dmi && !$b_dmi_check; 
-			$b_dmi_check = 1;
+			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('PCI Slots','slot');
 			assign_data(%row);
 		}
 		if ( $show{'cpu'} || $show{'cpu-basic'} ){
-			if ($b_arm && !$b_pci_check){
-				set_pci_data(); 
-				$b_pci_check = 1;
-			}
+			set_pci_data($b_pci_check) if $b_arm && !$b_pci_check;
 			set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = line_handler('CPU','cpu',$arg);
 			assign_data(%row);
 		}
 		if ( $show{'graphic'} ){
-			set_pci_data() if !$b_pci_check; 
-			$b_pci_check = 1;
+			set_pci_data($b_pci_check) if !$b_pci_check; 
 			%row = line_handler('Graphics','graphic');
 			assign_data(%row);
 		}
 		if ( $show{'audio'} ){
-			set_pci_data() if !$b_pci_check; 
+			set_pci_data($b_pci_check) if !$b_pci_check; 
 			$b_pci_check = 1;
 			%row = line_handler('Audio','audio');
 			assign_data(%row);
 		}
 		if ( $show{'network'} ){
 			set_usb_data() if !$b_usb_check;
-			set_pci_data() if !$b_pci_check; 
+			set_pci_data($b_pci_check) if !$b_pci_check; 
 			set_ip_data() if ($show{'ip'} || ($bsd_type && $show{'network-advanced'}));
-			$b_pci_check = 1;
-			$b_usb_check = 1;
 			%row = line_handler('Network','network');
 			assign_data(%row);
 		}
@@ -17950,7 +17940,6 @@ sub generate_lines {
 			set_usb_data() if !$b_usb_check;
 			%row = line_handler('USB','usb');
 			assign_data(%row);
-			$b_usb_check = 1;
 		}
 		if ( $show{'sensor'} ){
 			%row = line_handler('Sensors','sensor');
