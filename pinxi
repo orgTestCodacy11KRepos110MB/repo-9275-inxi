@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.19';
-my $self_date='2018-07-24';
-my $self_patch='03';
+my $self_date='2018-07-25';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5701,7 +5701,14 @@ sub card_data {
 				$rows[$j]{main::key($num++,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
 			}
 			if ($extra > 1){
-				$rows[$j]{main::key($num++,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
+				my $chip_id = 'N/A';
+				if ($row[5] && $row[6]){
+					$chip_id = "$row[5]:$row[6]";
+				}
+				elsif ($row[6]){
+					$chip_id = $row[6];
+				}
+				$rows[$j]{main::key($num++,'chip ID')} = $chip_id;
 			}
 		}
 		#print "$row[0]\n";
@@ -6103,7 +6110,8 @@ sub battery_data_sys {
 		$b_ma = 0;
 		$id = $item;
 		$id =~ s%/sys/class/power_supply/%%g;
-		my $purpose = ($id =~ /^(BAT|CMB).*$/) ? 'primary': 'device';
+		# note, too few data sets, there could be sbs-charger but not sure
+		my $purpose = ($id =~ /^(BAT|CMB|sbs|sbm).*$/i) ? 'primary': 'device';
 		# don't create arrays of device data if it's not going to show
 		next if $extra == 0 && $purpose ne 'primary';
 		$battery{$id} = ({});
@@ -8579,7 +8587,7 @@ sub card_data {
 		$num = 1;
 		my @row = @$_;
 		#print "$row[0] $row[3]\n";
-		if ($row[3] == 0 && ( $row[0] =~ /^(vga|disp|display|3d|fb|gpu|hdmi)$/ ) ){
+		if ($row[3] == 0 && ( $row[0] =~ /^(vga|disp|display|3d|fb|gpu|hdmi|mali)$/ ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			$driver = $row[9];
@@ -9328,9 +9336,8 @@ sub create_output_soc {
 			$rows[$j]{main::key($num++,'System')} = $soc_machine{'model'};
 			$system = 'details';
 		}
-		my $device = $soc_machine{'device'};
-		$device ||= 'N/A';
-		$rows[$j]{main::key($num++,$system)} = $device;
+		$soc_machine{'device'} ||= 'N/A';
+		$rows[$j]{main::key($num++,$system)} = $soc_machine{'device'};
 	}
 	# we're going to print N/A for 0000 values sine the item was there.
 	if ($soc_machine{'firmware'}){
@@ -17472,7 +17479,7 @@ sub set_soc_data {
 		$modules = '';
 		# note: use these for main Card match for -AGN
 		$b_soc_audio = 1 if $type =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia)$/;
-		$b_soc_gfx = 1 if $type =~ /^(vga|disp|display|3d|fb|gpu|hdmi)$/;
+		$b_soc_gfx = 1 if $type =~ /^(vga|disp|display|3d|fb|gpu|hdmi|mali)$/;
 		$b_soc_net = 1 if $type =~ /^(eth|ethernet|ethernet-phy|network|wifi|wlan)$/;
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
 		@pci = (@pci,[@temp3]);
