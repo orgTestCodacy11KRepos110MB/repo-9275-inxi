@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-03';
-my $self_patch='02';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15437,7 +15437,8 @@ sub get_xprop_de_data {
 			$desktop[2] = $data[3];
 		}
 	}
-	elsif ( main::check_program('moksha') && main::awk(\@xprop,'moksha') ){
+	elsif ( (main::check_program('enlightenment') || main::check_program('moksha') ) && 
+	        main::awk(\@xprop,'moksha') ){
 		# no -v or --version but version is in xprop -root
 		# ENLIGHTENMENT_VERSION(STRING) = "Moksha 0.2.0.15989"
 		$desktop[0] = 'Moksha';
@@ -15817,7 +15818,7 @@ sub get_linux_distro {
 	my ($distro,$distro_id,$distro_file,$system_base) = ('','','','');
 	my ($b_issue,$b_osr,$b_use_issue,@working);
 	# order matters!
-	my @derived = qw(antix-version aptosid-version kanotix-version knoppix-version 
+	my @derived = qw(antix-version aptosid-version bodhibuilder.conf kanotix-version knoppix-version 
 	pclinuxos-release mandrake-release manjaro-release mx-version pardus-release 
 	porteus-version sabayon-release siduction-version sidux-version slitaz-release 
 	solusos-release turbolinux-release zenwalk-version);
@@ -15834,6 +15835,7 @@ sub get_linux_distro {
 	# wait to handle since crunchbang file is one of the few in the world that 
 	# uses this method
 	my @distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
+	push @distro_files, '/etc/bodhibuilder.conf' if -r '/etc/bodhibuilder.conf';
 	my $lsb_release = '/etc/lsb-release';
 	my $b_lsb = 1 if -f $lsb_release;
 	my ($etc_issue,$issue,$lc_issue) = ('','/etc/issue','');
@@ -15931,6 +15933,11 @@ sub get_linux_distro {
 			@working = main::reader($distro_file);
 			$distro = main::awk(\@working,'suse');
 		}
+		elsif ($distro_file eq '/etc/bodhibuilder.conf'){
+			@working = main::reader($distro_file);
+			$distro = main::awk(\@working,'^LIVECDLABEL',2,'\s*=\s*');
+			$distro =~ s/"//g if $distro;
+		}
 		else {
 			$distro = (main::reader($distro_file))[0];
 		}
@@ -15996,7 +16003,7 @@ sub get_linux_distro {
 		my $base_default = 'antix-version|mx-version'; # osr has base ids
 		my $base_issue = 'bunsen'; # base only found in issue
 		my $base_manual = 'kali'; # synthesize, no direct data available
-		my $base_osr = 'aptosid|grml|siduction'; # osr base, distro id in list of distro files
+		my $base_osr = 'aptosid|grml|siduction|bodhi'; # osr base, distro id in list of distro files
 		my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
 		my $base_osr_ubuntu = 'mint|zorin'; # osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
 		my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
