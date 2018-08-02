@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.20';
-my $self_date='2018-07-30';
-my $self_patch='01';
+my $self_date='2018-08-03';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15437,13 +15437,19 @@ sub get_xprop_de_data {
 			$desktop[2] = $data[3];
 		}
 	}
-	elsif (main::check_program('enlightenment') && main::awk(\@xprop,'enlightenment' )){
-		$desktop[0] = 'Enlightenment';
+	elsif ( main::check_program('moksha') && main::awk(\@xprop,'moksha') ){
+		# no -v or --version but version is in xprop -root
+		# ENLIGHTENMENT_VERSION(STRING) = "Moksha 0.2.0.15989"
+		$desktop[0] = 'Moksha';
+		$desktop[1] = main::awk(\@xprop,'(enlightenment|moksha)_version',2,'\s+=\s+' );
+		$desktop[1] =~ s/"?(Moksha|Enlightenment)\s([^"]+)"?/$2/i if $desktop[1];
+	}
+	elsif ( main::check_program('enlightenment') && main::awk(\@xprop,'enlightenment' ) ){
 		# no -v or --version but version is in xprop -root
 		# ENLIGHTENMENT_VERSION(STRING) = "Enlightenment 0.16.999.49898"
-		$desktop[1] = main::awk(\@xprop,'enlightenment_version',2,'\s+=\s+' );
-		$desktop[1] = (split /"/, $desktop[1])[1] if $desktop[1];
-		$desktop[1] = (split /\s+/, $desktop[1])[1] if $desktop[1];
+		$desktop[0] = 'Enlightenment';
+		$desktop[1] = main::awk(\@xprop,'(enlightenment|moksha)_version',2,'\s+=\s+' );
+		$desktop[1] =~ s/"?(Moksha|Enlightenment)\s([^"]+)"?/$2/i if $desktop[1];
 	}
 	# the sequence here matters, some desktops like icewm, razor, let you set different 
 	# wm, so we want to get the main controlling desktop first, then fall back to the wm
@@ -15702,7 +15708,7 @@ sub set_xprop {
 			# add wm / de as required, but only add what is really tested for above
 			# XFDESKTOP_IMAGE_FILE; XFCE_DESKTOP
 			my $pattern = '^amiwm|blackbox_pid|bspwm|compiz|enlightenment|^_gnome|';
-			$pattern .= 'herbstluftwm|^kwin_|^i3_|icewm|_marco|^_motif|_muffin|';
+			$pattern .= 'herbstluftwm|^kwin_|^i3_|icewm|_marco|moksha|^_motif|_muffin|';
 			$pattern .= 'openbox_pid|^_?windowmaker|^_wm2|^(xfdesktop|xfce)';
 			# let's only do these searches once
 			@xprop = grep {/^\S/ && /($pattern)/i} @xprop;
