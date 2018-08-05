@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.20';
-my $self_date='2018-08-03';
-my $self_patch='04';
+my $self_date='2018-08-04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -12562,6 +12562,7 @@ sub get_repos_linux {
 	my $portage_gentoo_dir = '/etc/portage-gentoo/repos.conf/';
 	my $slackpkg = '/etc/slackpkg/mirrors';
 	my $slackpkg_plus = '/etc/slackpkg/slackpkgplus.conf';
+	my $slapt_get = '/etc/slapt-get/';
 	my $yum_conf = '/etc/yum.conf';
 	my $yum_repo_dir = '/etc/yum.repos.d/';
 	my $zypp_repo_dir = '/etc/zypp/repos.d/';
@@ -12726,11 +12727,18 @@ sub get_repos_linux {
 		}
 	}
 	# slackware
-	if (-f $slackpkg || -f $slackpkg_plus){
+	if (-f $slackpkg || -f $slackpkg_plus || -d $slapt_get){
 		#$slackpkg = "$ENV{HOME}/bin/scripts/inxi/data/repo/slackware/slackpkg-2.conf";
 		if (-f $slackpkg){
 			@data = repo_builder($slackpkg,'slackpkg','^[[:space:]]*[^#]+');
 			@rows = (@rows,@data);
+		}
+		if (-d $slapt_get){
+			@data2 = main::globber("${slapt_get}*");
+			foreach my $file (@data2){
+				@data = repo_builder($file,'slaptget','^\s*SOURCE','\s*=\s*',1);
+				@rows = (@rows,@data);
+			}
 		}
 		if (-f $slackpkg_plus){
 			push @dbg_files, $slackpkg_plus if $debugger_dir;
@@ -13145,6 +13153,7 @@ sub repo_builder {
 	'no-files' => 'No repo files found in',
 	'slackpkg' => 'No active slackpkg repos in',
 	'slackpkg+' => 'No active slackpkg+ repos in',
+	'slaptget' => 'No active slapt-get repos in',
 	'yum' => 'No active yum repos in',
 	'zypp' => 'No active zypp repos in',
 	);
@@ -13166,6 +13175,7 @@ sub repo_builder {
 	'netbsd' => 'NetBSD pkg servers',
 	'slackpkg' => 'slackpkg repos in',
 	'slackpkg+' => 'slackpkg+ repos in',
+	'slaptget' => 'slapt-get repos in',
 	'yum' => 'Active yum repos in',
 	'zypp' => 'Active zypp repos in',
 	);
