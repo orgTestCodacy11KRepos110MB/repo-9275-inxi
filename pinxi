@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-11';
-my $self_patch='10';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14505,7 +14505,8 @@ sub get {
 sub usb_data {
 	eval $start if $b_log;
 	return if ! @usb;
-	my (@data,@row,@rows,$bus_id,$chip_id,$speed,$protocol,$class,$vendor,$product);
+	my (@data,@row,@rows,$bus_id,$chip_id,
+	$class,$driver,$ports,$product,$protocol,$speed,$vendor);
 	my $num = 0;
 	my $j = 0;
 	# note: the data has been presorted in set_lsusb_data by:
@@ -14529,7 +14530,11 @@ sub usb_data {
 				elsif ($row[0] eq '~bInterfaceProtocol' && $row[2] ){
 					$protocol = $row[2];
 				}
+				elsif ($row[0] eq 'ports' && $row[1] ){
+					$ports = $row[1];
+				}
 			}
+			$ports ||= 'N/A';
 			$protocol ||= 'N/A';
 			$speed ||= 'N/A';
 			#print "pt0:$protocol\n";
@@ -14537,6 +14542,7 @@ sub usb_data {
 			main::key($num++,'Hub') => $bus_id,
 			main::key($num++,'usb') => $speed,
 			main::key($num++,'type') => $protocol,
+			main::key($num++,'ports') => $ports,
 			},);
 			@rows = (@rows,@data);
 			if ($extra > 1){
@@ -14545,7 +14551,7 @@ sub usb_data {
 		}
 		# it's a device
 		else {
-			($class,$product,$protocol,$vendor,$speed) = ('','','','','');
+			($class,$driver,$ports,$product,$protocol,$vendor,$speed) = ('','','','','','','');
 			foreach my $line (@id){
 				@row = split /:/, $line;
 				next if ! defined $row[0];
@@ -14568,7 +14574,13 @@ sub usb_data {
 				elsif ($row[0] eq '~bInterfaceProtocol' && defined $row[2]){
 					$protocol = $row[2];
 					$protocol =~ s/none//i if $protocol;
-					last if $class;
+					#last if $class;
+				}
+				elsif ($row[0] eq 'driver' && $row[1]){
+					$driver = $row[1];
+				}
+				elsif ($row[0] eq 'ports' && $row[1]){
+					$ports = $row[1];
 				}
 			}
 			if ( $b_hub ){
@@ -14579,12 +14591,14 @@ sub usb_data {
 					$protocol = "$vendor $protocol";
 				}
 				$speed ||= 'N/A';
+				$ports ||= 'N/A';
 				$protocol ||= 'N/A';
 				#print "pt2:$protocol\n";
 				@data = ({
 				main::key($num++,'Hub') => $bus_id,
 				main::key($num++,'usb') => $speed,
 				main::key($num++,'type') => $protocol,
+				main::key($num++,'ports') => $ports,
 				},);
 				@rows = (@rows,@data);
 			}
@@ -14613,6 +14627,9 @@ sub usb_data {
 				$product ||= 'N/A';
 				$speed ||= 'N/A';
 				$rows[$j]{main::key($num++,'Device')} = $product;
+				if ($driver && $extra > 1){
+					$rows[$j]{main::key($num++,'driver')} = $driver;
+				}
 				$rows[$j]{main::key($num++,'bus ID')} = $bus_id;
 				if ($extra > 0){
 					$rows[$j]{main::key($num++,'usb')} = $speed;
@@ -14622,6 +14639,7 @@ sub usb_data {
 			if ($extra > 1){
 				$rows[$j]{main::key($num++,'chip ID')} = $chip_id;
 			}
+			
 		}
 	}
 	#print Data::Dumper::Dumper \@rows;
@@ -17820,27 +17838,34 @@ sub set_lsusb_data_long {
 }
 sub extra_usb_data {
 	eval $start if $b_log;
-	my ($bus_id,$device_id,$driver,$ids,$path);
+	my ($b_hub,$bus_id,$device_id,$driver,$ids,$path,$ports);
 	my (@drivers,@files2,@uevent,@uevent2,@usb_sys,@working);
 	my @files = globber('/sys/bus/usb/devices/*');
-	foreach (@files){
-		@uevent = reader("$_/uevent") if -r "$_/uevent";
+	foreach my $file1 (@files){
+		@uevent = reader("$file1/uevent") if -r "$file1/uevent";
 		$ids = awk(\@uevent,'^DEVNAME',2,'=');
 		if ($ids){
 			(@drivers) = ();
+			($b_hub,$ports) = (0,'');
 			# bus/usb/006/001
 			#print Cwd::abs_path($_),"\n";
+			#print "f1: $file1\n";
 			@working = split /\//, $ids;
 			$bus_id = int($working[2]);
 			$device_id = int($working[3]);
-			@files2 = globber("$_/[0-9]*/uevent");
-			foreach my $file (@files2){
-				#print "f2: $file\n";
-				@working = reader($file) if -r $file;
+			@files2 = globber("$file1/[0-9]*/uevent");
+			foreach my $file2 (@files2){
+				#print "f2: $file2\n";
+				@working = reader($file2) if -r $file2;
 				#print join ("\n",@working), "\n";
 				$driver = awk(\@working,'^DRIVER',2,'=') if @working;
-				$driver = '' if $driver eq 'usb' || $driver eq 'hub';
+				#print "driver:$driver\n";
+				$b_hub = 1 if $driver && $driver eq 'hub';
+				$driver = '' if $driver && ($driver eq 'usb' || $driver eq 'hub');
 				push @drivers,$driver if $driver;
+			}
+			if ( $b_hub && -r "$file1/maxchild"){
+				$ports = (reader("$file1/maxchild"))[0];
 			}
 			$driver = join ', ', sort(uniq(@drivers)) if @drivers;
 # 			if (-r "$_/driver" ){
@@ -17850,9 +17875,11 @@ sub extra_usb_data {
 			for (my $i = 0; $i < $#usb; $i++){
 				if (${$usb[$i]}[0] == $bus_id && ${$usb[$i]}[1] == $device_id){
 					push @{$usb[$i]}, "driver:$driver" if $driver;
+					push @{$usb[$i]}, "ports:$ports" if $ports;
+					last;
 				}
 			}
-			#print "ids: $bus_id:$device_id driver: $driver\n" if $test[6];;
+			#print "ids: $bus_id:$device_id driver: $driver ports: $ports\n"; # if $test[6];;
 		}
 	}
 	
