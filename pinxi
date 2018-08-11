@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.20';
-my $self_date='2018-08-09';
-my $self_patch='09';
+my $self_date='2018-08-11';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17791,6 +17791,7 @@ sub set_lsusb_data_long {
 			}
 			push @working, $_;
 		}
+		# note; nNbrPorts is only available for root?
 		elsif (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
 		#elsif (/^Bus\s/){
 			#if (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
@@ -17799,13 +17800,8 @@ sub set_lsusb_data_long {
 				$device_id = int($2);
 				$id = $3;
 				$b_skip = 0;
-				# we don't need 32, system boot, or 127, end of table
 				if (@working){
-					if ($working[0] != 32 && $working[0] != 127){
-						$usb[$j] = (
-						[@working],
-						);
-					}
+					$usb[$j] = ([@working],);
 				}
 				@working = ($bus_id,$device_id,$id);
 			#}
@@ -17813,15 +17809,53 @@ sub set_lsusb_data_long {
 	}
 	if (@working){
 		$j = scalar @usb;
-		$usb[$j] = (
-		[@working],
-		);
+		$usb[$j] = ([@working],);
 	}
-	# last by not least, sort it by dmi type, now we don't have to worry
-	# about random dmi type ordering in the data, which happens
+	# last by not least, sort it by bus/device ID
 	@usb = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @usb;
+	extra_usb_data() if @usb;
 	print Dumper \@usb if $test[6];
 	main::log_data('dump','@usb: long',\@usb) if $b_log;
+	eval $end if $b_log;
+}
+sub extra_usb_data {
+	eval $start if $b_log;
+	my ($bus_id,$device_id,$driver,$ids,$path);
+	my (@drivers,@files2,@uevent,@uevent2,@usb_sys,@working);
+	my @files = globber('/sys/bus/usb/devices/*');
+	foreach (@files){
+		@uevent = reader("$_/uevent") if -r "$_/uevent";
+		$ids = awk(\@uevent,'^DEVNAME',2,'=');
+		if ($ids){
+			(@drivers) = ();
+			# bus/usb/006/001
+			#print Cwd::abs_path($_),"\n";
+			@working = split /\//, $ids;
+			$bus_id = int($working[2]);
+			$device_id = int($working[3]);
+			@files2 = globber("$_/[0-9]*/uevent");
+			foreach my $file (@files2){
+				#print "f2: $file\n";
+				@working = reader($file) if -r $file;
+				#print join ("\n",@working), "\n";
+				$driver = awk(\@working,'^DRIVER',2,'=') if @working;
+				$driver = '' if $driver eq 'usb' || $driver eq 'hub';
+				push @drivers,$driver if $driver;
+			}
+			$driver = join ', ', sort(uniq(@drivers)) if @drivers;
+# 			if (-r "$_/driver" ){
+# 				$path = Cwd::abs_path("$_/driver");
+# 				print "driver:$path\n";
+# 			}
+			for (my $i = 0; $i < $#usb; $i++){
+				if (${$usb[$i]}[0] == $bus_id && ${$usb[$i]}[1] == $device_id){
+					push @{$usb[$i]}, "driver:$driver" if $driver;
+				}
+			}
+			#print "ids: $bus_id:$device_id driver: $driver\n" if $test[6];;
+		}
+	}
+	
 	eval $end if $b_log;
 }
 
