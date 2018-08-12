@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-11';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14577,7 +14577,8 @@ sub usb_data {
 				}
 				# we want hubs to cascade to last item
 				elsif ($row[0] eq '~bInterfaceClass' && $row[2] && defined $row[1] && $row[1] != 9){
-					$class = main::cleaner($row[2]);
+					#$class = main::cleaner($row[2]);
+					$class = $row[2];
 				}
 				elsif ($row[0] eq '~bInterfaceProtocol' && defined $row[2]){
 					$protocol = $row[2];
@@ -17780,16 +17781,19 @@ sub set_lsusb_data_long {
 sub set_sys_usb_data {
 	eval $start if $b_log;
 	my ($source) = @_;
-	my ($b_hub,$bus_id,$device_id,$driver,$ids,$path,$path_id,$ports);
+	my ($b_hub,$bus_id,$class,$device_id,$driver,$ids,$path,$path_id,$ports);
 	my (@drivers,@uevent,@usb_sys,@working);
-	my ($chip_id,$configuration,$dclass,$product,$protocol,$serial,$usb_version,$vendor,$vendor_id,);
+	my ($chip_id,$configuration,$dclass,$product,$protocol,
+	$serial,$type,$usb_version,$vendor,$vendor_id,);
 	my @files = globber('/sys/bus/usb/devices/*');
+	#print join "\n", @files;
+	#@files = grep {!/\/usb[0-9]+$/} @files if @files && $source eq 'main';
 	foreach (@files){
 		@uevent = reader("$_/uevent") if -r "$_/uevent";
 		$ids = awk(\@uevent,'^DEVNAME',2,'=');
-		if ($ids){
+		if ( $ids){
 			@drivers = ();
-			($b_hub,$driver,$ports) = (0,'','');
+			($b_hub,$class,$driver,$ports,$type) = (0,'','','','');
 			# bus/usb/006/001
 			#print Cwd::abs_path($_),"\n";
 			#print "f1: $_\n";
@@ -17799,8 +17803,8 @@ sub set_sys_usb_data {
 			@working = split /\//, $ids;
 			$bus_id = int($working[2]);
 			$device_id = int($working[3]);
-			@drivers = get_usb_drivers(\$b_hub,"$_/[0-9]*/uevent");
-			@drivers = (@drivers, get_usb_drivers(\$b_hub,"$_/[0-9]*/*/uevent")) if !$b_hub;
+			@drivers = get_usb_uevent(\$b_hub,"$_/[0-9]*/uevent",\$type);
+			@drivers = (@drivers, get_usb_uevent(\$b_hub,"$_/[0-9]*/*/uevent",'')) if !$b_hub;
 			if ( $b_hub && -r "$_/maxchild"){
 				$ports = (reader("$_/maxchild"))[0];
 			}
@@ -17826,7 +17830,8 @@ sub set_sys_usb_data {
 				if ($configuration){
 					$product = ($product) ? "$product $configuration" : $configuration;
 				}
-				$protocol = ($b_hub && $product) ? "~bInterfaceProtocol:0:$product": '~bInterfaceProtocol:0:';
+				$class = (!$b_hub && $type) ? "~bInterfaceClass:0:$type": '~bInterfaceClass:0:';
+				$protocol = ($b_hub && $type) ? "~bInterfaceProtocol:0:$type": '~bInterfaceProtocol:0:';
 				$product = "idProduct::$product";
 				$serial = get_usb_item("$_/serial");
 				$serial = "serial:$serial";
@@ -17840,11 +17845,10 @@ sub set_sys_usb_data {
 				$path_id = ($path_id) ? "path_id:$path_id": 'path_id:';
 				$path = ($_) ? "path:$_": 'path:';
 				@working = ($bus_id,$device_id,"$vendor_id:$chip_id",$usb_version,
-				$dclass,$vendor,$product,$serial,$protocol,$driver,$ports,$path_id,$path);
+				$dclass,$vendor,$product,$serial,$protocol,$class,$driver,$ports,$path_id,$path);
 				@usb = (@usb,[@working]);
 			}
-			
-			# print "ids: $bus_id:$device_id driver: $driver ports: $ports\n"; # if $test[6];;
+			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $test[6];;
 		}
 	}
 	@usb = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @usb if $b_usb_sys;
@@ -17852,20 +17856,33 @@ sub set_sys_usb_data {
 	main::log_data('dump','@usb: long',\@usb) if $b_usb_sys && $b_log;
 	eval $end if $b_log;
 }
-sub get_usb_drivers {
-	my ($b_hub,$path) = @_;
-	my ($driver,@drivers,@working);
+sub get_usb_uevent {
+	my ($b_hub,$path,$type) = @_;
+	my ($driver,$interface,@interfaces,@drivers,@working);
 	my @files = globber($path);
 	@files = grep {!/\/(subsystem|driver)\/uevent$/} @files if @files;
 	foreach (@files){
+		last if $$b_hub;
 		#print "f2: $_\n";
+		($interface) = ('');
 		@working = reader($_) if -r $_;
 		#print join ("\n",@working), "\n";
-		$driver = awk(\@working,'^DRIVER',2,'=') if @working;
+		if (@working){
+			$driver = awk(\@working,'^DRIVER',2,'=');
+			$interface = awk(\@working,'^INTERFACE',2,'=');
+			if ($interface){
+				$interface = get_usb_type($interface);
+				push @interfaces, $interface if $interface;
+			}
+		}
 		#print "driver:$driver\n";
 		$$b_hub = 1 if $driver && $driver eq 'hub';
 		$driver = '' if $driver && ($driver eq 'usb' || $driver eq 'hub');
 		push @drivers,$driver if $driver;
+	}
+	if (@interfaces){
+		@interfaces = uniq(@interfaces);
+		$$type = join ',', @interfaces;
 	}
 	return @drivers;
 }
@@ -17876,6 +17893,50 @@ sub get_usb_item {
 	$item = '' if ! defined $item;
 	$item = trimmer($item) if $item;
 	return $item;
+}
+
+sub get_usb_type {
+	my ($data) = @_;
+	my ($type,$protocol);
+	my @types = split /\//, $data if $data;
+	#print @types,"\n";
+	return  if !@types || scalar @types != 3 || $types[0] eq '0' || $types[0] eq '255';
+	
+	if ($types[0] eq '1'){
+		$type = 'Audio';
+	}
+	elsif ($types[0] eq '3'){
+		if ($types[2] eq '0'){$type = '';} # actual value: None
+		elsif ($types[2] eq '1'){$type = 'Keyboard';}
+		elsif ($types[2] eq '2'){$type = 'Mouse';}
+	}
+	elsif ($types[0] eq '7'){
+		$type = 'Printer';
+	}
+	elsif ($types[0] eq '8'){
+		$type = 'Mass Storage';
+	}
+	elsif ($types[0] eq '9'){
+		if ($types[2] eq '0'){$type = 'Full speed (or root) Hub';}
+		elsif ($types[2] eq '1'){$type = 'Hi-speed hub with single TT';}
+		elsif ($types[2] eq '2'){$type = 'Hi-speed hub with multiple TTs';}
+	}
+	elsif ($types[0] eq '14'){
+		$type = 'Video';
+	}
+	elsif ($types[0] eq '16'){
+		$type = 'Audio/Video';
+	}
+	elsif ($types[0] eq '17'){
+		$type = 'Smart Card';
+	}
+	elsif ($types[0] eq '18'){
+		$type = 'Type-C Bridge';
+	}
+	elsif ($types[0] eq '224'){
+		$type = 'Wireless';
+	}
+	return $type;
 }
 
 # Controller /dev/usb2:
