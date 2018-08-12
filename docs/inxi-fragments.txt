@@ -2,8 +2,8 @@
 INXI FRAGMENTS
 ================================================================================
 FILE:    inxi-fragmentsg.txt
-VERSION: 1.0
-DATE:    2018-07-20
+VERSION: 1.1
+DATE:    2018-08-11
 
 ----------------------------------------
 See: optimization.txt
@@ -179,4 +179,99 @@ sub set_gtk_data {
 	}
 	$desktop[2] = 'Gtk';
 	eval $end if $b_log;
+}
+
+========================================
+get_usb_drivers()
+----------------------------------------
+
+called in: AudioData::usb_data()
+					#@temp2 = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
+					#if (@temp2 && $temp2[0]){
+					#	$driver = $temp2[0];
+					#}
+					$driver ||= 'snd-usb-audio';
+					
+called in NetworkData::usb_data()
+				#@temp2 = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
+				#if (@temp2){
+				#	$driver = $temp2[0] if $temp2[0];
+				#	$path = $temp2[1] if $temp2[1];
+				#}
+				$driver ||= 'usb-network';
+				
+# NOTE: annoyingly, /sys does NOT actually use the id, it uses 
+# the count of physical devices, starting at 0 for hub, on the bus.
+# args: $1 - $bus number; $2 - vendor:chip id
+sub get_usb_drivers {
+	eval $start if $b_log;
+	my ($bus,$id) = @_;
+	return if !$bus || !$id;# these will be > 0
+	my ($chip,$driver,$file,$path,$vendor,$working,$working2,@drivers,@temp);
+	@temp = split /:/, $id;
+	$vendor = $temp[0];
+	$chip = $temp[1];
+	# some have it one level deeper than others
+	my @globs = ("/sys/bus/usb/devices/usb$bus/$bus-*/","/sys/bus/usb/devices/usb$bus/$bus-*/$bus-*/");
+	foreach (@globs){
+		$path = get_usb_path($vendor,$chip,$_);
+		last if $path;
+	}
+	if ($path){
+		if ( -e "${path}driver"){
+			if ($working = Cwd::abs_path("${path}driver")){
+				$working =~ s/^.*\///;
+				if ($working && $working ne 'usb' && $working ne 'usbhid'){
+					push @drivers, $working;
+				}
+			}
+		}
+		# test 2
+		@temp = main::globber("$path$bus-*/");
+		#print "@temp\n";
+		foreach (@temp){
+			#print "p2:". $_ . "driver\n";
+			$file = $_ . 'driver';
+			#print "f:$file\n";
+			if (-e $file){
+				#print "here\n";
+				#print (Cwd::abs_path($file), "\n");
+				if ($working = Cwd::abs_path($file)){
+					#print "w:$working\n";
+					$working =~ s/^.*\///;
+					if ($working && $working ne 'usb' && $working ne 'usbhid' && ! grep {/$working/} @drivers){
+						push @drivers, $working;
+					}
+				}
+			}
+		}
+		#print join "\n", @drivers, "\n";
+		$driver = join ',', @drivers if @drivers;
+	}
+	@temp = ($driver,$path);
+	eval $end if $b_log;
+	return @temp;
+}
+
+sub get_usb_path {
+	eval $start if $b_log;
+	my ($vendor,$chip,$glob) = @_;
+	my ($path,$working,$working2);
+	#print "$vendor,$chip,$glob\n";
+	my @temp = main::globber($glob);
+	#print join "\n", @temp, "\n";
+	# first we need to get the device path, since it's not predictable
+	foreach (@temp){
+		#print "$_\n";
+		$working = $_ . 'idVendor';
+		$working2 = $_ . 'idProduct';
+		if (-e $working && (main::reader($working))[0] eq $vendor && 
+		    -e $working2 && (main::reader($working2))[0] eq $chip){
+			$path = $_;
+			#print "$_\n";
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $path
 }

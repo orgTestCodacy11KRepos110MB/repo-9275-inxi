@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-11';
-my $self_patch='16';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -71,7 +71,8 @@ $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_pci,$b_pci_tool,
 $b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
-$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sudo,$b_sysctl,$b_usb_check,$b_wmctrl);
+$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sudo,$b_sysctl,$b_usb_check,
+$b_usb_sys,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
@@ -4107,6 +4108,8 @@ sub get_options{
 		else {
 			error_handler('distro-block', $opt);
 		} },
+	'usb-sys' => sub {
+		$b_usb_sys = 1 },
 	'V|version' => sub { 
 		$b_version = 1 },
 	'wm' => sub { 
@@ -4137,7 +4140,7 @@ sub get_options{
 	}
 	if ($show{'usb'} || $show{'audio'}  || $show{'network'} ){
 		# to detect wan/lan, we have to use long form to get as much data as possible
-		$usb_level = ($show{'usb'} || $show{'network'}) ? 2 : 1;
+		$usb_level = ($show{'usb'} || $show{'network'} || $b_usb_sys) ? 2 : 1;
 	}
 	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'battery'} || $show{'cpu'} || $show{'cpu-basic'} || 
 	   $show{'info'} || $show{'machine'} || $show{'process'} || $show{'ram'}  || $show{'sensor'} ) ){
@@ -5854,10 +5857,6 @@ sub usb_data {
 							$product = 'N/A';
 						}
 					}
-					#@temp2 = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
-					#if (@temp2 && $temp2[0]){
-					#	$driver = $temp2[0];
-					#}
 					$driver ||= 'snd-usb-audio';
 					@data = ({
 					main::key($num++,'Device') => $product,
@@ -10011,11 +10010,6 @@ sub usb_data {
 				$test = "$vendor $product $vendor2 $vendor2";
 			}
 			if ($product && network_device($test)){
-				#@temp2 = main::get_usb_drivers($row[0],$row[2]) if !$bsd_type && -d "/sys/devices";
-				#if (@temp2){
-				#	$driver = $temp2[0] if $temp2[0];
-				#	$path = $temp2[1] if $temp2[1];
-				#}
 				$driver ||= 'usb-network';
 				@data = ({
 				main::key($num++,'Device') => $product,
@@ -14519,7 +14513,7 @@ sub usb_data {
 	eval $start if $b_log;
 	return if ! @usb;
 	my (@data,@row,@rows,$bus_id,$chip_id,
-	$class,$driver,$ports,$product,$protocol,$speed,$vendor);
+	$class,$driver,$ports,$product,$protocol,$serial,$speed,$vendor);
 	my $num = 0;
 	my $j = 0;
 	# note: the data has been presorted in set_lsusb_data by:
@@ -14564,7 +14558,8 @@ sub usb_data {
 		}
 		# it's a device
 		else {
-			($class,$driver,$ports,$product,$protocol,$vendor,$speed) = ('','','','','','','');
+			($class,$driver,$ports,$product,$protocol,
+			$serial,$speed,$vendor) = ('','','','','','','','');
 			foreach my $line (@id){
 				@row = split /:/, $line;
 				next if ! defined $row[0];
@@ -14594,6 +14589,9 @@ sub usb_data {
 				}
 				elsif ($row[0] eq 'ports' && $row[1]){
 					$ports = $row[1];
+				}
+				elsif ($row[0] eq 'serial' && $row[1]){
+					$serial = $row[1];
 				}
 			}
 			if ( $b_hub ){
@@ -14643,18 +14641,18 @@ sub usb_data {
 				if ($driver && $extra > 1){
 					$rows[$j]{main::key($num++,'driver')} = $driver;
 				}
-				
 				if ($extra > 0){
 					$rows[$j]{main::key($num++,'usb')} = $speed;
 				}
 				$rows[$j]{main::key($num++,'type')} = $class;
 				$rows[$j]{main::key($num++,'bus ID')} = $bus_id;
 			}
-			
 			if ($extra > 1){
 				$rows[$j]{main::key($num++,'chip ID')} = $chip_id;
 			}
-			
+			if ($extra > 2 && $serial){
+				$rows[$j]{main::key($num++,'serial')} = main::apply_filter($serial);
+			}
 		}
 	}
 	#print Data::Dumper::Dumper \@rows;
@@ -16931,82 +16929,6 @@ sub get_uptime {
 	return $uptime;
 }
 
-# NOTE: annoyingly, /sys does NOT actually use the id, it uses 
-# the count of physical devices, starting at 0 for hub, on the bus.
-# args: $1 - $bus number; $2 - vendor:chip id
-sub get_usb_drivers {
-	eval $start if $b_log;
-	my ($bus,$id) = @_;
-	return if !$bus || !$id;# these will be > 0
-	my ($chip,$driver,$file,$path,$vendor,$working,$working2,@drivers,@temp);
-	@temp = split /:/, $id;
-	$vendor = $temp[0];
-	$chip = $temp[1];
-	# some have it one level deeper than others
-	my @globs = ("/sys/bus/usb/devices/usb$bus/$bus-*/","/sys/bus/usb/devices/usb$bus/$bus-*/$bus-*/");
-	foreach (@globs){
-		$path = get_usb_path($vendor,$chip,$_);
-		last if $path;
-	}
-	if ($path){
-		if ( -e "${path}driver"){
-			if ($working = Cwd::abs_path("${path}driver")){
-				$working =~ s/^.*\///;
-				if ($working && $working ne 'usb' && $working ne 'usbhid'){
-					push @drivers, $working;
-				}
-			}
-		}
-		# test 2
-		@temp = main::globber("$path$bus-*/");
-		#print "@temp\n";
-		foreach (@temp){
-			#print "p2:". $_ . "driver\n";
-			$file = $_ . 'driver';
-			#print "f:$file\n";
-			if (-e $file){
-				#print "here\n";
-				#print (Cwd::abs_path($file), "\n");
-				if ($working = Cwd::abs_path($file)){
-					#print "w:$working\n";
-					$working =~ s/^.*\///;
-					if ($working && $working ne 'usb' && $working ne 'usbhid' && ! grep {/$working/} @drivers){
-						push @drivers, $working;
-					}
-				}
-			}
-		}
-		#print join "\n", @drivers, "\n";
-		$driver = join ',', @drivers if @drivers;
-	}
-	@temp = ($driver,$path);
-	eval $end if $b_log;
-	return @temp;
-}
-
-sub get_usb_path {
-	eval $start if $b_log;
-	my ($vendor,$chip,$glob) = @_;
-	my ($path,$working,$working2);
-	#print "$vendor,$chip,$glob\n";
-	my @temp = main::globber($glob);
-	#print join "\n", @temp, "\n";
-	# first we need to get the device path, since it's not predictable
-	foreach (@temp){
-		#print "$_\n";
-		$working = $_ . 'idVendor';
-		$working2 = $_ . 'idProduct';
-		if (-e $working && (main::reader($working))[0] eq $vendor && 
-		    -e $working2 && (main::reader($working2))[0] eq $chip){
-			$path = $_;
-			#print "$_\n";
-			last;
-		}
-	}
-	eval $end if $b_log;
-	return $path
-}
-
 #### -------------------------------------------------------------------
 #### SET DATA VALUES
 #### -------------------------------------------------------------------
@@ -17727,7 +17649,7 @@ sub set_sysctl_data {
 sub set_usb_data {
 	eval $start if $b_log;
 	$b_usb_check = 1;
-	if ($alerts{'lsusb'}{'action'} eq 'use' ){
+	if (!$b_usb_sys && $alerts{'lsusb'}{'action'} eq 'use' ){
 		#$usb_level = 2;
 		# NOTE: we can't get reliable usb network device with short
 		if ($usb_level == 2){
@@ -17736,6 +17658,9 @@ sub set_usb_data {
 		else {
 			set_lsusb_data_short();
 		}
+	}
+	elsif (-d '/sys/bus/usb/devices'){
+		set_sys_usb_data('main');
 	}
 	elsif ( $alerts{'usbdevs'}{'action'} eq 'use'){
 		set_usbdevs_data();
@@ -17771,7 +17696,7 @@ sub set_lsusb_data_short {
 			}
 		}
 	}
-	extra_usb_data() if @usb;
+	set_sys_usb_data('lsusb') if @usb;
 	print Dumper \@usb if $test[6];
 	main::log_data('dump','@usb: short',\@usb) if $b_log;
 	eval $end if $b_log;
@@ -17847,15 +17772,17 @@ sub set_lsusb_data_long {
 	}
 	# last by not least, sort it by bus/device ID
 	@usb = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @usb;
-	extra_usb_data() if @usb;
+	set_sys_usb_data('lsusb') if @usb;
 	print Dumper \@usb if $test[6];
 	main::log_data('dump','@usb: long',\@usb) if $b_log;
 	eval $end if $b_log;
 }
-sub extra_usb_data {
+sub set_sys_usb_data {
 	eval $start if $b_log;
-	my ($b_hub,$bus_id,$device_id,$driver,$ids,$path,$ports);
+	my ($source) = @_;
+	my ($b_hub,$bus_id,$device_id,$driver,$ids,$path,$path_id,$ports);
 	my (@drivers,@uevent,@usb_sys,@working);
+	my ($chip_id,$configuration,$dclass,$product,$protocol,$serial,$usb_version,$vendor,$vendor_id,);
 	my @files = globber('/sys/bus/usb/devices/*');
 	foreach (@files){
 		@uevent = reader("$_/uevent") if -r "$_/uevent";
@@ -17866,29 +17793,66 @@ sub extra_usb_data {
 			# bus/usb/006/001
 			#print Cwd::abs_path($_),"\n";
 			#print "f1: $_\n";
+			$path_id = $_;
+			$path_id =~ s/^.*\///;
+			#$path_id =~ s/usb//;
 			@working = split /\//, $ids;
 			$bus_id = int($working[2]);
 			$device_id = int($working[3]);
-			@drivers = usb_drivers(\$b_hub,"$_/[0-9]*/uevent");
-			@drivers = (@drivers, usb_drivers(\$b_hub,"$_/[0-9]*/*/uevent")) if !$b_hub;
+			@drivers = get_usb_drivers(\$b_hub,"$_/[0-9]*/uevent");
+			@drivers = (@drivers, get_usb_drivers(\$b_hub,"$_/[0-9]*/*/uevent")) if !$b_hub;
 			if ( $b_hub && -r "$_/maxchild"){
 				$ports = (reader("$_/maxchild"))[0];
 			}
 			$driver = join ',', sort(uniq(@drivers)) if @drivers;
-			for (my $i = 0; $i < scalar @usb; $i++){
-				if (${$usb[$i]}[0] == $bus_id && ${$usb[$i]}[1] == $device_id){
-					push @{$usb[$i]}, "driver:$driver" if $driver;
-					push @{$usb[$i]}, "ports:$ports" if $ports;
-					push @{$usb[$i]}, "path:$_";
-					last;
+			if ($source eq 'lsusb'){
+				for (my $i = 0; $i < scalar @usb; $i++){
+					if (${$usb[$i]}[0] == $bus_id && ${$usb[$i]}[1] == $device_id){
+						push @{$usb[$i]}, "driver:$driver" if $driver;
+						push @{$usb[$i]}, "ports:$ports" if $ports;
+						push @{$usb[$i]}, "path_id:$path_id";
+						push @{$usb[$i]}, "path:$_";
+						last;
+					}
 				}
 			}
+			else {
+				$chip_id = get_usb_item("$_/idProduct");
+				$vendor_id = get_usb_item("$_/idVendor");
+				$configuration = get_usb_item("$_/configuration");
+				$dclass = get_usb_item("$_/bDeviceClass");
+				$dclass = "bDeviceClass:" . hex($dclass);
+				$product = get_usb_item("$_/product");
+				if ($configuration){
+					$product = ($product) ? "$product $configuration" : $configuration;
+				}
+				$protocol = ($b_hub && $product) ? "~bInterfaceProtocol:0:$product": '~bInterfaceProtocol:0:';
+				$product = "idProduct::$product";
+				$serial = get_usb_item("$_/serial");
+				$serial = "serial:$serial";
+				$vendor = get_usb_item("$_/manufacturer");
+				$vendor = "idVendor::$vendor";
+				$usb_version = get_usb_item("$_/version");
+				$usb_version = "bcdUSB:$usb_version";
+				
+				$driver = ($driver) ? "driver:$driver": 'driver:';
+				$ports = ($ports) ? "ports:$ports": 'ports:';
+				$path_id = ($path_id) ? "path_id:$path_id": 'path_id:';
+				$path = ($_) ? "path:$_": 'path:';
+				@working = ($bus_id,$device_id,"$vendor_id:$chip_id",$usb_version,
+				$dclass,$vendor,$product,$serial,$protocol,$driver,$ports,$path_id,$path);
+				@usb = (@usb,[@working]);
+			}
+			
 			# print "ids: $bus_id:$device_id driver: $driver ports: $ports\n"; # if $test[6];;
 		}
 	}
+	@usb = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @usb if $b_usb_sys;
+	print Dumper \@usb if $b_usb_sys && $test[6];
+	main::log_data('dump','@usb: long',\@usb) if $b_usb_sys && $b_log;
 	eval $end if $b_log;
 }
-sub usb_drivers {
+sub get_usb_drivers {
 	my ($b_hub,$path) = @_;
 	my ($driver,@drivers,@working);
 	my @files = globber($path);
@@ -17904,6 +17868,14 @@ sub usb_drivers {
 		push @drivers,$driver if $driver;
 	}
 	return @drivers;
+}
+sub get_usb_item {
+	my ($path) = @_;
+	my ($item,@working);
+	$item = (reader($path))[0] if -r $path;
+	$item = '' if ! defined $item;
+	$item = trimmer($item) if $item;
+	return $item;
 }
 
 # Controller /dev/usb2:
