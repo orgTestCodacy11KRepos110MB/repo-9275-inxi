@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-13';
-my $self_patch='25';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3190,6 +3190,7 @@ sub program_values {
 	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
 	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0],
+	'qtile' => ['^qtile',0,'0','Qtile',0,0,1],
 	'razor' => ['^razor',0,'0','Razor-Qt',0,1,0],
 	'ratpoison' => ['^ratpoison',2,'--version','Ratpoison',0,1,0],
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
@@ -15590,6 +15591,7 @@ sub get_ps_de_data {
 		['jwm','jwm','jwm','jwm'],
 		['mwm','mwm','mwm','mwm'],
 		['notion','notion','notion','notion'],
+		['qtile','qtile','qtile','qtile'],
 		['ratpoison','ratpoison','ratpoison','ratpoison'],
 		['sawfish','sawfish','sawfish','sawfish'],
 		['matchbox-window-manager','matchbox-window-manager',
@@ -15688,7 +15690,7 @@ sub get_wm_main {
 		$wms .= 'deepin-wm|dwm|flwm|fvwm-crystal|fvwm2|fvwm|gala|gnome-shell|i3|jwm|';
 		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|matchbox-window-manager|marco|';
 		$wms .= 'muffin|deepin-mutter|mutter|deepin-metacity|metacity|mwm|';
-		$wms .= 'notion|openbox|ratpoison|sawfish|scrotwm|spectrwm|';
+		$wms .= 'notion|openbox|qtile|ratpoison|sawfish|scrotwm|spectrwm|';
 		$wms .= 'twm|windowlab|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5|xmonad';
 		foreach (@ps_gui){
 			if (/^($wms)$/){
@@ -17584,7 +17586,7 @@ sub set_ps_gui {
 		@match = (@match,@temp);
 		@temp=qw(3dwm 9wm afterstep amiwm awesome blackbox bspwm 
 		dwm fluxbox flwm fvwm.*-crystal fvwm2 fvwm i3 jwm 
-		matchbox-window-manager mwm openbox notion pekwm ratpoison 
+		matchbox-window-manager mwm openbox notion pekwm qtile ratpoison 
 		sawfish scrotwm spectrwm twm 
 		windowlab WindowMaker wm2 wmii2 wmii xmonad);
 		@match = (@match,@temp);
@@ -17702,8 +17704,7 @@ sub set_lsusb_data_short {
 	my $b_live = 1;
 	if ($b_live){
 		my $path = check_program('lsusb');
-		$content = qx($path 2>/dev/null) if $path;
-		@data = split /\n/, $content if $content;
+		@data = grabber("$path 2>/dev/null") if $path;
 	}
 	else {
 		open my $fh, '<', "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/mdmarmer-lsusb.txt" or die $!;
@@ -17737,8 +17738,7 @@ sub set_lsusb_data_long {
 	my $b_live = 1;
 	if ($b_live){
 		my $path = check_program('lsusb');
-		$content = qx($path -v 2>/dev/null) if $path;
-		@data = split /\n/, $content if $content;
+		@data = grabber("$path -v 2>/dev/null") if $path;
 	}
 	else {
 		my $file;
@@ -17798,9 +17798,8 @@ sub set_lsusb_data_long {
 		$j = scalar @usb;
 		$usb[$j] = ([@working],);
 	}
+	# this also sorts @usb
 	UsbSysData::set('lsusb') if @usb;
-	# last by not least, sort it by alpha generated bus id
-	@usb = sort { $a->[0] cmp $b->[0] } @usb;
 	print Dumper \@usb if $test[6];
 	main::log_data('dump','@usb: long',\@usb) if $b_log;
 	eval $end if $b_log;
@@ -17810,11 +17809,11 @@ sub set_lsusb_data_long {
 {
 package UsbSysData;
 
-my ($b_hub,$type);
+my ($b_hub,$source,$type);
 
 sub set {
 	eval $start if $b_log;
-	my ($source) = @_;
+	($source) = @_;
 	my ($bus_id,$bus_id_alpha,$class,$device_id,$driver,$ids,$path,$path_id,$ports);
 	my (@drivers,@uevent,@usb_sys,@working);
 	my ($chip_id,$configuration,$dclass,$product,$protocol,
@@ -17885,9 +17884,9 @@ sub set {
 			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $test[6];;
 		}
 	}
-	@usb = sort { $a->[0] cmp $b->[0] } @usb if $b_usb_sys;
-	print Data::Dumper::Dumper \@usb if $b_usb_sys && $test[6];
-	main::log_data('dump','@usb: long',\@usb) if $b_usb_sys && $b_log;
+	@usb = sort { $a->[0] cmp $b->[0] } @usb;
+	print Data::Dumper::Dumper \@usb if $source eq 'main' && $test[6];
+	main::log_data('dump','@usb: sys',\@usb) if $source eq 'main' && $b_log;
 	eval $end if $b_log;
 }
 sub uevent_data {
