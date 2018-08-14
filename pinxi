@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-13';
-my $self_patch='27';
+my $self_patch='28';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14587,7 +14587,7 @@ sub usb_data {
 				@row = split /:/, $line;
 				next if ! defined $row[0];
 				if ($row[0] eq 'bcdUSB' && defined $row[1]){
-					$speed  = sprintf("%.1f",$row[1]);
+					$speed  = (main::is_numeric($row[1])) ? sprintf("%.1f",$row[1]) : $row[1];
 				}
 				elsif ($row[0] eq 'bDeviceClass' && defined $row[1] && $row[1] == 9){
 					$b_hub = 1;
@@ -18003,9 +18003,9 @@ sub bus_id_alpha {
 #  port 2 powered
 sub set_usbdevs_data {
 	eval $start if $b_log;
-	my (@data,@working,$class,$bus_id,$addr_id,$id,$speed,$protocol);
-	my $j = 0;
-	my $ports = 0;
+	my (@data,@working,$class,$bus_id,$addr_id,$hub_id,$id,
+	$path_id,$port,$port_value,$protocol,$speed);
+	my ($ports,$j,$k) = (0,0,0);
 	if (!$b_fake_usbdevs){
 		my $program = check_program('usbdevs');
 		my $content = qx($program -v 2>/dev/null);
@@ -18017,41 +18017,49 @@ sub set_usbdevs_data {
 	}
 	foreach (@data){
 		if (/^Controller\s\/dev\/usb([0-9]+)/){
-			$j = scalar @usb;
-			$ports = 0;
+			# $j = scalar @usb;
+			($j,$ports) = (0,0);
+			$port_value = '';
 			$bus_id = $1;
 			@working = ();
 		}
 		elsif (/^addr\s([0-9]+):\s([^,]+),[^,]+,[^,]+,\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
 			$j = scalar @usb;
+			$k = $j;
+			$hub_id = $1;
 			$addr_id = $1;
 			$speed = "bcdUSB:$2";
 			$id = "$4:$6";
 			$protocol="~bInterfaceProtocol:0:$5 $3";
 			#print "p1:$protocol\n";
 			$class='bDeviceClass:9:Hub';
-			@working = ($bus_id,$addr_id,$id,$speed,$class,$protocol);
-			if (@working){
-				$usb[$j] = ([@working],);
-			}
+			$path_id = "path_id:$bus_id-$hub_id";
+			$port_value = '';
+			@working = ($bus_id,$addr_id,$id,$speed,$class,$protocol,$path_id,$port_value);
+			$usb[$j] = ([@working],);
 			@working = ();
 		}
 		elsif (/^\s+port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,]+,[^,]+,\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
 			$j = scalar @usb;
+			$port = $1;
 			$addr_id = "$2";
 			$speed = "bcdUSB:$3";
 			$id = "$5:$7";
 			$protocol="~bInterfaceProtocol:0:$6 $4";
 			#print "p2:$protocol\n";
 			$ports++;
-			@working = ($bus_id,$addr_id,$id,$speed,$protocol);
-			if (@working){
-				$usb[$j] = ([@working],);
-			}
+			$port_value = "ports:$ports";
+			$path_id = "path_id:$bus_id-$hub_id.$port";
+			@working = ($bus_id,$addr_id,$id,$speed,$protocol,$path_id,$port_value);
+			$usb[$j] = ([@working],);
 			@working = ();
 		}
 		elsif (/^\s+port\s([0-9]+)\spowered/){
 			$ports++;
+			$port_value = "ports:$ports";
+			@working = ($bus_id,$addr_id,$id,$speed,$protocol,$path_id,$port_value);
+			$usb[$j] = ([@working],);
+			@working = ();
 		}
 	}
 	if (@working){
