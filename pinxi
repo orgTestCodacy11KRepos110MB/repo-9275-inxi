@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.20';
-my $self_date='2018-08-13';
-my $self_patch='28';
+my $self_date='2018-08-14';
+my $self_patch='29';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14658,7 +14658,9 @@ sub usb_data {
 				# for we want Mass Storage Device instead of Bulk-Only
 				# we want to filter out certain protocol values that are less 
 				# informative than the class type.
-				if ($protocol && $class && $class ne $protocol && protocol_filter($protocol) ){
+				# print "c: $class p: $protocol\n";
+				# note: using /sys data here, which replaces class string
+				if ($bsd_type && $protocol && $class && $class ne $protocol && protocol_filter($protocol) ){
 					$class = $protocol;
 				}
 				$class ||= 'N/A';
@@ -17799,9 +17801,10 @@ sub set_lsusb_data_long {
 		$usb[$j] = ([@working],);
 	}
 	# this also sorts @usb
+	main::log_data('dump','@usb: long-pre-sys',\@usb) if $b_log;
 	UsbSysData::set('lsusb') if @usb;
 	print Dumper \@usb if $test[6];
-	main::log_data('dump','@usb: long',\@usb) if $b_log;
+	main::log_data('dump','@usb: long-post-sys',\@usb) if $b_log;
 	eval $end if $b_log;
 }
 
@@ -17844,11 +17847,16 @@ sub set {
 			if ($source eq 'lsusb'){
 				for (my $i = 0; $i < scalar @usb; $i++){
 					if (${$usb[$i]}[0] eq $bus_id && ${$usb[$i]}[1] == $device_id){
+						#print $type,"\n";
+						if ($type && !$b_hub){
+							@{$usb[$i]} = map {s/^~bInterfaceClass:([0-9]+):.*/~bInterfaceClass:$1:$type/; $_} @{$usb[$i]};
+						}
 						${$usb[$i]}[0] = $bus_id_alpha;
 						push @{$usb[$i]}, "driver:$driver" if $driver;
 						push @{$usb[$i]}, "ports:$ports" if $ports;
 						push @{$usb[$i]}, "path_id:$path_id";
 						push @{$usb[$i]}, "path:$_";
+						#print join("\n",@{$usb[$i]}),"\n\n";# if !$b_hub; 
 						last;
 					}
 				}
@@ -17863,7 +17871,6 @@ sub set {
 				if ($configuration){
 					$product = ($product) ? "$product $configuration" : $configuration;
 				}
-				$class = (!$b_hub && $type) ? "~bInterfaceClass:0:$type": '~bInterfaceClass:0:';
 				$protocol = ($b_hub && $type) ? "~bInterfaceProtocol:0:$type": '~bInterfaceProtocol:0:';
 				$product = "idProduct::$product";
 				$serial = sys_item("$_/serial");
@@ -17872,7 +17879,7 @@ sub set {
 				$vendor = "idVendor::$vendor";
 				$usb_version = sys_item("$_/version");
 				$usb_version = "bcdUSB:$usb_version";
-				
+				$class = (!$b_hub && $type) ? "bDeviceClass:0:$type": 'bDeviceClass:0:Hub';
 				$driver = ($driver) ? "driver:$driver": 'driver:';
 				$ports = ($ports) ? "ports:$ports": 'ports:';
 				$path_id = ($path_id) ? "path_id:$path_id": 'path_id:';
@@ -17889,6 +17896,7 @@ sub set {
 	main::log_data('dump','@usb: sys',\@usb) if $source eq 'main' && $b_log;
 	eval $end if $b_log;
 }
+# get driver, interface [type:] data
 sub uevent_data {
 	my ($path) = @_;
 	my ($driver,$interface,$temp,@interfaces,@drivers,@working);
@@ -17928,6 +17936,10 @@ sub uevent_data {
 	}
 	if (@interfaces){
 		@interfaces = main::uniq(@interfaces);
+		# clear out values like: <vendor defined>,Printer
+		if ( scalar @interfaces > 1 && (grep {/^<vendor/} @interfaces) && (grep {!/^<vendor/} @interfaces) ){
+			@interfaces = grep {/^<vendor/} @interfaces;
+		}
 		$type = join ',', @interfaces;
 		# print "type:$type\n";
 	}
@@ -17988,7 +18000,7 @@ sub device_type {
 	
 	return $type;
 }
-# this is used to create an alpha sortable bus id for main @usb array
+# this is used to create an alpha sortable bus id for main $usb[0]
 sub bus_id_alpha {
 	my ($id) = @_;
 	$id =~ s/^([1-9])-/0$1-/;
