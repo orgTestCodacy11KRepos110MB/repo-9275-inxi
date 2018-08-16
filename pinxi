@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.20';
-my $self_date='2018-08-15';
-my $self_patch='44';
+my $self_date='2018-08-16';
+my $self_patch='45';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -65,7 +65,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_arm,$b_console_irc,$b_debug_gz,$b_debug_timers,
+my ($b_admin,$b_arm,$b_bb_ps,$b_console_irc,$b_debug_gz,$b_debug_timers,
 $b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
@@ -11199,16 +11199,18 @@ sub get {
 sub cpu_processes {
 	eval $start if $b_log;
 	my ($j,$num,$cpu,$cpu_mem,$mem,$pid) = (0,0,'','','','');
-	my (@processes,@rows);
+	my ($pid_col,@processes,@rows);
 	my $count = ($b_irc)? 5: $ps_count;
 	if ($ps_cols >= 10){
 		@rows = sort { 
 		my @a = split(/\s+/,$a); 
 		my @b = split(/\s+/,$b); 
 		$b[2] <=> $a[2] } @ps_aux;
+		$pid_col = 1;
 	}
 	else {
 		@rows = @ps_aux;
+		$pid_col = 0 if $ps_cols == 2;
 	}
 	# if there's a count limit, for irc, etc, only use that much of the data
 	@rows = splice @rows,0,$count;
@@ -11238,9 +11240,7 @@ sub cpu_processes {
 		if ($command[1]) {
 			$processes[$j]{main::key($num++,'started by')} = $command[1];
 		}
-		if ($ps_cols >= 10){$pid = $row[1];}
-		elsif ($ps_cols == 2){$pid = $row[0];}
-		else {$pid = 'N/A';}
+		$pid = (defined $pid_col)? $row[$pid_col] : 'N/A';
 		$processes[$j]{main::key($num++,'pid')} = $pid;
 		if ($extra > 0 && $ps_cols >= 10){
 			my $decimals = ($row[5]/1024 > 10 ) ? 1 : 2;
@@ -11256,16 +11256,18 @@ sub cpu_processes {
 sub mem_processes {
 	eval $start if $b_log;
 	my ($j,$num,$cpu,$cpu_mem,$mem,$pid) = (0,0,'','','','');
-	my (@data,@processes,$memory,@rows);
+	my (@data,$pid_col,@processes,$memory,@rows);
 	my $count = ($b_irc)? 5: $ps_count;
 	if ($ps_cols >= 10){
 		@rows = sort { 
 		my @a = split(/\s+/,$a); 
 		my @b = split(/\s+/,$b); 
 		$b[5] <=> $a[5] } @ps_aux;
+		$pid_col = 1;
 	}
 	else {
 		@rows = @ps_aux;
+		$pid_col = 0 if $ps_cols == 2;
 	}
 	@rows = splice @rows,0,$count;
 	#print Data::Dumper::Dumper \@rows;
@@ -11302,9 +11304,7 @@ sub mem_processes {
 		if ($command[1]) {
 			$processes[$j]{main::key($num++,'started by')} = $command[1];
 		}
-		if ($ps_cols >= 10){$pid = $row[1];}
-		elsif ($ps_cols == 2){$pid = $row[0];}
-		else {$pid = 'N/A';}
+		$pid = (defined $pid_col)? $row[$pid_col] : 'N/A';
 		$processes[$j]{main::key($num++,'pid')} = $pid;
 		if ($extra > 0 && $ps_cols >= 10){
 			$cpu = $row[2] . '%';
@@ -11319,7 +11319,7 @@ sub process_starter {
 	my ($count, $row10, $row11) = @_;
 	my (@return);
 	# note: [migration/0] would clear with a simple basename
-	if ($count > ($ps_cols + 1) && $row11 =~ /^\//){
+	if ($count > ($ps_cols + 1) && $row11 =~ /^\// && $row11 !~ /^\/(tmp|temp)/){
 		$row11 =~ s/^\/.*\///;
 		$return[0] = $row11;
 		$row10 =~ s/^\/.*\///;
@@ -16695,7 +16695,7 @@ sub get_start_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
 	# ps -j -fp : bsds ps do not have -f for PPID, so we can't get the ppid
-	my $cmd = "ps -j -fp $parent";
+	my $cmd = "ps -j -fp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd);
 	#shift @data if @data;
@@ -16708,9 +16708,9 @@ sub get_start_parent {
 sub get_shell_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
-	my $cmd = "ps -j -p $parent";
+	my $cmd = "ps -j -p $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
-	my @data = grabber($cmd,'strip');
+	my @data = grabber($cmd,'','strip');
 	#shift @data if @data;
 	my $shell_parent = awk(\@data, "$parent",-1,'\s+');
 	eval $end if $b_log;
@@ -17402,6 +17402,10 @@ sub set_ps_aux {
 	my $header = shift @ps_aux; # get rid of header row
 	# handle busy box, which has 3 columns, regular ps aux has 11
 	$ps_cols = scalar split(/\s+/, $header) - 1;
+	if ($ps_cols < 10){
+		my $version = qx(ps --version 2>&1);
+		$b_bb_ps = 1 if $version =~/busybox/i;
+	}
 	$_=lc for @ps_aux; # this is a super fast way to set to lower
 	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
 	# for pinxi, we want to see the useage data for cpu/ram
