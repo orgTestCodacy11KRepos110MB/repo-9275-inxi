@@ -2,8 +2,8 @@
 INXI FRAGMENTS
 ================================================================================
 FILE:    inxi-fragmentsg.txt
-VERSION: 1.1
-DATE:    2018-08-11
+VERSION: 1.2
+DATE:    2018-08-15
 
 ----------------------------------------
 See: optimization.txt
@@ -14,7 +14,8 @@ See: perl-version_support.txt
 Comments:
 
 These fragments were in inxi / pinxi, but were removed because they are no 
-longer needed or used in this form.
+longer needed or used in this form. Or they are legacy logic that might come
+in handy one day.
 
 ================================================================================
 
@@ -24,6 +25,224 @@ Sections:
 ================================================================================
 FRAGMENTS
 --------------------------------------------------------------------------------
+
+========================================
+AudioData
+----------------------------------------
+
+sub usb_data {
+	eval $start if $b_log;
+	my (@rows,@data,@ids,$driver,$path_id,$product,$product2,
+	@temp2,$vendor,$vendor2);
+	my ($j,$num) = (0,1);
+	if (-d '/proc/asound') {
+		# note: this will double the data, but it's easier this way.
+		# inxi tested for -L in the /proc/asound files, and used only those.
+		my @files = main::globber('/proc/asound/*/usbid');
+		foreach (@files){
+			my $id = (main::reader($_))[0];
+			push @ids, $id if ($id && ! grep {/$id/} @ids);
+		}
+		# lsusb is a very expensive operation
+		if (@ids){
+			if (!$bsd_type && !$b_usb_check){
+				main::set_usb_data();
+			}
+		}
+		main::log_data('dump','@ids',\@ids) if $b_log;
+		return if !@usb;
+		foreach my $id (@ids){
+			$j = scalar @rows;
+			foreach my $ref (@usb){
+				my @row = @$ref;
+				# a device will always be the second or > device on the bus
+				if ($row[1] > 1 && $row[2] eq $id){
+					$num = 1;
+					# makre sure to reset, or second device trips last flag
+					($driver,$path_id,$product,$product2,$vendor,$vendor2) = ('','','','','','');
+					if ($usb_level == 1){
+						$product = main::cleaner($row[3]);
+						if ($row[4]){
+							$row[4] =~ s/^driver://;
+							$driver = $row[4];
+						}
+						if ($row[5]){
+							$row[5] =~ s/^path_id://;
+							$path_id = $row[5];
+						}
+					}
+					else {
+						foreach my $line (@row){
+							my @working = split /:/, $line;
+							if ($working[0] eq 'idVendor' && $working[2]){
+								$vendor = main::cleaner($working[2]);
+							}
+							if ($working[0] eq 'idProduct' && $working[2]){
+								$product = main::cleaner($working[2]);
+							}
+							if ($working[0] eq 'iManufacturer' && $working[2]){
+								$vendor2 = main::cleaner($working[2]);
+							}
+							if ($working[0] eq 'iProduct' && $working[2]){
+								$product2 = main::cleaner($working[2]);
+							}
+							if ($working[0] eq 'driver' && $working[1]){
+								$driver = $working[1];
+							}
+							if ($working[0] eq 'path_id' && $working[1]){
+								$path_id = $working[1];
+							}
+							#if ($working[0] eq 'Descriptor_Configuration'){
+								# last;
+							#}
+						}
+					}
+					if ($vendor && $product){
+						$product = ($product =~ /$vendor/) ? $product: "$vendor $product" ;
+					}
+					elsif (!$product) {
+						if ($vendor && $product2){
+							$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2" ;
+						}
+						elsif ($vendor2 && $product2){
+							$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2" ;
+						}
+						elsif ($vendor){
+							$product = $vendor;
+						}
+						elsif ($vendor2){
+							$product = $vendor2;
+						}
+						else {
+							$product = 'N/A';
+						}
+					}
+					$driver ||= 'snd-usb-audio';
+					@data = ({
+					main::key($num++,'Device') => $product,
+					main::key($num++,'type') => 'USB',
+					main::key($num++,'driver') => $driver,
+					},);
+					@rows = (@rows,@data);
+					if ($extra > 0){
+						$rows[$j]{main::key($num++,'bus ID')} = "$path_id:$row[1]";
+					}
+					if ($extra > 1){
+						$rows[$j]{main::key($num++,'chip ID')} = $row[2];
+					}
+				}
+			}
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+
+========================================
+NetworkData
+----------------------------------------
+
+sub usb_data {
+	eval $start if $b_log;
+	my (@data,@rows,@temp2,$b_wifi,$driver,
+	$path,$path_id,$product,$product2,$test,$vendor,$vendor2);
+	my ($j,$num) = (0,1);
+	return if !@usb;
+	foreach my $ref (@usb){
+		my @row = @$ref;
+		# a device will always be the second or > device on the bus
+		if ($row[1] > 1){
+			$num = 1;
+			($driver,$path,$path_id,$product,$product2,
+			$test,$vendor,$vendor2) = ('','','','','','','','');
+			if ($usb_level == 1){
+				$product = main::cleaner($row[3]);
+			}
+			else {
+				foreach my $line (@row){
+					my @working = split /:/, $line;
+					if ($working[0] eq 'idVendor' && $working[2]){
+						$vendor = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'idProduct' && $working[2]){
+						$product = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'iVendor' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'iProduct' && $working[2]){
+						$product2 = main::cleaner($working[2]);
+					}
+					if ($working[0] eq 'Descriptor_Configuration'){
+						#last;
+					}
+					if ($working[0] eq 'driver' && $working[1]){
+						$driver = $working[1];
+					}
+					if ($working[0] eq 'path' && $working[1]){
+						$path = $working[1];
+					}
+					if ($working[0] eq 'path_id' && $working[1]){
+						$path_id = $working[1];
+					}
+				}
+				if ($vendor && $product){
+					$product = ($product =~ /$vendor/) ? $product: "$vendor $product";
+				}
+				elsif ($vendor && $product2){
+					$product = ($product2 =~ /$vendor/) ? $product2: "$vendor $product2";
+				}
+				elsif ($vendor2 && $product){
+					$product = ($product =~ /$vendor2/) ? $product: "$vendor2 $product";
+				}
+				elsif ($vendor2 && $product2){
+					$product = ($product2 =~ /$vendor2/) ? $product2: "$vendor2 $product2";
+				}
+				elsif ($vendor){
+					$product = $vendor;
+				}
+				elsif ($vendor2){
+					$product = $vendor2;
+				}
+				$test = "$vendor $product $vendor2 $vendor2";
+			}
+			if ($product && network_device($test)){
+				$driver ||= 'usb-network';
+				@data = ({
+				main::key($num++,'Device') => $product,
+				main::key($num++,'type') => 'USB',
+				main::key($num++,'driver') => $driver,
+				},);
+				$b_wifi = check_wifi($product);
+				@rows = (@rows,@data);
+				if ($extra > 0){
+					$rows[$j]{main::key($num++,'bus ID')} = "$path_id:$row[1]";
+				}
+				if ($extra > 1){
+					$rows[$j]{main::key($num++,'chip ID')} = $row[2];
+				}
+				if ($show{'network-advanced'}){
+					if (!$bsd_type){
+						my (@temp,$vendor,$chip);
+						@temp = split (/:/, $row[2]) if $row[2];
+						($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
+						@data = advanced_data_sys($vendor,$chip,0,$b_wifi,$path);
+					}
+					# NOTE: we need the driver.number, like wlp0 to get a match, and 
+					# we can't get that from usb data, so we have to let it fall back down 
+					# to the check function for BSDs.
+					#else {
+					#	@data = advanced_data_bsd($row[2],$b_wifi);
+					#}
+					@rows = (@rows,@data) if @data;
+				}
+				$j = scalar @rows;
+			}
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
 
 ========================================
 get_env_de_data()
@@ -178,6 +397,118 @@ sub set_gtk_data {
 		}
 	}
 	$desktop[2] = 'Gtk';
+	eval $end if $b_log;
+}
+
+========================================
+set_lsusb_data() set_lsusb_data_v() 
+----------------------------------------
+
+sub set_lsusb_data {
+	eval $start if $b_log;
+	my ($content,@data);
+	my $b_live = 1;
+	if ($b_live){
+		my $path = check_program('lsusb');
+		@data = grabber("$path 2>/dev/null") if $path;
+	}
+	else {
+		open my $fh, '<', "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/mdmarmer-lsusb.txt" or die $!;
+		chomp(@data = <$fh>);
+	}
+	foreach (@data){
+		next if /^\s*$|^Couldn't/; # expensive second call: || /UNAVAIL/
+		my @working = split /\s+/, $_;
+		$working[3] =~ s/:$//;
+		my $id = int($working[3]);
+		if ($id > 1){
+			my $bus = int($working[1]);
+			my $chip = $working[5];
+			my @temp = @working[6..$#working];
+			my $name = join ' ', @temp;
+			if ($name !~ /hub/i){
+				@usb = (@usb,[$bus,$id,$chip,$name]);
+			}
+		}
+	}
+	UsbSysData::set('lsusb') if @usb;
+	print Dumper \@usb if $test[6];
+	main::log_data('dump','@usb: plain',\@usb) if $b_log;
+	eval $end if $b_log;
+}
+
+sub set_lsusb_data_v {
+	eval $start if $b_log;
+	my ($content,@data,@working,$bus_id,$device_id,$id,$b_skip);
+	my $j = 0;
+	my $b_live = 1;
+	if ($b_live){
+		my $path = check_program('lsusb');
+		@data = grabber("$path -v 2>/dev/null") if $path;
+	}
+	else {
+		my $file;
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/mdmarmer-lsusb-v.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/lsusb-v-dz64.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/x541na-lsusb-v.txt";
+		open my $fh, '<', $file or die $!;
+		chomp(@data = <$fh>);
+	}
+	foreach (@data){
+		# we won't need all the lsusb data, so set it to skip
+		# after the last item we might want
+		# Couldn't open device, some information will be missing
+		next if /^\s*$|^Couldn't/; # expensive second call: || /UNAVAIL/
+		if (!$b_skip && $bus_id && /^\s\s/){
+			#if ($_ =~ /\bDescriptor\b:/){
+			if ($_ =~ /^\s+([\S]+)\sDescriptor:/){
+				#$_ =~ /^\s+([\S]+)\sDescriptor:/;
+				$_ = "Descriptor_$1";
+			}
+			else {
+				$_ =~ s/^\s\s|[\s]+$//g;
+				$_ =~ s/^[\s]+/~/g;
+				#$_ =~ s/[\s]+$//g;
+				$_ =~ s/\sType/_Type/g;
+				$_ =~ s/^([\S]+)[\s]+(.*)//;
+				my $one = ($1) ? $1: '';
+				my $two = ($2) ? $2: '';
+				$_ = "$one:$two";
+				$b_skip = 1 if $one eq '~bInterfaceProtocol';
+				#$_ = cleaner($_);
+				if (/([\S]+):([0-9]+|0x[0-9a-f]+)\s(.*)/){
+					$_ = "$1:$2:$3";
+					#$b_skip = 1 if $1 eq '~bInterfaceProtocol';
+				}
+				#print "$1\n";
+			}
+			push @working, $_;
+		}
+		# note; nNbrPorts is only available for root?
+		elsif (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
+		#elsif (/^Bus\s/){
+			#if (/^Bus\s([0-9]+)\sDevice\s([0-9]+):\sID\s(([0-9a-f]{4}):([0-9a-f]{4})).*/){
+				$j = scalar @usb;
+				$bus_id = int($1); # trim off leading 0's
+				$device_id = int($2);
+				$id = $3;
+				$b_skip = 0;
+				if (@working){
+					$usb[$j] = ([@working],);
+				}
+				@working = ($bus_id,$device_id,$id);
+			#}
+		}
+	}
+	if (@working){
+		$j = scalar @usb;
+		$usb[$j] = ([@working],);
+	}
+	# this also sorts @usb
+	main::log_data('dump','@usb: v-pre-sys',\@usb) if $b_log;
+	UsbSysData::set('lsusb') if @usb;
+	print Dumper \@usb if $test[6];
+	main::log_data('dump','@usb: v-post-sys',\@usb) if $b_log;
 	eval $end if $b_log;
 }
 
