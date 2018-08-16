@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-15';
-my $self_patch='35';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17539,17 +17539,28 @@ sub set_lsusb_data {
 		$chip_id = $working[5];
 		@temp = @working[6..$#working];
 		$name = join ' ', @temp;
+		$name = $name;
+		#print "$name\n";
 		$working[0] = $bus_id;
 		$working[1] = $addr_id;
 		$working[2] = $path_id;
 		$working[3] = '';
 		$working[4] = 0;
+		$working[5] = '';
+		$working[6] = '';
 		$working[7] = $chip_id;
 		$working[8] = '';
 		$working[9] = '';
 		$working[10] = 0;
+		$working[11] = '';
+		$working[12] = '';
 		$working[13] = $name;
-		@usb = (@usb,[@working]);
+		$working[14] = '';
+		$working[15] = '';
+		$working[16] = '';
+		@
+		usb = (@usb,[@working]);
+		#print join ("\n",@working),"\n\n=====\n";
 	}
 	print Dumper \@usb if $test[6];
 	UsbSysData::set('lsusb') if @usb;
@@ -17600,11 +17611,16 @@ sub set_usbdevs_data {
 			$working[2] = $path_id;
 			$working[3] = '';
 			$working[4] = 9;
+			$working[5] = '';
+			$working[6] = '';
 			$working[7] = $chip_id;
 			$working[8] = $speed;
+			$working[9] = '';
 			$working[10] = 0;
 			$working[13] = $name;
 			$working[14] = 'Hub';
+			$working[15] = '';
+			$working[16] = '';
 			$usb[$j] = ([@working],);
 			@working = ();
 		}
@@ -17623,11 +17639,18 @@ sub set_usbdevs_data {
 			$working[2] = $path_id;
 			$working[3] = '';
 			$working[4] = 1;
+			$working[5] = '';
+			$working[6] = '';
 			$working[7] = $chip_id;
 			$working[8] = $speed;
+			$working[9] = '';
 			$working[10] = 0;
+			$working[11] = '';
+			$working[12] = '';
 			$working[13] = $name;
 			$working[14] = '';
+			$working[15] = '';
+			$working[16] = '';
 			$usb[$j] = ([@working],);
 			${$usb[$k]}[10] = $ports;
 			@working = ();
@@ -17658,7 +17681,7 @@ sub set {
 	eval $start if $b_log;
 	($source) = @_;
 	my (@drivers,@uevent,@usb_sys,@working);
-	my ($bus_id,$bus_id_alpha,$chip_id,$configuration,$device_id,$driver,$ids,
+	my ($bus_id,$bus_id_alpha,$chip_id,$configuration,$device_id,$driver,$ids,$interfaces,
 	$name,$path,$path_id,$ports,$product,$serial,$usb_version,$vendor,$vendor_id,);
 	my $i = 0;
 	my @files = main::globber('/sys/bus/usb/devices/*');
@@ -17671,7 +17694,8 @@ sub set {
 		if ( $ids){
 			@drivers = ();
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
-			($driver,$name,$ports,$product,$serial,$type,$usb_version,$vendor) = ('','','','','','','','');
+			($driver,$interfaces,$name,$ports,$product,$serial,$type,
+			$usb_version,$vendor) = ('','','','','','','','','');
 			#print Cwd::abs_path($_),"\n";
 			#print "f1: $_\n";
 			$path_id = $_;
@@ -17690,6 +17714,7 @@ sub set {
 			@drivers = (@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
 			$ports = sys_item("$_/maxchild") if $b_hub;
 			$driver = join ',', sort(main::uniq(@drivers)) if @drivers;
+			$interfaces = sys_item("$_/bNumInterfaces");
 			$serial = sys_item("$_/serial");
 			$usb_version = sys_item("$_/version");
 			if ($source eq 'lsusb'){
@@ -17703,9 +17728,10 @@ sub set {
 						${$usb[$i]}[5] = $subclass_id;
 						${$usb[$i]}[6] = $protocol_id;
 						${$usb[$i]}[8] = $usb_version;
+						${$usb[$i]}[9] = $interfaces;
 						${$usb[$i]}[10] = $ports if $ports;
 						if ($type && $b_hub && ${$usb[$i]}[13] && ${$usb[$i]}[13] =~ /^linux foundation/i){
-							${$usb[$i]}[13] = $type;
+							${$usb[$i]}[13] = "$type";
 						}
 						${$usb[$i]}[14] = $type if ($type && !$b_hub);
 						${$usb[$i]}[15] = $driver if $driver;
@@ -17722,9 +17748,11 @@ sub set {
 				next if !$vendor_id && !$chip_id;
 				$configuration = sys_item("$_/configuration");
 				$product = sys_item("$_/product");
+				$product = main::cleaner($product) if $product;
 				$vendor = sys_item("$_/manufacturer");
+				$vendor = main::cleaner($vendor) if $vendor;
 				if (!$b_hub && ($product || $vendor )){
-					if ($vendor && $product){
+					if ($vendor && $product && $product !~ /$vendor/){
 						$name = "$vendor $product";
 					}
 					elsif ($product){
@@ -17750,6 +17778,7 @@ sub set {
 				${$usb[$i]}[6] = $protocol_id;
 				${$usb[$i]}[7] = "$vendor_id:$chip_id";
 				${$usb[$i]}[8] = $usb_version;
+				${$usb[$i]}[9] = $interfaces;
 				${$usb[$i]}[10] = $ports;
 				${$usb[$i]}[11] = $vendor;
 				${$usb[$i]}[12] = $product;
