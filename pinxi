@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.20';
 my $self_date='2018-08-15';
-my $self_patch='40';
+my $self_patch='41';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -81,7 +81,7 @@ my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 ## System
 my ($bsd_type,$language,$os) = ('','','');
 my ($bits_sys,$cpu_arch);
-my ($cpu_sleep,$dl_timeout,$limit,$ps_count) = (0.35,4,10,5);
+my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
 my $weather_unit='mi';
 
@@ -11186,12 +11186,17 @@ sub get {
 sub cpu_processes {
 	eval $start if $b_log;
 	my ($j,$num,$cpu,$cpu_mem,$mem) = (0,0,'','','');
-	my (@processes);
+	my (@processes,@rows);
 	my $count = ($b_irc)? 5: $ps_count;
-	my @rows = sort { 
+	if ($ps_cols >= 10){
+		@rows = sort { 
 		my @a = split(/\s+/,$a); 
 		my @b = split(/\s+/,$b); 
 		$b[2] <=> $a[2] } @ps_aux;
+	}
+	else {
+		@rows = @ps_aux;
+	}
 	# if there's a count limit, for irc, etc, only use that much of the data
 	@rows = splice @rows,0,$count;
 	
@@ -11209,10 +11214,11 @@ sub cpu_processes {
 		$num = 1;
 		$j = scalar @processes;
 		my @row = split /\s+/, $_;
-		my @command = process_starter(scalar @row, $row[10],$row[11]);
+		my @command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
+		$cpu = ($ps_cols >= 10 ) ? $row[2] . '%': 'N/A';
 		@data = ({
 		main::key($num++,$i++) => '',
-		main::key($num++,'cpu') => $row[2] . '%',
+		main::key($num++,'cpu') => $cpu,
 		main::key($num++,'command') => $command[0],
 		},);
 		@processes = (@processes,@data);
@@ -11220,7 +11226,7 @@ sub cpu_processes {
 			$processes[$j]{main::key($num++,'started by')} = $command[1];
 		}
 		$processes[$j]{main::key($num++,'pid')} = $row[1];
-		if ($extra > 0){
+		if ($extra > 0 && $ps_cols >= 10){
 			my $decimals = ($row[5]/1024 > 10 ) ? 1 : 2;
 			$mem = (defined $row[5]) ? sprintf( "%.${decimals}f", $row[5]/1024 ) . ' MiB' : 'N/A';
 			$mem .= ' (' . $row[3] . '%)';
@@ -11234,12 +11240,17 @@ sub cpu_processes {
 sub mem_processes {
 	eval $start if $b_log;
 	my ($j,$num,$cpu,$cpu_mem,$mem) = (0,0,'','','');
-	my (@data,@processes,$memory);
+	my (@data,@processes,$memory,@rows);
 	my $count = ($b_irc)? 5: $ps_count;
-	my @rows = sort { 
+	if ($ps_cols >= 10){
+		@rows = sort { 
 		my @a = split(/\s+/,$a); 
 		my @b = split(/\s+/,$b); 
 		$b[5] <=> $a[5] } @ps_aux;
+	}
+	else {
+		@rows = @ps_aux;
+	}
 	@rows = splice @rows,0,$count;
 	#print Data::Dumper::Dumper \@rows;
 	@processes = main::memory_data_full('process') if !$b_mem;
@@ -11257,9 +11268,14 @@ sub mem_processes {
 		$num = 1;
 		$j = scalar @processes;
 		my @row = split /\s+/, $_;
-		my $decimals = ($row[5]/1024 > 10 ) ? 1 : 2;
-		$mem = ($row[5]) ? sprintf( "%.${decimals}f", $row[5]/1024 ) . ' MiB' : 'N/A';
-		my @command = process_starter(scalar @row, $row[10],$row[11]);
+		if ($ps_cols >= 10){
+			my $decimals = ($row[5]/1024 > 10 ) ? 1 : 2;
+			$mem = ($row[5]) ? sprintf( "%.${decimals}f", $row[5]/1024 ) . ' MiB' : 'N/A';
+		}
+		else {
+			$mem = 'N/A';
+		}
+		my @command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
 		$mem .= " (" . $row[3] . "%)"; 
 		@data = ({
 		main::key($num++,$i++) => '',
@@ -11271,7 +11287,7 @@ sub mem_processes {
 			$processes[$j]{main::key($num++,'started by')} = $command[1];
 		}
 		$processes[$j]{main::key($num++,'pid')} = $row[1];
-		if ($extra > 0){
+		if ($extra > 0 && $ps_cols >= 10){
 			$cpu = $row[2] . '%';
 			$processes[$j]{main::key($num++,'cpu')} = $cpu;
 		}
@@ -11284,7 +11300,7 @@ sub process_starter {
 	my ($count, $row10, $row11) = @_;
 	my (@return);
 	# note: [migration/0] would clear with a simple basename
-	if ($count > 11 && $row11 =~ /^\//){
+	if ($count > ($ps_cols + 1) && $row11 =~ /^\//){
 		$row11 =~ s/^\/.*\///;
 		$return[0] = $row11;
 		$row10 =~ s/^\/.*\///;
@@ -17364,9 +17380,9 @@ sub set_soc_data {
 sub set_ps_aux {
 	eval $start if $b_log;
 	@ps_aux = grabber("ps aux",'','strip');
-	my $count = shift @ps_aux; # get rid of header row
+	my $header = shift @ps_aux; # get rid of header row
 	# handle busy box, which has 3 columns, regular ps aux has 11
-	$count = scalar split(/\s+/, $count) - 1;
+	$ps_cols = scalar split(/\s+/, $header) - 1;
 	$_=lc for @ps_aux; # this is a super fast way to set to lower
 	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
 	# for pinxi, we want to see the useage data for cpu/ram
@@ -17377,8 +17393,8 @@ sub set_ps_aux {
 		# slice out 10th to last elements of ps aux rows
 		my $final = $#split;
 		# some stuff has a lot of data, chrome for example
-		$final = ($final > ($count + 2) ) ? $count + 2 : $final;
-		@split = @split[$count .. $final ];
+		$final = ($final > ($ps_cols + 2) ) ? $ps_cols + 2 : $final;
+		@split = @split[$ps_cols .. $final];
 		join " ", @split;
 	} @ps_aux;
 	#@ps_cmd = grep {!/^\[/} @ps_cmd;
