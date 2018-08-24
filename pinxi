@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.21';
-my $self_date='2018-08-20';
-my $self_patch='02';
+my $self_date='2018-08-24';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3019,6 +3019,25 @@ sub cleanup {
 	}
 }
 
+# args: $1, $2, version numbers to compare by turning them to strings
+# note that the structure of the two numbers is expected to be fairly 
+# similar, otherwise it may not work perfectly.
+sub compare_versions {
+	my ($one,$two) = @_;
+	if ($one && !$two){return $one;}
+	elsif ($two && !$one){return $two;}
+	elsif (!$one && !$two){return}
+	my ($pad1,$pad2) = ('','');
+	my (@temp1) = split /[\.\-_]/, $one;
+	my (@temp2) = split /[\.\-_]/, $two;
+	@temp1 = map {$_ = sprintf("%04s", $_);$_ } @temp1;
+	@temp2 = map {$_ = sprintf("%04s", $_);$_ } @temp2;
+	$pad1 = join '', @temp1;
+	$pad2 = join '', @temp2;
+	# print "p1:$pad1 p2:$pad2\n";
+	if ($pad1 ge $pad2){return $one}
+	elsif ($pad2 gt $pad1){return $two}
+}
 # returns count of files in directory, if 0, dir is empty
 sub count_dir_files {
 	return unless -d $_[0];
@@ -3164,12 +3183,14 @@ sub program_values {
 	# i3 version 4.13 (2016-11-08) © 2009 Michael Stapelberg and contributors
 	'i3' => ['^i3',3,'--version','i3',0,1,0],
 	'icewm' => ['^icewm',2,'--version','IceWM',0,1,0],
+	'ion' => ['^ion',0,'0','Ion',0,1,0],
 	'kded' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded1' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded2' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded3' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded4' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'lumina' => ['^\S',1,'--version','Lumina',0,1,1],
+	'lwm' => ['^lwm',0,'0','lwm',0,1,0],
 	'lxde' => ['^lxpanel',2,'--version','LXDE',0,1,0],
 	# command: lxqt-panel
 	'lxqt' => ['^lxqt-panel',2,'--version','LXQt',0,1,0],
@@ -3184,6 +3205,7 @@ sub program_values {
 	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0],
 	'muffin' => ['^muffin',2,'--version','muffin',0,1,0],
 	'mwm' => ['^mwm',0,'0','mwm',0,1,0],
+	'nawm' => ['^nawm',0,'0','nawm',0,1,0],
 	'notion' => ['^.',1,'--version','notion',0,1,0],
 	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
 	'pantheon' => ['^pantheon',0,'0','Pantheon',0,1,0],
@@ -3196,6 +3218,7 @@ sub program_values {
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
 	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','Scrotwm',0,1,1],
 	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','Spectrwm',0,1,1],
+	'tvtwm' => ['^tvtwm',0,'0','tvtwm',0,1,0],
 	'twin' => ['^Twin:',2,'--version','Twin',0,0,0],
 	'twm' => ['^twm',0,'0','twm',0,1,0],
 	'unity' => ['^unity',2,'--version','Unity',0,1,0],
@@ -3204,6 +3227,7 @@ sub program_values {
 	'wmaker' => ['^Window[[:space:]]*Maker',-1,'--version','WindowMaker',0,1,0],
 	'wmii' => ['^wmii',0,'0','wmii',0,1,0], # note: in debian, wmii is wmii3
 	'wmii2' => ['^wmii2',1,'--version','wmii2',0,1,0],
+	'wmx' => ['^wmx',0,'0','wmx',0,1,0],
 	'xfce4-panel' => ['^xfce4-panel',2,'--version','Xfce',0,1,0],
 	'xfce5-panel' => ['^xfce5-panel',2,'--version','Xfce',0,1,0],
 	'xfdesktop' => ['xfdesktop[[:space:]]version',5,'--version','Xfce',0,1,0],
@@ -15288,7 +15312,7 @@ sub get_env_xprop_de_data {
 	# but it will still trigger the next gnome true case, so this needs to go 
 	# before gnome test eventually this needs to be better organized so all the 
 	# xprop tests are in the same section, but this is good enough for now.
-	# NOTE: was checking for 'muffinr' but that's not part of cinnom
+	# NOTE: was checking for 'muffin' but that's not part of cinnamon
 	if ( (main::check_program('muffin') || main::check_program('cinnamon-session') ) && 
 	     ($b_xprop && main::awk(\@xprop,'_muffin') )){
 		@data = main::program_values('cinnamon');
@@ -15298,15 +15322,18 @@ sub get_env_xprop_de_data {
 		$desktop[0] ||= 'Cinnamon';
 	}
 	elsif ($xdg_desktop eq 'mate' || ( $b_xprop && main::awk(\@xprop,'_marco') )){
-		# NOTE: mate-about reported wrong version, 1.18.0 when actual was 1.18.2
-		if ($program = main::check_program('mate-session') ) {
-			$value = 'mate-session';
+		# NOTE: mate-about and mate-sesssion vary which has the higher number, neither 
+		# consistently corresponds to the actual MATE version, so check both.
+		my %versions = ('mate-about' => '','mate-session' => '');
+		foreach (keys %versions){
+			if ($program = main::check_program($_) ) {
+				@data = main::program_values($_);
+				$desktop[0] = $data[3];
+				$versions{$_} = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
+			}
 		}
-		if ($value){
-			@data = main::program_values($value);
-			$desktop[0] = $data[3];
-			$desktop[1] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
-		}
+		# no consistent rule about which version is higher, so just compare them and take highest
+		$desktop[1] = main::compare_versions($versions{'mate-about'},$versions{'mate-session'});
 		# $b_gtk = 1;
 		$desktop[0] ||= 'MATE';
 	}
@@ -15451,8 +15478,11 @@ sub get_ps_de_data {
 		['amiwm','amiwm','amiwm','amiwm'],
 		['flwm','flwm','flwm','flwm'],
 		['flwm','flwm_topside','flwm','flwm'],
+		['ion','ion','ion','ion'],
 		['jwm','jwm','jwm','jwm'],
+		['lwm','lwm','lwm','lwm'],
 		['mwm','mwm','mwm','mwm'],
+		['nawm','nawm','nawm','nawm'],
 		['notion','notion','notion','notion'],
 		['qtile','qtile','qtile','qtile'],
 		['ratpoison','ratpoison','ratpoison','ratpoison'],
@@ -15461,8 +15491,10 @@ sub get_ps_de_data {
 		  'matchbox-window-manager','matchbox-window-manager'],
 		['afterstep','afterstep','afterstep','afterstep'],
 		['bspwm','bspwm','bspwm','bspwm'],
+		['tvtwm','tvtwm','tvtwm','tvtwm'],
 		['WindowMaker','WindowMaker','wmaker','wmaker'],
 		['windowlab','windowlab','windowlab','windowlab'],
+		['wmx','wmx','wmx','wmx'],
 		['xmonad','xmonad','xmonad','xmonad'],
 		);
 		foreach my $ref (@desktops){
@@ -15550,11 +15582,11 @@ sub get_wm_main {
 		main::set_ps_gui() if ! $b_ps_gui;
 		# order matters, see above logic
 		$wms = '9wm|afterstep|amiwm|awesome|bspwm|budgie-wm|compiz|fluxbox|blackbox|';
-		$wms .= 'deepin-wm|dwm|flwm|fvwm-crystal|fvwm2|fvwm|gala|gnome-shell|i3|jwm|';
-		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|matchbox-window-manager|marco|';
+		$wms .= 'deepin-wm|dwm|flwm|fvwm-crystal|fvwm2|fvwm|gala|gnome-shell|i3|ion|jwm|';
+		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|lwm|matchbox-window-manager|marco|';
 		$wms .= 'muffin|deepin-mutter|mutter|deepin-metacity|metacity|mwm|';
-		$wms .= 'notion|openbox|qtile|ratpoison|sawfish|scrotwm|spectrwm|';
-		$wms .= 'twm|windowlab|WindowMaker|wm2|wmii2|wmii|xfwm4|xfwm5|xmonad';
+		$wms .= 'nawm|notion|openbox|qtile|ratpoison|sawfish|scrotwm|spectrwm|';
+		$wms .= 'tvtwm|twm|windowlab|WindowMaker|wm2|wmii2|wmii|wmx|xfwm4|xfwm5|xmonad';
 		foreach (@ps_gui){
 			if (/^($wms)$/){
 				$working = $1;
@@ -15619,9 +15651,9 @@ sub set_info_data {
 	my (@data,@info,$item);
 	my $pattern = 'awn|bar|bmpanel|bmpanel2|budgie-panel|cairo-dock|';
 	$pattern .= 'dde-dock|dmenu|dockbarx|docky|dzen|dzen2|';
-	$pattern .= 'fbpanel|fspanel|gnome-panel|hpanel|i3bar|icewmtray|kicker|';
+	$pattern .= 'fbpanel|fspanel|glx-dock|gnome-panel|hpanel|i3bar|icewmtray|kicker|';
 	$pattern .= 'lemonbar|ltpanel|lxpanel|lxqt-panel|matchbox-panel|';
-	$pattern .= 'mate-panel|plank|plasma-desktop|plasma-netbook|polybar|pypanel|';
+	$pattern .= 'mate-panel|ourico|plank|plasma-desktop|plasma-netbook|polybar|pypanel|';
 	$pattern .= 'razor-panel|razorqt-panel|tint2|';
 	$pattern .= 'vala-panel|wbar|wharf|wingpanel|witray|';
 	$pattern .= 'xfce4-panel|xfce5-panel|xmobar|yabar';
@@ -17455,10 +17487,10 @@ sub set_ps_gui {
 		tdelauncher tdeinit_phase1);
 		@match = (@match,@temp);
 		@temp=qw(3dwm 9wm afterstep amiwm awesome blackbox bspwm 
-		dwm fluxbox flwm flwm_topside fvwm.*-crystal fvwm2 fvwm i3 jwm 
-		matchbox-window-manager mwm openbox notion pekwm qtile ratpoison 
-		sawfish scrotwm spectrwm twm 
-		windowlab WindowMaker wm2 wmii2 wmii xmonad);
+		dwm fluxbox flwm flwm_topside fvwm.*-crystal fvwm2 fvwm i3 ion jwm lwm
+		matchbox-window-manager mwm nawm openbox notion pekwm qtile ratpoison 
+		sawfish scrotwm spectrwm tvtwm twm 
+		windowlab WindowMaker wm2 wmii2 wmii wmx xmonad);
 		@match = (@match,@temp);
 	}
 	# wm:
@@ -17469,13 +17501,13 @@ sub set_ps_gui {
 		xfwm4 xfwm5);
 		@match = (@match,@temp);
 	}
-	# info: 
+	# info: NOTE: glx-dock is cairo-dock
 	if ($show{'system'} && $extra > 2){
-		@temp=qw(awn bar bmpanel bmpanel2 budgie-panel cairo-dock 
-		dde-dock dmenu dockbarx docky dzen dzen2
-		fbpanel fspanel gnome-panel hpanel 
+		@temp=qw(awn bar bmpanel bmpanel2 budgie-panel 
+		cairo-dock dde-dock dmenu dockbarx docky dzen dzen2
+		fbpanel fspanel glx-dock gnome-panel hpanel 
 		i3bar icewmtray kicker lemonbar ltpanel lxpanel lxqt-panel 
-		matchbox-panel mate-panel 
+		matchbox-panel mate-panel ourico
 		perlpanel plank plasma-desktop plasma-netbook polybar pypanel
 		razor-panel razorqt-panel tint2 vala-panel wbar wharf wingpanel witray
 		xfce4-panel xfce5-panel xmobar yabar);
