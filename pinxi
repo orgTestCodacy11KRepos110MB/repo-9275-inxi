@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.21';
 my $self_date='2018-08-25';
-my $self_patch='13';
+my $self_patch='15';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -70,7 +70,7 @@ $b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_pci,$b_pci_tool,
-$b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
+$b_ppc,$b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
 $b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sudo,$b_sysctl,$b_usb,$b_usb_check,
 $b_usb_sys,$b_usb_tool,$b_wmctrl);
 ## Disk checks
@@ -415,6 +415,7 @@ sub set_os {
 	$cpu_arch = lc($uname[-1]);
 	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1}
 	elsif ($cpu_arch =~ /mips/) {$b_mips = 1}
+	elsif ($cpu_arch =~ /power|ppc/) {$b_ppc = 1}
 	# aarch32 mips32 intel/amd handled in cpu
 	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9)/){
 		$bits_sys = 32;
@@ -1313,7 +1314,7 @@ sub run_debugger {
 	if (!$b_debug){
 		if ( -d '/sys' && main::count_dir_files('/sys') ){
 			build_tree('sys');
-			sys_traverse_data();
+			sys_traverse_data() if !$b_ppc; # kernel crash, not sure what creates it
 		}
 		else {
 			print "Skipping /sys data collection. /sys not present, or empty.\n";
@@ -1358,6 +1359,7 @@ sub create_debug_directory {
 	$bsd_string = "-BSD-$bsd_type" if $bsd_type;
 	if ($b_arm ){$alt_string = '-ARM'}
 	elsif ($b_mips) {$alt_string = '-MIPS'}
+	elsif ($b_ppc) {$alt_string = '-PPC'}
 	$debug_dir = "$self_name$alt_string$bsd_string-$host-$today$root_string-$self_version";
 	$debug_gz = "$debug_dir.tar.gz";
 	$data_dir = "$user_data_dir/$debug_dir";
@@ -4125,6 +4127,8 @@ sub get_options{
 		$b_irc = 1; },
 	'man' => sub {
 		$b_use_man = 1; },
+	'mips' => sub {
+		$b_mips = 1 },
 	'output:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(json|screen|xml)$/){
@@ -4157,6 +4161,8 @@ sub get_options{
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		}},
+	'ppc' => sub {
+		$b_ppc = 1 },
 	'proc' => sub {
 		$b_proc_debug = 1; },
 	'recommends' => sub {
@@ -6432,12 +6438,12 @@ sub create_output_full {
 	main::key($num++,'model') => $cpu{'model_name'},
 	},);
 	@rows = (@rows,@data);
-	if ($cpu{'arm-cpus'}){
-		my $ref = $cpu{'arm-cpus'};
-		my %arm_cpus = %$ref;
+	if ($cpu{'system-cpus'}){
+		my $ref = $cpu{'system-cpus'};
+		my %system_cpus = %$ref;
 		my $i = 1;
-		my $counter = ( %arm_cpus && scalar keys %arm_cpus > 1 ) ? '-' : '';
-		foreach my $key (keys %arm_cpus){
+		my $counter = ( %system_cpus && scalar keys %system_cpus > 1 ) ? '-' : '';
+		foreach my $key (keys %system_cpus){
 			$counter = '-' . $i++ if $counter;
 			$rows[$j]{main::key($num++,'variant'.$counter)} = $key;
 		}
@@ -6670,7 +6676,8 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
+	$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -6749,11 +6756,15 @@ sub data_cpuinfo {
 				$cpu{'arch'} = $line[1];
 			}
 		}
-		elsif (!$cpu{'rev'} && ($line[0] eq 'stepping' || $line[0] eq 'cpu revision' )){
+		elsif (!$cpu{'rev'} && ($line[0] eq 'stepping' || $line[0] eq 'cpu revision')){
 			$cpu{'rev'} = uc(sprintf("%x", $line[1]));
 		}
+		# ppc
+		elsif (!$cpu{'rev'} && $line[0] eq 'revision'){
+			$cpu{'rev'} = $line[1];
+		}
 		# this is hex so uc for cpu arch id
-		elsif (!$cpu{'model_id'} && $line[0] eq 'model' ){
+		elsif (!$cpu{'model_id'} && (!$b_ppc && $line[0] eq 'model') ){
 			$cpu{'model_id'} = uc(sprintf("%x", $line[1]));
 		}
 		elsif (!$cpu{'model_id'} && $line[0] eq 'cpu variant' ){
@@ -6782,7 +6793,7 @@ sub data_cpuinfo {
 				$cpu{'type'} = 'mips';
 			}
 		}
-		elsif ( $line[0] eq 'cpu mhz' ){
+		elsif ( $line[0] eq 'cpu mhz' || $line[0] eq 'clock' ){
 			$speed = speed_cleaner($line[1]);
 			$cpu{'processors'}[$proc_count-1] = $speed;
 			#$ids[$phys_id][$die_id] = ([($speed)]);
@@ -6867,16 +6878,16 @@ sub data_cpuinfo {
 	}
 	$cpu{'phys'} = scalar @phys_cpus;
 	$cpu{'dies'} = $die_id++; # count starts at 0, all cpus have 1 die at least
-	if ($b_arm){
+	if ($b_arm || $b_mips){
 		if ($cpu{'dies'} <= 1){
 			my $arm_dies = cpu_dies_sys();
 			# case were 4 core arm returned 4 sibling lists, obviously wrong
 			$cpu{'dies'} = $arm_dies if $arm_dies && $proc_count != $arm_dies;
 		}
-		$cpu{'type'} = 'arm' if !$cpu{'type'};
+		$cpu{'type'} = ($b_arm) ? 'arm' : 'mips' if !$cpu{'type'};
 		if (!$bsd_type){
-			my %arm_cpus = arm_cpu_name();
-			$cpu{'arm-cpus'} = \%arm_cpus if %arm_cpus;
+			my %system_cpus = system_cpu_name();
+			$cpu{'system-cpus'} = \%system_cpus if %system_cpus;
 		}
 	}
 	$cpu{'ids'} = (\@ids);
@@ -7459,7 +7470,7 @@ sub get_boost_status {
 	eval $end if $b_log;
 	return $boost;
 }
-sub arm_cpu_name {
+sub system_cpu_name {
 	eval $start if $b_log;
 	my (%cpus,$compat,@working);
 	if (@working = main::globber('/sys/firmware/devicetree/base/cpus/cpu@*/compatible')){
@@ -9305,7 +9316,7 @@ sub get {
 	}
 	elsif (!$bsd_type) {
 		# this uses /proc/cpuinfo so only GNU/Linux
-		if ($b_arm || $b_mips){
+		if ($b_arm || $b_mips || $b_ppc){
 			%soc_machine = machine_data_soc();
 			@data = create_output_soc(%soc_machine) if %soc_machine;
 		}
@@ -9455,14 +9466,16 @@ sub create_output {
 }
 sub create_output_soc {
 	my (%data,@row,@rows);
-	my (%soc_machine) = @_;
+	my ($key,%soc_machine) = @_;
 	my $num = 0;
 	my $j = 0;
 	#print Data::Dumper::Dumper \%soc_machine;
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
 	if ($soc_machine{'device'} || $soc_machine{'model'}){
-		my $key = ($b_arm) ? 'ARM Device': 'MIPS Device';
+		if ($b_arm){$key = 'ARM Device'}
+		elsif ($b_mips){$key = 'MIPS Device'}
+		elsif ($b_ppc){$key = 'PowerPC Device'}
 		$rows[$j]{main::key($num++,'Type')} = $key;
 		my $system = 'System';
 		if (defined $soc_machine{'model'}){
