@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.21';
 my $self_date='2018-08-25';
-my $self_patch='17';
+my $self_patch='18';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1314,7 +1314,8 @@ sub run_debugger {
 	if (!$b_debug){
 		if ( -d '/sys' && main::count_dir_files('/sys') ){
 			build_tree('sys');
-			sys_traverse_data() if (!$b_ppc ||$b_sys_debug) ; # kernel crash, not sure what creates it
+			# kernel crash, not sure what creates it, for ppc, as root
+			sys_traverse_data() if (!$b_root || !$b_ppc || $b_sys_debug) ; 
 		}
 		else {
 			print "Skipping /sys data collection. /sys not present, or empty.\n";
@@ -9976,7 +9977,7 @@ sub card_data {
 		#print "$row[0] $row[3]\n"; 
 		# NOTE: class 06 subclass 80 
 		# https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
-		if (($row[0] && $row[0] =~ /^(eth|ethernet|ethernet-phy|network|wifi|wlan)$/ )|| ($row[1] && $row[1] eq '0680' ) ){
+		if (($row[0] && $row[0] =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/ )|| ($row[1] && $row[1] eq '0680' ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			my $driver = $row[9];
@@ -17472,6 +17473,8 @@ sub set_pciconf_data {
 # /sys/devices/wlan.26/uevent [from pine64]
 ## 9
 # sys/devices/platform/audio/uevent:["DRIVER=bcm2835_AUD0", "OF_NAME=audio"
+## 10
+# /sys/devices/vio/71000002/uevent:["DRIVER=ibmveth", "OF_NAME=l-lan"
 sub set_soc_data {
 	eval $start if $b_log;
 	my ($content,@files,@temp2,@temp3,@working);
@@ -17489,6 +17492,8 @@ sub set_soc_data {
 		@files = (@files,@temp2) if @temp2;
 	}
 	@temp2 = globber('/sys/devices/*/uevent'); # see case 8
+	@files = (@files,@temp2) if @temp2;
+	@temp2 = globber('/sys/devices/*/*/uevent'); # see case 10
 	@files = (@files,@temp2) if @temp2;
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
@@ -17531,7 +17536,7 @@ sub set_soc_data {
 		# note: use these for main Card match for -AGN
 		$b_soc_audio = 1 if $type =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia)$/;
 		$b_soc_gfx = 1 if $type =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/;
-		$b_soc_net = 1 if $type =~ /^(eth|ethernet|ethernet-phy|network|wifi|wlan)$/;
+		$b_soc_net = 1 if $type =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/;
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
 		@pci = (@pci,[@temp3]);
 	}
