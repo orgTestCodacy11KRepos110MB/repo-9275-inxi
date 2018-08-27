@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.21';
 my $self_date='2018-08-25';
-my $self_patch='22';
+my $self_patch='24';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -71,7 +71,7 @@ $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_pciconf,
 $b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_pci,$b_pci_tool,
 $b_ppc,$b_proc_debug,$b_ps_gui,$b_root,$b_running_in_display,$b_slot_tool,
-$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sudo,$b_sys_debug,$b_sysctl,
+$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_sparc,$b_sudo,$b_sys_debug,$b_sysctl,
 $b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
@@ -416,6 +416,7 @@ sub set_os {
 	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1}
 	elsif ($cpu_arch =~ /mips/) {$b_mips = 1}
 	elsif ($cpu_arch =~ /power|ppc/) {$b_ppc = 1}
+	elsif ($cpu_arch =~ /sparc/) {$b_sparc = 1}
 	# aarch32 mips32 intel/amd handled in cpu
 	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9)/){
 		$bits_sys = 32;
@@ -1361,6 +1362,7 @@ sub create_debug_directory {
 	if ($b_arm ){$alt_string = '-ARM'}
 	elsif ($b_mips) {$alt_string = '-MIPS'}
 	elsif ($b_ppc) {$alt_string = '-PPC'}
+	elsif ($b_sparc) {$alt_string = '-SPARC'}
 	$debug_dir = "$self_name$alt_string$bsd_string-$host-$today$root_string-$self_version";
 	$debug_gz = "$debug_dir.tar.gz";
 	$data_dir = "$user_data_dir/$debug_dir";
@@ -4168,6 +4170,8 @@ sub get_options{
 		$b_proc_debug = 1; },
 	'recommends' => sub {
 		$b_recommends = 1; },
+	'sparc' => sub {
+		$b_sparc = 1; },
 	'sys' => sub {
 		$b_sys_debug = 1; },
 	'U|update:s' => sub { # 1,2,3 OR http://myserver/path/inxi
@@ -17261,7 +17265,7 @@ sub set_pci_data {
 			# ! -d '/proc/bus/pci'
 			# this is sketchy, a sbc won't have pci, but a non sbc arm may have it, so 
 			# build up both and see what happens
-			if ($b_arm || $b_mips || $b_ppc){
+			if ($b_arm || $b_mips || $b_ppc || $b_sparc){
 				set_soc_data();
 			}
 		}
@@ -17503,6 +17507,7 @@ sub set_soc_data {
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
 	@files = grep {!/\/(subsystem|driver)\//} @files if @files;
+	@files = uniq(@files);
 	foreach my $file (@files){
 		next if -z $file;
 		my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
@@ -17511,7 +17516,7 @@ sub set_soc_data {
 		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
 		# mips: /sys/devices/soc.0/1180000001800.mdio/8001180000001800:07/
 		# ppc: /sys/devices/vio/71000002/
-		$chip_id =~ /\/sys\/devices\/(platform\/)?(soc[^\/]*\/)?([^\/]+\/)?([^\/]+\/)?([^\/]+)([\.:])?([^\/]+)?\/uevent$/;
+		$chip_id =~ /\/sys\/devices\/(platform\/)?(soc[^\/]*\/)?([^\/]+\/)?([^\/]+\/)?([^\/\.:]+)([\.:])?([^\/]+)?\/uevent$/;
 		$chip_id = $5;
 		$temp = $7;
 		@working = reader($file, 'strip') if -r $file;
