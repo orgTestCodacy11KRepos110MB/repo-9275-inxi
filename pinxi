@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.22';
 my $self_date='2018-08-31';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -16090,7 +16090,8 @@ sub get_linux_distro {
 		}
 	}
 	if ($extra > 0){
-		my $base_debian_version = 'lmde';
+		my $base_debian_version_distro = 'siduction';
+		my $base_debian_version_osr = 'lmde';
 		my $base_default = 'antix-version|mx-version'; # osr has base ids
 		my $base_issue = 'bunsen'; # base only found in issue
 		my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
@@ -16125,16 +16126,19 @@ sub get_linux_distro {
 				$base_type = 'default';
 			}
 			# must go before base_osr_ubuntu test
-			elsif ( grep {/($base_debian_version)/i} @osr ){
+			elsif ( grep {/($base_debian_version_osr)/i} @osr ){
 				$system_base = debian_id();
 			}
 			elsif ( grep {/($base_osr_ubuntu)/} @osr ){
 				$base_type = 'ubuntu';
 			}
 			elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
-			      (@distro_files && (grep {/($base_osr)/} @distro_files)) ) && 
+			      (@distro_files && (grep {/($base_osr)/} @distro_files) ) ) && 
 			      !(grep {/($base_osr)/i} @osr)){
 				$system_base = get_os_release();
+			}
+			elsif ( grep {/($base_debian_version_distro)/i} @distro_files ){
+				$system_base = debian_id();
 			}
 			if (!$system_base && $base_type){
 				$system_base = get_os_release($base_type);
@@ -16318,14 +16322,14 @@ sub debian_id {
 	if (main::is_numeric($debian_version)){
 		$id .= " $debian_version $debians{int($debian_version)}";
 	}
-	# like buster/sid
-	elsif ($debian_version) {
-		$id .= " $debian_version";
-	}
 	elsif ($codename) {
 		my %by_value = reverse %debians;
 		my $version = $by_value{$codename};
 		$id .= " $version $codename";
+	}
+	# like buster/sid
+	elsif ($debian_version) {
+		$id .= " $debian_version";
 	}
 	eval $end if $b_log;
 	return $id;
