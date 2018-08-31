@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.22';
-my $self_date='2018-08-28';
-my $self_patch='01';
+my $self_date='2018-08-31';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -16090,6 +16090,7 @@ sub get_linux_distro {
 		}
 	}
 	if ($extra > 0){
+		my $base_debian_version = 'lmde';
 		my $base_default = 'antix-version|mx-version'; # osr has base ids
 		my $base_issue = 'bunsen'; # base only found in issue
 		my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
@@ -16125,6 +16126,9 @@ sub get_linux_distro {
 			}
 			elsif ( grep {/($base_osr_ubuntu)/} @osr ){
 				$base_type = 'ubuntu';
+			}
+			elsif ( grep {/($base_debian_version)/} @osr ){
+				$system_base = debian_id();
 			}
 			elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
 			      (@distro_files && (grep {/($base_osr)/} @distro_files)) ) && 
@@ -16282,7 +16286,7 @@ sub get_os_release {
 		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name) ) ){
 			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
 		}
-		# LMDE has only limited data in os-release, no _LIKE values
+		# LMDE 2 has only limited data in os-release, no _LIKE values. 3 has like and debian_codename
 		elsif ( $base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
 			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
 		}
@@ -16290,6 +16294,42 @@ sub get_os_release {
 	eval $end if $b_log;
 	return $distro;
 }
+# arg: 1 - optional: debian codename
+sub debian_id {
+	eval $start if $b_log;
+	my ($codename) = @_;
+	my ($debian_version,$id);
+	$debian_version = (main::reader('/etc/debian_version','strip'))[0] if -r '/etc/debian_version';
+	$id = 'Debian';
+	return if !$debian_version && !$codename;
+	# note, 3.0, woody, 3.1, sarge, but after it's integer per version
+	my %debians = (
+	'4' => 'etch',
+	'5' => 'lenny',
+	'6' => 'squeeze',
+	'7' => 'wheezy',
+	'8' => 'jessie',
+	'9' => 'stretch',
+	'10' => 'buster',
+	'11' => 'bullseye',
+	'12' => 'bookworm', # ?
+	);
+	if (main::is_numeric($debian_version)){
+		$id .= " $debian_version $debians{int($debian_version)}";
+	}
+	# like buster/sid
+	elsif ($debian_version) {
+		$id .= " $debian_version";
+	}
+	elsif ($codename) {
+		my %by_value = reverse %debians;
+		my $version = $by_value{$codename};
+		$id .= " $version $codename";
+	}
+	eval $end if $b_log;
+	return $id;
+}
+
 # note, these are only for matching derived names, no need to go
 # all the way back here, update as new names are known. This is because 
 # Mint is using UBUNTU_CODENAME without ID data.
