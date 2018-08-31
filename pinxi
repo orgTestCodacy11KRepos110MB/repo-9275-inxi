@@ -16090,7 +16090,7 @@ sub get_linux_distro {
 		}
 	}
 	if ($extra > 0){
-		my $base_debian_version_distro = 'siduction';
+		my $base_debian_version_distro = 'sidux';
 		my $base_debian_version_osr = 'lmde';
 		my $base_default = 'antix-version|mx-version'; # osr has base ids
 		my $base_issue = 'bunsen'; # base only found in issue
@@ -16137,7 +16137,7 @@ sub get_linux_distro {
 			      !(grep {/($base_osr)/i} @osr)){
 				$system_base = get_os_release();
 			}
-			elsif ( grep {/($base_debian_version_distro)/i} @distro_files ){
+			elsif ( @distro_files && ( grep {/($base_debian_version_distro)/i} @distro_files ) ){
 				$system_base = debian_id();
 			}
 			if (!$system_base && $base_type){
@@ -16255,6 +16255,9 @@ sub get_os_release {
 			elsif ($base_type eq 'ubuntu' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
 				$base_version = ucfirst($working[1]);
 			}
+			elsif ($base_type eq 'debian' && $working[0] eq 'DEBIAN_CODENAME' && $working[1]){
+				$base_version = $working[1];
+			}
 		}
 	}
 	# NOTE: tumbleweed has pretty name but pretty name does not have version id
@@ -16295,6 +16298,9 @@ sub get_os_release {
 		elsif ( $base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
 			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
 		}
+		elsif ( $base_type eq 'debian' && $base_version ){
+			$distro = debian_id($base_version);
+		}
 	}
 	eval $end if $b_log;
 	return $distro;
@@ -16324,8 +16330,8 @@ sub debian_id {
 	}
 	elsif ($codename) {
 		my %by_value = reverse %debians;
-		my $version = $by_value{$codename};
-		$id .= " $version $codename";
+		my $version = (main::is_numeric($debian_version)) ? "$debian_version $codename": $debian_version;
+		$id .= " $version";
 	}
 	# like buster/sid
 	elsif ($debian_version) {
