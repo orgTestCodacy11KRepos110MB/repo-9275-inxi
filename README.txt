@@ -2,8 +2,8 @@
 README for development branch of inxi Perl version: pinxi
 ====================================================================
 FILE:    README.txt
-VERSION: 3.9
-DATE:    2018-04-16
+VERSION: 4.0
+DATE:    2018-09-01
 
 NOTE: While the real program name will never change, for the sake
 of clarity, the inxi-perl branch inxi is called pinxi, so it can be
@@ -53,6 +53,15 @@ See: docs/Perl-version-support.txt
 Notes on what features can be used for the Perl version. 5.08 is the current 
 cutoff. No newer features will be used, this lets inxi maintain its core
 mission of supporting almost everything, no matter how old.
+
+See: docs/inxi-data.txt
+Notes and some research URLs listed by Package/Function name. This helps
+avoid the clutter of the main pinxi/inxi body with data source etc comments.
+
+See: docs/inxi-resources.txt
+Listed by Package/function name, URLs used for data sources. Cneck between 
+inxi-data.txt and inxi-resources.txt for complete lists since I don't always 
+sync those two files.
 
 See: docs/inxi-tools.txt
 Core tools available for features and modules. Since most log their 
