@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.22';
 my $self_date='2018-09-06';
-my $self_patch='13';
+my $self_patch='14';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5259,6 +5259,7 @@ sub row_defaults {
 	'arm-pci' => "No ARM data found for this feature.",
 	'battery-data' => "No system battery data found. Is one present?",
 	'battery-data-sys' => "No /sys data found. Old system?",
+	'cpu-bugs-null' => "No CPU vulnerability/bugs data available.",
 	'cpu-model-null' => "Model N/A",
 	'cpu-speeds' => "No speed data found for $id cores.",
 	'darwin-feature' => "Feature not supported iu Darwin/OSX.",
@@ -6562,14 +6563,32 @@ sub create_output_full {
 		},);
 		@rows = (@rows,@data);
 	}
-	if ($b_admin && $cpu{'bugs'}){
-		my @bugs = split /\s+/, $cpu{'bugs'};
-		@bugs = sort(@bugs);
-		my $bug = join ' ', @bugs;
+	if ($b_admin){
+		my @bugs = cpu_bugs_sys();
+		my $value = '';
+		if (!@bugs){
+			if ( $cpu{'bugs'}){
+				my @proc_bugs = split /\s+/, $cpu{'bugs'};
+				@proc_bugs = sort(@proc_bugs);
+				$value = join ' ', @bugs;
+			}
+			else {
+				$value = main::row_defaults('cpu-bugs-null');
+			}
+		}
 		@data = ({
-		main::key($num++,'Errata') => $bug,
+		main::key($num++,'Vulnerabilities') => $value,
 		},);
 		@rows = (@rows,@data);
+		if (@bugs){
+			$j = $#rows;
+			foreach my $ref (@bugs){
+				my @bug = @$ref;
+				$rows[$j]{main::key($num++,'Type')} = $bug[0];
+				$rows[$j]{main::key($num++,$bug[1])} = $bug[2];
+				$j++;
+			}
+		}
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -6877,6 +6896,7 @@ sub data_cpuinfo {
 			}
 		}
 		if ($b_admin ){
+			# note: not used unless maybe /sys data missing?
 			if ( !$cpu{'bugs'} && $line[0] eq 'bugs'){
 				$cpu{'bugs'} = $line[1];
 			}
@@ -7321,6 +7341,26 @@ sub cpu_properties {
 	eval $end if $b_log;
 	return %cpu_properties;
 }
+sub cpu_bugs_sys {
+	eval $start if $b_log;
+	my (@bugs,$type,$value);
+	return if ! -d '/sys/devices/system/cpu/vulnerabilities/';
+	my @items = main::globber('/sys/devices/system/cpu/vulnerabilities/*');
+	if (@items){
+		foreach (@items){
+			$value = (main::reader($_))[0];
+			$type = ($value =~ /^Mitigation:/) ? 'mitigation': 'status';
+			$_ =~ s/.*\/([^\/]+)$/$1/;
+			$value =~ s/Mitigation: //;
+			@bugs = (@bugs,[($_,$type,$value)]);
+		}
+	}
+	main::log_data('dump','@bugs',\@bugs) if $b_log;
+	# print Data::Dumper::Dumper \@bugs;
+	eval $end if $b_log;
+	return @bugs;
+}
+
 sub cpu_speeds {
 	eval $start if $b_log;
 	my (@processors) = @_;
