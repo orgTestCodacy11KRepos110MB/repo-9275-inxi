@@ -31,9 +31,9 @@ use POSIX qw(uname strftime ttyname);
 
 ## INXI INFO ##
 my $self_name='pinxi';
-my $self_version='3.0.22';
+my $self_version='3.0.23';
 my $self_date='2018-09-07';
-my $self_patch='16';
+my $self_patch='01';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3939,6 +3939,7 @@ sub get_options{
 				$extra = 3;
 			}
 			if ($arg >= 8 ){
+				$b_admin = 1;
 				$b_downloader = 1;
 				$show{'slot'} = 1;
 				$show{'process'} = 1;
@@ -4401,7 +4402,7 @@ sub show_options {
 	optical drive (-d), USB (--usb), full RAID; triggers -xx." ],
 	['2', '7', '', "Network IP data (-i); triggers -xxx."],
 	['2', '8', '', "Everything available, including repos (-r), processes 
-	(-tcm), PCI slots (--slots)."],
+	(-tcm), PCI slots (--slots), extra admin data (--admin)."],
 	);
 	push @data, @rows;
 	# if distro maintainers don't want the weather feature disable it
@@ -13812,9 +13813,12 @@ sub lm_sensors_data {
 		# in testing regex to avoid error. It might be because I got that data from a forum post,
 		# note directly via debugger.
 		if ($_ =~ /^(AMBIENT|M\/B|MB|Motherboard|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
-			$sensors{'mobo-temp'} = $2;
-			$working_unit = $3;
-			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+			# avoid SYSTIN: 118 C
+			if (main::is_numeric($2) && $2 < 90 ){
+				$sensors{'mobo-temp'} = $2;
+				$working_unit = $3;
+				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
+			}
 		}
 		# issue 58 msi/asus show wrong for CPUTIN so overwrite it if PECI 0 is present
 		# http://www.spinics.net/lists/lm-sensors/msg37308.html
