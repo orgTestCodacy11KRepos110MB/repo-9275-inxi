@@ -12153,7 +12153,7 @@ sub get {
 	my $num = 0;
 	my $ref = $alerts{'dmidecode'};
 	@rows = main::memory_data_full('ram') if !$b_mem;
-	if ( $$ref{'action'} ne 'use'){
+	if ( $$ref{'action'} eq 'use'){
 		$key1 = $$ref{'action'};
 		$val1 = $$ref{$key1};
 		@data = ({
@@ -12209,7 +12209,7 @@ sub create_output {
 			}
 		}
 		foreach my $ref2 ($ref{'modules'}){
-			next if !defined @$ref2;
+			next if ref $ref2 ne 'ARRAY';
 			my @modules = @$ref2;
 			# print Data::Dumper::Dumper \@modules;
 			foreach my $ref3 ( @modules){
@@ -12304,7 +12304,7 @@ sub dmidecode_data {
 					$size = calculate_size($temp[1],0);
 					# get data after module size
 					$temp[1] =~ s/ Connection\)?//;
-					$temp[1] =~ s/^[0-9]+\s*[MGTP]B\s*\(?//;
+					$temp[1] =~ s/^[0-9]+\s*[KkMGTP]B\s*\(?//;
 					$type = lc($temp[1]);
 				}
 				elsif ($temp[0] eq 'Current Speed'){
@@ -12375,7 +12375,7 @@ sub dmidecode_data {
 				# do not try to guess from installed modules, only use this to correct type 5 data
 				elsif ($temp[0] eq 'Size'){
 					# we want any non real size data to be preserved
-					if ( $temp[1] =~ /^[0-9]+\s*[MTPG]B/ ) {
+					if ( $temp[1] =~ /^[0-9]+\s*[KkMTPG]B/ ) {
 						$derived_module_size = calculate_size($temp[1],$derived_module_size);
 						$working_size = calculate_size($temp[1],0);
 						$device_size = $working_size;
@@ -12477,7 +12477,7 @@ sub dmidecode_data {
 sub data_processor {
 	eval $start if $b_log;
 	my (@ram) = @_;
-	my $b_debug = 0;
+	my $b_debug = 1;
 	my (@return,@temp);
 	my $est = 'est.';
 	
@@ -12637,7 +12637,11 @@ sub process_size {
 	my ($b_trim,$unit) = (0,'');
 	return 'N/A' if ( ! $size );
 	return $size if $size =~ /\D/;
-	if ( $size < 1024 ){
+	#print "size: $size\n";
+	if ( $size < 1 ){
+		$unit='KiB';
+	}
+	elsif ( $size < 1024 ){
 		$unit='MiB';
 	}
 	elsif ( $size < 1024000 ){
@@ -12659,7 +12663,8 @@ sub process_size {
 }
 sub calculate_size {
 	my ($data, $size) = @_;
-	if ( $data =~ /^[0-9]+\s*[GMTP]B/) {
+	
+	if ( $data =~ /^[0-9]+\s*[kKGMTP]B/) {
 		if ( $data =~ /([0-9]+)\s*GB/ ) {
 			$data = $1 * 1024;
 		}
@@ -12672,13 +12677,20 @@ sub calculate_size {
 		elsif ( $data =~ /([0-9]+)\s*PB/ ) {
 			$data = $1 * 1024 * 1000 * 1000;
 		}
-		if ($data =~ /^[0-9][0-9]+$/ && $data > $size ) {
+		elsif ( $data =~ /([0-9]+)\s*[kK]B/ ) {
+			$data = $1/1024;
+			print "d3:$data\n";
+		}
+		if (main::is_numeric($data) && $data > $size ) {
+		#if ($data =~ /^[0-9][0-9]+$/ && $data > $size ) {
 			$size=$data;
 		}
+		#print "d1: $data s1: $size\n";
 	}
 	else {
 		$size = 0;
 	}
+	#print "d2: $data s2: $size\n";
 	return $size;
 }
 }
@@ -17145,7 +17157,7 @@ sub set_dmesg_boot_data {
 sub set_dmi_data {
 	eval $start if $b_log;
 	$_[0] = 1; # check boolean passed by reference
-	if ($alerts{'dmidecode'}{'action'} eq 'use' ){
+	if ($alerts{'dmidecode'}{'action'} ne 'use' ){
 		set_dmidecode_data();
 	}
 	eval $end if $b_log;
@@ -17155,11 +17167,12 @@ sub set_dmidecode_data {
 	eval $start if $b_log;
 	my ($content,@data,@working,$type,$handle);
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
-	#open my $fh, '<', $file or die "can't open $file: $!";
-	#chomp(@data = <$fh>);
+	my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
+	open my $fh, '<', $file or die "can't open $file: $!";
+	chomp(@data = <$fh>);
 	my $path = check_program('dmidecode'); 
 	$content = qx($path 2>/dev/null) if $path;
-	@data = split /\n/, $content;
+	# @data = split /\n/, $content;
 	# we don't need the opener lines of dmidecode output
 	# but we do want to preserve the indentation. Empty lines
 	# won't matter, they will be skipped, so no need to handle them.
