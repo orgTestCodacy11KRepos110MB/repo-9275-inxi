@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.23';
 my $self_date='2018-09-10';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4257,7 +4257,7 @@ sub get_options{
 		$show{'disk-basic'} = 0;
 		$show{'disk-total'} = 0;
 	}
-	if ( $show{'ram'} || $show{'slot'} || ($show{'cpu'} && $extra > 2) ||
+	if ( $show{'ram'} || $show{'slot'} || ($show{'cpu'} && $extra > 1) ||
 	     ( ( $bsd_type || $b_dmidecode_force ) && ($show{'machine'} || $show{'battery'}) ) ){
 		$b_dmi = 1;
 	}
@@ -4470,6 +4470,7 @@ sub show_options {
 	or line output, not short form):" ],
 	['2', '-A', '', "Chip vendor:product ID for each audio device." ],
 	['2', '-B', '', "Serial number, voltage now/minimum (if available)." ],
+	['2', '-C', '', "L1/L3 cache (if root and dmidecode installed)." ],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number." ],
 	['2', '-G', '', "Chip vendor:product ID for each video card; OpenGL 
 	compatibility version, if free drivers and available; compositor (experimental);
@@ -4500,8 +4501,7 @@ sub show_options {
 	with verbose or line output, not short form):" ],
 	['2', '-A', '', "Specific vendor/product information (if relevant), serial number." ],
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
-	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present; L1/L3 cache (if root
-	and dmidecode installed)." ],
+	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
 	rotation speed (if detected)." ],
 	['2', '-G', '', "Specific vendor/product information (if relevant); compositor 
@@ -6488,14 +6488,14 @@ sub create_output_full {
 		$cpu{'microcode'} ||= 'N/A';
 		$rows[$j]{main::key($num++,'microcode')} = $cpu{'microcode'};
 	}
-	if ($extra > 2 && $properties{'l1-cache'}){
+	if ($extra > 1 && $properties{'l1-cache'}){
 		$rows[$j]{main::key($num++,'L1 cache')} = $properties{'l1-cache'};
 	}
 	$properties{'l2-cache'} ||= 'N/A';
 	if (!$b_arm || ($b_arm && $properties{'l2-cache'} ne 'N/A')){
 		$rows[$j]{main::key($num++,'L2 cache')} = $properties{'l2-cache'};
 	}
-	if ($extra > 2 && $properties{'l3-cache'}){
+	if ($extra > 1 && $properties{'l3-cache'}){
 		$rows[$j]{main::key($num++,'L3 cache')} = $properties{'l3-cache'};
 	}
 	if ($extra > 0 && !$show{'cpu-flag'}){
@@ -7140,10 +7140,13 @@ sub cpu_properties {
 	# $cpu_cores is per physical cpu
 	my ($cpu_layout,$cpu_type,$min_max,$min_max_key) = ('','','','');
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
-	if ($extra > 2){
+	if ($extra > 1){
 		my %caches = cpu_cache_dmi();
 		$l1_cache = $caches{'L1'} if $caches{'L1'};
 		$l3_cache = $caches{'L3'} if $caches{'L3'};
+		# bsd sysctl can have these values so let's check just in case
+		$l1_cache = $cpu{'l1-cache'} * $phyical_count if !$l1_cache && $cpu{'l1-cache'};
+		$l3_cache = $cpu{'l3-cache'} * $phyical_count if !$l3_cache && $cpu{'l3-cache'};
 	}
 	foreach my $die_ref ( @phys ){
 		next if ! $die_ref;
