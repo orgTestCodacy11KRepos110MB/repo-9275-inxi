@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.24';
-my $self_date='2018-09-10';
-my $self_patch='01';
+my $self_date='2018-09-11';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9332,7 +9332,7 @@ sub x_version {
 	# load the extra X paths, it's important that these are first, because
 	# later Xorg versions show error if run in console or ssh if the true path 
 	# is not used.
-	@paths = ( qw(/usr/lib/xorg /usr/lib/xorg-server /usr/X11R6/bin), @paths );
+	@paths = ( qw(/usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths );
 	# IMPORTANT: both commands send version data to stderr!
 	if ($program = main::check_program('Xorg')){
 		@data = main::grabber("$program -version 2>&1");
@@ -9363,7 +9363,7 @@ sub x_version {
 		}
 	}
 	# remove extra X paths
-	@paths = grep { !/xorg|X11R6/ } @paths;
+	@paths = grep { !/xorg|X11R6|libexec/ } @paths;
 	eval $end if $b_log;
 	return $version;
 }
@@ -12837,6 +12837,8 @@ sub get_repos_linux {
 	my $tce_file = '/opt/tcemirror';
 	my $yum_conf = '/etc/yum.conf';
 	my $yum_repo_dir = '/etc/yum.repos.d/';
+	my $xbps_dir_1 = '/etc/xbps.d/';
+	my $xbps_dir_2 = '/usr/share/xbps.d/';
 	my $zypp_repo_dir = '/etc/zypp/repos.d/';
 	my $b_test = 0;
 	# apt - debian, buntus, also sometimes some yum/rpm repos may create 
@@ -13198,6 +13200,16 @@ sub get_repos_linux {
 		@data = repo_builder($tce_file,'tce','^\s*[^#]+');
 		@rows = (@rows,@data);
 	}
+	# void  $xbps_dir_1
+	if (-d $xbps_dir_1 || -d $xbps_dir_2){
+		@files = main::globber("$xbps_dir_1*.conf");
+		@files = (@files,main::globber("$xbps_dir_2*.conf")) if -d $xbps_dir_2;
+		main::log_data('data',"xbps repo files:\n" . main::joiner(\@files, "\n", 'unset') ) if $b_log;
+		foreach ( sort @files){
+			@data = repo_builder($_,'xbps','^\s*repository=') if -r $_;
+			@rows = (@rows,@data);
+		}
+	}
 	# Mandriva/Mageia using: urpmq
 	if ( $path = main::check_program('urpmq') ){
 		@data2 = main::grabber("$path --list-media active --list-url","\n",'strip');
@@ -13432,6 +13444,7 @@ sub repo_builder {
 	'slackpkg+' => 'No active slackpkg+ repos in',
 	'slaptget' => 'No active slapt-get repos in',
 	'tce' => 'No active tce mirrors in',
+	'xbps' => 'No active xbps repos in',
 	'yum' => 'No active yum repos in',
 	'zypp' => 'No active zypp repos in',
 	);
@@ -13455,6 +13468,7 @@ sub repo_builder {
 	'slackpkg+' => 'slackpkg+ repos in',
 	'slaptget' => 'slapt-get repos in',
 	'tce' => 'Active tce mirrors in',
+	'xbps' => 'Active xbps repos in',
 	'yum' => 'Active yum repos in',
 	'zypp' => 'Active zypp repos in',
 	);
@@ -13488,7 +13502,7 @@ sub repo_builder {
 sub data_cleaner {
 	my (@content) = @_;
 	# basics: trim white space, get rid of double spaces
-	@content = map { $_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @content;
+	@content = map { $_ =~ s/^\s*repository=//; $_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @content;
 	return @content;
 }
 # clean if irc
