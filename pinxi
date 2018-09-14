@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.24';
-my $self_date='2018-09-12';
-my $self_patch='10';
+my $self_date='2018-09-14';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -66,7 +66,7 @@ my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_admin,$b_arm,$b_bb_ps,$b_console_irc,$b_debug_gz,$b_debug_timers,
-$b_display,$b_dmesg_boot_check,
+$b_debug_z,$b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,
 $b_fake_pciconf,$b_fake_sysctl,$b_fake_usbdevs,
 $b_force_display,$b_gpudata,$b_irc,
@@ -80,7 +80,7 @@ $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
-my ($bsd_type,$language,$os) = ('','','');
+my ($bsd_type,$language,$os,$pci_tool) = ('','','','');
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
@@ -250,6 +250,7 @@ sub check_tools {
 				# > 0 means error in shell
 				#my $cmd = "$program $commands{$_} >/dev/null";
 				#print "$cmd\n";
+				$pci_tool = $_ if $_ =~ /pci/;
 				$action = 'permissions' if system("$program $commands{$_} >/dev/null 2>&1");
 			}
 			else {
@@ -1785,7 +1786,10 @@ sub run_self {
 	print "Creating $self_name output file now. This can take a few seconds...\n";
 	print "Starting $self_name from: $self_path\n";
 	my $i = ($option eq 'main-full')? ' -i' : '';
-	my $cmd = "$self_path/$self_name -FRfrploudmaxxx$i --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmaxxxy-usb-slots-y120.txt 2>&1";
+	my $z = ($b_debug_z) ? ' -z' : '';
+	my $iz = "$i$z";
+	$iz =~ s/[\s\-]//g;
+	my $cmd = "$self_path/$self_name -FRfrploudmaxxx$i$z --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmaxxx$iz-usb-slots-y120.txt 2>&1";
 	system($cmd);
 	copy($log_file, "$data_dir") or main::error_handler('copy-failed', "$log_file", "$!");
 	system("$self_path/$self_name --recommends -y 120 > $data_dir/$self_name-recommends-120.txt 2>&1");
@@ -4085,6 +4089,8 @@ sub get_options{
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
+	'debug-z' => sub {
+		$b_debug_z = 1 },
 	'display:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^:?([0-9]+)?$/){
@@ -5299,6 +5305,7 @@ sub row_defaults {
 	'partition-data' => "No Partition data was found.",
 	'pci-advanced-data' => 'bus/chip ids unavailable',
 	'pci-card-data' => "No PCI card data found.",
+	'pci-card-data-root' => "PCI card data requires root.",
 	'pci-slot-data' => "No PCI slot data found.",
 	'raid-data' => "No RAID data was found.",
 	'ram-data' => "No RAM data was found.",
@@ -5806,8 +5813,12 @@ sub get {
 	@rows = (@rows,@data);
 	if (!@rows){
 		my $key = 'Message';
+		my $type = 'pci-card-data';
+		if ($pci_tool && ${$alerts{$pci_tool}}{'action'} eq 'permissions'){
+			$type = ${$alerts{$pci_tool}}{'permissions'};
+		}
 		@data = ({
-		main::key($num++,$key) => main::row_defaults('pci-card-data',''),
+		main::key($num++,$key) => main::row_defaults($type,''),
 		},);
 		@rows = (@rows,@data);
 	}
@@ -8818,8 +8829,12 @@ sub get {
 		@rows = (@rows,@data);
 		if (!@rows){
 			my $key = 'Message';
+			my $type = 'pci-card-data';
+			if ($pci_tool && ${$alerts{$pci_tool}}{'action'} eq 'permissions'){
+				$type = ${$alerts{$pci_tool}}{'permissions'};
+			}
 			@data = ({
-			main::key($num++,$key) => main::row_defaults('pci-card-data',''),
+			main::key($num++,$key) => main::row_defaults($type,''),
 			},);
 			@rows = (@rows,@data);
 		}
@@ -10195,10 +10210,14 @@ sub card_data {
 	}
 	# @rows = ();
 	# we want to handle ARM errors in main get
-	if (!@rows && !$b_arm){
+	if (!@rows && !$b_arm && !$b_mips){
 		my $key = 'Message';
+		my $type = 'pci-card-data';
+		if ($pci_tool && ${$alerts{$pci_tool}}{'action'} eq 'permissions'){
+			$type = ${$alerts{$pci_tool}}{'permissions'};
+		}
 		@data = ({
-		main::key($num++,$key) => main::row_defaults('pci-card-data',''),
+		main::key($num++,$key) => main::row_defaults($type,''),
 		},);
 		@rows = (@rows,@data);
 		
