@@ -4531,7 +4531,7 @@ sub show_options {
 	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like lxpanel, 
 	xfce4-panel, mate-panel); (if available) dm version number, window manager
 	version number." ],
-	['2', '--usb', '', "For Device: serial number (if present), interface count." ],
+	['2', '--usb', '', "For Device: serial number (if present), interface count; USB speed." ],
 	);
 	push @data, @rows;
 	if ( $b_weather ){
@@ -14874,6 +14874,12 @@ sub usb_data {
 			}
 			$rows[$j]{main::key($num++,'rev')} = $speed;
 		}
+		if ($extra > 2 && main::is_numeric($id[17])){
+			my $speed = $id[17];
+			if ($speed >= 8000) {$speed = ($id[17] / 1000 ) . " Gb/s"}
+			else {$speed = $id[17] . " Mb/s"}
+			$rows[$j]{main::key($num++,'speed')} = $speed;
+		}
 		if ($extra > 1){
 			$rows[$j]{main::key($num++,'chip ID')} = $chip_id;
 		}
@@ -18071,6 +18077,7 @@ sub set_sysctl_data {
 # 15 - driver
 # 16 - serial
 # 17 - configuration
+# 18 - speed
 sub set_usb_data {
 	eval $start if $b_log;
 	$b_usb_check = 1;
@@ -18129,6 +18136,7 @@ sub set_lsusb_data {
 		$working[14] = '';
 		$working[15] = '';
 		$working[16] = '';
+		$working[17] = '';
 		@
 		usb = (@usb,[@working]);
 		#print join ("\n",@working),"\n\n=====\n";
@@ -18191,6 +18199,7 @@ sub set_usbdevs_data {
 			$working[14] = 'Hub';
 			$working[15] = '';
 			$working[16] = '';
+			$working[17] = '';
 			$usb[$j] = ([@working],);
 			@working = ();
 		}
@@ -18221,6 +18230,7 @@ sub set_usbdevs_data {
 			$working[14] = '';
 			$working[15] = '';
 			$working[16] = '';
+			$working[17] = '';
 			$usb[$j] = ([@working],);
 			${$usb[$k]}[10] = $ports;
 			@working = ();
@@ -18252,7 +18262,7 @@ sub set {
 	($source) = @_;
 	my (@drivers,@uevent,@usb_sys,@working);
 	my ($bus_id,$bus_id_alpha,$chip_id,$configuration,$device_id,$driver,$ids,$interfaces,
-	$name,$path,$path_id,$ports,$product,$serial,$usb_version,$vendor,$vendor_id,);
+	$name,$path,$path_id,$ports,$product,$serial,$speed,$usb_version,$vendor,$vendor_id,);
 	my $i = 0;
 	my @files = main::globber('/sys/bus/usb/devices/*');
 	# we want to get rid of the hubs with x-0: syntax, those are hubs found in /usbx
@@ -18264,8 +18274,8 @@ sub set {
 		if ( $ids){
 			@drivers = ();
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
-			($driver,$interfaces,$name,$ports,$product,$serial,$type,
-			$usb_version,$vendor) = ('','','','','','','','','');
+			($driver,$interfaces,$name,$ports,$product,$serial,$speed,
+			$type,$usb_version,$vendor) = ('','','','','','','','','','');
 			#print Cwd::abs_path($_),"\n";
 			#print "f1: $_\n";
 			$path_id = $_;
@@ -18287,6 +18297,7 @@ sub set {
 			$interfaces = sys_item("$_/bNumInterfaces");
 			$serial = sys_item("$_/serial");
 			$usb_version = sys_item("$_/version");
+			$speed = sys_item("$_/speed");
 			if ($source eq 'lsusb'){
 				for ($i = 0; $i < scalar @usb; $i++){
 					if (${$usb[$i]}[0] eq $bus_id && ${$usb[$i]}[1] == $device_id){
@@ -18306,6 +18317,7 @@ sub set {
 						${$usb[$i]}[14] = $type if ($type && !$b_hub);
 						${$usb[$i]}[15] = $driver if $driver;
 						${$usb[$i]}[16] = $serial if $serial;
+						${$usb[$i]}[17] = $speed if $speed;
 						#print join("\n",@{$usb[$i]}),"\n\n";# if !$b_hub; 
 						last;
 					}
@@ -18358,6 +18370,7 @@ sub set {
 				${$usb[$i]}[15] = $driver;
 				${$usb[$i]}[16] = $serial;
 				${$usb[$i]}[17] = $configuration;
+				${$usb[$i]}[17] = $speed;
 				$i++;
 			}
 			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $test[6];;
