@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-16';
-my $self_patch='21';
+my $self_patch='22';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17950,12 +17950,12 @@ sub set_soc_data {
 		$b_soc_audio = 1 if !$b_soc_audio && check_device_audio($type);
 		$b_soc_gfx = 1 if !$b_soc_gfx && check_device_graphics($type);
 		$b_soc_net = 1 if !$b_soc_net && check_device_network($type);
-		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,
-		$modules,'','',$handle);
+		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,
+		$port,$driver,$modules,'','',$handle);
 		@pci = (@pci,[@temp3]);
 	}
 	# now we want to fill in stuff that was not in /sys/devices/ 
-	if (-d '/sys/firmware/devicetree/base/soc/'){
+	if (-d '/sys/firmware/devicetree/base/soc'){
 		@files = globber('/sys/firmware/devicetree/base/soc/*/compatible');
 		my $test = (@full_names) ? join('|', @full_names) : 'xxxxxx';
 		foreach $file (@files){
@@ -17963,8 +17963,8 @@ sub set_soc_data {
 				my ($handle,$content,$device,$type,$vendor_id) = ('','','','','');
 				$content = (reader($file, 'strip'))[0] if -r $file;
 				$file =~ m%soc/([^@]+)@([^/]+)/compatible$%;
-				next if ! defined $1 || !$content;
 				$type = $1;
+				next if !$type || !$content;
 				$handle = $2 if $2;
 				if ($content){
 					@temp3 = split /,/, $content;
@@ -17978,6 +17978,7 @@ sub set_soc_data {
 				$b_soc_net = 1 if !$b_soc_net && check_device_network($type);
 				@temp3 = ($type,'',0,0,$device,$vendor_id,'soc','','','','','','',$handle);
 				@pci = (@pci,[@temp3]);
+				main::log_data('dump','@pci @temp3',\@temp3) if $b_log;
 			}
 		}
 	}
