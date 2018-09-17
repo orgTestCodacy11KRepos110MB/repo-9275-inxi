@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-16';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17870,7 +17870,7 @@ sub set_pci_class {
 # /sys/devices/vio/71000002/uevent:["DRIVER=ibmveth", "OF_NAME=l-lan"
 sub set_soc_data {
 	eval $start if $b_log;
-	my ($content,@files,@temp2,@temp3,@working);
+	my ($content,$file,@files,@full_names,@temp2,@temp3,@working);
 	if (-d '/sys/devices/platform/'){
 		@files = globber('/sys/devices/platform/soc*/*/uevent');
 		@temp2 = globber('/sys/devices/platform/soc*/*/*/uevent');
@@ -17892,9 +17892,9 @@ sub set_soc_data {
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
 	@files = grep {!/\/(subsystem|driver)\//} @files if @files;
 	@files = uniq(@files);
-	foreach my $file (@files){
+	foreach $file (@files){
 		next if -z $file;
-		my ($busid,$busid_nu,$chip_id,$device,$driver,$modules,$port,$rev,
+		my ($busid,$busid_nu,$chip_id,$device,$driver,$handle,$modules,$port,$rev,
 		$temp,$type,$type_id,$vendor_id,@working);
 		$chip_id = $file;
 		# variants: /soc/20100000.ethernet /soc/soc:audio /soc:/ /soc@0/
@@ -17913,6 +17913,11 @@ sub set_soc_data {
 			elsif ($temp2[0] eq 'OF_NAME'){
 				$type = $temp2[1];
 			}
+			# we'll use these paths to test in device tree pci completer
+			elsif ($temp2[0] eq 'OF_FULLNAME' && $temp2[1]){
+				push @full_names, $temp2[1];
+				$handle = (split /@/, $temp2[1])[-1];
+			}
 			elsif ($temp2[0] eq 'OF_COMPATIBLE_0'){
 				@temp3 = split /,/, $temp2[1];
 				$device = $temp3[-1];
@@ -17924,6 +17929,7 @@ sub set_soc_data {
 		$chip_id = '' if ! defined $chip_id;
 		$vendor_id = '' if ! defined $vendor_id;
 		$driver = '' if ! defined $driver;
+		$handle = '' if ! defined $handle;
 		$busid = (defined $temp && is_int($temp)) ? $temp: 0;
 		$busid_nu =  0;
 		$type_id =  '';
@@ -17931,16 +17937,54 @@ sub set_soc_data {
 		$rev = '';
 		$modules = '';
 		# note: use these for main Card match for -AGN
-		$b_soc_audio = 1 if $type =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia|sound)$/;
-		$b_soc_gfx = 1 if $type =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/;
-		$b_soc_net = 1 if $type =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/;
-		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,$modules);
+		$b_soc_audio = 1 if set_soc_audio($type);
+		$b_soc_gfx = 1 if set_soc_gfx($type);
+		$b_soc_net = 1 if set_soc_net($type);
+		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,
+		$modules,'','',$handle);
 		@pci = (@pci,[@temp3]);
+	}
+	# now we want to fill in stuff that was not in /sys/devices/ 
+	if (-d '/sys/firmware/devicetree/base/soc/'){
+		@files = globber('/sys/firmware/devicetree/base/soc/*/compatible');
+		my $test = (@full_names) ? join('|', @full_names) : 'xxxxxx';
+		foreach $file (@files){
+			if ( $file !~ m%$test%){
+				my ($handle,$content,$device,$type,$vendor_id) = ('','','','','');
+				$content = (reader($file, 'strip'))[0] if -r $file;
+				$file =~ m%soc/([^@]+)@([^/]+)/compatible$%;
+				next if ! defined $1 || !$content;
+				$type = $1;
+				$handle = $2 if $2;
+				if ($content){
+					@temp3 = split /,/, $content;
+					$vendor_id = $temp3[0];
+					$device = $temp3[-1];
+					# strip off those weird device tree special characters
+					$device =~ s/\x01|\x02|\x03|\x00//g;
+				}
+				$b_soc_audio = 1 if set_soc_audio($type);
+				$b_soc_gfx = 1 if set_soc_gfx($type);
+				$b_soc_net = 1 if set_soc_net($type);
+				@temp3 = ($type,'',0,0,$device,$vendor_id,'soc','','','','','','',$handle);
+				@pci = (@pci,[@temp3]);
+			}
+		}
 	}
 	print Dumper \@pci if $test[4];
 	main::log_data('dump','@pci',\@pci) if $b_log;
 	eval $end if $b_log;
 }
+sub set_soc_audio {
+	return 1 if $_[0] =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia|sound)$/;
+}
+sub set_soc_gfx {
+	return 1 if $_[0] =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/;
+}
+sub set_soc_net {
+	return 1 if $_[0] =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/;
+}
+
 sub set_ps_aux {
 	eval $start if $b_log;
 	my ($header,@temp);
