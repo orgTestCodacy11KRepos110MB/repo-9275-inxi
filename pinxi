@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-16';
-my $self_patch='20';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3017,6 +3017,16 @@ sub awk {
 	return $result;
 }
 
+sub check_device_audio {
+	return 1 if $_[0] =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia|sound)$/;
+}
+sub check_device_gfx {
+	return 1 if $_[0] =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/;
+}
+sub check_device_net {
+	return 1 if $_[0] =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/;
+}
+
 # $1 - Perl module to check
 sub check_module {
 	my ($module) = @_;
@@ -5838,7 +5848,7 @@ sub card_data {
 	foreach (@pci){
 		$num = 1;
 		my @row = @$_;
-		if ($row[0] =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia|sound)$/){
+		if ($row[0] && main::check_device_audio($row[0]) ){
 			$j = scalar @rows;
 			my $driver = $row[9];
 			$driver ||= 'N/A';
@@ -8874,7 +8884,7 @@ sub card_data {
 		$num = 1;
 		my @row = @$_;
 		#print "$row[0] $row[3]\n";
-		if ($row[3] == 0 && ( $row[0] =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/ ) ){
+		if ($row[3] == 0 && ( $row[0] && main::check_device_gfx($row[0]) ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			$driver = $row[9];
@@ -10148,7 +10158,7 @@ sub card_data {
 		#print "$row[0] $row[3]\n"; 
 		# NOTE: class 06 subclass 80 
 		# https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
-		if (($row[0] && $row[0] =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/ )|| ($row[1] && $row[1] eq '0680' ) ){
+		if (($row[0] && main::check_device_net($row[0]) )|| ($row[1] && $row[1] eq '0680' ) ){
 			#print "$row[0] $row[3]\n";
 			$j = scalar @rows;
 			my $driver = $row[9];
@@ -17937,9 +17947,9 @@ sub set_soc_data {
 		$rev = '';
 		$modules = '';
 		# note: use these for main Card match for -AGN
-		$b_soc_audio = 1 if set_soc_audio($type);
-		$b_soc_gfx = 1 if set_soc_gfx($type);
-		$b_soc_net = 1 if set_soc_net($type);
+		$b_soc_audio = 1 if check_device_audio($type);
+		$b_soc_gfx = 1 if check_device_gfx($type);
+		$b_soc_net = 1 if check_device_net($type);
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,$port,$driver,
 		$modules,'','',$handle);
 		@pci = (@pci,[@temp3]);
@@ -17963,9 +17973,9 @@ sub set_soc_data {
 					# strip off those weird device tree special characters
 					$device =~ s/\x01|\x02|\x03|\x00//g;
 				}
-				$b_soc_audio = 1 if set_soc_audio($type);
-				$b_soc_gfx = 1 if set_soc_gfx($type);
-				$b_soc_net = 1 if set_soc_net($type);
+				$b_soc_audio = 1 if check_device_audio($type);
+				$b_soc_gfx = 1 if check_device_gfx($type);
+				$b_soc_net = 1 if check_device_net($type);
 				@temp3 = ($type,'',0,0,$device,$vendor_id,'soc','','','','','','',$handle);
 				@pci = (@pci,[@temp3]);
 			}
@@ -17974,15 +17984,6 @@ sub set_soc_data {
 	print Dumper \@pci if $test[4];
 	main::log_data('dump','@pci',\@pci) if $b_log;
 	eval $end if $b_log;
-}
-sub set_soc_audio {
-	return 1 if $_[0] =~ /^(audio|daudio|hdmi|hdmi-audio|multimedia|sound)$/;
-}
-sub set_soc_gfx {
-	return 1 if $_[0] =~ /^(vga|disp|display|display-port-controller|3d|fb|gpu|hdmi|mali)$/;
-}
-sub set_soc_net {
-	return 1 if $_[0] =~ /^(eth|ethernet|ethernet-phy|lan|l-lan|network|wifi|wlan)$/;
 }
 
 sub set_ps_aux {
