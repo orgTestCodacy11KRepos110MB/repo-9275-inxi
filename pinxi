@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.24';
-my $self_date='2018-09-18';
-my $self_patch='38';
+my $self_date='2018-09-20';
+my $self_patch='39';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8857,38 +8857,36 @@ sub card_data {
 		# card. However, by comparing bus id, say: 00:02.0 we can determine that the
 		# cards are  either the same or different. We want only the .0 version as a valid
 		# card. .1 would be for example: Display Adapter with bus id x:xx.1, not the right one
-		if ($row[3] == 0 ){
-			#print "$row[0] $row[3]\n";
-			$j = scalar @rows;
-			$driver = $row[9];
-			$driver ||= 'N/A';
-			my $card = main::trimmer($row[4]);
-			$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
-			#$card ||= 'N/A';
-			# have seen absurdly verbose card descriptions, with non related data etc
-			if (length($card) > 85 || $size{'max'} < 110){
-				$card = main::pci_long_filter($card);
-			}
-			@data = ({
-			main::key($num++,'Device') => $card,
-			},);
-			@rows = (@rows,@data);
-			if ($extra > 2 && $b_pci_tool && $row[12]){
-				my $item = main::get_pci_vendor($row[4],$row[12]);
-				$rows[$j]{main::key($num++,'vendor')} = $item if $item;
-			}
-			$rows[$j]{main::key($num++,'driver')} = $driver;
-			if ($row[9] && !$bsd_type){
-				my $version = main::get_module_version($row[9]);
-				$version ||= 'N/A';
-				$rows[$j]{main::key($num++,'v')} = $version;
-			}
-			if ($extra > 0){
-				$rows[$j]{main::key($num++,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
-			}
-			if ($extra > 1){
-				$rows[$j]{main::key($num++,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
-			}
+		next if $row[3] != 0;
+		#print "$row[0] $row[3]\n";
+		$j = scalar @rows;
+		$driver = $row[9];
+		$driver ||= 'N/A';
+		my $card = main::trimmer($row[4]);
+		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
+		# have seen absurdly verbose card descriptions, with non related data etc
+		if (length($card) > 85 || $size{'max'} < 110){
+			$card = main::pci_long_filter($card);
+		}
+		@data = ({
+		main::key($num++,'Device') => $card,
+		},);
+		@rows = (@rows,@data);
+		if ($extra > 2 && $b_pci_tool && $row[12]){
+			my $item = main::get_pci_vendor($row[4],$row[12]);
+			$rows[$j]{main::key($num++,'vendor')} = $item if $item;
+		}
+		$rows[$j]{main::key($num++,'driver')} = $driver;
+		if ($row[9] && !$bsd_type){
+			my $version = main::get_module_version($row[9]);
+			$version ||= 'N/A';
+			$rows[$j]{main::key($num++,'v')} = $version;
+		}
+		if ($extra > 0){
+			$rows[$j]{main::key($num++,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
+		}
+		if ($extra > 1){
+			$rows[$j]{main::key($num++,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
 		}
 		#print "$row[0]\n";
 	}
@@ -18213,7 +18211,7 @@ sub set_sysctl_data {
 {
 package USBData;
 my (@working);
-my ($b_hub,$addr_id,$bus_id,$bus_id_alpha,$chip_id,$class_id,$configuration,
+my ($b_hub,$addr_id,$bus_id,$bus_id_alpha,$chip_id,$class_id,
 $device_id,$driver,$ids,$interfaces,$name,$path,$path_id,$product,
 $protocol_id,$serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id,);
 my $b_live = 1; # debugger file data
@@ -18402,7 +18400,7 @@ sub data_grabber {
 sub sys_data {
 	eval $start if $b_log;
 	my ($source) = @_;
-	my ($ports,$usb_version);
+	my ($configuration,$ports,$usb_version);
 	my (@drivers,@uevent);
 	my $i = 0;
 	my @files = main::globber('/sys/bus/usb/devices/*');
@@ -18415,8 +18413,8 @@ sub sys_data {
 		if ( $ids){
 			@drivers = ();
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
-			($driver,$interfaces,$name,$ports,$product,$serial,$speed,
-			$type,$usb_version,$vendor) = ('','','','','','','','','','');
+			($configuration,$driver,$interfaces,$name,$ports,$product,$serial,$speed,
+			$type,$usb_version,$vendor) = ('','','','','','','','','','','');
 			#print Cwd::abs_path($_),"\n";
 			#print "f1: $_\n";
 			$path_id = $_;
