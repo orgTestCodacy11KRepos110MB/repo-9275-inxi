@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-18';
-my $self_patch='35';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10397,25 +10397,7 @@ sub advanced_data_sys {
 	eval $end if $b_log;
 	return @rows;
 }
-sub check_bus_id {
-	eval $start if $b_log;
-	my ($path,$bus_id) = @_;
-	my ($b_valid);
-	if ($bus_id){
-		my $abs_path = Cwd::abs_path($path);
-		my $uevent = "$path/uevent";
-		if ($abs_path =~ /$bus_id\//){
-			$b_valid = 1;
-		}
-		# legacy, not link, but has path: 
-		# PHYSDEVPATH=/devices/pci0000:00/0000:00:0a.1/0000:05:00.0
-		elsif (-r $uevent && -s $uevent){
-			$b_valid = 1 if grep {/$bus_id/} main::reader($uevent);
-		}
-	}
-	eval $end if $b_log;
-	return $b_valid;
-}
+
 sub advanced_data_bsd {
 	eval $start if $b_log;
 	return if ! @ifs_bsd;
@@ -10645,6 +10627,22 @@ sub network_device {
 	}
 	eval $end if $b_log;
 	return $b_network;
+}
+sub check_bus_id {
+	eval $start if $b_log;
+	my ($path,$bus_id) = @_;
+	my ($b_valid);
+	if ($bus_id){
+		# legacy, not link, but has path: 
+		# PHYSDEVPATH=/devices/pci0000:00/0000:00:0a.1/0000:05:00.0
+		if (Cwd::abs_path($path) =~ /$bus_id\// || 
+		 ( -r "$path/uevent" && -s "$path/uevent" && 
+		 (grep {/$bus_id/} main::reader("$path/uevent") ) ) ){
+			$b_valid = 1;
+		}
+	}
+	eval $end if $b_log;
+	return $b_valid;
 }
 sub check_wifi {
 	my ($item) = @_;
