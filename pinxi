@@ -1571,6 +1571,7 @@ sub display_data {
 	['kf5-config','--version'],
 	['kf6-config','--version'],
 	['kwin_x11','--version'],
+	['locate','Xorg'], # for Xorg.wrap problem
 	['loginctl','--no-pager list-sessions'],
 	['nvidia-settings','-q screens'],
 	['nvidia-settings','-c :0.0 -q all'],
@@ -5780,17 +5781,6 @@ sub print_line {
 #### -------------------------------------------------------------------
 #### PRIMARY DATA GENERATORS
 #### -------------------------------------------------------------------
-# 0 type
-# 1 type_id
-# 2 bus_id
-# 3 sub_id
-# 4 device
-# 5 vendor_id
-# 6 chip_id
-# 7 rev
-# 8 port
-# 9 driver
-# 10 modules
 
 ## AudioData 
 {
@@ -8853,18 +8843,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-# @devices:
-# 0 type
-# 1 type_id
-# 2 bus_id
-# 3 sub_id
-# 4 device
-# 5 vendor_id
-# 6 chip_id
-# 7 rev
-# 8 port
-# 9 driver
-# 10 modules
+
 sub card_data {
 	eval $start if $b_log;
 	my (@rows,@data);
@@ -10133,17 +10112,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-# 1 type_id
-# 2 bus_id
-# 3 sub_id
-# 4 device
-# 5 vendor_id
-# 6 chip_id
-# 7 rev
-# 8 port
-# 9 driver
-# 10 modules
-# 11 driver nu (bsds)
+
 sub card_data {
 	eval $start if $b_log;
 	my ($b_wifi,@rows,@data,%holder);
@@ -10633,7 +10602,7 @@ sub check_bus_id {
 	my ($path,$bus_id) = @_;
 	my ($b_valid);
 	if ($bus_id){
-		# legacy, not link, but has path: 
+		# legacy, not link, but uevent has path: 
 		# PHYSDEVPATH=/devices/pci0000:00/0000:00:0a.1/0000:05:00.0
 		if (Cwd::abs_path($path) =~ /$bus_id\// || 
 		 ( -r "$path/uevent" && -s "$path/uevent" && 
@@ -17265,6 +17234,8 @@ sub get_uptime {
 #### SET DATA VALUES
 #### -------------------------------------------------------------------
 
+## creates arrays: @devices_audio; @devices_graphics; @devices_hwraid; 
+## @devices_network; @devices_timer plus @devices for logging/debugging
 # 0 type
 # 1 type_id
 # 2 bus_id
@@ -17278,7 +17249,7 @@ sub get_uptime {
 # 10 modules
 # 11 driver_nu [bsd, like: em0 - driver em; nu 0. Used to match IF in -n
 # 12 subsystem/vendor
-# 13 subsystem vendor:chip id
+# 13 subsystem vendor_id:chip id
 # 14 soc handle
 ## DeviceData / PCI / SOC
 {
@@ -17619,10 +17590,7 @@ sub soc_devices {
 		$driver = '' if ! defined $driver;
 		$handle = '' if ! defined $handle;
 		$busid = (defined $temp && main::is_int($temp)) ? $temp: 0;
-		$busid_nu =  0;
-		$port = '';
-		$rev = '';
-		$modules = '';
+		($busid_nu,$modules,$port,$rev) = (0,'','','');
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,
 		$port,$driver,$modules,'','','',$handle);
 		assign_data('soc',@temp3);
