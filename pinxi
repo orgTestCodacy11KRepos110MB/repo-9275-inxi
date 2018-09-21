@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.24';
-my $self_date='2018-09-20';
-my $self_patch='40';
+my $self_date='2018-09-21';
+my $self_patch='41';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10984,17 +10984,17 @@ sub create_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
-	my (@data,@data2,%part,@rows,$dev,$dev_type,$fs);
+	my (@data,@data2,%part,@rows,$dev,$dev_type,$fs,$percent,$raw_size,$size,$used);
 	@partitions = sort { $a->{'id'} cmp $b->{'id'} } @partitions;
 	foreach my $ref (@partitions){
 		my %row = %$ref;
 		$num = 1;
 		next if $row{'type'} eq 'secondary' && $show{'partition'};
 		@data2 = main::get_size($row{'size'}) if (defined $row{'size'});
-		my $size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+		$size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
 		@data2 = main::get_size($row{'used'}) if (defined $row{'used'});
-		my $used = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
-		my $percent = (defined $row{'percent-used'}) ? ' (' . $row{'percent-used'} . '%)' : '';
+		$used = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+		$percent = (defined $row{'percent-used'}) ? ' (' . $row{'percent-used'} . '%)' : '';
 		%part = ();
 		if (defined $row{'dev-base'}){
 			if ($row{'dev-base'} =~ /^non-dev-/){
@@ -11025,12 +11025,21 @@ sub create_output {
 		$j = scalar @rows;
 		@data = ({
 		main::key($num++,'ID') => $row{'id'},
-		main::key($num++,'size') => $size,
-		main::key($num++,'used') => $used . $percent,
-		main::key($num++,'fs') => $fs,
-		main::key($num++,$dev_type) => $dev,
 		});
 		@rows = (@rows,@data);
+		if ($b_admin && $row{'raw-size'}){
+			@data2 = main::get_size($row{'raw-size'});
+			$raw_size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+			$rows[$j]{main::key($num++,'raw size')} = $raw_size;
+			$rows[$j]{main::key($num++,'available')} = ($row{'raw-available'}) ? $row{'raw-available'} . '%' : 'N/A';
+		}
+		$rows[$j]{main::key($num++,'size')} = $size;
+		$rows[$j]{main::key($num++,'used')} = $used . $percent;
+		if ($b_admin && $row{'block-size'}){
+			$rows[$j]{main::key($num++,'logical block size')} = $row{'block-size'} . ' bits';
+		}
+		$rows[$j]{main::key($num++,'fs')} = $fs;
+		$rows[$j]{main::key($num++,$dev_type)} = $dev;
 		if ($show{'label'}){
 			$rows[$j]{main::key($num++,'label')} = ($row{'label'}) ? $row{'label'}: 'N/A';
 		}
@@ -11045,10 +11054,11 @@ sub create_output {
 sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
-	my (@data,@rows,@mapper,@mount,@partitions_working,%part);
+	my (@data,@rows,@mapper,@mount,@partitions_working,%part,@working);
 	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
 	my ($back_size,$back_used) = (4,3);
-	my ($dev_base,$fs,$id,$label,$percent_used,$size,$type,$uuid,$used);
+	my ($block_size,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
+	$size_available,$size,$type,$uuid,$used);
 	$b_partitions = 1;
 	set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
@@ -11106,17 +11116,9 @@ sub partition_data {
 		   ($b_fs && ($row[2] == 0 || $row[1] eq 'tmpfs' || $row[1] eq 'autofs' ))){
 			next;
 		}
-		$dev_base = '';
-		$fs = '';
-		$id = '';
-		$label = '';
-		$size = 0;
-		$used = 0;
+		($dev_base,$fs,$id,$label,$type,$uuid) = ('','','','','');
+		($b_load,$block_size,$percent_used,$raw_size,$size_available,$size,$used) = (0,0,0,0,0,0,0);
 		%part = ();
-		$percent_used = 0;
-		$type = '';
-		$uuid = '';
-		$b_load = 0;
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
 			# this could point to by-label or by-uuid so get that first. In theory, abs_path should 
@@ -11187,16 +11189,26 @@ sub partition_data {
 					}
 				}
 			}
+			
 			$id = join ' ', @row[$cols .. $#row];
 			$id =~ s/\/home\/[^\/]+\/(.*)/\/home\/$filter_string\/$1/ if $show{'filter'};
 			$size = $row[$cols - $back_size];
+			if ($b_admin && -e "/sys/block/"){
+				@working = raw_size($dev_base,$size);
+				$raw_size = $working[0];
+				$size_available = $working[1];
+				$block_size = $working[2];
+			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size);
 			@data = ({
+			'block-size' => $block_size,
 			'id' => $id,
 			'dev-base' => $dev_base,
 			'fs' => $fs,
 			'label' => $label,
+			'raw-size' => $raw_size,
+			'raw-available' => $size_available,
 			'size' => $size,
 			'type' => $type,
 			'used' => $used,
@@ -11212,6 +11224,31 @@ sub partition_data {
 	# print Data::Dumper::Dumper \@partitions;
 	eval $end if $b_log;
 }
+
+sub raw_size {
+	eval $start if $b_log;
+	my ($id,$size) = @_;
+	my @sizes = (0,0,0); # calc block, available percent, block size;
+	return @sizes if !$id;
+	$id =~ /([hs]d[a-z]|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)$/;
+	my $id_clean = $1;
+	my $path_block_size = "/sys/block/$id_clean/queue/logical_block_size"; # Or: logical_block_size?
+	return @sizes if ! -e $path_block_size;
+	my $path_size = "/sys/block/$id_clean/$id/size";
+	return @sizes if ! -e $path_size;
+	$sizes[2] = (main::reader($path_block_size))[0];
+	return @sizes if !$sizes[2];
+	$sizes[0] = (main::reader($path_size))[0];
+	return @sizes if !$sizes[0];
+	# block size is in bits
+	$sizes[0] = ( ( $sizes[2] * $sizes[0] )/1024 );
+	$sizes[1] = sprintf("%.2f", ($size/$sizes[0] ) * 100) if $size && $sizes[0];
+	# print "$id size: $size %: $sizes[1] blocksize: $sizes[2] rawsize: $sizes[0]\n";
+	main::log_data('dump','@sizes',\@sizes) if $b_log;
+	eval $end if $b_log;
+	return @sizes;
+}
+#61890560 512 = 28.92
 
 sub swap_data {
 	eval $start if $b_log;
