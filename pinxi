@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-21';
-my $self_patch='49';
+my $self_patch='50';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17072,10 +17072,14 @@ sub get_raw_disk_data {
 			$path_size = "/sys/block/$id/size";
 			my $path_log_block = "/sys/block/$id/queue/logical_block_size";
 			my $path_phy_block = "/sys/block/$id/queue/physical_block_size";
-			if ( -e $path_log_block && -e $path_phy_block ){
-				$size_raw = (main::reader($path_size))[0];
-				$block_log = (main::reader($path_log_block))[0];
-				$block_size = (main::reader($path_phy_block))[0];
+			# legacy system path
+			if (! -e $path_phy_block && -r "/sys/block/$id/queue/hw_sector_size" ){
+				$path_phy_block = "/sys/block/$id/queue/hw_sector_size";
+			}
+			if ( -r $path_log_block || -r $path_phy_block ){
+				$size_raw = (main::reader($path_size))[0] if -r $path_size;
+				$block_log = (main::reader($path_log_block))[0] if  -r $path_log_block;
+				$block_size = (main::reader($path_phy_block))[0] if -r $path_phy_block;
 				if ($size_raw && $block_log){
 					$size_raw = sprintf("%.1f", $block_log * ($size_raw/1024 ) );
 				}
