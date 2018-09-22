@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-21';
-my $self_patch='43';
+my $self_patch='44';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -66,8 +66,8 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_arm,$b_bb_ps,$b_console_irc,$b_debug_gz,$b_debug_timers,
-$b_debug_z,$b_display,$b_dmesg_boot_check,
+my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,$b_console_irc,
+$b_debug_gz,$b_debug_timers,$b_debug_z,$b_display,$b_dmesg_boot_check,
 $b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,
 $b_fake_pciconf,$b_fake_sysctl,$b_fake_usbdevs,
 $b_force_display,$b_force_sys_debug,$b_gpudata,$b_irc,
@@ -282,6 +282,13 @@ sub check_tools {
 		%hash = (
 		'ip' => 'linux',
 		'ifconfig' => 'all',
+		);
+		%commands = (%commands,%hash);
+	}
+	# can't check permissions since we need to know the partition
+	if ($b_block_tool){
+		%hash = (
+		'blockdev' => 'linux',
 		);
 		%commands = (%commands,%hash);
 	}
@@ -2460,8 +2467,8 @@ sub check_items {
 			$info_os = 'info-bsd';
 		}
 		else {
-			@data = qw(dig dmidecode fdisk file hddtemp ifconfig ip ipmitool ipmi-sensors
-			lsblk lsusb modinfo runlevel sensors strings sudo tree upower uptime);
+			@data = qw(blockdev dig dmidecode fdisk file hddtemp ifconfig ip ipmitool 
+			ipmi-sensors lsblk lsusb modinfo runlevel sensors strings sudo tree upower uptime);
 		}
 		$b_program = 1;
 		$item = 'Program';
@@ -2652,6 +2659,13 @@ sub item_data {
 	}),
 	# system tools
 	# apt-dpkg,apt-get; pm-arch,pacman; rpm-redhat,suse
+	'blockdev' => ({
+	'info' => '-p,-P raw partition size, block sizes (--admin only).',
+	'info-bsd' => '',
+	'apt' => 'util-linux',
+	'pacman' => 'util-linux',
+	'rpm' => 'util-linux',
+	}),
 	'curl' => ({
 	'info' => '-i (if no dig); -w,-W; -U',
 	'info-bsd' => '-i (if no dig); -w,-W; -U',
@@ -4269,6 +4283,7 @@ sub get_options{
 			error_handler('bad-arg', '--output', '--output-file not provided');
 		}
 	}
+	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
 	$b_sudo = 1 if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	# override for things like -b or -v2 to -v3
 	$show{'cpu-basic'} = 0 if $show{'cpu'};
@@ -4337,6 +4352,9 @@ sub show_options {
 	verbose or line output, not short form):" ],
 	['2', '-C', '', "If available: CPU vulnerabilities (bugs); family, model-id, stepping - format:
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
+	['2', '-D', '', "If available: logical and physical block sizes." ],
+	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
+	logical and physical block sizes (root required)." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
@@ -5322,6 +5340,7 @@ sub row_defaults {
 	'sensors-data-ipmi' => "No ipmi sensors data was found.",
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
 	'sensors-ipmi-root' => "Unable to run ipmi sensors. Are you root?",
+	'tool-missing' => "<missing $id>",
 	'unmounted-data' => "No unmounted partitions found.",
 	'unmounted-data-bsd' => "No unmounted partition data found for this BSD system.",
 	'unmounted-file' => "No /proc/partitions file found.",
@@ -11027,19 +11046,26 @@ sub create_output {
 		main::key($num++,'ID') => $row{'id'},
 		});
 		@rows = (@rows,@data);
-		if ($b_admin && $row{'raw-size'}){
-			@data2 = main::get_size($row{'raw-size'});
-			$raw_size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+		if ($b_admin && $row{'raw-size'} ){
+			# It's an error! permissions or missing tool
+			if (!main::is_numeric($row{'raw-size'})){
+				$raw_size = $row{'raw-size'};
+			}
+			else {
+				@data2 = main::get_size($row{'raw-size'});
+				$raw_size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+			}
 			$rows[$j]{main::key($num++,'raw size')} = $raw_size;
 		}
 		if ($b_admin && $row{'raw-available'} && $size ne 'N/A'){
 			$size .=  ' (' . $row{'raw-available'} . '%)';
 		}
 		$rows[$j]{main::key($num++,'size')} = $size;
-		
 		$rows[$j]{main::key($num++,'used')} = $used . $percent;
-		if ($b_admin && $row{'block-size'}){
-			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' bits';
+		if ($b_admin && $row{'block-physical'}){
+			$rows[$j]{main::key($num++,'block size')} = '';
+			$rows[$j]{main::key($num++,'physical')} = $row{'block-physical'} . ' B';
+			$rows[$j]{main::key($num++,'logical')} = $row{'block-logical'} . ' B';
 		}
 		$rows[$j]{main::key($num++,'fs')} = $fs;
 		$rows[$j]{main::key($num++,$dev_type)} = $dev;
@@ -11060,9 +11086,10 @@ sub partition_data {
 	my (@data,@rows,@mapper,@mount,@partitions_working,%part,@working);
 	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
 	my ($back_size,$back_used) = (4,3);
-	my ($block_size,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
+	my ($block_log,$block_phy,$blockdev,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
 	$size_available,$size,$type,$uuid,$used);
 	$b_partitions = 1;
+	$blockdev = main::check_program('blockdev') if $b_admin;
 	set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	set_label_uuid() if !$b_label_uuid;
@@ -11120,7 +11147,8 @@ sub partition_data {
 			next;
 		}
 		($dev_base,$fs,$id,$label,$type,$uuid) = ('','','','','');
-		($b_load,$block_size,$percent_used,$raw_size,$size_available,$size,$used) = (0,0,0,0,0,0,0);
+		($b_load,$block_log,$block_phy,$percent_used,$raw_size,
+		$size_available,$size,$used) = (0,0,0,0,0,0,0,0);
 		%part = ();
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
@@ -11192,20 +11220,21 @@ sub partition_data {
 					}
 				}
 			}
-			
 			$id = join ' ', @row[$cols .. $#row];
 			$id =~ s/\/home\/[^\/]+\/(.*)/\/home\/$filter_string\/$1/ if $show{'filter'};
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
-				@working = raw_size($dev_base,$size);
+				@working = raw_disk_data('part',$blockdev,$dev_base,$size);
 				$raw_size = $working[0];
 				$size_available = $working[1];
-				$block_size = $working[2];
+				$block_log = $working[2];
+				$block_phy = $working[3];
 			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size);
 			@data = ({
-			'block-size' => $block_size,
+			'block-logical' => $block_log,
+			'block-physical' => $block_phy,
 			'id' => $id,
 			'dev-base' => $dev_base,
 			'fs' => $fs,
@@ -11228,25 +11257,50 @@ sub partition_data {
 	eval $end if $b_log;
 }
 
-sub raw_size {
+sub raw_disk_data {
 	eval $start if $b_log;
-	my ($id,$size) = @_;
-	my @sizes = (0,0,0); # calc block, available percent, block size;
-	return @sizes if !$id;
+	my ($type,$blockdev,$id,$size) = @_;
+	# calc block, available percent, logical block size, physical block size;
+	my @sizes = (0,0,0,0); 
+	return @sizes if !$id || (!$blockdev && $type eq 'part' );
+	my ($id_clean,$path_log_block,$path_phy_block,$path_size);
+	my ($block_log,$block_phy,$percent,$size_raw) = (0,0,0,0);
 	# note: dm-1 will act as a primary device, with queue and size, no second level
-	if ($id =~ /(dm-[0-9]+|[hsv]d[a-z]|nvme[0-9]+n[0-9]+|mtdblk[0-9]+|mtdblock[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)?$/){
-		my $id_clean = $1;
-		my $path_block_size = "/sys/block/$id_clean/queue/logical_block_size"; # Or: logical_block_size?
-		my $path_size = ($2) ? "/sys/block/$id_clean/$id/size" :"/sys/block/$id_clean/size" ;
-		return @sizes if ! -e $path_block_size || ! -e $path_size;
-		$sizes[2] = (main::reader($path_block_size))[0];
-		$sizes[0] = (main::reader($path_size))[0];
-		return @sizes if !$sizes[0] || !$sizes[2];
-		# block size is in bits
-		$sizes[0] = ( ( $sizes[2] * $sizes[0] )/1024 );
-		$sizes[1] = sprintf("%.2f", ($size/$sizes[0] ) * 100) if $size && $sizes[0];
-		# print "$id size: $size %: $sizes[1] blocksize: $sizes[2] rawsize: $sizes[0]\n";
+	if ( $type eq 'disk' || 
+	 $id =~ /(dm-[0-9]+|[hsv]d[a-z]|nvme[0-9]+n[0-9]+|mtdblk[0-9]+|mtdblock[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)?$/){
+		if ($type eq 'part'){
+			$id_clean = $1;
+			$path_size = ($2) ? "/sys/block/$id_clean/$id/size" :"/sys/block/$id_clean/size" ;
+			$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
+			$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0] if $block_log;
+			if (!$block_log){
+				if (${$alerts{'blockdev'}}{'action'} && ${$alerts{'blockdev'}}{'action'} eq 'missing'){
+					$size_raw = main::row_defaults('tool-missing','blockdev');
+				}
+				elsif ( !$b_root ){
+					$size_raw = main::row_defaults('root-required');
+				}
+			}
+			else {
+				$size_raw = (main::reader($path_size))[0];
+				# block size is in bits
+				$size_raw = ( ( $block_log * $size_raw )/1024 );
+				$percent = sprintf("%.2f", ($size/$size_raw ) * 100) if $size && $size_raw;
+			}
+		}
+		else {
+			$path_size = "/sys/block/$id/size";
+			$path_log_block = "/sys/block/$id/queue/logical_block_size";
+			$path_phy_block = "/sys/block/$id/queue/physical_block_size";
+			return @sizes if ! -e $path_log_block || ! -e $path_phy_block;
+			$size_raw = (main::reader($path_size))[0];
+			$size_raw = ( sprintf("%.1f", $size_raw/1024 ) ) if $size_raw;
+			$block_log = (main::reader($path_log_block))[0];
+			$block_phy = (main::reader($path_phy_block))[0];
+		}
+		# print "$id size: $size %: $percent l-b: $block_log p-b: $block_phy raw: $size_raw\n";
 	}
+	@sizes = ($size_raw,$percent,$block_log,$block_phy); 
 	main::log_data('dump','@sizes',\@sizes) if $b_log;
 	eval $end if $b_log;
 	return @sizes;
