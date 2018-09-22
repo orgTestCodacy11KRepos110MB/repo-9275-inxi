@@ -17018,7 +17018,6 @@ sub get_raw_disk_data {
 	my ($type,$blockdev,$id,$size) = @_;
 	# calc block, available percent, logical block size, physical block size;
 	my @sizes = (0,0,0,0); 
-	return @sizes if !$id || (!$blockdev && $type eq 'part' );
 	my ($id_clean,$path_log_block,$path_phy_block,$path_size);
 	my ($block_log,$block_phy,$percent,$size_raw) = (0,0,0,0);
 	# note: dm-1 will act as a primary device, with queue and size, no second level
@@ -17027,8 +17026,10 @@ sub get_raw_disk_data {
 		if ($type eq 'part'){
 			$id_clean = $1;
 			$path_size = ($2) ? "/sys/block/$id_clean/$id/size" :"/sys/block/$id_clean/size" ;
-			$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
-			$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0] if $block_log;
+			if ($blockdev){
+				$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
+				$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0] if $block_log;
+			}
 			if (!$block_log){
 				if (${$alerts{'blockdev'}}{'action'} && ${$alerts{'blockdev'}}{'action'} eq 'missing'){
 					$size_raw = main::row_defaults('tool-missing','blockdev');
