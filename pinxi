@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-21';
-my $self_patch='45';
+my $self_patch='47';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -289,6 +289,7 @@ sub check_tools {
 	if ($b_block_tool){
 		%hash = (
 		'blockdev' => 'linux',
+		'lsblk' => 'linux',
 		);
 		%commands = (%commands,%hash);
 	}
@@ -1472,10 +1473,10 @@ sub disk_data {
 	['lsblk', '-pr'],
 	['lsblk', '-pP'],
 	['lsblk', '-r'],
-	['lsblk', '-r --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
-	['lsblk', '-rb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT'],
+	['lsblk', '-r --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT,PHY-SEC,LOG-SEC'],
+	['lsblk', '-rb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,MOUNTPOINT,PHY-SEC,LOG-SEC'],
 	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE'],
-	['lsblk', '-Pb --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT'],
+	['lsblk', '-Pb --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC'],
 	['gpart', 'list'],
 	['gpart', 'show'],
 	['gpart', 'status'],
@@ -2660,7 +2661,7 @@ sub item_data {
 	# system tools
 	# apt-dpkg,apt-get; pm-arch,pacman; rpm-redhat,suse
 	'blockdev' => ({
-	'info' => '-p,-P raw partition size, block sizes (--admin only).',
+	'info' => '--admin -p/-P (legacy systems without lsblk)',
 	'info-bsd' => '',
 	'apt' => 'util-linux',
 	'pacman' => 'util-linux',
@@ -11414,9 +11415,9 @@ sub set_lsblk {
 	$b_lsblk = 1;
 	my (@temp,@working);
 	if (my $program = main::check_program('lsblk')){
-		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT 2>/dev/null");
+		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC 2>/dev/null");
 		foreach (@working){
-			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"/){
+			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"/){
 				my $size = ($5) ? $5/1024: 0;
 				# some versions of lsblk do not return serial, fs, uuid, or label
 				my @temp = ({
@@ -11429,19 +11430,21 @@ sub set_lsblk {
 				'uuid' => $7,
 				'serial' => $8,
 				'mount' => $9,
+				'block-physical' => $10,
+				'block-logical' => $11,
 				});
 				@lsblk = (@lsblk,@temp);
 			}
 		}
 	}
-	# print Data::Dumper::Dumper \@lsblk;
+	#print Data::Dumper::Dumper \@lsblk;
 	main::log_data('dump','@lsblk',\@lsblk) if $b_log;
 	eval $end if $b_log;
 }
 sub check_lsblk {
 	eval $start if $b_log;
 	my ($name,$b_size) = @_;
-	my (%part,@row);
+	my (%part);
 	foreach my $ref (@lsblk){
 		my %row = %$ref;
 		next if ! $row{'name'};
@@ -17016,7 +17019,7 @@ sub get_pci_vendor {
 	eval $end if $b_log;
 	return $vendor;
 }
-# args: 1: type disk/part; 2: blockdev path/empty; 3: block id; 4: size (part only)
+# args: 1: type disk/part; 2: block id; 3: size (part only)
 sub get_raw_disk_data {
 	eval $start if $b_log;
 	my ($type,$blockdev,$id,$size) = @_;
@@ -17028,16 +17031,28 @@ sub get_raw_disk_data {
 	 $id =~ /(dm-[0-9]+|[hsv]d[a-z]|nvme[0-9]+n[0-9]+|mtdblk[0-9]+|mtdblock[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)?$/){
 		if ($type eq 'part'){
 			$path_size = ($2) ? "/sys/block/$1/$id/size" :"/sys/block/$1/size" ;
-			if ($blockdev){
+			if (@lsblk){
+				my %part = PartitionData::check_lsblk($id,0);
+				# print Data::Dumper::Dumper \%part;
+				$block_log = $part{'block-logical'};
+				$block_phy = $part{'block-physical'};
+			}
+			# fallback, old systems don't have lsblk
+			elsif ($blockdev){
 				$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
-				$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0] if $block_log;
+				$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0];
 			}
 			if (!$block_log){
-				if (${$alerts{'blockdev'}}{'action'} && ${$alerts{'blockdev'}}{'action'} eq 'missing'){
-					$size_raw = main::row_defaults('tool-missing','blockdev');
+				if (${$alerts{'lsblk'}}{'action'} && ${$alerts{'lsblk'}}{'action'} eq 'use'){
+					$size_raw = 'N/A';
 				}
-				elsif ( !$b_root ){
-					$size_raw = main::row_defaults('root-required');
+				else {
+					if (${$alerts{'blockdev'}}{'action'} && ${$alerts{'blockdev'}}{'action'} eq 'missing'){
+						$size_raw = main::row_defaults('tool-missing','blockdev');
+					}
+					elsif (!$b_root){
+						$size_raw = main::row_defaults('root-required');
+					}
 				}
 			}
 			else {
