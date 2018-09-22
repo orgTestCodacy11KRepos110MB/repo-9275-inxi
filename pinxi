@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.24';
-my $self_date='2018-09-21';
-my $self_patch='50';
+my $self_date='2018-09-22';
+my $self_patch='51';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5219,38 +5219,6 @@ sub increment_starters {
 		$result = "$key-$$indexes{$key}";
 	}
 	return $result;
-}
-
-sub memory_data_full {
-	eval $start if $b_log;
-	my ($source) = @_;
-	my $num = 0;
-	my ($memory,@rows);
-	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
-	if (!$show{'info'}){
-		$memory = get_memory_data('splits');
-		if ($memory){
-			my @temp = split /:/, $memory;
-			my @temp2 = get_size($temp[0]);
-			$gpu_ram = $temp[3] if $temp[3];
-			$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
-			@temp2 = get_size($temp[1]);
-			$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
-			$used .= " ($temp[2]%)" if $temp[2];
-			if ($gpu_ram){
-				@temp2 = get_size($gpu_ram);
-				$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
-			}
-		}
-		my $key = ($source eq 'process') ? 'System RAM': 'RAM';
-		$rows[0]{main::key($num++,$key)} = '';
-		$rows[0]{main::key($num++,'total')} = $total;
-		$rows[0]{main::key($num++,'used')} = $used;
-		$rows[0]{main::key($num++,'gpu')} = $gpu_ram if $gpu_ram;
-	}
-	$b_mem = 1;
-	eval $end if $b_log;
-	return @rows;
 }
 
 sub pci_cleaner {
@@ -11639,7 +11607,7 @@ sub mem_processes {
 	}
 	@rows = splice @rows,0,$count;
 	#print Data::Dumper::Dumper \@rows;
-	@processes = main::memory_data_full('process') if !$b_mem;
+	@processes = main::get_memory_data_full('process') if !$b_mem;
 	$j = scalar @rows;
 	my $throttled = throttled($ps_count,$count,$j);
 	#$cpu_mem = ' - CPU: % used' if $extra > 0;
@@ -12324,7 +12292,7 @@ sub get {
 	my (@data,@rows,$key1,@ram,$val1);
 	my $num = 0;
 	my $ref = $alerts{'dmidecode'};
-	@rows = main::memory_data_full('ram') if !$b_mem;
+	@rows = main::get_memory_data_full('ram') if !$b_mem;
 	if ( !$b_fake_dmidecode && $$ref{'action'} ne 'use'){
 		$key1 = $$ref{'action'};
 		$val1 = $$ref{$key1};
@@ -16835,6 +16803,38 @@ sub get_kernel_bits {
 	return $bits;
 }
 
+sub get_memory_data_full {
+	eval $start if $b_log;
+	my ($source) = @_;
+	my $num = 0;
+	$b_mem = 1;
+	my ($memory,@rows);
+	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
+	#if (!$show{'info'}){
+		$memory = get_memory_data('splits');
+		if ($memory){
+			my @temp = split /:/, $memory;
+			my @temp2 = get_size($temp[0]);
+			$gpu_ram = $temp[3] if $temp[3];
+			$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
+			@temp2 = get_size($temp[1]);
+			$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
+			$used .= " ($temp[2]%)" if $temp[2];
+			if ($gpu_ram){
+				@temp2 = get_size($gpu_ram);
+				$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
+			}
+		}
+		my $key = ($source eq 'process') ? 'System RAM': 'RAM';
+		$rows[0]{main::key($num++,$key)} = '';
+		$rows[0]{main::key($num++,'total')} = $total;
+		$rows[0]{main::key($num++,'used')} = $used;
+		$rows[0]{main::key($num++,'gpu')} = $gpu_ram if $gpu_ram;
+	#}
+	eval $end if $b_log;
+	return @rows;
+}
+
 sub get_memory_data {
 	eval $start if $b_log;
 	my ($type) = @_;
@@ -19059,7 +19059,7 @@ sub generate_info_data {
 	my $gcc_alt = '';
 	my $running_in = '';
 	my $data_name = main::key($prefix++,'Info');
-	my ($b_gcc,%row,$gcc,$index,$ref);
+	my ($b_gcc,$gcc,$index,$ref,%row);
 	my ($gpu_ram,$parent,$percent,$total,$used) = (0,'','','','');
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
@@ -19091,30 +19091,32 @@ sub generate_info_data {
 			$running_in .= ' (SSH)';
 		}
 	}
-	my $memory = get_memory_data('splits');
-	if ($memory){
-		my @temp = split /:/, $memory;
-		my @temp2 = get_size($temp[0]);
-		$gpu_ram = $temp[3] if $temp[3];
-		$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
-		@temp2 = get_size($temp[1]);
-		$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
-		$used .= " ($temp[2]%)" if $temp[2];
-		if ($gpu_ram){
-			@temp2 = get_size($gpu_ram);
-			$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
-		}
-	}
-	$memory ||= 'N/A';
 	my %data = (
 	$data_name => [{
 		main::key($num++,'Processes') => scalar @ps_aux, 
 		main::key($num++,'Uptime') => &get_uptime(),
-		main::key($num++,'Memory') => $total,
+		
 		},],
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
-	$data{$data_name}[$index]{main::key($num++,'used')} = $used;
+	if (!$b_mem){
+		my $memory = get_memory_data('splits');
+		if ($memory){
+			my @temp = split /:/, $memory;
+			my @temp2 = get_size($temp[0]);
+			$gpu_ram = $temp[3] if $temp[3];
+			$total = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
+			@temp2 = get_size($temp[1]);
+			$used = ($temp2[1]) ? $temp2[0] . ' ' . $temp2[1] : $temp2[0];
+			$used .= " ($temp[2]%)" if $temp[2];
+			if ($gpu_ram){
+				@temp2 = get_size($gpu_ram);
+				$gpu_ram = $temp2[0] . ' ' . $temp2[1] if $temp2[1];
+			}
+		}
+		$data{$data_name}[$index]{main::key($num++,'Memory')} = $total;
+		$data{$data_name}[$index]{main::key($num++,'used')} = $used;
+	}
 	if ($gpu_ram){
 		$data{$data_name}[$index]{main::key($num++,'gpu')} = $gpu_ram;
 	}
