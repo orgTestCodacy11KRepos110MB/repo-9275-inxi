@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-21';
-my $self_patch='47';
+my $self_patch='48';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1454,6 +1454,7 @@ sub disk_data {
 	}
 	copy_files(\@files, 'disk');
 	my @cmds = (
+	['blockdev', '--report'],
 	['btrfs', 'filesystem show'],
 	['btrfs', 'filesystem show --mounted'],
 	# ['btrfs', 'filesystem show --all-devices'],
@@ -4356,7 +4357,7 @@ sub show_options {
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d', '', "If available: logical and physical block sizes." ],
 	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
-	logical and physical block sizes (root required)." ],
+	block size of file system (root required)." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
@@ -11078,12 +11079,12 @@ sub create_output {
 		}
 		$rows[$j]{main::key($num++,'size')} = $size;
 		$rows[$j]{main::key($num++,'used')} = $used . $percent;
-		if ($b_admin && $row{'block-physical'}){
-			$rows[$j]{main::key($num++,'block size')} = '';
-			$rows[$j]{main::key($num++,'physical')} = $row{'block-physical'} . ' B';
-			$rows[$j]{main::key($num++,'logical')} = $row{'block-logical'} . ' B';
-		}
 		$rows[$j]{main::key($num++,'fs')} = $fs;
+		if ($b_admin && $row{'block-size'}){
+			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' B';;
+			#$rows[$j]{main::key($num++,'physical')} = $row{'block-size'} . ' B';
+			#$rows[$j]{main::key($num++,'logical')} = $row{'block-logical'} . ' B';
+		}
 		$rows[$j]{main::key($num++,$dev_type)} = $dev;
 		if ($show{'label'}){
 			$rows[$j]{main::key($num++,'label')} = ($row{'label'}) ? $row{'label'}: 'N/A';
@@ -11102,7 +11103,7 @@ sub partition_data {
 	my (@data,@rows,@mapper,@mount,@partitions_working,%part,@working);
 	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
 	my ($back_size,$back_used) = (4,3);
-	my ($block_log,$block_phy,$blockdev,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
+	my ($block_log,$block_size,$blockdev,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
 	$size_available,$size,$type,$uuid,$used);
 	$b_partitions = 1;
 	$blockdev = main::check_program('blockdev') if $b_admin;
@@ -11163,7 +11164,7 @@ sub partition_data {
 			next;
 		}
 		($dev_base,$fs,$id,$label,$type,$uuid) = ('','','','','');
-		($b_load,$block_log,$block_phy,$percent_used,$raw_size,
+		($b_load,$block_log,$block_size,$percent_used,$raw_size,
 		$size_available,$size,$used) = (0,0,0,0,0,0,0,0);
 		%part = ();
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
@@ -11244,13 +11245,13 @@ sub partition_data {
 				$raw_size = $working[0];
 				$size_available = $working[1];
 				$block_log = $working[2];
-				$block_phy = $working[3];
+				$block_size = $working[3];
 			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size);
 			@data = ({
 			'block-logical' => $block_log,
-			'block-physical' => $block_phy,
+			'block-size' => $block_size,
 			'id' => $id,
 			'dev-base' => $dev_base,
 			'fs' => $fs,
@@ -17023,24 +17024,28 @@ sub get_pci_vendor {
 sub get_raw_disk_data {
 	eval $start if $b_log;
 	my ($type,$blockdev,$id,$size) = @_;
-	# 0: calc block 1: available percent 2: logical block size 3: physical block size;
+	# 0: calc block 1: available percent 2: logical block size 
+	# 3: disk physical block size/partition block size;
 	my @sizes = (0,0,0,0); 
-	my ($path_size,$block_log,$block_phy,$percent,$size_raw) = ('',0,0,0,0);
+	my ($path_size,$b_lsblk,$block_log,$block_size,$percent,$size_raw) = ('',1,0,0,0,0);
 	# note: dm-1 will act as a primary device, with queue and size, no second level
 	if ( $type eq 'disk' || 
 	 $id =~ /(dm-[0-9]+|[hsv]d[a-z]|nvme[0-9]+n[0-9]+|mtdblk[0-9]+|mtdblock[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)?$/){
 		if ($type eq 'part'){
 			$path_size = ($2) ? "/sys/block/$1/$id/size" :"/sys/block/$1/size" ;
-			if (@lsblk){
+			if ($b_lsblk && @lsblk){
 				my %part = PartitionData::check_lsblk($id,0);
 				# print Data::Dumper::Dumper \%part;
+				# we want the logical block size for the math
 				$block_log = $part{'block-logical'};
-				$block_phy = $part{'block-physical'};
+				# this is disk, not partition block size
+				#$block_size = $part{'block-physical'}; 
 			}
 			# fallback, old systems don't have lsblk
-			elsif ($blockdev){
-				$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
-				$block_phy = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0];
+			if ($blockdev){
+				$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0] if !$block_log;
+				# this is the actual logical block size
+				$block_size = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0];
 			}
 			if (!$block_log){
 				if (${$alerts{'lsblk'}}{'action'} && ${$alerts{'lsblk'}}{'action'} eq 'use'){
@@ -17069,15 +17074,15 @@ sub get_raw_disk_data {
 			if ( -e $path_log_block && -e $path_phy_block ){
 				$size_raw = (main::reader($path_size))[0];
 				$block_log = (main::reader($path_log_block))[0];
-				$block_phy = (main::reader($path_phy_block))[0];
+				$block_size = (main::reader($path_phy_block))[0];
 				if ($size_raw && $block_log){
 					$size_raw = sprintf("%.1f", $block_log * ($size_raw/1024 ) );
 				}
 			}
 		}
-		# print "$id size: $size %: $percent l-b: $block_log p-b: $block_phy raw: $size_raw\n";
+		# print "$id size: $size %: $percent l-b: $block_log p-b: $block_size raw: $size_raw\n";
 	}
-	@sizes = ($size_raw,$percent,$block_log,$block_phy); 
+	@sizes = ($size_raw,$percent,$block_log,$block_size); 
 	main::log_data('dump','@sizes',\@sizes) if $b_log;
 	eval $end if $b_log;
 	return @sizes;
