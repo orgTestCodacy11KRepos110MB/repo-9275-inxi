@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-22';
-my $self_patch='52';
+my $self_patch='53';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4357,7 +4357,8 @@ sub show_options {
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d', '', "If available: logical and physical block sizes." ],
 	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
-	block size of file system (root required)." ],
+	block size of file system (root required); for swap, shows swapiness and vfs cache 
+	pressure, and if values are default or not." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
@@ -11048,6 +11049,12 @@ sub create_output {
 		$rows[$j]{main::key($num++,'size')} = $size;
 		$rows[$j]{main::key($num++,'used')} = $used . $percent;
 		$rows[$j]{main::key($num++,'fs')} = $fs;
+		if ($b_admin && $fs eq 'swap' && $row{'swappiness'}){
+			$rows[$j]{main::key($num++,'swappiness')} = $row{'swappiness'};
+		}
+		if ($b_admin && $fs eq 'swap' && $row{'cache-pressure'}){
+			$rows[$j]{main::key($num++,'cache pressure')} = $row{'cache-pressure'};
+		}
 		if ($b_admin && $row{'block-size'}){
 			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' B';;
 			#$rows[$j]{main::key($num++,'physical')} = $row{'block-size'} . ' B';
@@ -11244,7 +11251,7 @@ sub partition_data {
 
 sub swap_data {
 	eval $start if $b_log;
-	my (@swap,@working,$path,$label,$uuid);
+	my (@swap,@working,$cache_pressure,$path,$label,$swappiness,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
 		# faster, avoid subshell, same as swapon -s
@@ -11255,6 +11262,11 @@ sub swap_data {
 			# note: while -s is deprecated, --show --bytes is not supported
 			# on older systems
 			@working = main::grabber("$path -s 2>/dev/null");
+		}
+		if ($b_admin){
+			my @data = swap_advanced_data();
+			$swappiness = $data[0];
+			$cache_pressure = $data[1];
 		}
 	}
 	else {
@@ -11289,11 +11301,13 @@ sub swap_data {
 			}
 		}
 		@data = ({
-		'id' => "swap-$s",
+		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
 		'fs' => 'swap',
+		'id' => "swap-$s",
 		'label' => $label,
 		'size' => $size,
+		'swappiness' => $swappiness,
 		'type' => 'main',
 		'used' => $used,
 		'uuid' => $uuid,
@@ -11304,6 +11318,24 @@ sub swap_data {
 	}
 	eval $end if $b_log;
 	return @swap;
+}
+sub swap_advanced_data {
+	eval $start if $b_log;
+	my ($swappiness,$cache_pressure) = ('','');
+	if (-r "/proc/sys/vm/swappiness"){
+		$swappiness = (main::reader("/proc/sys/vm/swappiness"))[0];
+		if (defined $swappiness){
+			$swappiness .= ($swappiness == 60) ? ' (default)' : ' (default 60)' ;
+		}
+	}
+	if (-r "/proc/sys/vm/vfs_cache_pressure"){
+		$cache_pressure = (main::reader("/proc/sys/vm/vfs_cache_pressure"))[0];
+		if (defined $cache_pressure){
+			$cache_pressure .= ($cache_pressure == 100) ? ' (default)' : ' (default 100)' ;
+		}
+	}
+	eval $end if $b_log;
+	return ($swappiness,$cache_pressure);
 }
 sub get_mounts_fs {
 	eval $start if $b_log;
