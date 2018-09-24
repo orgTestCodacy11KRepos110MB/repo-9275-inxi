@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.24';
 my $self_date='2018-09-24';
-my $self_patch='55';
+my $self_patch='56';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -358,6 +358,7 @@ sub set_basics {
 	$client{'su-start'} = ''; # shows sudo/su
 	$client{'version'} = '';
 	$colors{'default'} = 2;
+	$show{'partition-sort'} = 'id'; # sort order for partitions
 }
 
 # args: $1 - default OR override default cols max integer count. $_[0]
@@ -1078,6 +1079,7 @@ sub get_config_item {
 	elsif ($key eq 'LANGUAGE') {$language = $val if $val =~ /^(en)$/}
 	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
+	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = $val if is_int($val)}
@@ -3869,6 +3871,14 @@ sub get_options{
 	'P|partitions|partition' => sub {
 		$show{'short'} = 0;
 		$show{'partition'} = 1; },
+	'partition-sort:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/){
+			$show{'partition-sort'} = $arg;
+		}
+		else {
+			error_handler('bad-arg',$opt,$arg);
+		} },
 	'r|repos|repo' => sub {
 		$show{'short'} = 0;
 		$show{'repo'} = 1; },
@@ -4416,6 +4426,8 @@ sub show_options {
 	['1', '-P', '--partitions', "Basic $partition_string info. Shows, if detected: 
 	/ /boot /home /opt /tmp /usr /usr/home /var /var/log /var/tmp. Use -p to see all 
 	mounted ${partition_string}s." ],
+	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
+	Change sort order of partition output. See man page for specifics." ],
 	['1', '-r', '--repos', "Distro repository data. Supported repo types: APK, 
 	APT, EOPKG, PACMAN, PACMAN-G2, PISI, PORTAGE, PORTS (BSDs), SLACKPKG, TCE,
 	URPMQ, XBPS, YUM/ZYPP." ],
@@ -11003,7 +11015,7 @@ sub create_output {
 	my $num = 0;
 	my $j = 0;
 	my (@data,@data2,%part,@rows,$dev,$dev_type,$fs,$percent,$raw_size,$size,$used);
-	@partitions = sort { $a->{'id'} cmp $b->{'id'} } @partitions;
+	@partitions = sort { $a->{$show{'partition-sort'}} cmp $b->{$show{'partition-sort'}} } @partitions;
 	foreach my $ref (@partitions){
 		my %row = %$ref;
 		$num = 1;
