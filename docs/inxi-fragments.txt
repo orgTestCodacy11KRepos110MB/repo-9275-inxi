@@ -2,8 +2,8 @@
 INXI FRAGMENTS
 ================================================================================
 FILE:    inxi-fragmentsg.txt
-VERSION: 1.2
-DATE:    2018-08-15
+VERSION: 1.3
+DATE:    2018-09-24
 
 ----------------------------------------
 See: optimization.txt
@@ -398,6 +398,87 @@ sub set_gtk_data {
 	}
 	$desktop[2] = 'Gtk';
 	eval $end if $b_log;
+}
+
+========================================
+get_raw_disk_data()
+----------------------------------------
+
+This version used lsblk/blockdev instead of /proc/partitions
+
+sub get_raw_disk_data {
+	eval $start if $b_log;
+	my ($type,$blockdev,$id,$size) = @_;
+	# 0: calc block 1: available percent 2: logical block size 
+	# 3: disk physical block size/partition block size;
+	my @sizes = (0,0,0,0); 
+	my ($path_size,$b_lsblk,$block_log,$block_size,$percent,$size_raw) = ('',1,0,0,0,0);
+	# note: dm-1 will act as a primary device, with queue and size, no second level
+	if ( $type eq 'disk' || 
+	 $id =~ /(dm-[0-9]+|[hsv]d[a-z]|nvme[0-9]+n[0-9]+|mtdblk[0-9]+|mtdblock[0-9]+|mmcblk[0-9]+)([0-9]+|[ps][0-9]+)?$/){
+		if ($type eq 'part'){
+			$path_size = ($2) ? "/sys/block/$1/$id/size" :"/sys/block/$1/size" ;
+			if ($b_lsblk && @lsblk){
+				my %part = PartitionData::check_lsblk($id,0);
+				# print Data::Dumper::Dumper \%part;
+				# we want the logical block size for the math
+				$block_log = $part{'block-logical'};
+				# this is disk, not partition block size
+				#$block_size = $part{'block-physical'}; 
+			}
+			# fallback, old systems don't have lsblk
+			if ($blockdev){
+				# unknown: is lsblk LOG-SEC the same value as --getss?
+				if (!$block_log){
+					$block_log = (main::grabber("$blockdev --getss /dev/$id 2>/dev/null"))[0];
+				}
+				# this is the actual logical block size
+				$block_size = (main::grabber("$blockdev --getbsz /dev/$id 2>/dev/null"))[0];
+			}
+			if (!$block_log){
+				# lsblk does not show dm-1
+				if ($id !~ /^dm-/ && ${$alerts{'lsblk'}}{'action'} && ${$alerts{'lsblk'}}{'action'} eq 'use'){
+					$size_raw = 'N/A';
+				}
+				else {
+					if (${$alerts{'blockdev'}}{'action'} && ${$alerts{'blockdev'}}{'action'} eq 'missing'){
+						$size_raw = main::row_defaults('tool-missing','blockdev');
+					}
+					elsif (!$b_root){
+						$size_raw = main::row_defaults('root-required');
+					}
+				}
+			}
+			else {
+				$size_raw = (main::reader($path_size))[0];
+				# block size is in bytes, note: 2^32 max math for 32 bit
+				$size_raw = ( $block_log * ($size_raw/1024) );
+				$percent = sprintf("%.2f", ($size/$size_raw ) * 100) if $size && $size_raw;
+			}
+		}
+		else {
+			$path_size = "/sys/block/$id/size";
+			my $path_log_block = "/sys/block/$id/queue/logical_block_size";
+			my $path_phy_block = "/sys/block/$id/queue/physical_block_size";
+			# legacy system path
+			if (! -e $path_phy_block && -r "/sys/block/$id/queue/hw_sector_size" ){
+				$path_phy_block = "/sys/block/$id/queue/hw_sector_size";
+			}
+			if ( -r $path_log_block || -r $path_phy_block ){
+				$size_raw = (main::reader($path_size))[0] if -r $path_size;
+				$block_log = (main::reader($path_log_block))[0] if  -r $path_log_block;
+				$block_size = (main::reader($path_phy_block))[0] if -r $path_phy_block;
+				if ($size_raw && $block_log){
+					$size_raw = sprintf("%.1f", $block_log * ($size_raw/1024 ) );
+				}
+			}
+		}
+		# print "$id size: $size %: $percent l-b: $block_log p-b: $block_size raw: $size_raw\n";
+	}
+	@sizes = ($size_raw,$percent,$block_log,$block_size); 
+	main::log_data('dump','@sizes',\@sizes) if $b_log;
+	eval $end if $b_log;
+	return @sizes;
 }
 
 ========================================
