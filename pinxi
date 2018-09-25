@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.25';
-my $self_date='2018-09-24';
-my $self_patch='01';
+my $self_date='2018-09-25';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -52,7 +52,7 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my ( %alerts,%client,%colors,%dl,%files,%rows,%system_files,%use );
+my ( %alerts,%client,%colors,%debugger,%dl,%files,%rows,%system_files,%use );
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -67,19 +67,18 @@ my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,$b_console_irc,
-$b_debug_gz,$b_debug_timers,$b_debug_z,$b_display,$b_dmesg_boot_check,
-$b_dmi,$b_dmidecode_force,$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,
-$b_fake_pciconf,$b_fake_sysctl,$b_fake_usbdevs,
-$b_force_display,$b_force_sys_debug,$b_gpudata,$b_irc,
+$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
+$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
+$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,
-$b_pci,$b_pci_tool,$b_ppc,$b_proc_debug,$b_proc_partitions,$b_ps_gui,
+$b_pci,$b_pci_tool,$b_ppc,$b_proc_partitions,$b_ps_gui,
 $b_root,$b_running_in_display,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_sudo,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
-my ($b_sys_debug,$b_sysctl_disk,$b_update,$b_weather) = (1,1,1,1);
+my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
 my ($bsd_type,$language,$os,$pci_tool,$device_vm) = ('','','','','');
@@ -127,7 +126,8 @@ my %size = (
 'term-lines' => 100,
 );
 
-## debug temp tools
+## debug / temp tools
+$debugger{'sys'} = 1;
 $client{'test-konvi'} = 0;
 
 ########################################################################
@@ -1132,7 +1132,7 @@ sub begin_logging {
 	$t3 = eval 'Time::HiRes::tv_interval (\@t0, [Time::HiRes::gettimeofday()]);' if $b_hires;
 	#print Dumper $@;
 	my $now = strftime "%Y-%m-%d %H:%M:%S", localtime;
-	return if $b_debug_timers;
+	return if $debugger{'timers'};
 	# do the rotation if logfile exists
 	if ( -f $log_file ){
 		# copy if present second to third
@@ -1186,7 +1186,7 @@ sub log_data {
 		#print Dumper $@;
 		$data = "Start: Function: $two$args\n${spacer}Elapsed: $t3\n";
 		$spacer='';
-		$timer = $data if $b_debug_timers;
+		$timer = $data if $debugger{'timers'};
 	}
 	elsif ( $one eq 'fe') {
 		# print 'timer:', Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()]),"\n";
@@ -1195,7 +1195,7 @@ sub log_data {
 		#print Dumper $t3;
 		$data = "${spacer}Elapsed: $t3\nEnd: Function: $two\n";
 		$spacer='';
-		$timer = $data if $b_debug_timers;
+		$timer = $data if $debugger{'timers'};
 	}
 	elsif ( $one eq 'cat') {
 		if ( $b_log_full ){
@@ -1237,7 +1237,7 @@ sub log_data {
 	else {
 		$data = "$two\n";
 	}
-	if ($b_debug_timers){
+	if ($debugger{'timers'}){
 		print $timer if $timer;
 	}
 	#print "d: $data";
@@ -1250,7 +1250,7 @@ sub set_debugger {
 	if ( $debug >= 20){
 		error_handler('not-in-irc', 'debug data generator') if $b_irc;
 		my $option = ( $debug > 22 ) ? 'main-full' : 'main';
-		$b_debug_gz = 1 if ($debug == 22 || $debug == 24);
+		$debugger{'gz'} = 1 if ($debug == 22 || $debug == 24);
 		my $ob_sys = SystemDebugger->new($option);
 		$ob_sys->run_debugger();
 		$ob_sys->upload_file($ftp_alt) if $debug > 20;
@@ -1269,7 +1269,7 @@ sub set_debugger {
 	elsif ($debug <= 3){
 		if ($debug == 3){
 			$b_log = 1;
-			$b_debug_timers = 1;
+			$debugger{'timers'} = 1;
 			begin_logging();
 		}
 		else {
@@ -1331,7 +1331,7 @@ sub run_debugger {
 		if ( -d '/sys' && main::count_dir_files('/sys') ){
 			build_tree('sys');
 			# kernel crash, not sure what creates it, for ppc, as root
-			sys_traverse_data() if ($b_sys_debug && ($b_force_sys_debug || !$b_root || !$b_ppc )) ; 
+			sys_traverse_data() if ($debugger{'sys'} && ($debugger{'sys-force'} || !$b_root || !$b_ppc )) ; 
 		}
 		else {
 			print "Skipping /sys data collection. /sys not present, or empty.\n";
@@ -1339,7 +1339,7 @@ sub run_debugger {
 		print $line3;
 		# note: proc has some files that are apparently kernel processes, I've tried 
 		# filtering them out but more keep appearing, so only run proc debugger if not root
-		if ( (!$b_root || $b_proc_debug ) && -d '/proc' && main::count_dir_files('/proc') ){
+		if ( (!$b_root || $debugger{'proc'} ) && -d '/proc' && main::count_dir_files('/proc') ){
 			build_tree('proc');
 			proc_traverse_data();
 		}
@@ -1801,7 +1801,7 @@ sub run_self {
 	print "Creating $self_name output file now. This can take a few seconds...\n";
 	print "Starting $self_name from: $self_path\n";
 	my $i = ($option eq 'main-full')? ' -i' : '';
-	my $z = ($b_debug_z) ? ' -z' : '';
+	my $z = ($debugger{'z'}) ? ' -z' : '';
 	my $iz = "$i$z";
 	$iz =~ s/[\s\-]//g;
 	my $cmd = "$self_path/$self_name -FRfrploudmaxxx$i$z --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmaxxx$iz-usb-slots-y120.txt 2>&1";
@@ -1828,6 +1828,7 @@ sub copy_files {
 		$unreadable = $name . '-unreadable';
 		# proc have already been tested for readable/exists
 		if ($type eq 'proc' || -e $_ ) {
+			print "F:$_\n" if $type eq 'proc' && $debugger{'proc-print'};
 			if ($type eq 'proc' || -r $_){
 				copy($_,"$good") or main::toucher($error);
 			}
@@ -2020,6 +2021,7 @@ sub sys_traverse_processsor {
 		$data='';
 		$sep='';
 		my $b_fh = 1;
+		print "F:$_\n" if $debugger{'sys-print'};
 		open($fh, '<', $_) or $b_fh = 0;
 		# needed for removing -T test and root
 		if ($b_fh){
@@ -2109,7 +2111,7 @@ sub upload_file {
 		$ftp->quit;
 		print "Uploaded file successfully!\n";
 		print $ftp->message;
-		if ($b_debug_gz){
+		if ($debugger{'gz'}){
 			print "Removing debugger gz file:\n$file_path\n";
 			unlink $file_path or main::error_handler('remove',"$file_path", "$!");
 			print "File removed.\n";
@@ -4123,8 +4125,16 @@ sub get_options{
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
+	'debug-no-sys' => sub {
+		$debugger{'sys'} = 0; },
+	'debug-proc' => sub {
+		$debugger{'proc'} = 1; },
+	'debug-proc-print' => sub {
+		$debugger{'proc-print'} = 1;},
+	'debug-sys-print' => sub {
+		$debugger{'sys-print'} = 1; },
 	'debug-z' => sub {
-		$b_debug_z = 1 },
+		$debugger{'z'} = 1 },
 	'display:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^:?([0-9]+)?$/){
@@ -4209,8 +4219,6 @@ sub get_options{
 		$b_no_man_force = 0; },
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
-	'no-sys-debug' => sub {
-		$b_sys_debug = 0; },
 	'output-file:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -4226,14 +4234,13 @@ sub get_options{
 		}},
 	'ppc' => sub {
 		$b_ppc = 1 },
-	'proc-debug' => sub {
-		$b_proc_debug = 1; },
+	
 	'recommends' => sub {
 		$b_recommends = 1; },
 	'sparc' => sub {
 		$b_sparc = 1; },
 	'sys-debug' => sub {
-		$b_force_sys_debug = 1; },
+		$debugger{'sys-force'} = 1; },
 	'U|update:s' => sub { # 1,2,3 OR http://myserver/path/inxi
 		my ($opt,$arg) = @_;
 		$b_downloader = 1;
@@ -4655,7 +4662,6 @@ sub show_options {
 	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output." ],
 	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
 	Change sort order of partition output. See man page for specifics." ],
-	['1', '', '--proc', "Force debugger parsing of /proc as sudo/root." ],
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
@@ -4678,6 +4684,11 @@ sub show_options {
 	automatically, removes debugger data directory, leaves tar.gz debugger file." ],
 	['2', '22', '', "Upload debugger dataset to $self_name debugger server 
 	automatically, removes debugger data directory and debugger tar.gz file." ],
+	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/root." ],
+	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on." ],
+	['1', '', '--debug-no-sys', "Skip /sys debugging in case of a hang." ],
+	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/root." ],
+	['1', '', '--debug-sys-print', "To locate file that /sys debugger hangs on." ],
 	['1', '', '--ftp', "Use with --debugger 21 to trigger an alternate FTP server for upload. 
 	Format:^[ftp.xx.xx/yy]. Must include a remote directory to upload to. 
 	Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming" ],
