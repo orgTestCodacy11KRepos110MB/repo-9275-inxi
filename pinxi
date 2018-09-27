@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.25';
 my $self_date='2018-09-27';
-my $self_patch='14';
+my $self_patch='15';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17841,7 +17841,7 @@ sub soc_devices {
 		$driver = '' if ! defined $driver;
 		$handle = '' if ! defined $handle;
 		$busid = (defined $temp && main::is_int($temp)) ? $temp: 0;
-		$type = soc_type($type);
+		$type = soc_type($type,$vendor_id,$driver);
 		($busid_nu,$modules,$port,$rev) = (0,'','','');
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,
 		$port,$driver,$modules,'','','',$handle);
@@ -17864,7 +17864,6 @@ sub soc_devicetree {
 				next if !$type || !$content;
 				$handle = $2 if $2;
 				$type_id = $type;
-				$type = soc_type($type);
 				if ($content){
 					@temp3 = split /,/, $content;
 					$vendor_id = $temp3[0];
@@ -17872,6 +17871,7 @@ sub soc_devicetree {
 					# strip off those weird device tree special characters
 					$device =~ s/\x01|\x02|\x03|\x00//g;
 				}
+				$type = soc_type($type,$vendor_id,'');
 				@temp3 = ($type,$type_id,0,0,$device,$vendor_id,'soc','','','','','','','',$handle);
 				assign_data('soc',@temp3);
 				main::log_data('dump','@devices @temp3',\@temp3) if $b_log;
@@ -17945,9 +17945,10 @@ sub check_vm {
 }
 
 sub soc_type {
-	my ($type) = @_;
+	my ($type,$info,$driver) = @_;
 	# I2S or i2s. I2C is i2 controller |[iI]2[Ss]. note: odroid hdmi item is sound only
-	if ($type =~ /^(daudio|.*hifi.*|odroid_hdmi|.*sound[\-_]card|.*dac[0-9]?)$/){
+	if ($type =~ /^(daudio|.*hifi.*|.*sound[\-_]card|.*dac[0-9]?)$/ ||
+	 ($info && $info =~ /(sound|audio)/) || ($driver && $driver =~ /(audio|snd|sound)/) ){
 		$type = 'audio';
 	}
 	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|mali)$/){
