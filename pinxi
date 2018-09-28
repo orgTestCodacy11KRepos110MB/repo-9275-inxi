@@ -28,15 +28,12 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(uname strftime ttyname);
 # use feature qw(state);
-#binmode STDOUT,":utf8";
-#print POSIX::strftime("%c", localtime),"\n";
-# my $item = POSIX::strftime("%c", localtime);
-# print "$item\n";
+
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.25';
-my $self_date='2018-09-27';
-my $self_patch='15';
+my $self_date='2018-09-28';
+my $self_patch='16';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1250,6 +1247,7 @@ sub log_data {
 }
 
 sub set_debugger {
+	user_debug_test_1() if $debugger{'test-1'};
 	if ( $debug >= 20){
 		error_handler('not-in-irc', 'debug data generator') if $b_irc;
 		my $option = ( $debug > 22 ) ? 'main-full' : 'main';
@@ -2131,6 +2129,19 @@ sub upload_file {
 		main::error_handler('ftp-bad-path', "$file_path");
 	}
 }
+}
+# random tests for various issues
+sub user_debug_test_1 {
+	open(my $duped, '>&', STDOUT);
+	local *STDOUT = $duped;
+	my $item = POSIX::strftime("%c", localtime);
+	print "Testing character encoding handling. Perl IO data:\n";
+	print(join(', ', PerlIO::get_layers(STDOUT)), "\n");
+	print "Without binmode: ", $item,"\n";
+	binmode STDOUT,":utf8";
+	print "With binmode: ", $item,"\n";
+	print "Perl IO data:\n";
+	print(join(', ', PerlIO::get_layers(STDOUT)), "\n");
 }
 
 #### -------------------------------------------------------------------
@@ -4142,6 +4153,8 @@ sub get_options{
 		$debugger{'proc-print'} = 1;},
 	'debug-sys-print' => sub {
 		$debugger{'sys-print'} = 1; },
+	'debug-test-1' => sub {
+		$debugger{'test-1'} = 1; },
 	'debug-z' => sub {
 		$debugger{'z'} = 1 },
 	'display:s' => sub { 
