@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.26';
 my $self_date='2018-10-02';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -16270,11 +16270,15 @@ sub get_display_manager {
 			push @found, $working;
 		}
 	}
-	if (!@found && grep {/\/usr.*\/x/ && !/\/xprt/} @ps_cmd){
-		if (awk(\@ps_cmd, 'startx') ){
+	if (!@found){
+		# ly does not have a run/pid file
+		if (grep {/^ly$/} @ps_gui) {
+			$found[0] = 'Ly';
+		}
+		elsif (grep {/^.*startx$/} @ps_gui) {
 			$found[0] = 'startx';
 		}
-		elsif (awk(\@ps_cmd, 'xinit') ){
+		elsif (grep {/^xinit$/} @ps_gui) {
 			$found[0] = 'xinit';
 		}
 	}
@@ -18362,6 +18366,9 @@ sub set_ps_gui {
 		twin kwin_wayland kwin_x11 kwin marco 
 		deepin-metacity metacity metisse mir muffin deepin-mutter mutter
 		xfwm4 xfwm5);
+		@match = (@match,@temp);
+		# startx: /bin/sh /usr/bin/startx
+		@temp=qw(ly .*startx xinit); # possible dm values
 		@match = (@match,@temp);
 	}
 	# info: NOTE: glx-dock is cairo-dock
