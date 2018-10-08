@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.26';
 my $self_date='2018-10-08';
-my $self_patch='10';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11176,10 +11176,10 @@ sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mapper,@mount,@partitions_working,%part,@working);
-	my ($b_fake_map,$b_fs,$b_load,$cols,$roots) = (0,1,0,6,0);
+	my ($b_fake_map,$b_fs,$b_load,$b_space,$cols,$roots) = (0,1,0,0,6,0);
 	my ($back_size,$back_used) = (4,3);
 	my ($block_size,$blockdev,$dev_base,$fs,$id,$label,$percent_used,$raw_size,
-	$size_available,$size,$type,$uuid,$used);
+	$replace,$size_available,$size,$test,$type,$uuid,$used);
 	$b_partitions = 1;
 	if ($b_admin){
 		# for partition block size
@@ -11234,9 +11234,24 @@ sub partition_data {
 	my $filters = '^(aufs|cgroup.*|cgmfs|configfs|debugfs|\/dev|dev|\/dev/loop[0-9]*|';
 	$filters .= 'devfs|devtmpfs|fdescfs|iso9660|linprocfs|none|procfs|\/run(\/.*)?|';
 	$filters .= 'run|shm|squashfs|sys|\/sys\/.*|sysfs|tmpfs|type|udev|unionfs|vartmp)$';
+	#push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
+	#push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
 	foreach (@partitions_working){
-		# stupid apple bullshit
+		# apple crap, maybe also freebsd?
 		$_ =~ s/^map\s+([\S]+)/map:\/$1/ if $b_fake_map;
+		$b_space = 0;
+		# handle spaces in remote filesystem 
+		if (/^(.*)(\s[\S]+)\s+[a-z][a-z0-9]+\s+[0-9]+/){
+			$replace = $test = "$1$2";
+			if ($test =~ /\s/){
+				$b_space = 1;
+				$replace =~ s/\s/^^/g;
+				#print ":$replace:\n";
+				$_ =~ s/$test/$replace/;
+				#print "$_\n";
+			}
+		}
+		
 		my @row = split /\s+/, $_;
 		# autofs is a bsd thing, has size 0
 		if ($row[0] =~ /$filters/ || $row[0] =~ /^ROOT/i || 
@@ -11326,6 +11341,7 @@ sub partition_data {
 				$size_available = $working[1];
 				$block_size = $working[2];
 			}
+			$dev_base =~ s/\^\^/ /g if $b_space;
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size && main::is_numeric($size) );
 			@data = ({
