@@ -383,6 +383,30 @@ SCALARS
 HASH/ARRAY
 ----------------------------------------
 
+use List::Util qw(first); 
+
+I tested List::Util first vs grep to determine basically if is in array, in 
+theory, first should have been hugely faster since it exits on first success, 
+but in fact, using first instead of grep was 2 to 4x SLOWER:
+
+2	17µs	2	9µs	push @phys_cpus, $line[1] if ! grep {/$line[1]/} @phys_cpus;
+                  # spent     8µs making 1 call to CpuData::CORE:regcomp
+                  # spent     1µs making 1 call to CpuData::CORE:match
+
+                  
+2	32µs	3	28µs	push @phys_cpus, $line[1] if ! List::Util::first {/$line[1]/} @phys_cpus;
+                  # spent    20µs making 1 call to List::Util::first
+                  # spent     7µs making 1 call to CpuData::CORE:regcomp
+                  # spent     1µs making 1 call to CpuData::CORE:match
+
+8099	45	348µs	90	324µs	                if ( $row{'dev-base'} !~ /^\/\/|:\// && ! (List::Util::first {/$row{'dev-base'}/} @devs) ){
+                # spent   231µs making  9 calls to List::Util::first, avg 26µs/call
+                # spent    69µs making 36 calls to DiskData::CORE:regcomp, avg 2µs/call
+                # spent    24µs making 45 calls to DiskData::CORE:match, avg 529ns/call
+
+45	143µs	81	49µs	                if ( $row{'dev-base'} !~ /^\/\/|:\// && ! (grep {/$row{'dev-base'}/} @devs) ){
+                # spent    38µs making 36 calls to DiskData::CORE:regcomp, avg 1µs/call
+                # spent    11µs making 45 calls to DiskData::CORE:match, avg 240ns/call
 ========================================
 CLASSES
 ----------------------------------------
