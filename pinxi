@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.26';
-my $self_date='2018-10-10';
-my $self_patch='18';
+my $self_date='2018-10-11';
+my $self_patch='20';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17124,23 +17124,36 @@ sub get_memory_data_bsd {
 	eval $start if $b_log;
 	my ($type) = @_;
 	my $memory = '';
-	my ($avail,$total,$free_mem,$real_mem) = (0,0,0,0);
+	my ($avm,$av_pages,$cnt,$fre,$free_mem,$real_mem,$total) = (3,0,0,4,0,0,0);
 	my (@data,$message);
 	my $arg = ($bsd_type ne 'openbsd') ? '-H' : '';
 	if (my $program = check_program('vmstat')){
 		# see above, it's the last line. -H makes it hopefully all in kB so no need 
 		# for K/M/G tests
-		my $row = (grabber("vmstat $arg 2>/dev/null",'\n','strip'))[-1];
+		my @vmstat = grabber("vmstat $arg 2>/dev/null",'\n','strip');
+		my @header = split /\s+/, $vmstat[1];
+		foreach ( @header){
+			if ($_ eq 'avm'){$avm = $cnt}
+			elsif ($_ eq 'fre'){$fre = $cnt}
+			elsif ($_ eq 'flt'){last;}
+			$cnt++;
+		}
+		my $row = $vmstat[-1];
 		if ( $row ){
 			@data = split /\s+/, $row;
-			# 6.3 introduced an M to the integer
-			@data = map {s/M$//;$_} @data if $bsd_type eq 'openbsd';
-			# dragonfly can have 0 avg, but they may fix that so make test dynamic
-			if ($data[3] != 0){
-				$avail = ($bsd_type ne 'openbsd') ? sprintf ('%.1f',$data[3]/1024) : $data[3];
+			# 6.3 introduced an M character, sigh.
+			if ($data[$avm] && $data[$avm] =~ /^([0-9]+)M$/){
+				$data[$avm] = $1 * 1024;
 			}
-			elsif ($data[4] != 0){
-				$free_mem = sprintf ('%.1f',$data[4]);
+			if ($data[$fre] && $data[$fre] =~ /^([0-9]+)M$/){
+				$data[$fre] = $1 * 1024;
+			}
+			# dragonfly can have 0 avg, but they may fix that so make test dynamic
+			if ($data[$avm] != 0){
+				$av_pages = ($bsd_type ne 'openbsd') ? sprintf ('%.1f',$data[$avm]/1024) : $data[$avm];
+			}
+			elsif ($data[$fre] != 0){
+				$free_mem = sprintf ('%.1f',$data[$fre]);
 			}
 		}
 	}
@@ -17175,9 +17188,9 @@ sub get_memory_data_bsd {
 	# not using, but leave in place for a bit in case we want it
 	# my $type = ($free_mem) ? ' free':'' ;
 	# hack: temp fix for openbsd/darwin: in case no free mem was detected but we have physmem
-	if (($avail || $free_mem) && !$real_mem){
+	if (($av_pages || $free_mem) && !$real_mem){
 		my $error = ($message) ? $message: 'total N/A';
-		my $used = (!$free_mem) ? $avail : $real_mem - $free_mem;
+		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
 		if ($type eq 'string'){
 			$used = sprintf("%.1f",$used/1024);
 			$memory = "$used/($error) MB";
@@ -17187,8 +17200,8 @@ sub get_memory_data_bsd {
 		}
 	}
 	# use openbsd/dragonfly avail mem data if available
-	elsif (($avail || $free_mem) && $real_mem) {
-		my $used = (!$free_mem) ? $avail : $real_mem - $free_mem;
+	elsif (($av_pages || $free_mem) && $real_mem) {
+		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
 		my $percent = ($used && $real_mem) ? sprintf("%.1f", ($used/$real_mem)*100) : '';
 		if ($type eq 'string'){
 			$used = sprintf("%.1f",$used/1024);
