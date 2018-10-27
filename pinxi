@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.27';
-my $self_date='2018-10-14';
-my $self_patch='01';
+my $self_date='2018-10-27';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7527,7 +7527,7 @@ sub cpu_speeds {
 }
 sub set_cpu_speeds_sys {
 	eval $start if $b_log;
-	my (@arm,%speeds);
+	my (@policies,%speeds);
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
 	my $sys2 = '/sys/devices/system/cpu/cpu0/cpufreq/';
 	my ($cur,$min,$max) = ('scaling_cur_freq','scaling_min_freq','scaling_max_freq');
@@ -7550,14 +7550,14 @@ sub set_cpu_speeds_sys {
 			$speeds{'max-freq'} = speed_cleaner($speeds{'max-freq'},'khz');
 		}
 		if ($b_arm){
-			@arm = main::globber('/sys/devices/system/cpu/cpufreq/policy*/');
+			@policies = main::globber('/sys/devices/system/cpu/cpufreq/policy*/');
 			# there are arm chips with two dies, that run at different min max speeds!!
 			# see: https://github.com/smxi/inxi/issues/128
 			# it would be slick to show both die min/max/cur speeds, but this is
 			# ok for now.
-			if (scalar @arm > 1){
+			if (scalar @policies > 1){
 				my ($current,$cur_temp,$max,$max_temp,$min,$min_temp) = (0,0,0,0,0,0);
-				foreach (@arm){
+				foreach (@policies){
 					$_ =~ s/\/$//; # strip off last slash in case globs have them
 					$max_temp = (-r "$_/cpuinfo_max_freq") ? main::reader("$_/cpuinfo_max_freq") : 0;
 					$max_temp = speed_cleaner($max_temp,'khz') if $max_temp;
@@ -7569,7 +7569,7 @@ sub set_cpu_speeds_sys {
 					if ($min_temp < $min || $min == 0){
 						$min = $min_temp;
 					}
-					$cur_temp = (-r "$_/cpuinfo_max_freq") ? main::reader("$_/cpuinfo_max_freq") : 0;
+					$cur_temp = (-r "$_/scaling_cur_freq") ? main::reader("$_/scaling_cur_freq") : 0;
 					$cur_temp = speed_cleaner($cur_temp,'khz') if $cur_temp;
 					if ($cur_temp > $current){
 						$current = $cur_temp;
@@ -17977,7 +17977,7 @@ sub assign_data {
 	# $device_vm = check_vm($data[4]) if ( (!$b_ppc && !$b_mips) && !$device_vm );
 	@devices = (@devices,[@data]);
 }
-# note: for soc, these have been converted in set_soc_type()
+# note: for soc, these have been converted in soc_type()
 sub check_audio {
 	if ( ( $_[1] && length($_[1]) == 4 && $_[1] =~/^04/ ) ||
 		( $_[0] && $_[0] =~ /^(audio|hdmi|multimedia|sound)$/ )){
@@ -18017,8 +18017,10 @@ sub check_vm {
 sub soc_type {
 	my ($type,$info,$driver) = @_;
 	# I2S or i2s. I2C is i2 controller |[iI]2[Ss]. note: odroid hdmi item is sound only
+	# snd_soc_dummy
 	if ($type =~ /^(daudio|.*hifi.*|.*sound[\-_]card|.*dac[0-9]?)$/ ||
-	 ($info && $info =~ /(sound|audio)/) || ($driver && $driver =~ /(audio|snd|sound)/) ){
+	 ($info && $info =~ /(sound|audio)/) || 
+	 ($driver && $driver !~ /codec|dummy/ && $driver =~ /(audio|snd|sound)/) ){
 		$type = 'audio';
 	}
 	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|mali)$/){
