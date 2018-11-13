@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.27';
-my $self_date='2018-11-08';
-my $self_patch='08';
+my $self_date='2018-11-13';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6158,7 +6158,16 @@ sub create_output {
 		next if !$battery{$key}{'purpose'} || $battery{$key}{'purpose'} ne 'primary';
 		# $battery{$key}{''};
 		# we need to handle cases where charge or energy full is 0
-		$charge = (defined $battery{$key}{'energy_now'} && $battery{$key}{'energy_now'} ne '') ? "$battery{$key}{'energy_now'} Wh" : 'N/A';
+		if (defined $battery{$key}{'energy_now'} && $battery{$key}{'energy_now'} ne ''){
+			$charge = "$battery{$key}{'energy_now'} Wh";
+		}
+		# better than nothing, shows the charged percent
+		elsif (defined $battery{$key}{'capacity'} && $battery{$key}{'capacity'} ne ''){
+			$charge = $battery{$key}{'capacity'} . '%'
+		}
+		else {
+			$charge = 'N/A';
+		}
 		if ($battery{$key}{'energy_full'} || $battery{$key}{'energy_full_design'}){
 			$battery{$key}{'energy_full_design'} ||= 'N/A';
 			$battery{$key}{'energy_full'}= (defined $battery{$key}{'energy_full'} && $battery{$key}{'energy_full'} ne '') ? $battery{$key}{'energy_full'} : 'N/A';
@@ -6285,7 +6294,8 @@ sub battery_data_sys {
 	# 'type' is generic, like: Battery, Mains
 	# capacity_level is a string, like: Normal
 	my @items = qw(alarm capacity capacity_level charge_full charge_full_design charge_now 
-	cycle_count energy_full energy_full_design energy_now location manufacturer model_name 
+	constant_charge_current constant_charge_current_max cycle_count 
+	energy_full energy_full_design energy_now location manufacturer model_name 
 	power_now present serial_number status technology type voltage_min_design voltage_now);
 	foreach $item (@batteries){
 		$b_ma = 0;
@@ -6317,8 +6327,9 @@ sub battery_data_sys {
 				}
 				# note: the following 3 were off, 100000 instead of 1000000
 				# why this is, I do not know. I did not document any reason for that
-				# so going on assumption it is a mistake. CHARGE is mAh, which are converted
-				# to Wh by: mAh x voltage. Note: voltage fluctuates so will make results vary slightly.
+				# so going on assumption it is a mistake. 
+				# CHARGE is mAh, which are converted to Wh by: mAh x voltage. 
+				# Note: voltage fluctuates so will make results vary slightly.
 				elsif ($file eq 'charge_full_design'){
 					$value = $value/1000000;
 					$b_ma = 1;
@@ -6392,6 +6403,7 @@ sub battery_data_sys {
 			$battery{$id}{'energy_full'} = sprintf( "%.1f", $battery{$id}{'energy_full'} );
 		}
 	}
+	main::log_data('dump','sys: %battery',\%battery) if $b_log;
 	eval $end if $b_log;
 	return %battery;
 }
@@ -6441,6 +6453,7 @@ sub battery_data_dmi {
 		}
 	}
 	# print Data::Dumper::Dumper \%battery;
+	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
 	eval $end if $b_log;
 	return %battery;
 }
@@ -6469,6 +6482,7 @@ sub upower_data {
 			}
 		}
 	}
+	main::log_data('dump','upower: %data',\%data) if $b_log;
 	eval $end if $b_log;
 	return %data;
 }
@@ -18039,9 +18053,9 @@ sub check_vm {
 sub soc_type {
 	my ($type,$info,$driver) = @_;
 	# I2S or i2s. I2C is i2 controller |[iI]2[Ss]. note: odroid hdmi item is sound only
-	# snd_soc_dummy
+	# snd_soc_dummy. simple-audio-amplifier driver: speaker_amp
 	if ($type =~ /^(daudio|.*hifi.*|.*sound[\-_]card|.*dac[0-9]?)$/ ||
-	 ($info && $info =~ /(sound|audio)/) || 
+	 ($info && $info !~ /amp/ && $info =~ /(sound|audio)/) || 
 	 ($driver && $driver !~ /codec|dummy/ && $driver =~ /(audio|snd|sound)/) ){
 		$type = 'audio';
 	}
