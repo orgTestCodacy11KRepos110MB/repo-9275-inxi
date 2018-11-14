@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.27';
-my $self_date='2018-11-13';
-my $self_patch='09';
+my $self_date='2018-11-14';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17918,6 +17918,7 @@ sub soc_devices {
 		$chip_id = $5;
 		$temp = $7;
 		@working = main::reader($file, 'strip') if -r $file;
+		($device,$driver,$handle,$type,$vendor_id) = (undef,undef,undef,undef,undef);
 		foreach my $data (@working){
 			@temp2 = split /=/, $data;
 			if ($temp2[0] eq 'DRIVER'){
@@ -18055,8 +18056,8 @@ sub soc_type {
 	# I2S or i2s. I2C is i2 controller |[iI]2[Ss]. note: odroid hdmi item is sound only
 	# snd_soc_dummy. simple-audio-amplifier driver: speaker_amp
 	if ($type =~ /^(daudio|.*hifi.*|.*sound[\-_]card|.*dac[0-9]?)$/ ||
-	 ($info && $info !~ /amp/ && $info =~ /(sound|audio)/) || 
-	 ($driver && $driver !~ /codec|dummy/ && $driver =~ /(audio|snd|sound)/) ){
+	 ($info && $info !~ /amp|codec|dummy/ && $info =~ /(sound|audio)/) || 
+	 ($driver && $driver !~ /(codec|dummy)/ && $driver =~ /(audio|snd|sound)/) ){
 		$type = 'audio';
 	}
 	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|mali)$/){
@@ -18070,7 +18071,7 @@ sub soc_type {
 		$type = 'wifi';
 	}
 	# needs to catch variants like hdmi-tx but not hdmi-connector
-	elsif ($type =~ /^(.*hdmi(-?tx)?)$/){
+	elsif ( (!$driver || $driver !~ /(codec|dummy)/) && $type =~ /^(.*hdmi(-?tx)?)$/){
 		$type = 'hdmi';
 	}
 	elsif ($type =~ /^timer$/){
