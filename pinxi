@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.28';
-my $self_date='2018-12-07';
-my $self_patch='02';
+my $self_date='2018-12-09';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15779,6 +15779,7 @@ sub get {
 	$desktop_session = ( $ENV{'DESKTOP_SESSION'} ) ? lc($ENV{'DESKTOP_SESSION'}) : '';
 	$xdg_desktop = ( $ENV{'XDG_CURRENT_DESKTOP'} ) ? lc($ENV{'XDG_CURRENT_DESKTOP'}) : '';
 	$kde_session_version = ($ENV{'KDE_SESSION_VERSION'}) ? $ENV{'KDE_SESSION_VERSION'} : '';
+	main::set_ps_gui() if ! $b_ps_gui;
 	get_kde_data();
 	if (!@desktop){
 		get_env_de_data();
@@ -15808,12 +15809,22 @@ sub get_kde_data {
 	eval $start if $b_log;
 	my ($program,@version_data,@version_data2);
 	my $kde_full_session = ($ENV{'KDE_FULL_SESSION'}) ? $ENV{'KDE_FULL_SESSION'} : '';
-	return 1 if ($xdg_desktop ne 'kde' && !$kde_session_version && $kde_full_session ne 'true' );
 	# works on 4, assume 5 will id the same, why not, no need to update in future
 	# KDE_SESSION_VERSION is the integer version of the desktop
 	# NOTE: as of plasma 5, the tool: about-distro MAY be available, that will show
 	# actual desktop data, so once that's in debian/ubuntu, if it gets in, add that test
-	if ($xdg_desktop eq 'kde' || $kde_session_version ){
+	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || (grep {/^tde/} @ps_gui) ){
+		$desktop[0] = 'Trinity';
+		if ($program = main::check_program('kdesktop')){
+			@version_data = main::grabber("$program --version 2>/dev/null");
+			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
+		}
+		if ($extra > 1 && @version_data){
+			$desktop[2] = 'Qt';
+			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
+		}
+	}
+	elsif ( $xdg_desktop eq 'kde' || $kde_session_version ){
 		if ($kde_session_version && $kde_session_version <= 4){
 			@data = main::program_values("kded$kde_session_version");
 			if (@data){
@@ -15883,18 +15894,6 @@ sub get_kde_data {
 sub get_env_de_data {
 	eval $start if $b_log;
 	my ($program,@version_data);
-	main::set_ps_gui() if ! $b_ps_gui;
-	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || (grep {/^tde/} @ps_gui) ){
-		$desktop[0] = 'Trinity';
-		if ($program = main::check_program('kdesktop')){
-			@version_data = main::grabber("$program --version 2>/dev/null");
-			$desktop[1] = main::awk(\@version_data,'^TDE:',2,'\s+') if @version_data;
-		}
-		if ($extra > 1 && @version_data){
-			$desktop[2] = 'Qt';
-			$desktop[3] = main::awk(\@version_data,'^Qt:',2,'\s+') if @version_data;
-		}
-	}
 	if (!$desktop[0]){
 		# 1 equals 1/0; 2 env var search; 3 values; 4 version; 5 - gtk tk; 6 - qt tk
 		my @desktops =(
