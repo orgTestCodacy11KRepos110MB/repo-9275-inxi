@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.29';
-my $self_date='2018-12-10';
-my $self_patch='01';
+my $self_date='2018-12-11';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4871,6 +4871,7 @@ sub get_client_name {
 		$client{'name'} = $client_name;
 		get_client_version();
 		# print "c:$client_name p:$pppid\n";
+		#print "$client{'name-print'}\n";
 	}
 	else {
 		if (! check_modern_konvi() ){
@@ -4991,7 +4992,18 @@ sub get_client_version {
 		perl_python_client();
 	}
 	if (!$client{'name-print'}) {
-		$client{'name-print'} = 'Unknown Client: ' . $client{'name'};
+		# NOTE: these must be empirically determined, not all events that 
+		# show no tty are actually IRC.
+		my $whitelist = 'ansible|chef|kate|konsole|run-parts|sudo|term|urvxt';
+		# print "$client{'name'}\n";
+		if ($client{'name'} =~ /($whitelist)/i){
+			main::get_shell_data($ppid);
+			#$client{'name-print'} = $client{'name'};
+			$b_irc = 0;
+		}
+		else {
+			$client{'name-print'} = 'Unknown Client: ' . $client{'name'};
+		}
 	}
 	eval $end if $b_log;
 }
