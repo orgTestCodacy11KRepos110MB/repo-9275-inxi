@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.29';
-my $self_date='2018-12-11';
-my $self_patch='03';
+my $self_date='2018-12-14';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15621,20 +15621,36 @@ sub get_weather {
 		# very clever trick, just make the system think it's in the 
 		# remote timezone for this local block only
 		local $ENV{'TZ'} = $tz; 
-		$date_time = POSIX::strftime "%c", localtime;
+		$date_time = POSIX::strftime "%c", localtime();
+		$date_time = test_local_date($date_time,'','');
 		$weather{'date-time'} = $date_time;
 	}
 	else {
-		$date_time = POSIX::strftime "%c", localtime;
+		$date_time = POSIX::strftime "%c", localtime();
+		$date_time = test_local_date($date_time,'','');
 		$tz = ( $location[2] ) ? " ($location[2])" : ''; 
 		$weather{'date-time'} = $date_time . $tz;
 	}
 	# we get the wrong time using epoch for remote -W location
 	if ( !$show{'weather-location'} && $weather{'observation-epoch'}){
-		$weather{'observation-time-local'} = POSIX::strftime "%c", localtime($weather{'observation-epoch'});
+		$date_time = POSIX::strftime "%c", localtime($weather{'observation-epoch'});
+		$date_time = test_local_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
+		$weather{'observation-time-local'} = $date_time;
 	}
 	return %weather;
 	eval $end if $b_log;
+}
+# resolve wide character issue, if detected, switch to iso 
+# date format, we won't try to be too clever here.
+sub test_local_date {
+	my ($date_time,$location,$epoch) = @_;
+	#print "1: $date_time\n";
+	if ($date_time =~ m/[^\x00-\x7f]/){
+		$epoch = (!$location && $epoch) ? $epoch: '';
+		$date_time = POSIX::strftime "%Y-%m-%d %H:%M:%S", localtime($epoch);
+	}
+	#print "2: $date_time\n";
+	return $date_time;
 }
 sub get_location {
 	eval $start if $b_log;
