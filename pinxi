@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.29';
-my $self_date='2018-12-14';
-my $self_patch='04';
+my $self_date='2018-12-16';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4535,7 +4535,7 @@ sub show_options {
 	PCI Bus ID/USB ID number of card; Version/port(s)/driver version (if available)." ],
 	['2', '-B', '', "Vendor/model, status (if available); attached devices 
 	(e.g. wireless mouse, keyboard, if present)." ],
-	['2', '-C', '', "CPU $flags, Bogomips on CPU; CPU microarchitecture + 
+	['2', '-C', '', "CPU $flags (short list), Bogomips on CPU; CPU microarchitecture + 
 	revision (if found, or unless --admin, then shows as 'stepping')." ],
 	['2', '-d', '', "Extra optical drive features data; adds rev version to 
 	optical drive." ],
@@ -4707,9 +4707,10 @@ sub show_options {
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
-	['1', '', '--tty', "Forces irc flag to false. Useful for running Ansible or Chef. 
-	Must use -y [width] option if you want a specific output width. Always put this option 
-	first in an option list."],
+	['1', '', '--tty', "Forces irc flag to false. Generally useful if $self_name is running
+	inside of another tool like Chef or MOTD and returns corrupted color codes. Please see
+	man page or file an issue if you need to use this flag. Must use -y [width] option if 
+	you want a specific output width. Always put this option first in an option list."],
 	['1', '', '--usb-sys', "Force USB data to use /sys as data source (Linux only)." ],
 	['1', '', '--usb-tool', "Force USB data to use lsusb as data source (Linux only)." ],
 	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps." ],
@@ -4994,7 +4995,9 @@ sub get_client_version {
 	if (!$client{'name-print'}) {
 		# NOTE: these must be empirically determined, not all events that 
 		# show no tty are actually IRC.
-		my $wl_terms = 'kate|konsole|sudo|term|urvxt';
+		my $wl_terms = 'alacritty|evilvte|germinal|guake|hyper|kate|kitty|kmscon|';
+		$wl_terms .= 'konsole|putty|rxvt|sakura|shellinabox|^st$|sudo|term|tilda|';
+		$wl_terms .= 'tilix|urvxt|yaft|yakuake';
 		my $wl_clients = 'ansible|chef|run-parts';
 		my $whitelist = "$wl_terms|$wl_clients";
 		# print "$client{'name'}\n";
@@ -5094,7 +5097,6 @@ sub perl_python_client {
 ## and all other irc clients are not running. As of 2014-03-25 this isn't used in my cases
 sub check_modern_konvi {
 	eval $start if $b_log;
-	
 	return 0 if ! $client{'qdbus'};
 	my $b_modern_konvi = 0;
 	my $konvi_version = '';
