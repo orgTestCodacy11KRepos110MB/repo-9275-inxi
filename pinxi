@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.30';
-my $self_date='2019-01-07';
-my $self_patch='03';
+my $self_date='2019-01-23';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -72,7 +72,7 @@ $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,
 $b_pci,$b_pci_tool,$b_ppc,$b_proc_partitions,$b_ps_gui,
-$b_root,$b_running_in_display,
+$b_root,$b_running_in_display,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_sudo,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,$b_wmctrl);
 ## Disk checks
@@ -81,7 +81,7 @@ $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
-my ($bsd_type,$language,$os,$pci_tool,$device_vm) = ('','','','','');
+my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
@@ -1084,6 +1084,12 @@ sub get_config_item {
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = $val if is_int($val)}
 	elsif ($key eq 'USB_SYS') {$b_usb_sys = $val if is_int($val)}
+	elsif ($key eq 'WAN_IP_URL') {
+		if ($val =~ /^(ht|f)tp[s]?:\//i){
+			$wan_url = $val;
+			$b_skip_dig = 1;
+		}
+	}
 	elsif ($key eq 'WEATHER_UNIT') { 
 		$val = lc($val) if $val;
 		if ($val && $val =~ /^(c|f|cf|fc|i|m|im|mi)$/){
@@ -4325,6 +4331,15 @@ sub get_options{
 		$b_usb_tool = 1 },
 	'V|version' => sub { 
 		$b_version = 1 },
+	'wan-ip-url:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg && $arg =~ /^(f|ht)tp[s]?:\/\//){
+			$wan_url = $arg;
+			$b_skip_dig = 1
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}},
 	'wm' => sub { 
 		$b_wmctrl = 1 },
 	'<>' => sub {
@@ -4334,7 +4349,7 @@ sub get_options{
 	## run all these after so that we can change widths, downloaders, etc
 	eval $end if $b_log;
 	CheckRecommends::run() if $b_recommends;
-	set_downloader() if $b_downloader;
+	set_downloader() if $b_downloader || $wan_url; # sets for either config or arg here
 	show_version() if $b_version;
 	show_options() if $b_help;
 	$b_man = 0 if (!$b_use_man || $b_no_man_force);
@@ -4714,6 +4729,9 @@ sub show_options {
 	you want a specific output width. Always put this option first in an option list."],
 	['1', '', '--usb-sys', "Force USB data to use /sys as data source (Linux only)." ],
 	['1', '', '--usb-tool', "Force USB data to use lsusb as data source (Linux only)." ],
+	['1', '', '--wan-ip-url', "[URL] Skips dig, uses supplied URL for WAN IP (-i). 
+	URL output must end in the IP address. See man. 
+	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php" ],
 	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps." ],
 	['0', '', '', $line ],
 	['0', '', '', "Debugging Options:" ],
@@ -10747,14 +10765,16 @@ sub wan_ip {
 	my (@data,$ip);
 	my $num = 0;
 	# time: 0.06 - 0.07 seconds
-	if (my $program = main::check_program('dig')){
+	if (!$b_skip_dig && (my $program = main::check_program('dig') )){
 		$ip = (main::grabber("$program +short +time=1 +tries=1 myip.opendns.com \@resolver1.opendns.com 2>/dev/null"))[0];
 	}
 	else {
 		# note: tests: akamai: 0.055 - 0.065 icanhazip.com: 0.177 0.164
 		# smxi: 0.525, so almost 10x slower. Dig is fast too
 		# leaving smxi as last test because I know it will always be up.
-		my @urls = qw( http://whatismyip.akamai.com/ http://icanhazip.com/ https://smxi.org/opt/ip.php);
+		# --wan-ip-url replaces values with user supplied arg
+		my @urls = (!$wan_url) ? qw( http://whatismyip.akamai.com/ 
+		 http://icanhazip.com/ https://smxi.org/opt/ip.php) : ($wan_url);
 		foreach (@urls){
 			$ip = main::download_file('stdout',$_);
 			if ($ip){
