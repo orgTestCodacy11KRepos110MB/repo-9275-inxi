@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.30';
-my $self_date='2019-02-05';
-my $self_patch='07';
+my $self_date='2019-02-06';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1089,6 +1089,7 @@ sub get_config_item {
 			$b_skip_dig = 1;
 		}
 	}
+	elsif ($key eq 'WEATHER_SOURCE') {$weather_source = $val if is_int($val)}
 	elsif ($key eq 'WEATHER_UNIT') { 
 		$val = lc($val) if $val;
 		if ($val && $val =~ /^(c|f|cf|fc|i|m|im|mi)$/){
@@ -4066,9 +4067,11 @@ sub get_options{
 		else {
 			error_handler('distro-block', $opt);
 		} },
-	'weather-source:s' => sub {
+	'ws|weather-source:s' => sub {
 		my ($opt,$arg) = @_;
-		if ($arg =~ /^[0-3]$/){
+		# let api processor handle checks if valid, this
+		# future proofs this
+		if ($arg =~ /^[0-9]$/){
 			$weather_source = $arg;
 		}
 		else {
@@ -15435,6 +15438,9 @@ sub create_output {
 		$weather{'observation-time-local'} = 'N/A' if !$weather{'observation-time-local'};
 		$rows[0]{main::key($num++,'Observation Time')} = $weather{'observation-time-local'};
 	}
+	if ($weather{'api-source'}){
+		$rows[0]{main::key($num++,'Source')} = $weather{'api-source'};
+	}
 	eval $end if $b_log;
 	return @rows;
 }
@@ -15569,7 +15575,10 @@ sub get_weather {
 	foreach (@weather_data){
 		my @working = split /\s*\^\^\s*/,$_;
 		next if ! defined $working[1] || $working[1] eq '';
-		if ( $working[0] eq 'city' ){
+		if ( $working[0] eq 'api_source' ){
+			$weather{'api-source'} = $working[1];
+		}
+		elsif ( $working[0] eq 'city' ){
 			$weather{'city'} = $working[1];
 		}
 		elsif ( $working[0] eq 'cloud_cover' ){
