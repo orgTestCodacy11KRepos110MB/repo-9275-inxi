@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.30';
 my $self_date='2019-02-06';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -85,7 +85,7 @@ my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','')
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
-my ($weather_source,$weather_unit) = (100,'mi');
+my ($dl_ua,$weather_source,$weather_unit) = ('s-tools/' . $self_name  . '-',100,'mi');
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
@@ -2158,10 +2158,11 @@ sub user_debug_test_1 {
 #### -------------------------------------------------------------------
 
 sub download_file {
-	my ($type, $url, $file) = @_;
+	my ($type, $url, $file,$ua) = @_;
 	my ($cmd,$args,$timeout) = ('','','');
 	my $debug_data = '';
 	my $result = 1;
+	$ua = ($ua && $dl{'ua'}) ? $dl{'ua'} . $ua : '';
 	$dl{'no-ssl-opt'} ||= '';
 	$dl{'spider'} ||= '';
 	$file ||= 'N/A'; # to avoid debug error
@@ -2186,19 +2187,19 @@ sub download_file {
 	else {
 		if ($type eq 'stdout'){
 			$args = $dl{'stdout'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args \"$url\" $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $args \"$url\" $dl{'null'}";
 			$result = qx($cmd);
 			$debug_data = ($result) ? 'Success: stdout data not null.' : 'Download resulted in null data!';
 		}
 		elsif ($type eq 'file') {
 			$args = $dl{'file'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $file \"$url\" $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $args $file \"$url\" $dl{'null'}";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
 		}
 		elsif ( $dl{'dl'} eq 'wget' && $type eq 'spider'){
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $dl{'spider'} \"$url\"";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $dl{'spider'} \"$url\"";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
@@ -2285,6 +2286,7 @@ sub set_downloader {
 		$dl{'no-ssl'} = ' --insecure';
 		$dl{'stdout'} = " -L ${quiet}";
 		$dl{'timeout'} = ' -y ';
+		$dl{'ua'} = ' -A ' . $dl_ua;
 	}
 	elsif ($dl{'wget'} && check_program('wget') ){
 		$quiet = '-q ' if !$test[1];
@@ -2294,6 +2296,7 @@ sub set_downloader {
 		$dl{'spider'} = " ${quiet}--spider";
 		$dl{'stdout'} = " $quiet -O -";
 		$dl{'timeout'} = ' -T ';
+		$dl{'ua'} = ' -U ' . $dl_ua;
 	}
 	elsif ($dl{'fetch'} && check_program('fetch')){
 		$quiet = '-q ' if !$test[1];
@@ -10783,7 +10786,7 @@ sub if_ip {
 # dig +short +time=1 +tries=1 myip.opendns.com. A @208.67.222.222
 sub wan_ip {
 	eval $start if $b_log;
-	my (@data,$ip);
+	my (@data,$ip,$ua);
 	my $num = 0;
 	# time: 0.06 - 0.07 seconds
 	if (!$b_skip_dig && (my $program = main::check_program('dig') )){
@@ -10797,7 +10800,8 @@ sub wan_ip {
 		my @urls = (!$wan_url) ? qw( http://whatismyip.akamai.com/ 
 		 http://icanhazip.com/ https://smxi.org/opt/ip.php) : ($wan_url);
 		foreach (@urls){
-			$ip = main::download_file('stdout',$_);
+			$ua = 'ip' if $_ =~ /smxi/;
+			$ip = main::download_file('stdout',$_,'',$ua);
 			if ($ip){
 				# print "$_\n";
 				chomp $ip;
@@ -15768,13 +15772,14 @@ sub get_weather {
 sub download_weather {
 	eval $start if $b_log;
 	my ($now,$file_cached,@location) = @_;
-	my (@weather,@weather_temp,$temp,$url);
+	my (@weather,@weather_temp,$temp,$ua,$url);
 	if ($weather_source == 0){
 		$url = "http://api.wunderground.com/auto/wui/geo/WXCurrentObXML/index.xml?query=$location[0]";
 	}
 	else {
 		$url = "https://smxi.org/opt/xr2.php?loc=$location[0]&src=$weather_source";
 	}
+	$ua = 'weather' if $url =~ /smxi/;
 # 		{
 # 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
 # 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
@@ -15783,7 +15788,7 @@ sub download_weather {
 # 			open my $fh, '<', $file or die "can't open $file: $!";
 # 			$temp = <$fh>;
 # 		}
-	$temp = main::download_file('stdout',$url);
+	$temp = main::download_file('stdout',$url,'',$ua);
 	$temp =~ s/\r|\n\n/\n/g if $weather_source == 0;
 	@weather_temp = split /\n/, $temp;
 	if ($weather_source == 0){
