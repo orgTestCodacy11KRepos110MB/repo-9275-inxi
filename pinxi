@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.30';
-my $self_date='2019-01-30';
-my $self_patch='06';
+my $self_date='2019-02-05';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -85,7 +85,7 @@ my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','')
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
-my $weather_unit='mi';
+my ($weather_source,$weather_unit) = (100,'mi');
 
 ## Tools
 my ($display,$ftp_alt,$tty_session);
@@ -342,7 +342,6 @@ sub set_basics {
 	$b_irc = ( check_program('tty') && system('tty >/dev/null') ) ? 1 : 0;
 	# print "birc: $b_irc\n";
 	$b_display = ( $ENV{'DISPLAY'} ) ? 1 : 0;
-	# $b_root = ( $ENV{'HOME'} eq '/root' ) ? 1 : 0;
 	$b_root = $< == 0; # root UID 0, all others > 0
 	$dl{'dl'} = 'curl';
 	$dl{'curl'} = 1;
@@ -2182,22 +2181,23 @@ sub download_file {
 	}
 	# But: 0 is success, and 1 is false for these
 	# when strings are returned, they will be taken as true
+	# urls must be " quoted in case special characters present
 	else {
 		if ($type eq 'stdout'){
 			$args = $dl{'stdout'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $url $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args \"$url\" $dl{'null'}";
 			$result = qx($cmd);
 			$debug_data = ($result) ? 'Success: stdout data not null.' : 'Download resulted in null data!';
 		}
 		elsif ($type eq 'file') {
 			$args = $dl{'file'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $file $url $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $args $file \"$url\" $dl{'null'}";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
 		}
 		elsif ( $dl{'dl'} eq 'wget' && $type eq 'spider'){
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $dl{'spider'} $url";
+			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $timeout $dl{'spider'} \"$url\"";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
@@ -4066,6 +4066,14 @@ sub get_options{
 		else {
 			error_handler('distro-block', $opt);
 		} },
+	'weather-source:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^[0-3]$/){
+			$weather_source = $arg;
+		}
+		else {
+			error_handler('bad-arg',$opt,$arg);
+		} },
 	'weather-unit:s' => sub {
 		my ($opt,$arg) = @_;
 		$arg ||= '';
@@ -4538,10 +4546,12 @@ sub show_options {
 		['1', '-w', '--weather', "Local weather data/time. To check an alternate
 		location, see -W."],
 		['1', '-W', '--weather-location', "[location] Supported options for 
-		[location]: postal code; city, state/country; latitude, longitude. 
+		[location]: postal code[,country]; city, state/country; latitude, longitude. 
 		Only use if you want the weather somewhere other than the machine running
 		$self_name. Use only ASCII characters, replace spaces in city/state/country 
 		names with '+'. Example:^$self_name^-W^new+york,ny"],
+		['1', '', '--weather-source', "[0-3] Change weather data source. 0 will use 
+		a legacy source internally. 1-3 will use remote smxi sources. See man."],
 		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (i), 
 		metric/imperial (mi), or imperial/metric (im)."],
 		);
@@ -4586,7 +4596,7 @@ sub show_options {
 	push @data, @rows;
 	if ( $b_weather ){
 		@rows = (['2', '-w -W', '', "Wind speed and direction, humidity, pressure, 
-		and (-w only) time zone." ]);
+		and time zone, if available." ]);
 		push @data, @rows;
 	}
 	@rows = (
@@ -4617,7 +4627,8 @@ sub show_options {
 	);
 	push @data, @rows;
 	if ( $b_weather ){
-		@rows = (['2', '-w -W', '', "Wind chill, dew point, heat index, if available." ]);
+		@rows = (['2', '-w -W', '', "Snow, rain (last observed hour), cloud cover, 
+		wind chill, dew point, heat index, if available." ]);
 		push @data, @rows;
 	}
 	@rows = (
@@ -4646,7 +4657,7 @@ sub show_options {
 	push @data, @rows;
 	if ( $b_weather ){
 		@rows = (['2', '-w -W', '', "Location (uses -z/irc filter), weather observation 
-		time, altitude (shows extra lines for data where relevant)." ] );
+		time, altitude, if available." ] );
 		push @data, @rows;
 	}
 	@rows = (
@@ -5437,6 +5448,7 @@ sub row_defaults {
 	'unknown-desktop-version' => "ERR-101",
 	'unknown-dev' => "ERR-102",
 	'unknown-shell' => "ERR-100",
+	'weather-error' => "Error in weather data: $id",
 	'weather-null' => "No $id found. Internet connection working?",
 	'xdpyinfo-missing' => '<xdpyinfo missing>',
 	);
@@ -15329,7 +15341,7 @@ sub get {
 sub create_output {
 	eval $start if $b_log;
 	my $num = 0;
-	my (@data,@location,@rows,%weather,);
+	my (@data,@location,@rows,$value,%weather,);
 	my ($conditions) = ('NA');
 	if ($show{'weather-location'}){
 		my $location_string;
@@ -15358,6 +15370,11 @@ sub create_output {
 		}
 	}
 	%weather = get_weather(@location);
+	if ($weather{'error'}) {
+		return @rows = ({
+		main::key($num++,'Message') => main::row_defaults('weather-error',$weather{'error'}),
+		});
+	}
 	if (!$weather{'weather'}) {
 		return @rows = ({
 		main::key($num++,'Message') => main::row_defaults('weather-null','weather data'),
@@ -15375,31 +15392,47 @@ sub create_output {
 		my $wind = wind_output($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
 		$weather{'wind-gust-mph'},$weather{'wind-gust-ms'});
 		$rows[0]{main::key($num++,'Wind')} = $wind;
-		$rows[0]{main::key($num++,'Humidity')} = $weather{'humidity'};
+		if ($extra > 1){
+			if (defined $weather{'cloud-cover'}){
+				$rows[0]{main::key($num++,'Cloud Cover')} = $weather{'cloud-cover'} . '%';
+			}
+			if ($weather{'rain-1h-mm'} && defined $weather{'rain-1h-in'} ){
+				$value = unit_output('',$weather{'rain-1h-mm'},'mm',$weather{'rain-1h-in'},'in');
+				$rows[0]{main::key($num++,'Rain')} = $value;
+			}
+			if ($weather{'snow-1h-mm'} && defined $weather{'snow-1h-in'} ){
+				$value = unit_output('',$weather{'snow-1h-mm'},'mm',$weather{'snow-1h-in'},'in');
+				$rows[0]{main::key($num++,'Snow')} = $value;
+			}
+		}
+		$rows[0]{main::key($num++,'Humidity')} = $weather{'humidity'} . '%';
 		$rows[0]{main::key($num++,'Pressure')} = $pressure;
 	}
 	if ($extra > 1){
-		if ($weather{'heat-index'}){
-			my $heat = unit_output($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
-			$rows[0]{main::key($num++,'Heat Index')} = $heat;
+		if ($weather{'heat-index'} || (defined $weather{'heat-index-c'} && defined $weather{'heat-index-f'})){
+			$value = unit_output($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
+			$rows[0]{main::key($num++,'Heat Index')} = $value;
 		}
-		if ($weather{'windchill'}){
-			my $chill = unit_output($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
-			$rows[0]{main::key($num++,'Wind Chill')} = $chill ;
+		if ($weather{'windchill'} || (defined $weather{'windchill-c'} && defined $weather{'windchill-f'})){
+			$value = unit_output($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
+			$rows[0]{main::key($num++,'Wind Chill')} = $value;
 		}
-		if ($weather{'dewpoint'}){
-			my $dew = unit_output($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
-			$rows[0]{main::key($num++,'Dew Point')} = $dew;
+		if ($weather{'dewpoint'} || (defined $weather{'dewpoint-c'} && defined $weather{'dewpoint-f'})){
+			$value = unit_output($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
+			$rows[0]{main::key($num++,'Dew Point')} = $value;
 		}
 	}
 	if ($extra > 2){
 		if (!$show{'filter'}){
-			$rows[0]{main::key($num++,'Location')} = $location[1];
-			$rows[0]{main::key($num++,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
+			$rows[0]{main::key($num++,'Location')} = complete_location($location[1],$weather{'city'},$weather{'state'},$weather{'country'});
+			if ($weather{'elevation-m'} || $weather{'elevation-ft'}){
+				$rows[0]{main::key($num++,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
+			}
 		}
 	}
 	$rows[0]{main::key($num++,'Current Time')} = $weather{'date-time'};
 	if ($extra > 2){
+		$weather{'observation-time-local'} = 'N/A' if !$weather{'observation-time-local'};
 		$rows[0]{main::key($num++,'Observation Time')} = $weather{'observation-time-local'};
 	}
 	eval $end if $b_log;
@@ -15434,16 +15467,16 @@ sub unit_output {
 	eval $start if $b_log;
 	my ($primary,$metric,$m_unit,$imperial,$i_unit) = @_;
 	my $result = '';
-	if ($metric && $imperial && $weather_unit eq 'mi' ){
+	if (defined $metric && defined $imperial && $weather_unit eq 'mi' ){
 		$result = "$metric $m_unit ($imperial $i_unit)";
 	}
-	elsif ($metric && $imperial && $weather_unit eq 'im' ){
+	elsif (defined $metric && defined $imperial && $weather_unit eq 'im' ){
 		$result = "$imperial $i_unit ($metric $m_unit)";
 	}
-	elsif ($metric && $weather_unit eq 'm' ){
+	elsif (defined $metric && $weather_unit eq 'm' ){
 		$result = "$metric $m_unit";
 	}
-	elsif ($imperial && $weather_unit eq 'i' ){
+	elsif (defined $imperial && $weather_unit eq 'i' ){
 		$result = "$imperial $i_unit";
 	}
 	elsif ($primary){
@@ -15529,41 +15562,23 @@ sub get_weather {
 		#print "$now:$freshness\n";
 	}
 	if (!$freshness || $freshness < ($now - 90) ) {
-		@weather_data = (); # reset so we don't write the previous data to file!!
-		my $url = "http://api.wunderground.com/auto/wui/geo/WXCurrentObXML/index.xml?query=$location[0]";
- 		my $temp;
-# 		{
-# 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
-# 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
-# 			local $/;
-# 			my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
-# 			open my $fh, '<', $file or die "can't open $file: $!";
-# 			$temp = <$fh>;
-# 		}
- 		$temp = main::download_file('stdout',$url);
-		$temp =~ s/\r|\n\n/\n/g;
-		my @weather_temp = split /\n/, $temp;
-		foreach (@weather_temp){
-			chomp $_;
-			$_ =~ s/<\/[^>]+>//;
-			$_ =~ s/.*icon.*|\r//g;
-			$_ =~ s/\s\s/ /g;
-			$_ =~ s/^\s+|\s+$//g;
-			$_ =~ s/>/^^/;
-			$_ =~ s/^<|NA$//g;
-			$_ =~ s/^(current|credit|terms|image|title|link|.*_url).*//;
-			push @weather_data, $_ if $_ !~ /^\s*$/;
-		}
-		unshift (@weather_data,("timestamp^^$now"));
-		main::writer($file_cached,\@weather_data);
-		#print "$file_cached: download/cleaned\n";
+		@weather_data = download_weather($now,$file_cached,@location);
 	}
 	#print join "\n", @weather_data, "\n";
 	# NOTE: because temps can be 0, we can't do if value tests
 	foreach (@weather_data){
 		my @working = split /\s*\^\^\s*/,$_;
 		next if ! defined $working[1] || $working[1] eq '';
-		if ( $working[0] eq 'dewpoint_string' ){
+		if ( $working[0] eq 'city' ){
+			$weather{'city'} = $working[1];
+		}
+		elsif ( $working[0] eq 'cloud_cover' ){
+			$weather{'cloud-cover'} = $working[1];
+		}
+		elsif ( $working[0] eq 'country' ){
+			$weather{'country'} = $working[1];
+		}
+		elsif ( $working[0] eq 'dewpoint_string' ){
 			$weather{'dewpoint'} = $working[1];
 			$working[1] =~ /^([0-9\.]+)\sF\s\(([0-9\.]+)\sC\)/;
 			$weather{'dewpoint-c'} = $2;;
@@ -15575,11 +15590,14 @@ sub get_weather {
 		elsif ( $working[0] eq 'dewpoint_f' ){
 			$weather{'dewpoint-f'} = $working[1];
 		}
-		# there are two elevations, we want the first one
+		# WU: there are two elevations, we want the first one
 		elsif (!$weather{'elevation-m'} && $working[0] eq 'elevation'){
 			# note: bug in source data uses ft for meters, not 100% of time, but usually
 			$weather{'elevation-m'} = $working[1];
 			$weather{'elevation-m'} =~ s/\s*(ft|m).*$//;
+		}
+		elsif ( $working[0] eq 'error' ){
+			$weather{'error'} = $working[1];
 		}
 		elsif ( $working[0] eq 'heat_index_string' ){
 			$weather{'heat-index'} = $working[1];
@@ -15594,6 +15612,7 @@ sub get_weather {
 			$weather{'heat-index-f'} = $working[1];
 		}
 		elsif ( $working[0] eq 'relative_humidity' ){
+			$working[1] =~ s/%$//;
 			$weather{'humidity'} = $working[1];
 		}
 		elsif ( $working[0] eq 'local_time' ){
@@ -15603,7 +15622,7 @@ sub get_weather {
 			$weather{'local-epoch'} = $working[1];
 		}
 		elsif ( $working[0] eq 'observation_time_rfc822' ){
-			$weather{'observation-time-gmt'} = $working[1];
+			$weather{'observation-time-rfc822'} = $working[1];
 		}
 		elsif ( $working[0] eq 'observation_epoch' ){
 			$weather{'observation-epoch'} = $working[1];
@@ -15621,6 +15640,21 @@ sub get_weather {
 		elsif ( $working[0] eq 'pressure_in' ){
 			$weather{'pressure-in'} = $working[1];
 		}
+		elsif ( $working[0] eq 'rain_1h_mm' ){
+			$weather{'rain-1h-mm'} = $working[1];
+		}
+		elsif ( $working[0] eq 'rain_1h_in' ){
+			$weather{'rain-1h-in'} = $working[1];
+		}
+		elsif ( $working[0] eq 'snow_1h_mm' ){
+			$weather{'snow-1h-mm'} = $working[1];
+		}
+		elsif ( $working[0] eq 'snow_1h_in' ){
+			$weather{'snow-1h-in'} = $working[1];
+		}
+		elsif ( $working[0] eq 'state_name' ){
+			$weather{'state'} = $working[1];
+		}
 		elsif ( $working[0] eq 'temperature_string' ){
 			$weather{'temp'} = $working[1];
 			$working[1] =~ /^([0-9\.]+)\sF\s\(([0-9\.]+)\sC\)/;
@@ -15635,6 +15669,9 @@ sub get_weather {
 		}
 		elsif ( $working[0] eq 'temp_c' ){
 			$weather{'temp-c'} = $working[1];
+		}
+		elsif ( $working[0] eq 'timezone' ){
+			$weather{'timezone'} = $working[1];
 		}
 		elsif ( $working[0] eq 'visibility' ){
 			$weather{'visibility'} = $working[1];
@@ -15683,14 +15720,26 @@ sub get_weather {
 		}
 	}
 	if ($show{'weather-location'}){
-		$weather{'observation-time-local'} =~ /^(.*)\s([\S]+)$/;
-		$tz = $2;
+		if ($weather{'observation-time-local'} && 
+		 $weather{'observation-time-local'} =~ /^(.*)\s([a-z_]+\/[a-z_]+)$/i){
+			$tz = $2;
+		}
+		if (!$tz && $weather{'timezone'}){
+			$tz = $weather{'timezone'};
+			$weather{'observation-time-local'} .= ' (' . $weather{'timezone'} . ')' if $weather{'observation-time-local'};
+		}
 		# very clever trick, just make the system think it's in the 
 		# remote timezone for this local block only
-		local $ENV{'TZ'} = $tz; 
+		local $ENV{'TZ'} = $tz if $tz; 
 		$date_time = POSIX::strftime "%c", localtime();
 		$date_time = test_local_date($date_time,'','');
 		$weather{'date-time'} = $date_time;
+		# only wu has rfc822 value, and we want the original observation time then
+		if ($weather{'observation-epoch'} && $tz){
+			$date_time = POSIX::strftime "%Y-%m-%d %T ($tz %z)", localtime($weather{'observation-epoch'});
+			$date_time = test_local_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
+			$weather{'observation-time-local'} = $date_time;
+		}
 	}
 	else {
 		$date_time = POSIX::strftime "%c", localtime();
@@ -15707,6 +15756,49 @@ sub get_weather {
 	return %weather;
 	eval $end if $b_log;
 }
+sub download_weather {
+	eval $start if $b_log;
+	my ($now,$file_cached,@location) = @_;
+	my (@weather,@weather_temp,$temp,$url);
+	if ($weather_source == 0){
+		$url = "http://api.wunderground.com/auto/wui/geo/WXCurrentObXML/index.xml?query=$location[0]";
+	}
+	else {
+		$url = "https://smxi.org/opt/xr2.php?loc=$location[0]&src=$weather_source";
+	}
+# 		{
+# 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+# 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
+# 			local $/;
+# 			my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+# 			open my $fh, '<', $file or die "can't open $file: $!";
+# 			$temp = <$fh>;
+# 		}
+	$temp = main::download_file('stdout',$url);
+	$temp =~ s/\r|\n\n/\n/g if $weather_source == 0;
+	@weather_temp = split /\n/, $temp;
+	if ($weather_source == 0){
+		foreach (@weather_temp){
+			chomp $_;
+			$_ =~ s/<\/[^>]+>//;
+			$_ =~ s/.*icon.*|\r//g;
+			$_ =~ s/\s\s/ /g;
+			$_ =~ s/^\s+|\s+$//g;
+			$_ =~ s/>/^^/;
+			$_ =~ s/^<|NA$//g;
+			$_ =~ s/^(current|credit|terms|image|title|link|.*_url).*//;
+			push @weather, $_ if $_ !~ /^\s*$/;
+		}
+	}
+	else {
+		@weather = @weather_temp;
+	}
+	unshift (@weather,("timestamp^^$now"));
+	main::writer($file_cached,\@weather);
+	#print "$file_cached: download/cleaned\n";
+	eval $end if $b_log;
+	return @weather;
+}
 # resolve wide character issue, if detected, switch to iso 
 # date format, we won't try to be too clever here.
 sub test_local_date {
@@ -15721,6 +15813,7 @@ sub test_local_date {
 			$date_time = POSIX::strftime "%Y-%m-%d %H:%M:%S", localtime();
 		}
 	}
+	$date_time =~ s/\s+$//;
 	#print "2: $date_time\n";
 	return $date_time;
 }
@@ -15812,6 +15905,17 @@ sub get_location {
 	#print ($loc_arg,"\n", join "\n", @loc_data, "\n",scalar @loc_data, "\n");
 	eval $end if $b_log;
 	return @location;
+}
+sub complete_location {
+	eval $start if $b_log;
+	my ($location,$city,$state,$country) = @_;
+	if ($location && $location =~ /[\+\-0-9]/ && $city){
+		$location = $country . ', ' . $location if $country && $location !~ m|$country|i;
+		$location = $state . ', ' . $location if $state && $location !~ m|$state|i;
+		$location = $city . ', ' . $location;
+	}
+	eval $end if $b_log;
+	return $location;
 }
 }
 
