@@ -36,9 +36,9 @@
 <h1>inxi man page</h1>
 
 <pre>
-Page Version: 4.3
-Page Updated: 2019-01-01
-inxi version: 3.0.30
+Page Version: 4.4
+Page Updated: 2019-02-06
+inxi version: 3.0.31
 </pre>
 
 <p>The following are the supported options of inxi. If your version of inxi is missing any of
@@ -613,16 +613,33 @@ Note that all the short form options have long form equivalents, which are
       feature.</dd>
 </dl>
 <dl class="Bl-tag">
-  <dt><b>-W,<b> --weather-location &lt;location_string&gt;</b></b></dt>
-  <dd>Get weather/time for an alternate location. Accepts postal/zip code,
-      city,state pair, or latitude,longitude. Note: city/country/state names
-      must not contain spaces. Replace spaces with ' <b>+</b>' sign. Don't place
-      spaces around any commas. Use only ASCII letters in city/state/country
-      names, sorry.
+  <dt><b>-W, <b>--weather-location &lt;location_string&gt;</b></b></dt>
+  <dd>Get weather/time for an alternate location. Accepts postal/zip code[,
+      country], city,state pair, or latitude,longitude. Note: city/country/state
+      names must not contain spaces. Replace spaces with ' <b>+</b>' sign. Don't
+      place spaces around any commas. Postal code is not reliable except for
+      North America.
     <div class="Pp"></div>
-    Examples: <b>-W 95623</b> OR <b>-W Boston,MA</b> OR
-      <b>-W45.5234,-122.6762</b> OR <b>-W new+york,ny</b> OR <b>-W
-      bodo,norway</b>.</dd>
+    Use only ASCII letters in city/state/country names.
+    <div class="Pp"></div>
+    Examples: <b>-W 95623,usa</b> OR <b>-W Boston,MA</b> OR <b>-W
+      45.5234,-122.6762</b> OR <b>-W new+york,ny</b> OR <b>-W
+    bodo,norway</b>.</dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>--weather-source, <b>--ws &lt;unit&gt;</b></b></dt>
+  <dd>[<b>0-9</b>] Switches weather data source. 0 uses a legacy source which
+      may vanish any day. <b>1-9</b> use different sources from a remote API.
+      <b>1</b> is the same as <b>0 currently.</b> <b></b><b>2</b> has less data
+      than <b>1</b> or <b>3</b>, and may not support city / country names with
+      spaces (even if you use the <b>+</b> sign instead of space). <b>3</b>
+      offers pretty good data, but may not have all small city names for
+      <b>-W</b>. <b>4-9</b> may be added at a future point, but are not
+      currently supported.
+    <div class="Pp"></div>
+    Note that the actual remote sources may change without notice, but that will
+      have no real impact on inxi. Also, additional options may be added in the
+      future, between 0 and 9.</dd>
 </dl>
 <dl class="Bl-tag">
   <dt><b>--weather-unit &lt;unit&gt;</b></dt>
@@ -946,8 +963,10 @@ The following details show which lines / items display extra information for
 </dl>
 <dl class="Bl-tag">
   <dt><b>-xx -w,<b> -W</b></b></dt>
-  <dd>- Adds wind chill, heat index, and dew point if any of these are
-      available.</dd>
+  <dd>- Adds wind chill, heat index, and dew point, if available.
+    <div class="Pp"></div>
+    - Adds cloud cover, rain, snow (amount in previous hour to observation
+      time), if available.</dd>
 </dl>
 <dl class="Bl-tag">
   <dt><b>-xxx -A</b></dt>
@@ -1043,7 +1062,8 @@ The following details show which lines / items display extra information for
 </dl>
 <dl class="Bl-tag">
   <dt><b>-xxx -w,<b> -W</b></b></dt>
-  <dd>- Adds location (city state country), altitude, weather observation time.
+  <dd>- Adds location (city state country), observation altitude (if available),
+      weather observation time (if available).
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1322,6 +1342,20 @@ These options are triggered with <b>--admin</b> or <b>-a</b>. Admin options are
   </dd>
 </dl>
 <dl class="Bl-tag">
+  <dt><b>--wan-ip-url [URL]</b></dt>
+  <dd>Force <b>-i</b> to use supplied URL as WAN IP source. Overrides dig or
+      default IP source urls. URL must start with http[s] or ftp.
+    <div class="Pp"></div>
+    The IP address from the URL must be the last item on the last (non-empty)
+      line of the page content source code.
+    <div class="Pp"></div>
+    Same as configuration value (example):
+    <div class="Pp"></div>
+     <b>WAN_IP_URL='https://mysite.com/ip.php'</b>
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
   <dt><b>--wm</b></dt>
   <dd>Force <b>System</b> item <b>wm</b> to use <b>wmctrl</b> as data source,
       override default <b>ps</b> source.
@@ -1330,6 +1364,14 @@ These options are triggered with <b>--admin</b> or <b>-a</b>. Admin options are
 </dl>
 <h1 class="Sh" title="Sh" id="DEBUGGING_OPTIONS"><a class="permalink" href="#DEBUGGING_OPTIONS">DEBUGGING
   OPTIONS</a></h1>
+<dl class="Bl-tag">
+  <dt><b>--dbg 1</b></dt>
+  <dd>- Debug downloader failures. Turns off silent/quiet mode for curl, wget,
+      and fetch. Shows more downloader action information. Shows some more
+      information for Perl downloader.
+    <div class="Pp"></div>
+  </dd>
+</dl>
 <dl class="Bl-tag">
   <dt><b>--debug [1-3]</b></dt>
   <dd>- On screen debugger output. Output varies depending on current needs
@@ -1555,6 +1597,20 @@ See the documentation page for more complete information on how to set these up,
      <b>USB_SYS</b> Forces all USB data to use <b>/sys</b> instead of
       <b>lsusb</b>.
     <div class="Pp"></div>
+     <b>WAN_IP_URL</b> Forces <b>-i</b> to use supplied URL, and to not use dig
+      (dig is generally much faster). URL must begin with http or ftp. Note that
+      if you use this, the downloader set tests will run each time you start
+      inxi whether a downloader feature is going to be used or not.
+    <div class="Pp"></div>
+    The IP address from the URL must be the last item on the last (non-empty)
+      line of the URL's page content source code.
+    <div class="Pp"></div>
+    Same as <b>--wan-ip-url [URL]</b>
+    <div class="Pp"></div>
+     <b>WEATHER_SOURCE</b> Values: [<b>0-9</b>]. Same as
+      <b>--weather-source</b>. Values 4-9 are not currently supported, but this
+      can change at any time.
+    <div class="Pp"></div>
      <b>WEATHER_UNIT</b> Values: [<b>c</b>|<b>f</b>|<b>cf</b>|<b>fc</b>]. Same
       as <b>--weather-unit</b>.
     <div class="Pp"></div>
@@ -1679,7 +1735,7 @@ And of course, a big thanks to locsmif, who figured out a lot of the core
   methods, logic, and tricks originally used in inxi Gawk/Bash.</div>
 <table class="foot">
   <tr>
-    <td class="foot-date">2018-12-31</td>
+    <td class="foot-date">2019-02-06</td>
     <td class="foot-os">inxi</td>
   </tr>
 </table>
