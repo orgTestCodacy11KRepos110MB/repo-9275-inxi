@@ -7926,7 +7926,11 @@ sub cpu_arch {
 			elsif ( $model =~ /^(3A|3E)$/ ) {$arch = 'Ivy Bridge'}
 			elsif ( $model =~ /^(3C|3F|45|46)$/ ) {$arch = 'Haswell'}
 			elsif ( $model =~ /^(3D|47|4F|56)$/ ) {$arch = 'Broadwell'}
-			elsif ( $model =~ /^(4E|55)$/ ) {$arch = 'Skylake'} # had 9E
+			elsif ( $model =~ /^(4E)$/ ) {$arch = 'Skylake'} # had 9E, cascade lake also 55
+			# need to find stepping for cl, guessing stepping 4 is last for sl
+			elsif ( $model =~ /^(55)$/ ) {
+				if ($stepping > 4){$arch = 'Cascade Lake'}
+				else {$arch = 'Skylake'} }
 			elsif ( $model =~ /^(5C|5F)$/ ) {$arch = 'Goldmont'}
 			elsif ( $model =~ /^(5E)$/ ) {$arch = 'Skylake-S'}
 			elsif ( $model =~ /^(4C)$/ ) {$arch = 'Airmont'}
@@ -7939,9 +7943,9 @@ sub cpu_arch {
 			elsif ( $model =~ /^(57)$/ ) {$arch = 'Knights Landing'}
 			elsif ( $model =~ /^(66)$/ ) {$arch = 'Cannon Lake'}
 			elsif ( $model =~ /^(85)$/ ) {$arch = 'Knights Mill'}
-			elsif ( $model =~ /^(865)$/ ) {$arch = 'Tremont'}
+			elsif ( $model =~ /^(86)$/ ) {$arch = 'Tremont'}
 			# coming: alder lake; amber lake; cannonlake; cascade lake; coffee lake;  
-			# granite rapids; icelake; meteor lake; saphire rapids; tigerlake, 
+			# cooper lake; granite rapids; icelake; meteor lake; saphire rapids; tigerlake, 
 		}
 		# itanium 1 family 7 all recalled
 		elsif ($family eq 'B'){
@@ -8721,7 +8725,7 @@ sub device_vendor {
 	## These go first because they are the most likely and common ##
 	['(Crucial|^(FC)?CT|-CT|^M4\b)','Crucial','Crucial',''],
 	['^(INTEL|SSD(PAM|SA2))','^INTEL','Intel',''],
-	['(KINGSTON|DataTraveler|^SMS|^SHS|^SUV|^Ultimate CF)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
+	['(KINGSTON|DataTraveler|DT\s?(DUO|Microduo|101)|^SMS|^SHS|^SUV|^Ultimate CF)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
@@ -8740,14 +8744,14 @@ sub device_vendor {
 	['^ATP','^ATP[\s\-]','ATP',''],
 	# Force MP500
 	['^(Corsair|Force\s|Voyager)','^Corsair','Corsair',''],
-	['^(FUJITSU|MHV|MP)','^FUJITSU','Fujitsu',''],
+	['^(FUJITSU|MH[VY]|MP)','^FUJITSU','Fujitsu',''],
 	# note: 2012:  wdc bought hgst
-	['^(HGST|Touro)','^HGST','HGST (Hitachi)',''], # HGST HUA
+	['^(HGST|Touro|5450)','^HGST','HGST (Hitachi)',''], # HGST HUA
 	['^(Hitachi|HD[ST]|DK[0-9]|IC|HT|HU)','^Hitachi','Hitachi',''], 
 	['^Hoodisk','^Hoodisk','Hoodisk',''],
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
 	['^(HP\b|MB0|G[BJ]0|v[0-9]{3}[ow])','^HP','HP',''], 
-	['^(LSD|Lexar|JumpDrive)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c
+	['^(LSD|Lexar|JumpDrive|JD\s?Firefly)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|TALOS2|TMSC|TRSAK)','^OCZ[\s\-]','OCZ',''],
 	['^OWC','^OWC[\s\-]','OWC',''],
@@ -8772,6 +8776,8 @@ sub device_vendor {
 	['^CHN\b','','Zheino',''],
 	['^Colorful\b','^Colorful','Colorful',''],
 	['^CSD','^CSD','CSD',''],
+	['^(Dane-?Elec|Z Mate)','^Dane-?Elec','DaneElec',''],
+	# Daplink vfs is an ARM software thing
 	['^DeLOCK','^Delock(\s?products)?','Delock',''],
 	['^DGM','^DGM\b','DGM',''],
 	['^DIGITAL\s?FILM','DIGITAL\s?FILM','Digital Film',''],
@@ -8790,7 +8796,7 @@ sub device_vendor {
 	['^Gigabyte','^Gigabyte','Gigabyte',''], # SSD
 	['^Gigastone','^Gigastone','Gigastone',''],
 	['^Gloway','^Gloway','Gloway',''],
-	['^GOODRAM','^GOODRAM','GOODRAM',''],
+	['^(GOODRAM|IR SSD)','^GOODRAM','GOODRAM',''],
 	# supertalent also has FM: |FM
 	['^(G[\.]?SKILL)','^G[\.]?SKILL','G.SKILL',''],
 	['^HUAWEI','^HUAWEI','Huawei',''],
@@ -8862,6 +8868,7 @@ sub device_vendor {
 	['^(TDK|TF[1-9][0-9])','^TDK','TDK',''],
 	['^TEAC','^TEAC','TEAC',''],
 	['^TEAM','^TEAM( Group)?','Team',''],
+	['^Tigo','^Tigo','Tigo',''],
 	['^TopSunligt','^TopSunligt','TopSunligt',''], # is this a typo? hard to know
 	['^TopSunlight','^TopSunlight','TopSunlight',''],
 	['^(TS|Transcend|JetFlash)','^Transcend','Transcend',''],
