@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.32';
-my $self_date='2019-02-26';
-my $self_patch='03';
+my $self_date='2019-03-10';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2512,7 +2512,8 @@ sub check_items {
 		}
 		else {
 			@data = qw(blockdev dig dmidecode fdisk file hddtemp ifconfig ip ipmitool 
-			ipmi-sensors lsblk lsusb modinfo runlevel sensors strings sudo tree upower uptime);
+			ipmi-sensors lsblk lsusb modinfo runlevel sensors smartctl strings sudo 
+			tree upower uptime);
 		}
 		$b_program = 1;
 		$item = 'Program';
@@ -2858,8 +2859,8 @@ sub item_data {
 	'rpm' => 'lm-sensors',
 	}),
 	'smartctl' => ({
-	'info' => '-Dx show hdd temp',
-	'info-bsd' => '-Dx show hdd temp',
+	'info' => '-Dxx rotation (alt), type, smart',
+	'info-bsd' => '-Dx rotation (alt), type, smart',
 	'apt' => '',
 	'pacman' => '',
 	'rpm' => '',
@@ -4074,7 +4075,7 @@ sub get_options{
 		my ($opt,$arg) = @_;
 		# let api processor handle checks if valid, this
 		# future proofs this
-		if ($arg =~ /^[0-9]$/){
+		if ($arg =~ /^[1-9]$/){
 			$weather_source = $arg;
 		}
 		else {
@@ -4556,8 +4557,8 @@ sub show_options {
 		Only use if you want the weather somewhere other than the machine running
 		$self_name. Use only ASCII characters, replace spaces in city/state/country 
 		names with '+'. Example:^$self_name^-W^new+york,ny"],
-		['1', '', '--weather-source', "[0-9] Change weather data source. 0 uses
-		a legacy source internally. 1-3 generally active, 4-9 check. See man."],
+		['1', '', '--weather-source', "[1-9] Change weather data source. 1-4 generally 
+		active, 5-9 check. See man."],
 		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (i), 
 		metric/imperial (mi), or imperial/metric (im)."],
 		);
@@ -15812,25 +15813,25 @@ sub get_weather {
 		# remote timezone for this local block only
 		local $ENV{'TZ'} = $tz if $tz; 
 		$date_time = POSIX::strftime "%c", localtime();
-		$date_time = test_local_date($date_time,'','');
+		$date_time = test_locale_date($date_time,'','');
 		$weather{'date-time'} = $date_time;
 		# only wu has rfc822 value, and we want the original observation time then
 		if ($weather{'observation-epoch'} && $tz){
 			$date_time = POSIX::strftime "%Y-%m-%d %T ($tz %z)", localtime($weather{'observation-epoch'});
-			$date_time = test_local_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
+			$date_time = test_locale_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
 			$weather{'observation-time-local'} = $date_time;
 		}
 	}
 	else {
 		$date_time = POSIX::strftime "%c", localtime();
-		$date_time = test_local_date($date_time,'','');
+		$date_time = test_locale_date($date_time,'','');
 		$tz = ( $location[2] ) ? " ($location[2])" : ''; 
 		$weather{'date-time'} = $date_time . $tz;
 	}
 	# we get the wrong time using epoch for remote -W location
 	if ( !$show{'weather-location'} && $weather{'observation-epoch'}){
 		$date_time = POSIX::strftime "%c", localtime($weather{'observation-epoch'});
-		$date_time = test_local_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
+		$date_time = test_locale_date($date_time,$show{'weather-location'},$weather{'observation-epoch'});
 		$weather{'observation-time-local'} = $date_time;
 	}
 	return %weather;
@@ -15839,14 +15840,9 @@ sub get_weather {
 sub download_weather {
 	eval $start if $b_log;
 	my ($now,$file_cached,@location) = @_;
-	my (@weather,@weather_temp,$temp,$ua,$url);
-	if ($weather_source == 0){
-		$url = "http://api.wunderground.com/auto/wui/geo/WXCurrentObXML/index.xml?query=$location[0]";
-	}
-	else {
-		$url = "https://smxi.org/opt/xr2.php?loc=$location[0]&src=$weather_source";
-	}
-	$ua = 'weather' if $url =~ /smxi/;
+	my (@weather,$temp,$ua,$url);
+	$url = "https://smxi.org/opt/xr2.php?loc=$location[0]&src=$weather_source";
+	$ua = 'weather';
 # 		{
 # 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
 # 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
@@ -15857,23 +15853,7 @@ sub download_weather {
 # 		}
 	$temp = main::download_file('stdout',$url,'',$ua);
 	$temp =~ s/\r|\n\n/\n/g if $weather_source == 0;
-	@weather_temp = split /\n/, $temp;
-	if ($weather_source == 0){
-		foreach (@weather_temp){
-			chomp $_;
-			$_ =~ s/<\/[^>]+>//;
-			$_ =~ s/.*icon.*|\r//g;
-			$_ =~ s/\s\s/ /g;
-			$_ =~ s/^\s+|\s+$//g;
-			$_ =~ s/>/^^/;
-			$_ =~ s/^<|NA$//g;
-			$_ =~ s/^(current|credit|terms|image|title|link|.*_url).*//;
-			push @weather, $_ if $_ !~ /^\s*$/;
-		}
-	}
-	else {
-		@weather = @weather_temp;
-	}
+	@weather = split /\n/, $temp;
 	unshift (@weather,("timestamp^^$now"));
 	main::writer($file_cached,\@weather);
 	#print "$file_cached: download/cleaned\n";
@@ -15882,7 +15862,7 @@ sub download_weather {
 }
 # resolve wide character issue, if detected, switch to iso 
 # date format, we won't try to be too clever here.
-sub test_local_date {
+sub test_locale_date {
 	my ($date_time,$location,$epoch) = @_;
 	# $date_time .= 'дек';
 	#print "1: $date_time\n";
