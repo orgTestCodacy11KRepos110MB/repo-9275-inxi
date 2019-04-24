@@ -2438,7 +2438,7 @@ sub run {
 	my (@data,@rows);
 	my $line = make_line();
 	my $pm = get_pm();
-	@data = basic_data($line);
+	@data = basic_data($line,$pm);
 	push @rows,@data;
 	if (!$bsd_type){
 		@data = check_items('required system directories',$line,$pm);
@@ -2468,9 +2468,10 @@ sub run {
 }
 
 sub basic_data {
-	my ($line) = @_;
+	my ($line,$pm) = @_;
 	my (@data,@rows);
 	my $client = $client{'name-print'};
+	my $pm_local = ($pm) ? $pm: 'N/A';
 	$client .= ' ' . $client{'version'} if $client{'version'};
 	my $default_shell = 'N/A';
 	if ($ENV{'SHELL'}){
@@ -2492,6 +2493,7 @@ sub basic_data {
 	['0', '', '', "Current shell: " . $client ],
 	['0', '', '', "Default shell: " . $default_shell ],
 	['0', '', '', "sh links to: $sh_real" ],
+	['0', '', '', "Package manager: $pm_local" ],
 	);
 	return @rows;
 }
@@ -2613,6 +2615,7 @@ sub check_items {
 		}
 		else {
 			$result = 'Missing';
+			$info{$pm} ||= 'N/A';
 			$install = " ~ Install package: $info{$pm}" if (($b_program || $b_module) && $pm);
 			push @missing, "$_$install";
 		}
@@ -4297,6 +4300,14 @@ sub get_options{
 			else {
 				error_handler('output-file-bad', $opt, $arg);
 			}
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}},
+	'pm-type:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^[a-z0-9\-]+$/i){
+			$pm_type = $arg;
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
