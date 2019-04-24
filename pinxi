@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.33';
-my $self_date='2019-04-20';
-my $self_patch='03';
+my $self_date='2019-04-24';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -81,7 +81,7 @@ $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
-my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
+my ($bsd_type,$device_vm,$language,$os,$pci_tool,$pm_type,$wan_url) = ('','','','','','','');
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
@@ -1079,6 +1079,7 @@ sub get_config_item {
 	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
+	elsif ($key eq 'PM_TYPE') {$pm_type = $val}
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = $val if is_int($val)}
@@ -3014,7 +3015,11 @@ sub item_data {
 }
 sub get_pm {
 	my ($pm) = ('');
-	if (main::check_program('dpkg')){
+	# support maintainers of other pm types using custom lists
+	if ($pm_type){
+		$pm = $pm_type;
+	}
+	elsif (main::check_program('dpkg')){
 		$pm = 'apt';
 	}
 	elsif (main::check_program('pacman')){
