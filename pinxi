@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.33';
-my $self_date='2019-04-24';
-my $self_patch='04';
+my $self_date='2019-04-26';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -81,7 +81,7 @@ $b_label_uuid,$b_lsblk,$b_partitions,$b_raid);
 my ($b_sysctl_disk,$b_update,$b_weather) = (1,1,1);
 
 ## System
-my ($bsd_type,$device_vm,$language,$os,$pci_tool,$pm_type,$wan_url) = ('','','','','','','');
+my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
@@ -1079,7 +1079,6 @@ sub get_config_item {
 	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
-	elsif ($key eq 'PM_TYPE') {$pm_type = $val}
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') { $show{'host'} = $val if is_int($val)}
@@ -2708,8 +2707,9 @@ sub item_data {
 	'/var/run/dmesg.boot' => ({
 	'info' => '-D,-d disk data',
 	}),
-	# system tools
-	# apt-dpkg,apt-get; pm-arch,pacman; rpm-redhat,suse
+	## START PACKAGE MANAGER BLOCK ##
+	# Note: see inxi-perl branch for details: docs/recommends-package-manager.txt
+	# System Tools
 	'blockdev' => ({
 	'info' => '--admin -p/-P (filesystem blocksize)',
 	'info-bsd' => '',
@@ -2927,7 +2927,7 @@ sub item_data {
 	'pacman' => 'wget',
 	'rpm' => 'wget',
 	}),
-	# display tools
+	# Display Tools
 	'glxinfo' => ({
 	'info' => '-G glx info',
 	'info-bsd' => '-G glx info',
@@ -2963,7 +2963,7 @@ sub item_data {
 	'pacman' => 'xrandr',
 	'rpm' => 'x11-server-utils',
 	}),
-	# Perl modules
+	# Perl Modules
 	'Cpanel::JSON::XS' => ({
 	'info' => '--output json - required for export.',
 	'info-bsd' => '--output json - required for export.',
@@ -3013,6 +3013,7 @@ sub item_data {
 	'pacman' => 'perl-xml-dumper',
 	'rpm' => 'perl-XML-Dumper',
 	}),
+	## END PM REPLACE BLOCK ##
 	);
 	my $ref = $data{$type};
 	my %values = %$ref;
@@ -3021,10 +3022,7 @@ sub item_data {
 sub get_pm {
 	my ($pm) = ('');
 	# support maintainers of other pm types using custom lists
-	if ($pm_type){
-		$pm = $pm_type;
-	}
-	elsif (main::check_program('dpkg')){
+	if (main::check_program('dpkg')){
 		$pm = 'apt';
 	}
 	elsif (main::check_program('pacman')){
@@ -4302,14 +4300,6 @@ sub get_options{
 			else {
 				error_handler('output-file-bad', $opt, $arg);
 			}
-		}
-		else {
-			error_handler('bad-arg', $opt, $arg);
-		}},
-	'pm-type:s' => sub {
-		my ($opt,$arg) = @_;
-		if ($arg =~ /^[a-z0-9\-]+$/i){
-			$pm_type = $arg;
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
