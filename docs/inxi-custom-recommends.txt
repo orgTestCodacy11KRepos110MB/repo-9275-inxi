@@ -1,0 +1,684 @@
+================================================================================
+MAINTAINER CUSTOM RECCOMMENDS 
+================================================================================
+FILE:    inxi-custom-recommends.txt
+VERSION: 1.0
+DATE:    2019-04-26
+
+----------------------------------------
+Docs:
+See: docs/inxi-resources.txt
+
+----------------------------------------
+Code: 
+See: package CheckRecommends; [line ~ 2430]
+
+----------------------------------------
+Comments:
+
+The default configuration of inxi supports showing recommends missing package
+names for the package managers for apt, rpm, and pacman. These cover probably 
+90+% of realworld users.
+
+Because it's understandable that maintainers of distros that use other package
+managers, with different package names, might want the --recommends tool to
+show missing package names from their package pool, the following is 
+instructions on how to modify the inxi recommends sections to allow for using 
+your own package names and package manager type.
+
+Note that while I heartily endorse the ability to package free software as you 
+see fit, I don't want to get stuck in the trap of trying to support all the 
+possible package managers out there, or package pools, that's just too much 
+time and energy over years to justify. 
+
+Since rpm/apt/pacman covers probably over 90% of users of inxi, and doesn't 
+require too much time, that's as far as I want to go. Plus the code just 
+gets bloated pointlessly if I try to have all the package pools covered.
+
+The fact that inxi does not support all package pools natively is by no means 
+a criticism of the rest of the package managers and pools out there, it is 
+simply noting that I have a finite life, inxi is big enough internally without 
+adding this type of granuldar per distribution logic, and that I don't want 
+to get into the long term maintenance such a commitment always entails.
+
+For maintainers who don't want to do this, --recommends will show N/A for
+the package manager, and will not show missing package suggestions.
+
+----------------------------------------
+
+Note that all subs (functions) listed below are methods of the package (class) 
+CheckRecommends, about line 2430 of inxi.
+
+================================================================================
+
+Sections:
+1. SET PACKAGE MANAGER
+2. UPDATE PACKAGE NAMES
+3. TEST IT!
+
+================================================================================
+SET PACKAGE MANAGER
+--------------------------------------------------------------------------------
+
+Note that since you are customizing the packages listed by recommends tool, you
+won't be needing any of the other options for handling different pm's.
+
+For the sake of this example, we'll be implementing gentoo's portage, so
+we'll call it portage. What you call it makes no difference, inxi will show
+that name in the Package Manager top item, that's all, and it will use that
+name string to match to the individual package names.
+
+Note that for distros that have derived distros, you want to make sure to use
+the package manager name that in general is the well known tool, like rpm or
+apt or pacman. But it's up to you, just keep in mind your derived distros will 
+also see this name if they are using your packaged inxi.
+
+========================================
+REPLACE: sub get_pm
+----------------------------------------
+
+Search for: package CheckRecommends;
+
+Go down to:
+
+sub get_pm {
+
+You will be replacing the entire block.
+
+----------------------------------------
+Original Block
+----------------------------------------
+
+sub get_pm {
+	my ($pm) = ('');
+	# support maintainers of other pm types using custom lists
+	if (main::check_program('dpkg')){
+		$pm = 'apt';
+	}
+	elsif (main::check_program('pacman')){
+		$pm = 'pacman';
+	}
+	elsif (main::check_program('rpm')){
+		$pm = 'rpm';
+	}
+	return $pm;
+}
+
+----------------------------------------
+
+With the following (example pm of portage, from gentoo):
+
+----------------------------------------
+Modified Block
+----------------------------------------
+
+sub get_pm {
+	return 'portage';
+}
+
+----------------------------------------
+
+That's it, now inxi is primed to look for portage package names.
+
+================================================================================
+SET PACKAGE NAMES
+--------------------------------------------------------------------------------
+
+For this one, you will want to have a working block of package name items saved
+in a file so you don't have to redo it each time inxi updates.
+
+========================================
+MODIFY: sub item_data
+----------------------------------------
+
+Search for: package CheckRecommends;
+
+Go down to: sub item_data
+
+Ignore the Directory Data and File Data blocks, those are constants.
+
+Scroll down to:
+
+## START PACKAGE MANAGER BLOCK ##
+
+This is a block that ends with:
+
+## END PACKAGE MANAGER BLOCK ##
+
+You will be replacing everything inside that block with a list customized to 
+your package manager.
+
+For this example, I'm going to pretend that the Arch pacman package names are 
+the names in Gentoo's portage, but obviously you'd have to confirm all the 
+recommends package names in your package pool for your package manager yourself.
+
+Note that if your package pool is never used on a BSD, you can remove the 
+
+'info-bsd' => '',
+
+item as well. I'll show the portage sample with those removed. Likewise, BSD only
+tools do not need to be kept in the list if your packages are not used on a BSD
+unless you have these tools in your repos:
+
+camcontrol, fetch, ftp [OpenBSD only], glabel, gpart, usbdevs
+
+Note that new packages can be added now and then, and removed, so you would want 
+to make sure any new one has been added to your file block. New packages do not 
+get added that often.
+
+----------------------------------------
+Original Block
+----------------------------------------
+
+Check to make sure this block has not changed with new packages, or different 
+'info' data, or removed packages. This does not happen very often, but it does 
+happen now and then.
+
+----------------------------------------
+
+	## START PACKAGE MANAGER BLOCK ##
+	# Note: see inxi-perl branch for details: docs/recommends-package-manager.txt
+	# System Tools
+	'blockdev' => ({
+	'info' => '--admin -p/-P (filesystem blocksize)',
+	'info-bsd' => '',
+	'apt' => 'util-linux',
+	'pacman' => 'util-linux',
+	'rpm' => 'util-linux',
+	}),
+	'curl' => ({
+	'info' => '-i (if no dig); -w,-W; -U',
+	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => 'curl',
+	'pacman' => 'curl',
+	'rpm' => 'curl',
+	}),
+	'camcontrol' => ({
+	'info' => '',
+	'info-bsd' => '-R; -D; -P. Get actual gptid /dev path',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'dig' => ({
+	'info' => '-i wlan IP',
+	'info-bsd' => '-i wlan IP',
+	'apt' => 'dnsutils',
+	'pacman' => 'dnsutils',
+	'rpm' => 'bind-utils',
+	}),
+	'dmidecode' => ({
+	'info' => '-M if no sys machine data; -m',
+	'info-bsd' => '-M if null sysctl; -m; -B if null sysctl',
+	'apt' => 'dmidecode',
+	'pacman' => 'dmidecode',
+	'rpm' => 'dmidecode',
+	}),
+	'fdisk' => ({
+	'info' => '-D partition scheme (fallback)',
+	'info-bsd' => '-D partition scheme',
+	'apt' => 'fdisk',
+	'pacman' => 'util-linux',
+	'rpm' => 'util-linux',
+	}),
+	'fetch' => ({
+	'info' => '',
+	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'file' => ({
+	'info' => '-o unmounted file system (if no lsblk)',
+	'info-bsd' => '-o unmounted file system',
+	'apt' => 'file',
+	'pacman' => 'file',
+	'rpm' => 'file',
+	}),
+	'ftp' => ({
+	'info' => '',
+	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'glabel' => ({
+	'info' => '',
+	'info-bsd' => '-R; -D; -P. Get actual gptid /dev path',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'gpart' => ({
+	'info' => '',
+	'info-bsd' => '-p,-P file system, size',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'hciconfig' => ({
+	'info' => 'Experimental',
+	'info-bsd' => '',
+	'apt' => 'bluez',
+	'pacman' => 'bluez-utils',
+	'rpm' => 'bluez-utils',
+	}),
+	'hddtemp' => ({
+	'info' => '-Dx show hdd temp',
+	'info-bsd' => '-Dx show hdd temp',
+	'apt' => 'hddtemp',
+	'pacman' => 'hddtemp',
+	'rpm' => 'hddtemp',
+	}),
+	'ifconfig' => ({
+	'info' => '-i ip LAN (deprecated)',
+	'info-bsd' => '-i ip LAN',
+	'apt' => 'net-tools',
+	'pacman' => 'net-tools',
+	'rpm' => 'net-tools',
+	}),
+	'ip' => ({
+	'info' => '-i ip LAN',
+	'info-bsd' => '',
+	'apt' => 'iproute',
+	'pacman' => 'iproute2',
+	'rpm' => 'iproute',
+	}),
+	'ipmi-sensors' => ({
+	'info' => '-s IPMI sensors (servers)',
+	'info-bsd' => '',
+	'apt' => 'freeipmi-tools',
+	'pacman' => 'freeipmi',
+	'rpm' => 'freeipmi',
+	}),
+	'ipmitool' => ({
+	'info' => '-s IPMI sensors (servers)',
+	'info-bsd' => '-s IPMI sensors (servers)',
+	'apt' => 'ipmitool',
+	'pacman' => 'ipmitool',
+	'rpm' => 'ipmitool',
+	}),
+	'lsblk' => ({
+	'info' => '-o unmounted file system (best option)',
+	'info-bsd' => '-o unmounted file system',
+	'apt' => 'util-linux',
+	'pacman' => 'util-linux',
+	'rpm' => 'util-linux-ng',
+	}),
+	'lsusb' => ({
+	'info' => '-A usb audio; -N usb networking; --usb (optional)',
+	'info-bsd' => '-A; -N; --usb. Alternate to usbdevs',
+	'apt' => 'usbutils',
+	'pacman' => 'usbutils',
+	'rpm' => 'usbutils',
+	}),
+	'modinfo' => ({
+	'info' => 'Ax; -Nx module version',
+	'info-bsd' => '',
+	'apt' => 'module-init-tools',
+	'pacman' => 'module-init-tools',
+	'rpm' => 'module-init-tools',
+	}),
+	'runlevel' => ({
+	'info' => '-I fallback to Perl',
+	'info-bsd' => '',
+	'apt' => 'systemd or sysvinit',
+	'pacman' => 'systemd',
+	'rpm' => 'systemd or sysvinit',
+	}),
+	'sensors' => ({
+	'info' => '-s sensors output',
+	'info-bsd' => '',
+	'apt' => 'lm-sensors',
+	'pacman' => 'lm-sensors',
+	'rpm' => 'lm-sensors',
+	}),
+	'smartctl' => ({
+	'info' => '-Dxx rotation (alt), type, smart',
+	'info-bsd' => '-Dx rotation (alt), type, smart',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	}),
+	'strings' => ({
+	'info' => '-I sysvinit version',
+	'info-bsd' => '',
+	'apt' => 'binutils',
+	'pacman' => '?',
+	'rpm' => '?',
+	}),
+	'sysctl' => ({
+	'info' => '',
+	'info-bsd' => '-C; -I; -m; -tm',
+	'apt' => '?',
+	'pacman' => '?',
+	'rpm' => '?',
+	}),
+	'sudo' => ({
+	'info' => '-Dx hddtemp-user; -o file-user',
+	'info-bsd' => '-Dx hddtemp-user; -o file-user',
+	'apt' => 'sudo',
+	'pacman' => 'sudo',
+	'rpm' => 'sudo',
+	}),
+	'tree' => ({
+	'info' => '--debugger 20,21 /sys tree',
+	'info-bsd' => '--debugger 20,21 /sys tree',
+	'apt' => 'tree',
+	'pacman' => 'tree',
+	'rpm' => 'tree',
+	}),
+	'upower' => ({
+	'info' => '-sx attached device battery info',
+	'info-bsd' => '-sx attached device battery info',
+	'apt' => 'upower',
+	'pacman' => 'upower',
+	'rpm' => 'upower',
+	}),
+	'uptime' => ({
+	'info' => '-I uptime',
+	'info-bsd' => '-I uptime',
+	'apt' => 'procps',
+	'pacman' => 'procps',
+	'rpm' => 'procps',
+	}),
+	'usbdevs' => ({
+	'info' => '',
+	'info-bsd' => '-A; -N; --usb;',
+	'apt' => 'usbutils',
+	'pacman' => 'usbutils',
+	'rpm' => 'usbutils',
+	}),
+	'wget' => ({
+	'info' => '-i (if no dig); -w,-W; -U',
+	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => 'wget',
+	'pacman' => 'wget',
+	'rpm' => 'wget',
+	}),
+	# Display Tools
+	'glxinfo' => ({
+	'info' => '-G glx info',
+	'info-bsd' => '-G glx info',
+	'apt' => 'mesa-utils',
+	'pacman' => 'mesa-demos',
+	'rpm' => 'glx-utils (openSUSE 12.3 and later Mesa-demo-x)',
+	}),
+	'wmctrl' => ({
+	'info' => '-S active window manager (fallback)',
+	'info-bsd' => '-S active window managerr (fallback)',
+	'apt' => 'wmctrl',
+	'pacman' => 'wmctrl',
+	'rpm' => 'wmctrl',
+	}),
+	'xdpyinfo' => ({
+	'info' => '-G multi screen resolution',
+	'info-bsd' => '-G multi screen resolution',
+	'apt' => 'X11-utils',
+	'pacman' => 'xorg-xdpyinfo',
+	'rpm' => 'xorg-x11-utils',
+	}),
+	'xprop' => ({
+	'info' => '-S desktop data',
+	'info-bsd' => '-S desktop data',
+	'apt' => 'X11-utils',
+	'pacman' => 'xorg-xprop',
+	'rpm' => 'x11-utils',
+	}),
+	'xrandr' => ({
+	'info' => '-G single screen resolution',
+	'info-bsd' => '-G single screen resolution',
+	'apt' => 'x11-xserver-utils',
+	'pacman' => 'xrandr',
+	'rpm' => 'x11-server-utils',
+	}),
+	# Perl Modules
+	'Cpanel::JSON::XS' => ({
+	'info' => '--output json - required for export.',
+	'info-bsd' => '--output json - required for export.',
+	'apt' => 'libcpanel-json-xs-perl',
+	'pacman' => 'perl-cpanel-json-xs',
+	'rpm' => 'perl-Cpanel-JSON-XS',
+	}),
+	'HTTP::Tiny' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'info-bsd' => '-U; -w,-W; -i (if dig not installed)',
+	'apt' => 'libhttp-tiny-perl',
+	'pacman' => 'Core Modules',
+	'rpm' => 'Perl-http-tiny',
+	}),
+	'IO::Socket::SSL' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'info-bsd' => '-U; -w,-W; -i (if dig not installed)',
+	'apt' => 'libio-socket-ssl-perl',
+	'pacman' => 'perl-io-socket-ssl',
+	'rpm' => 'perl-IO-Socket-SSL',
+	}),
+	'JSON::XS' => ({
+	'info' => '--output json - required for export (legacy).',
+	'info-bsd' => '--output json - required for export (legacy).',
+	'apt' => 'libjson-xs-perl',
+	'pacman' => 'perl-json-xs',
+	'rpm' => 'perl-JSON-XS',
+	}),
+	'Net::FTP' => ({
+	'info' => '--debug 21,22',
+	'info-bsd' => '--debug 21,22',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'Core Modules',
+	}),
+	'Time::HiRes' => ({
+	'info' => '-C cpu sleep (not required); --debug timers',
+	'info-bsd' => '-C cpu sleep (not required); --debug timers',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'perl-Time-HiRes',
+	}),
+	'XML::Dumper' => ({
+	'info' => '--output xml - Crude and raw.',
+	'info-bsd' => '--output xml - Crude and raw.',
+	'apt' => 'libxml-dumper-perl',
+	'pacman' => 'perl-xml-dumper',
+	'rpm' => 'perl-XML-Dumper',
+	}),
+	## END PM REPLACE BLOCK ##
+
+----------------------------------------
+Customized Block
+----------------------------------------
+
+Here we have removed all BSD items, packages, and 'info-bsd' lines. Note
+that you only change the item after your package manager name, not the main name.
+
+IMPORTANT: the name each block starts with is the internal name inxi uses, do
+not change this since those are used everywhere in inxi, so changing it would 
+lead to wrong output. 
+
+----------------------------------------
+
+	## START PACKAGE MANAGER BLOCK ##
+	# Note: see inxi-perl branch for details: docs/recommends-package-manager.txt
+	# System Tools
+	'blockdev' => ({
+	'info' => '--admin -p/-P (filesystem blocksize)',
+	'portage' => 'util-linux',
+	}),
+	'curl' => ({
+	'info' => '-i (if no dig); -w,-W; -U',
+	'portage' => 'curl',
+	}),
+	'dig' => ({
+	'info' => '-i wlan IP',
+	'portage' => 'dnsutils',
+	}),
+	'dmidecode' => ({
+	'info' => '-M if no sys machine data; -m',
+	'portage' => 'dmidecode',
+	}),
+	'fdisk' => ({
+	'info' => '-D partition scheme (fallback)',
+	'portage' => 'util-linux',
+	}),
+	'file' => ({
+	'info' => '-o unmounted file system (if no lsblk)',
+	'portage' => 'file',
+	}),
+	'hciconfig' => ({
+	'info' => 'Experimental',
+	'portage' => 'bluez-utils',
+	}),
+	'hddtemp' => ({
+	'info' => '-Dx show hdd temp',
+	'portage' => 'hddtemp',
+	}),
+	'ifconfig' => ({
+	'info' => '-i ip LAN (deprecated)',
+	'portage' => 'net-tools',
+	}),
+	'ip' => ({
+	'info' => '-i ip LAN',
+	'portage' => 'iproute2',
+	}),
+	'ipmi-sensors' => ({
+	'info' => '-s IPMI sensors (servers)',
+	'portage' => 'freeipmi',
+	}),
+	'ipmitool' => ({
+	'info' => '-s IPMI sensors (servers)',
+	'portage' => 'ipmitool',
+	}),
+	'lsblk' => ({
+	'info' => '-o unmounted file system (best option)',
+	'portage' => 'util-linux',
+	}),
+	'lsusb' => ({
+	'info' => '-A usb audio; -N usb networking; --usb (optional)',
+	'portage' => 'usbutils',
+	}),
+	'modinfo' => ({
+	'info' => 'Ax; -Nx module version',
+	'portage' => 'module-init-tools',
+	}),
+	'runlevel' => ({
+	'info' => '-I fallback to Perl',
+	'portage' => 'systemd',
+	}),
+	'sensors' => ({
+	'info' => '-s sensors output',
+	'portage' => 'lm-sensors',
+	}),
+	'smartctl' => ({
+	'info' => '-Dxx rotation (alt), type, smart',
+	'portage' => '',
+	}),
+	'strings' => ({
+	'info' => '-I sysvinit version',
+	'portage' => '?',
+	}),
+	'sysctl' => ({
+	'info' => '',
+	'portage' => '?',
+	}),
+	'sudo' => ({
+	'info' => '-Dx hddtemp-user; -o file-user',
+	'portage' => 'sudo',
+	}),
+	'tree' => ({
+	'info' => '--debugger 20,21 /sys tree',
+	'portage' => 'tree',
+	}),
+	'upower' => ({
+	'info' => '-sx attached device battery info',
+	'portage' => 'upower',
+	}),
+	'uptime' => ({
+	'info' => '-I uptime',
+	'portage' => 'procps',
+	}),
+	'wget' => ({
+	'info' => '-i (if no dig); -w,-W; -U',
+	'portage' => 'wget',
+	}),
+	# Display Tools
+	'glxinfo' => ({
+	'info' => '-G glx info',
+	'portage' => 'mesa-demos',
+	}),
+	'wmctrl' => ({
+	'info' => '-S active window manager (fallback)',
+	'portage' => 'wmctrl',
+	}),
+	'xdpyinfo' => ({
+	'info' => '-G multi screen resolution',
+	'portage' => 'xorg-xdpyinfo',
+	}),
+	'xprop' => ({
+	'info' => '-S desktop data',
+	'portage' => 'xorg-xprop',
+	}),
+	'xrandr' => ({
+	'info' => '-G single screen resolution',
+	'portage' => 'xrandr',
+	}),
+	# Perl Modules
+	'Cpanel::JSON::XS' => ({
+	'info' => '--output json - required for export.',
+	'portage' => 'perl-cpanel-json-xs',
+	}),
+	'HTTP::Tiny' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'portage' => 'Core Modules',
+	}),
+	'IO::Socket::SSL' => ({
+	'info' => '-U; -w,-W; -i (if dig not installed).',
+	'portage' => 'perl-io-socket-ssl',
+	}),
+	'JSON::XS' => ({
+	'info' => '--output json - required for export (legacy).',
+	'portage' => 'perl-json-xs',
+	}),
+	'Net::FTP' => ({
+	'info' => '--debug 21,22',
+	'portage' => 'Core Modules',
+	}),
+	'Time::HiRes' => ({
+	'info' => '-C cpu sleep (not required); --debug timers',
+	'portage' => 'Core Modules',
+	}),
+	'XML::Dumper' => ({
+	'info' => '--output xml - Crude and raw.',
+	'portage' => 'perl-xml-dumper',
+	}),
+	## END PM REPLACE BLOCK ##
+	
+================================================================================
+TEST IT!
+--------------------------------------------------------------------------------
+
+Once you have created your master version of the above in a file, just copy and 
+paste it into inxi as indicated.
+
+Save the modified inxi, then run: inxi --recommends on the inxi version to 
+confirm your changes are working.
+
+You should see on the top of the output:
+
+....
+sh links to: /bin/dash
+Package manager: portage 
+....
+
+and the proper missing package names for your package manager in the tests.
+
+Once you have confirmed this is done and working as expected, you can package 
+your inxi, which will now support your distro/package pool. Keep in mind you 
+will have to do this every inxi update, so I don't expect many if any maintainers
+to ever actually do this, but if you want to, this is how you do it.
+
+Note again, this is only necessary for non apt/rpm/pacman based package pools,
+like Slackware, Gentoo, Solus, and an assortment of others that come and go 
+as time, effort, and energy are available to the people making those alternate
+methods and package pools.
+
+
