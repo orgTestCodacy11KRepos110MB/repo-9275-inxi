@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.33';
-my $self_date='2019-04-26';
-my $self_patch='05';
+my $self_date='2019-04-28';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -549,6 +549,7 @@ sub system_files {
 		'asound-cards' => '/proc/asound/cards',
 		'asound-modules' => '/proc/asound/modules',
 		'asound-version' => '/proc/asound/version',
+		'cmdline' => '/proc/cmdline',
 		'cpuinfo' => '/proc/cpuinfo',
 		'dmesg-boot' => '/var/run/dmesg.boot',
 		'lsb-release' => '/etc/lsb-release',
@@ -1786,6 +1787,7 @@ sub system_files {
 	copy_files(\@files,'system-distro');
 	@files = (
 	'/proc/1/comm',
+	'/proc/cmdline',
 	'/proc/cpuinfo',
 	'/proc/meminfo',
 	'/proc/modules',
@@ -4459,6 +4461,7 @@ sub show_options {
 	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
 	block size of file system (root required); for swap, shows swapiness and vfs cache 
 	pressure, and if values are default or not." ],
+	['2', '-S', '', "If available: kernel boot parameters." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
@@ -17431,6 +17434,32 @@ sub get_kernel_bits {
 	return $bits;
 }
 
+sub get_kernel_parameters {
+	eval $start if $b_log;
+	my ($parameters);
+	if (my $file = system_files('cmdline') ) {
+		$parameters = get_kernel_parameters_linux($file);
+	}
+	elsif ($bsd_type) {
+		$parameters = get_kernel_parameters_bsd();
+	}
+	eval $end if $b_log;
+	return $parameters;
+}
+sub get_kernel_parameters_linux {
+	eval $start if $b_log;
+	my ($file) = @_;
+	my $line = (reader($file))[0];
+	eval $end if $b_log;
+	return $line;
+}
+sub get_kernel_parameters_bsd {
+	eval $start if $b_log;
+	my ($parameters);
+	eval $end if $b_log;
+	return $parameters;
+}
+
 sub get_memory_data_full {
 	eval $start if $b_log;
 	my ($source) = @_;
@@ -19784,6 +19813,9 @@ sub generate_system_data {
 	}
 	$data{$data_name}[$index]{main::key($num++,'Kernel')} = &get_kernel_data();
 	$data{$data_name}[$index]{main::key($num++,'bits')} = &get_kernel_bits;
+	if ($b_admin && (my $params = get_kernel_parameters())){
+		$data{$data_name}[$index]{main::key($num++,'parameters')} = $params;
+	}
 	if ($extra > 0){
 		my @compiler = get_compiler_version(); # get compiler data
 		if (scalar @compiler != 2){
