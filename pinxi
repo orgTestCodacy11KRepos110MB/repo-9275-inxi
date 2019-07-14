@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.34';
 my $self_date='2019-07-13';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -12863,8 +12863,8 @@ sub dmidecode_data {
 	my ($i,$j,$k) = (0,0,0);
 	foreach (@dmi){
 		my @ref = @$_;
-		($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
-		# Portable Battery
+		## NOTE: do NOT reset these values, that causes failures
+		# ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
 		if ($ref[0] == 5){
 			$ram[$k] = ({}) if !$ram[$k];
 			foreach my $item (@ref){
@@ -12920,6 +12920,7 @@ sub dmidecode_data {
 			$ram[$handle] = $ram[$k] if $ram[$k];
 			$ram[$k] = undef;
 			$ram[$handle] = ({}) if !$ram[$handle];
+			# ($derived_module_size,$max_cap_16) = (0,0);
 			foreach my $item (@ref){
 				@temp = split /:\s*/, $item;
 				next if ! $temp[1];
@@ -13076,7 +13077,6 @@ sub data_processor {
 	my $b_debug = 0;
 	my (@return,@temp);
 	my $est = 'est.';
-	
 	foreach (@ram){
 		# because we use the actual array handle as the index, 
 		# there will be many undefined keys
@@ -13085,11 +13085,13 @@ sub data_processor {
 		my ($max_cap,$max_mod_size) = (0,0);
 		my ($alt_cap,$est_cap,$est_mod,$unit) = (0,'','','');
 		$max_cap = $ref{'max-capacity-16'};
+		$max_cap ||= 0;
 		# make sure they are integers not string if empty
 		$ref{'slots-5'} ||= 0; 
 		$ref{'slots-16'} ||= 0; 
 		$ref{'max-capacity-5'} ||= 0;
 		$ref{'max-module-size'} ||= 0;
+		$ref{'used-capacity'} ||= 0;
 		#$ref{'max-module-size'} = 0;# debugger
 		# 1: if max cap 1 is null, and max cap 2 not null, use 2
 		if ($b_debug){
@@ -13191,11 +13193,14 @@ sub data_processor {
 					elsif ($ref{'slots-5'} && $ref{'slots-5'} > $ref{'slots-16'}){
 						$slots = $ref{'slots-5'};
 					}
+					# print "slots: $slots\n" if $b_debug;
 					if ($ref{'derived-module-size'} * $slots > $max_cap){
 						$ref{'max-module-size'} = $ref{'derived-module-size'};
+						print "H\n" if $b_debug;
 					}
 					else {
 						$ref{'max-module-size'} = sprintf("%.f",$max_cap/$slots);
+						print "J\n" if $b_debug;
 					}
 					$est_mod = $est;
 				}
@@ -13206,7 +13211,7 @@ sub data_processor {
 				if (!$est_cap && $ref{'max-module-size'} > 0){
 					if ($max_cap > ( $ref{'max-module-size'} * $ref{'slots-16'})){
 						$est_cap = 'check';
-						print "H\n" if $b_debug;
+						print "K\n" if $b_debug;
 					}
 				}
 			}
@@ -13276,11 +13281,12 @@ sub calculate_size {
 			$data = $1/1024;
 			#print "d3:$data\n";
 		}
+		#print "d1a: $data s1: $size\n";
 		if (main::is_numeric($data) && $data > $size ) {
 		#if ($data =~ /^[0-9][0-9]+$/ && $data > $size ) {
-			$size=$data;
+			$size = $data;
 		}
-		#print "d1: $data s1: $size\n";
+		#print "d1b: $data s1: $size\n";
 	}
 	else {
 		$size = 0;
