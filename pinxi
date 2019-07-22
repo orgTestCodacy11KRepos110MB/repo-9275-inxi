@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.35';
-my $self_date='2019-07-20';
-my $self_patch='04';
+my $self_date='2019-07-22';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13489,11 +13489,11 @@ sub get_repos_linux {
 				}
 			}
 			if (@apt_urls){
-				$key = repo_builder('active','apt');
+				$key = repo_data('active','apt');
 				@apt_urls = url_cleaner(@apt_urls);
 			}
 			else {
-				$key = repo_builder('missing','apt');
+				$key = repo_data('missing','apt');
 			}
 			@data = (
 			{main::key($num++,$key) => $file},
@@ -13541,7 +13541,7 @@ sub get_repos_linux {
 		}
 		if (!@rows){
 			@data = (
-			{main::key($num++,repo_builder('missing','no-files')) => $pacman },
+			{main::key($num++,repo_data('missing','no-files')) => $pacman },
 			);
 			@rows = (@rows,@data);
 		}
@@ -13584,11 +13584,11 @@ sub get_repos_linux {
 				}
 			}
 			if (! @content){
-				$key = repo_builder('missing','slackpkg+');
+				$key = repo_data('missing','slackpkg+');
 			}
 			else {
 				@content = url_cleaner(@content);
-				$key = repo_builder('active','slackpkg+');
+				$key = repo_data('active','slackpkg+');
 			}
 			@data = (
 			{main::key($num++,$key) => $slackpkg_plus},
@@ -13656,11 +13656,11 @@ sub get_repos_linux {
 					push @content, "$title ~ $url";
 				}
 				if (! @content){
-					$key = repo_builder('missing',$repo);
+					$key = repo_data('missing',$repo);
 				}
 				else {
 					@content = url_cleaner(@content);
-					$key = repo_builder('active',$repo);
+					$key = repo_data('active',$repo);
 				}
 				@data = (
 				{main::key($num++,$key) => $_},
@@ -13720,11 +13720,11 @@ sub get_repos_linux {
 					push @content, "$title ~ $url";
 				}
 				if (! @content){
-					$key = repo_builder('missing','portage');
+					$key = repo_data('missing','portage');
 				}
 				else {
 					@content = url_cleaner(@content);
-					$key = repo_builder('active','portage');
+					$key = repo_data('active','portage');
 				}
 				@data = (
 				{main::key($num++,$key) => $_},
@@ -13751,11 +13751,11 @@ sub get_repos_linux {
 			}
 		}
 		if (! @content){
-			$key = repo_builder('missing','cards');
+			$key = repo_data('missing','cards');
 		}
 		else {
 			@content = url_cleaner(@content);
-			$key = repo_builder('active','cards');
+			$key = repo_data('active','cards');
 		}
 		@data = (
 		{main::key($num++,$key) => $cards},
@@ -13854,7 +13854,7 @@ sub get_repos_linux {
 			}
 			if ($repo && @content){
 				@content = url_cleaner(@content);
-				$key = repo_builder('active',$which);
+				$key = repo_data('active',$which);
 				@data = (
 				{main::key($num++,$key) => $repo},
 				[@content],
@@ -13867,7 +13867,7 @@ sub get_repos_linux {
 		# last one if present
 		if ($repo && @content){
 			@content = url_cleaner(@content);
-			$key = repo_builder('active',$which);
+			$key = repo_data('active',$which);
 			@data = (
 			{main::key($num++,$key) => $repo},
 			[@content],
@@ -13935,11 +13935,11 @@ sub get_repos_bsd {
 						}
 					}
 					if (! @data3){
-						$key = repo_builder('missing','bsd-package');
+						$key = repo_data('missing','bsd-package');
 					}
 					else {
 						@data3 = url_cleaner(@data3);
-						$key = repo_builder('active','bsd-package');
+						$key = repo_data('active','bsd-package');
 					}
 					@data = (
 					{main::key($num++,$key) => $_},
@@ -13970,16 +13970,16 @@ sub get_repos_bsd {
 	# mesage in that case
 	if (!@rows){
 		if ($bsd_type eq 'freebsd'){
-			$key = repo_builder('missing','freebsd-nf');
+			$key = repo_data('missing','freebsd-nf');
 		}
 		elsif ($bsd_type eq 'openbsd'){
-			$key = repo_builder('missing','openbsd-nf');
+			$key = repo_data('missing','openbsd-nf');
 		}
 		elsif ($bsd_type eq 'netbsd'){
-			$key = repo_builder('missing','netbsd-nf');
+			$key = repo_data('missing','netbsd-nf');
 		}
 		else {
-			$key = repo_builder('missing','bsd-nf');
+			$key = repo_data('missing','bsd-nf');
 		}
 		@data = (
 		{main::key($num++,'Message') => $key},
@@ -13990,65 +13990,65 @@ sub get_repos_bsd {
 	eval $start if $b_log;
 	return @rows;
 }
+sub repo_data {
+	eval $start if $b_log;
+	my ($status,$type) = @_;
+	my %keys = (
+	'apk-active' => 'APK repo',
+	'apk-missing' => 'No active APK repos in',
+	'apt-active' => 'Active apt repos in',
+	'apt-missing' => 'No active apt repos in',
+	'bsd-package-active' => 'BSD enabled pkg servers in',
+	'bsd-package-missing' => 'No enabled BSD pkg servers in',
+	'bsd-nf-missing' => 'No BSD pkg server files found',
+	'cards-active' => 'Active CARDS collections in',
+	'cards-missing' => 'No active CARDS collections in',
+	'eopkg-active' => 'Active eopkg repo',
+	'eopkg-missing' => 'No active eopkg repos found',
+	'freebsd-active' => 'FreeBSD update server',
+	'freebsd-missing' => 'No FreeBSD update servers in',
+	'freebsd-nf-missing' => 'No FreeBSD update server files found',
+	'freebsd-pkg-active' => 'FreeBSD default pkg server',
+	'freebsd-pkg-missing' => 'No FreeBSD default pkg server in',
+	'openbsd-active' => 'OpenBSD pkg mirror',
+	'openbsd-missing' => 'No OpenBSD pkg mirrors in',
+	'openbsd-nf-missing' => 'No OpenBSD pkg mirror files found',
+	'pacman-active' => 'Active pacman repo servers in',
+	'pacman-missing' => 'No active pacman repos in',
+	'pacman-g2-active' => 'Active pacman-g2 repo servers in',
+	'pacman-g2-missing' => 'No active pacman-g2 repos in',
+	'pisi-active' => 'Active pisi repo',
+	'pisi-missing' => 'No active pisi repos found',
+	'portage-active' => 'Enabled portage sources in',
+	'portage-missing' => 'No enabled portage sources in',
+	'portsnap-active' => 'BSD ports server',
+	'portsnap-missing' => 'No ports servers in',
+	'netbsd-active' => 'NetBSD pkg servers',
+	'netbsd-missing' => 'No NetBSD pkg servers in',
+	'netbsd-nf-missing' => 'No NetBSD pkg server files found',
+	'no-files-missing' => 'No repo files found in',
+	'slackpkg-active' => 'slackpkg repos in',
+	'slackpkg-missing' => 'No active slackpkg repos in',
+	'slackpkg+-active' => 'slackpkg+ repos in',
+	'slackpkg+-missing' => 'No active slackpkg+ repos in',
+	'slaptget-active' => 'slapt-get repos in',
+	'slaptget-missing' => 'No active slapt-get repos in',
+	'tce-active' => 'tce mirrors in',
+	'tce-missing' => 'No tce mirrors in',
+	'xbps-active' => 'Active xbps repos in',
+	'xbps-missing' => 'No active xbps repos in',
+	'yum-active' => 'Active yum repos in',
+	'yum-missing' => 'No active yum repos in',
+	'zypp-active' => 'Active zypp repos in',
+	'zypp-missing' => 'No active zypp repos in',
+	);
+	eval $end if $b_log;
+	return $keys{$type . '-' . $status};
+}
 sub repo_builder {
 	eval $start if $b_log;
 	my ($file,$type,$search,$split,$count) = @_;
-	my (@content,@data,$missing,$key);
-	my %unfound = (
-	'apk' => 'No active APK repos in',
-	'apt' => 'No active apt repos in',
-	'bsd-package' => 'No enabled BSD pkg servers in',
-	'bsd-nf' => 'No BSD pkg server files found',
-	'cards' => 'No active CARDS collections in',
-	'eopkg' => 'No active eopkg repos found',
-	'pacman' => 'No active pacman repos in',
-	'pacman-g2' => 'No active pacman-g2 repos in',
-	'pisi' => 'No active pisi repos found',
-	'portage' => 'No enabled portage sources in',
-	'portsnap' => 'No ports servers in',
-	'freebsd' => 'No FreeBSD update servers in',
-	'freebsd-nf' => 'No FreeBSD update server files found',
-	'freebsd-pkg' => 'No FreeBSD default pkg server in',
-	'openbsd' => 'No OpenBSD pkg mirrors in',
-	'openbsd-nf' => 'No OpenBSD pkg mirror files found',
-	'netbsd' => 'No NetBSD pkg servers in',
-	'netbsd-nf' => 'No NetBSD pkg server files found',
-	'no-files' => 'No repo files found in',
-	'slackpkg' => 'No active slackpkg repos in',
-	'slackpkg+' => 'No active slackpkg+ repos in',
-	'slaptget' => 'No active slapt-get repos in',
-	'tce' => 'No tce mirrors in',
-	'xbps' => 'No active xbps repos in',
-	'yum' => 'No active yum repos in',
-	'zypp' => 'No active zypp repos in',
-	);
-	$missing = $unfound{$type};
-	return $missing if $file eq 'missing';
-	my %keys = (
-	'apk' => 'APK repo',
-	'apt' => 'Active apt repos in',
-	'bsd-package' => 'BSD enabled pkg servers in',
-	'cards' => 'Active CARDS collections in',
-	'eopkg' => 'Active eopkg repo',
-	'freebsd' => 'FreeBSD update server',
-	'freebsd-pkg' => 'FreeBSD default pkg server',
-	'pacman' => 'Active pacman repo servers in',
-	'pacman-g2' => 'Active pacman-g2 repo servers in',
-	'pisi' => 'Active pisi repo',
-	'portage' => 'Enabled portage sources in',
-	'portsnap' => 'BSD ports server',
-	'openbsd' => 'OpenBSD pkg mirror',
-	'netbsd' => 'NetBSD pkg servers',
-	'slackpkg' => 'slackpkg repos in',
-	'slackpkg+' => 'slackpkg+ repos in',
-	'slaptget' => 'slapt-get repos in',
-	'tce' => 'tce mirrors in',
-	'xbps' => 'Active xbps repos in',
-	'yum' => 'Active yum repos in',
-	'zypp' => 'Active zypp repos in',
-	);
-	$key = $keys{$type};
-	return $key if $file eq 'active';
+	my (@content,@data,$key);
 	push @dbg_files, $file if $debugger_dir;
 	if (-r $file){
 		@content =  main::reader($file);
@@ -14062,9 +14062,10 @@ sub repo_builder {
 		} @content;
 	}
 	if (!@content){
-		$key = $missing;
+		$key = repo_data('missing',$type);
 	}
 	else {
+		$key = repo_data('active',$type);
 		@content = url_cleaner(@content);
 	}
 	@data = (
