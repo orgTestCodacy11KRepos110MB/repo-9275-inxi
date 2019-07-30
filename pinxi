@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.35';
-my $self_date='2019-07-22';
-my $self_patch='05';
+my $self_date='2019-07-30';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5413,6 +5413,8 @@ sub pci_long_filter {
 	return $string;
 }
 
+# Use sparingly, but when we need regex type stuff 
+# stripped out for reliable string compares, it's better.
 # sometimes the pattern comes from unknown strings 
 # which can contain regex characters, get rid of those
 sub regex_cleaner {
@@ -10090,7 +10092,7 @@ sub machine_data_soc {
 			$model = main::dmi_cleaner($model);
 			$model = (split /\x01|\x02|\x03|\x00/, $model)[0] if $model;
 			my $device_temp = main::regex_cleaner($soc_machine{'device'});
-			if ( !$soc_machine{'device'} || ($model && $model !~ /$device_temp/i) ){
+			if ( !$soc_machine{'device'} || ($model && $model !~ /\Q$device_temp\E/i) ){
 				$model = main::arm_cleaner($model);
 				$soc_machine{'model'} = $model;
 			}
@@ -17737,6 +17739,7 @@ sub get_pci_vendor {
 	return if !$subsystem;
 	my ($vendor,$sep,$temp) = ('','','');
 	# get rid of any [({ type characters that will make regex fail
+	# and similar matches show as non-match
 	$subsystem = regex_cleaner($subsystem);
 	my @data = split /\s+/, $subsystem;
 	# when using strings in patterns for regex have to escape them
@@ -18178,9 +18181,10 @@ sub pciconf_data {
 				$vendor = main::cleaner($vendor);
 				$device = main::cleaner($device);
 				# handle possible regex in device name, like [ConnectX-3] 
+				# and which could make matches fail
 				my $device_temp = main::regex_cleaner($device);
 				if ($vendor && $device){
-					if (main::regex_cleaner($vendor) !~ /$device_temp/i){
+					if (main::regex_cleaner($vendor) !~ /\Q$device_temp\E/i){
 						$device = "$vendor $device";
 					}
 				}
