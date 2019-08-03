@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.35';
-my $self_date='2019-07-30';
-my $self_patch='06';
+my $self_date='2019-08-03';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5447,6 +5447,7 @@ sub row_defaults {
 	'display-root-x' => 'Advanced graphics data unavailable for root.',
 	'display-server' => "No display server data found. Headless machine?",
 	'glxinfo-missing' => "Unable to show advanced data. Required tool glxinfo missing.",
+	'gl-empty' => 'Unset. Missing GL driver?',
 	'display-try' => 'Advanced graphics data unavailable in console. Try -G --display',
 	'dev' => 'Feature under development',
 	'dmesg-boot-permissions' => 'dmesg.boot permissions',
@@ -9432,8 +9433,10 @@ sub gl_data(){
 	#print ("$b_display : $b_root\n");
 	if ( $b_display){
 		if (my $program = main::check_program('glxinfo')){
-			# NOTE: glxinfo -B is not always available, unforunately
+			# NOTE: glxinfo -B is not always available, unfortunately
 			my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
+			#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
+			#my @glxinfo = main::reader($file);
 			if (!@glxinfo){
 				my $type = 'display-console';
 				if ($b_root){
@@ -9454,11 +9457,18 @@ sub gl_data(){
 				next if /^\s/;
 				if (/^opengl renderer/i){
 					@working = split /:\s*/, $_;
-					$working[1] = main::cleaner($working[1]);
-					# Allow all mesas
-					#if ($working[1] =~ /mesa/i){
-					#	
-					#}
+					if ($working[1]){
+						$working[1] = main::cleaner($working[1]);
+						# Allow all mesas
+						#if ($working[1] =~ /mesa/i){
+						#	
+						#}
+					}
+					# note: there are cases where gl drivers are missing and empty 
+					# field value occurs.
+					else {
+						$working[1] = main::row_defaults('gl-empty');
+					}
 					push @renderer, $working[1];
 				}
 				# dropping all conditions from this test to just show full mesa information
@@ -9468,9 +9478,14 @@ sub gl_data(){
 					# fglrx started appearing with this extra string, does not appear 
 					# to communicate anything of value
 					@working = split /:\s*/, $_;
-					$working[1] =~ s/(Compatibility Profile Context|\(Compatibility Profile\))//;
-					$working[1] =~ s/\s\s/ /g;
-					$working[1] =~ s/^\s+|\s+$//;
+					if ($working[1]){
+						$working[1] =~ s/(Compatibility Profile Context|\(Compatibility Profile\))//;
+						$working[1] =~ s/\s\s/ /g;
+						$working[1] =~ s/^\s+|\s+$//;
+					}
+					else {
+						$working[1] = main::row_defaults('gl-empty');
+					}
 					push @opengl_version, $working[1];
 					# note: this is going to be off if ever multi opengl versions appear, never seen one
 					@working = split /\s+/, $working[1];
@@ -9480,9 +9495,14 @@ sub gl_data(){
 					# fglrx started appearing with this extra string, does not appear 
 					# to communicate anything of value
 					@working = split /:\s*/, $_;
-					$working[1] =~ s/(Compatibility Profile Context|\((Compatibility|Core) Profile\))//;
-					$working[1] =~ s/\s\s/ /g;
-					$working[1] =~ s/^\s+|\s+$//;
+					if ($working[1]){
+						$working[1] =~ s/(Compatibility Profile Context|\((Compatibility|Core) Profile\))//;
+						$working[1] =~ s/\s\s/ /g;
+						$working[1] =~ s/^\s+|\s+$//;
+					}
+					else {
+						$working[1] = main::row_defaults('gl-empty');
+					}
 					push @core_profile_version, $working[1];
 				}
 				elsif (/direct rendering/){
