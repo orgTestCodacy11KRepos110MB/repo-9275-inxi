@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.36';
-my $self_date='2019-09-10';
-my $self_patch='02';
+my $self_date='2019-10-30';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17515,8 +17515,8 @@ sub get_kernel_data {
 	# FreeBSD; siwi.pair.com; 8.2-STABLE; FreeBSD 8.2-STABLE #0: Tue May 31 14:36:14 EDT 2016     erik5@iddhi.pair.com:/usr/obj/usr/src/sys/82PAIRx-AMD64; amd64
 	if (@uname){
 		$kernel = $uname[2];
-		if (check_program('uptrack-uname') && $kernel){
-			$ksplice = qx(uptrack-uname -rm);
+		if ( (my $program = check_program('uptrack-uname')) && $kernel){
+			$ksplice = qx($program -rm);
 			$ksplice = trimmer($ksplice);
 			$kernel = ($ksplice) ? $ksplice . ' (ksplice)' : $kernel;
 		}
@@ -17532,7 +17532,11 @@ sub get_kernel_data {
 sub get_kernel_bits {
 	eval $start if $b_log;
 	my $bits = '';
-	if (@uname){
+	if (my $program = check_program('getconf')){
+		$bits = (grabber("$program LONG_BIT 2>/dev/null"))[0];
+	}
+	# fallback test
+	if (!$bits && @uname){
 		$bits = $uname[-1];
 		$bits = ($bits =~ /64/ ) ? 64 : 32;
 	}
@@ -19920,11 +19924,10 @@ sub generate_system_data {
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
 	if ($show{'host'}){
-		$data{$data_name}[$index]{main::key($num++,'Host')} = &get_hostname();
+		$data{$data_name}[$index]{main::key($num++,'Host')} = get_hostname();
 	}
-	$data{$data_name}[$index]{main::key($num++,'Kernel')} = &get_kernel_data();
-	
-	$data{$data_name}[$index]{main::key($num++,'bits')} = &get_kernel_bits;
+	$data{$data_name}[$index]{main::key($num++,'Kernel')} = get_kernel_data();
+	$data{$data_name}[$index]{main::key($num++,'bits')} = get_kernel_bits();
 	if ($extra > 0){
 		my @compiler = get_compiler_version(); # get compiler data
 		if (scalar @compiler != 2){
