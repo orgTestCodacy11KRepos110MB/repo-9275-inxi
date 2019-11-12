@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.36';
 my $self_date='2019-11-12';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6913,7 +6913,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
-	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -6926,7 +6926,7 @@ sub data_cpuinfo {
 	$ids[0][0] = ([]);
 	my %cpu =  set_cpu_data();
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
-	# $cpu{'type'} = 'elbrus';
+	#$cpu{'type'} = 'elbrus';
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
 	foreach (@cpuinfo){
 		next if /^\s*$/;
@@ -7780,26 +7780,18 @@ sub elbrus_data {
 	my @cores;
 	my @return = (0,1,$arch);
 	$cores[1] = 1;
+	$cores[2] = 1;
 	$cores[3] = 4;
 	$cores[4] = 2;
+	$cores[6] = 1;
 	$cores[7] = 8;
 	$cores[8] = 1;
 	$cores[9] = 8;
+	$cores[10] = 12;
+	$cores[11] = 16;
+	$cores[12] = 32;
 	if (main::is_numeric($model_id) && $cores[$model_id]){
 		$return[0] = $cores[$model_id] ;
-	}
-	# model ID unknown for upcoming 12 and 16 core cpus, not released yet
-	# arch is Elbrus-?? if model not known
-	elsif ($count && $count >= 12) {
-		# note: 48 % 12 or 16 = 0 but a 3 cpu system is unlikely
-		if ($count % 16 == 0){
-			$return[0] = 16;
-			$return[2] = 'Elbrus-E16C';
-		}
-		elsif ($count % 12 == 0){
-			$return[0] = 12;
-			$return[2] = 'Elbrus-E12C';
-		}
 	}
 	if ($return[0]){
 		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
@@ -8000,17 +7992,21 @@ sub cpu_arch {
 	}
 	elsif ( $type eq 'elbrus'){ 
 		if ($family eq '4'){
-			if ( $model =~ /^(1)$/ ) {$arch = 'Elbrus-E2K'}
-			elsif ( $model =~ /^(3)$/ ) {$arch = 'Elbrus-2S'}
-			elsif ( $model =~ /^(4)$/ ) {$arch = 'Elbrus-2C+'}
-			elsif ( $model =~ /^(7)$/ ) {$arch = 'Elbrus-8C'} # note: stepping > 1 may be 8C1
-			elsif ( $model =~ /^(8)$/ ) {$arch = 'Elbrus-1C+'}
-			elsif ( $model =~ /^(9)$/ ) {$arch = 'Elbrus-8CB'}
-			else {
-				# note: 12/16 core coming soon, model #/arch name will be available then
-				if (main::is_numeric($model) && $model > 9){$arch = 'Elbrus-??'}
-				else {$arch = 'Elbrus-??'}
-			}
+			if ( $model eq '1' ) {$arch = 'Elbrus'}
+			elsif ( $model eq '2' ) {$arch = 'Elbrus-S'}
+			elsif ( $model eq '3' ) {$arch = 'Elbrus-4C'}
+			elsif ( $model eq '4' ) {$arch = 'Elbrus-2C+'}
+			elsif ( $model eq '6' ) {$arch = 'Elbrus-2CM'}
+			elsif ( $model eq '7' ) {
+				if ($stepping == 2) {$arch = 'Elbrus-8C1';}
+				else {$arch = 'Elbrus-8C';}
+			} # note: stepping > 1 may be 8C1
+			elsif ( $model eq '8' ) {$arch = 'Elbrus-1C+'}
+			elsif ( $model eq '9' ) {$arch = 'Elbrus-8CB'}
+			elsif ( $model eq '10' ) {$arch = 'Elbrus-12C'}
+			elsif ( $model eq '11' ) {$arch = 'Elbrus-16C'}
+			elsif ( $model eq '12' ) {$arch = 'Elbrus-2C3'}
+			else {$arch = 'Elbrus-??';}
 		}
 	}
 	elsif ( $type eq 'intel'){
