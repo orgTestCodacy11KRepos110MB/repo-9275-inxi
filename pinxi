@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.36';
-my $self_date='2019-11-09';
-my $self_patch='05';
+my $self_date='2019-11-11';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6907,6 +6907,12 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
+	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -6918,6 +6924,8 @@ sub data_cpuinfo {
 	$ids[0] = ([]);
 	$ids[0][0] = ([]);
 	my %cpu =  set_cpu_data();
+	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
+	# $cpu{'type'} = 'elbrus';
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
 	foreach (@cpuinfo){
 		next if /^\s*$/;
@@ -7071,12 +7079,25 @@ sub data_cpuinfo {
 		}
 		## this is only for -C full cpu output
 		if ( $type eq 'full' ){
-			if (!$cpu{'l2-cache'} && $line[0] eq 'cache size'){
+			if (!$cpu{'l2-cache'} && ($line[0] eq 'cache size' || $line[0] eq 'l2 cache size' )){
 				if ($line[1] =~ /(\d+)\sKB$/){
 					$cpu{'l2-cache'} = $1;
 				}
 				elsif ($line[1] =~ /(\d+)\sMB$/){
 					$cpu{'l2-cache'} = ($1*1024);
+				}
+			}
+			elsif (!$cpu{'l1-cache'} && $line[0] eq 'l1 cache size'){
+				if ($line[1] =~ /(\d+)\sKB$/){
+					$cpu{'l1-cache'} = ($1);
+				}
+			}
+			elsif (!$cpu{'l3-cache'} && $line[0] eq 'l3 cache size'){
+				if ($line[1] =~ /(\d+)\sKB$/){
+					$cpu{'l3-cache'} = $1;
+				}
+				elsif ($line[1] =~ /(\d+)\sMB$/){
+					$cpu{'l3-cache'} = ($1*1024);
 				}
 			}
 			if (!$cpu{'flags'} && ($line[0] eq 'flags' || $line[0] eq 'features' )){
@@ -7281,7 +7302,7 @@ sub data_sysctl {
 
 sub cpu_properties {
 	my (%cpu) = @_;
-	my ($b_amd_zen,$b_epyc,$b_ht,$b_intel,$b_ryzen,$b_xeon);
+	my ($b_amd_zen,$b_epyc,$b_ht,$b_elbrus,$b_intel,$b_ryzen,$b_xeon);
 	if ($cpu{'type'} ){
 		if ($cpu{'type'} eq 'intel'){
 			$b_intel = 1;
@@ -7299,6 +7320,9 @@ sub cpu_properties {
 					}
 				}
 			}
+		}
+		elsif ($cpu{'type'} eq 'elbrus') {
+			$b_elbrus = 1;
 		}
 	}
 	#my @dies = $phys[0][0];
@@ -7324,6 +7348,13 @@ sub cpu_properties {
 	# $cpu_cores is per physical cpu
 	my ($cpu_layout,$cpu_type,$min_max,$min_max_key) = ('','','','');
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
+	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
+	if ($b_elbrus && $processors_count){
+		$cpu_cores = (elbrus_data($cpu{'model_id'}))[0];
+		$phyical_count = ($processors_count % $cpu_cores) ? int($processors_count/$cpu_cores) + 1 : $processors_count/$cpu_cores;
+		# print 'model: ' . $cpu{'model_id'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
+	}
+	
 	if ($extra > 1){
 		# note: dmidecode has one entry per cpu per cache type, so this already 
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
@@ -7353,16 +7384,19 @@ sub cpu_properties {
 			#print 'cores: ' . $core_count, "\n";
 		}
 	}
+	
 	# this covers potentially cases where ARM cpus have > 1 die 
 	$cpu{'dies'} = ($b_arm && $die_count <= 1 && $cpu{'dies'} > 1) ? $cpu{'dies'}: $die_count;
 	# this is an attempt to fix the amd family 15 bug with reported cores vs actual cores
 	# NOTE: amd A6-4400M APU 2 core reports: cores: 1 siblings: 2
 	# NOTE: AMD A10-5800K APU 4 core reports: cores: 2 siblings: 4
-	if ($cpu{'cores'} && ! $core_count || $cpu{'cores'} >= $core_count){
-		$cpu_cores = $cpu{'cores'};
-	}
-	elsif ($core_count > $cpu{'cores'}){
-		$cpu_cores = $core_count;
+	if (!$cpu_cores){
+		if ($cpu{'cores'} && ! $core_count || $cpu{'cores'} >= $core_count){
+			$cpu_cores = $cpu{'cores'};
+		}
+		elsif ($core_count > $cpu{'cores'}){
+			$cpu_cores = $core_count;
+		}
 	}
 	#print "cpu-c:$cpu_cores\n";
 	#$cpu_cores = $cpu{'cores'}; 
@@ -7395,6 +7429,9 @@ sub cpu_properties {
 		$cpu_cores = $cpu{'cores'}; 
 		$cpu{'dies'} = 4;
 	}
+# 	elsif ($b_elbrus){
+# 		$cpu_cores = 
+# 	}
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
 	if ( $cpu_cores == 0 && ($cpu{'cores'} * $phyical_count > 1)){
@@ -7732,6 +7769,26 @@ sub cpu_dies_sys {
 	eval $end if $b_log;
 	return $die_count;
 }
+# needed because no physical_id in cpuinfo, but > 1 cpu systems exist
+sub elbrus_data {
+	eval $start if $b_log;
+	my ($model_id) = @_;
+	# 0: cores
+	my (@cores, @return);
+	$cores[1] = 1;
+	$cores[3] = 4;
+	$cores[4] = 2;
+	$cores[7] = 8;
+	$cores[8] = 1;
+	$cores[9] = 8;
+	# model ID unknown, not released yet
+	# $cores[xx] = 12;
+	# $cores[xx] = 16;
+	$return[0] = $cores[$model_id] if main::is_numeric($model_id) && $cores[$model_id];
+	
+	eval $end if $b_log;
+	return @return;
+}
 sub cpu_flags_bsd {
 	eval $start if $b_log;
 	my ($flags,$sep) = ('','');
@@ -7783,6 +7840,9 @@ sub cpu_vendor {
 	# via
 	elsif ($string =~ /centaur/){
 		$vendor = "centaur"
+	}
+	elsif ($string =~ /e2k/){
+		$vendor = "elbrus"
 	}
 	eval $end if $b_log;
 	return $vendor;
@@ -7918,6 +7978,21 @@ sub cpu_arch {
 			elsif ( $model =~ /^(9)$/ ) {$arch = 'C3-2'}
 			elsif ( $model =~ /^(A|D)$/ ) {$arch = 'C7'}
 			elsif ( $model =~ /^(F)$/ ) {$arch = 'Isaiah'}
+		}
+	}
+	elsif ( $type eq 'elbrus'){ 
+		if ($family eq '4'){
+			if ( $model =~ /^(1)$/ ) {$arch = 'Elbrus-E2K'}
+			elsif ( $model =~ /^(3)$/ ) {$arch = 'Elbrus-2S'}
+			elsif ( $model =~ /^(4)$/ ) {$arch = 'Elbrus-2C+'}
+			elsif ( $model =~ /^(7)$/ ) {$arch = 'Elbrus-8C'} # note: stepping > 1 may be 8C1
+			elsif ( $model =~ /^(8)$/ ) {$arch = 'Elbrus-1C+'}
+			elsif ( $model =~ /^(9)$/ ) {$arch = 'Elbrus-8CB'}
+			else {
+				# note: 12/16 core coming soon, model #/arch name will be available then
+				if (main::is_numeric($model) && $model > 9){$arch = 'Elbrus-??'}
+				else {$arch = 'Elbrus-??'}
+			}
 		}
 	}
 	elsif ( $type eq 'intel'){
