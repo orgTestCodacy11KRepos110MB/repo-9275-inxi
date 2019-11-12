@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.36';
-my $self_date='2019-11-11';
-my $self_patch='06';
+my $self_date='2019-11-12';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6913,6 +6913,7 @@ sub data_cpuinfo {
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
+	#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
 	my %speeds = set_cpu_speeds_sys();
 	my @cpuinfo = main::reader($file);
 	my @phys_cpus = (0);# start with 1 always
@@ -7336,7 +7337,6 @@ sub cpu_properties {
 	foreach (@phys) {
 		$phyical_count++ if $_;
 	}
-	$phyical_count ||= 1; # assume 1 if no id found, as with ARM
 	# count unique processors ##
 	# note, this fails for intel cpus at times
 	$ref = $cpu{'processors'};
@@ -7350,11 +7350,13 @@ sub cpu_properties {
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	if ($b_elbrus && $processors_count){
-		$cpu_cores = (elbrus_data($cpu{'model_id'}))[0];
-		$phyical_count = ($processors_count % $cpu_cores) ? int($processors_count/$cpu_cores) + 1 : $processors_count/$cpu_cores;
-		# print 'model: ' . $cpu{'model_id'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
+		my @elbrus = elbrus_data($cpu{'model_id'},$processors_count,$cpu{'arch'});
+		$cpu_cores = $elbrus[0];
+		$phyical_count = $elbrus[1];
+		$cpu{'arch'} = $elbrus[2];
+		# print 'model id: ' . $cpu{'model_id'} . ' arch: ' . $cpu{'arch'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
 	}
-	
+	$phyical_count ||= 1; # assume 1 if no id found, as with ARM
 	if ($extra > 1){
 		# note: dmidecode has one entry per cpu per cache type, so this already 
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
@@ -7770,22 +7772,38 @@ sub cpu_dies_sys {
 	return $die_count;
 }
 # needed because no physical_id in cpuinfo, but > 1 cpu systems exist
+# returns: 0 - per cpu cores; 1 - phys cpu count; 2 - override model defaul names
 sub elbrus_data {
 	eval $start if $b_log;
-	my ($model_id) = @_;
+	my ($model_id,$count,$arch) = @_;
 	# 0: cores
-	my (@cores, @return);
+	my @cores;
+	my @return = (0,1,$arch);
 	$cores[1] = 1;
 	$cores[3] = 4;
 	$cores[4] = 2;
 	$cores[7] = 8;
 	$cores[8] = 1;
 	$cores[9] = 8;
-	# model ID unknown, not released yet
-	# $cores[xx] = 12;
-	# $cores[xx] = 16;
-	$return[0] = $cores[$model_id] if main::is_numeric($model_id) && $cores[$model_id];
-	
+	if (main::is_numeric($model_id) && $cores[$model_id]){
+		$return[0] = $cores[$model_id] ;
+	}
+	# model ID unknown for upcoming 12 and 16 core cpus, not released yet
+	# arch is Elbrus-?? if model not known
+	elsif ($count && $count >= 12) {
+		# note: 48 % 12 or 16 = 0 but a 3 cpu system is unlikely
+		if ($count % 16 == 0){
+			$return[0] = 16;
+			$return[2] = 'Elbrus-E16C';
+		}
+		elsif ($count % 12 == 0){
+			$return[0] = 12;
+			$return[2] = 'Elbrus-E12C';
+		}
+	}
+	if ($return[0]){
+		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
+	}
 	eval $end if $b_log;
 	return @return;
 }
