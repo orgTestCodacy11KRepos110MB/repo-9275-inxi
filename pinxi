@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.37';
 my $self_date='2020-01-16';
-my $self_patch='11';
+my $self_patch='12';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5495,7 +5495,7 @@ sub row_defaults {
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
 	'sensors-ipmi-root' => "Unable to run ipmi sensors.  Root privileges required.",
 	'smartctl-root' => "Unable to run smartctl. Root privileges required.",
-	'smartctl-usb' => "Unknown USB bridge. Flash drive?",
+	'smartctl-usb' => "Unknown USB bridge. Flash drive/Legacy enclosure?",
 	'smartctl-unknown' => "Unknown smartctl error. Unable to get data.",
 	'tool-missing' => "<missing $id>",
 	'unmounted-data' => "No unmounted partitions found.",
@@ -8190,7 +8190,7 @@ sub hex_and_decimal {
 ## DiskData
 {
 package DiskData;
-my ($b_hddtemp,$b_nvme);
+my ($b_hddtemp,$b_nvme,$smartctl_missing);
 my ($hddtemp,$nvme) = ('','');
 my (@by_id,@by_path);
 my ($debugger_dir);
@@ -8253,7 +8253,7 @@ sub create_output {
 	eval $start if $b_log;
 	my (@disks) = @_;
 	#print Data::Dumper::Dumper \@disks;
-	my (@data,@rows);
+	my ($b_smart_permissions,@data,@rows);
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size,$used,$percent,$size_holder,$used_holder) = ('','','','','','','');
 	my @sizing = main::get_size($disks[0]{'size'}) if $disks[0]{'size'};
@@ -8286,6 +8286,10 @@ sub create_output {
 	});
 	@rows = (@rows,@data);
 	shift @disks;
+	if ($smartctl_missing){
+		$j = scalar @rows;
+		$rows[$j]{main::key($num++,'SMART Message')} = $smartctl_missing;
+	}
 	if ( $show{'disk'} && @disks){
 		@disks = sort { $a->{'id'} cmp $b->{'id'} } @disks;
 		foreach my $ref (@disks){
@@ -8309,25 +8313,30 @@ sub create_output {
 				$size = 'N/A';
 			}
 			$j = scalar @rows;
+			if (!$b_smart_permissions && $row{'smart-permissions'}){
+				$b_smart_permissions = 1;
+				$rows[$j]{main::key($num++,'SMART Message')} = $row{'smart-permissions'};
+				$j = scalar @rows;
+			}
 			@data = ({
 			main::key($num++,'ID') => $id,
 			});
 			@rows = (@rows,@data);
 			if ($row{'type'}){
-				$rows[$j]{main::key($num++,'type')} = $row{'type'},
+				$rows[$j]{main::key($num++,'type')} = $row{'type'};
 			}
 			if ($row{'vendor'}){
-				$rows[$j]{main::key($num++,'vendor')} = $row{'vendor'},
+				$rows[$j]{main::key($num++,'vendor')} = $row{'vendor'};
 			}
 			$rows[$j]{main::key($num++,'model')} = $model;
 			if ($row{'drive-vendor'}){
-				$rows[$j]{main::key($num++,'drive vendor')} = $row{'drive-vendor'},
+				$rows[$j]{main::key($num++,'drive vendor')} = $row{'drive-vendor'};
 			}
 			if ($row{'drive-model'}){
-				$rows[$j]{main::key($num++,'drive model')} = $row{'drive-model'},
+				$rows[$j]{main::key($num++,'drive model')} = $row{'drive-model'};
 			}
 			if ($row{'family'}){
-				$rows[$j]{main::key($num++,'family')} = $row{'family'},
+				$rows[$j]{main::key($num++,'family')} = $row{'family'};
 			}
 			$rows[$j]{main::key($num++,'size')} = $size;
 			if ($b_admin && $row{'block-physical'}){
@@ -8430,6 +8439,9 @@ sub disk_data {
 		my $ref = $alerts{'smartctl'};
 		if ( $$ref{'action'} eq 'use'){
 			@data = smartctl_data(@data);
+		}
+		else {
+			$smartctl_missing = $$ref{'missing'};
 		}
 	}
 	#print Data::Dumper::Dumper \@data;
@@ -8775,7 +8787,7 @@ sub smartctl_data {
 		# print Data::Dumper::Dumper\@result;
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
-				$data[$i]{'smart-error'} = main::row_defaults('smartctl-root');
+				$data[$i]{'smart-permissions'} = main::row_defaults('smartctl-root');
 			}
 			elsif (grep {/unknown usb bridge/i} @result){
 				$data[$i]{'smart-error'} = main::row_defaults('smartctl-usb');
@@ -8864,16 +8876,16 @@ sub smartctl_data {
 				elsif (! $data[$i]{'temp'} && $split[$s] eq 'Temperature_Celsius' && $split[-1] ){
 					$data[$i]{'temp'} = $split[-1];
 				}
-				elsif ($split[$s] eq 'Power_On_Hours' && $split[-1] ){
+				elsif ( ( $split[$s] eq 'Power_On_Hours' || $split[$s] eq 'Power On Hours') && $split[-1] ){
 					$data[$i]{'smart-power-on-hours'} = $split[-1];
 				}
-				elsif ($split[$s] eq 'Power_Cycle_Count' && $split[-1] ){
+				elsif ( ( $split[$s] eq 'Power_Cycle_Count' || $split[$s] eq 'Power Cycle Count') && $split[-1] ){
 					$data[$i]{'smart-cycles'} = $split[-1];
 				}
-				elsif ($split[$s] eq 'UDMA_CRC_Error_Count' ){
+				elsif ($split[$s] eq 'UDMA_CRC_Error_Count' ||  $split[$s] eq 'UDMA CRC Error Count'){
 					$data[$i]{'smart-udma-crc-errors'} = $split[-1];
 				}
-				elsif ($split[$s] eq 'Multi_Zone_Error_Rate' ){
+				elsif ($split[$s] eq 'Multi_Zone_Error_Rate' ||  $split[$s] eq 'Multi Zone Error Rate'){
 					$data[$i]{'smart-multizone-errors'} = $split[-1];
 				}
 			}
