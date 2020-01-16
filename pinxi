@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.37';
-my $self_date='2020-01-15';
-my $self_patch='10';
+my $self_date='2020-01-16';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8762,17 +8762,17 @@ sub smartctl_data {
 	eval $start if $b_log;
 	my (@data) = @_;
 	my ($b_attributes,$cmd,@working,@result,@split);
-	my $splitter = ':\s*';
+	my ($splitter,$s) = (':\s*',0); # $s is position in split array of field name
 	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @data; $i++){
 		next if !$data[$i]{'id'};
-		($b_attributes,$splitter) = (0,':\s*');
+		($b_attributes,$splitter,$s) = (0,':\s*',0);
 		#print $data[$i]{'id'},"\n";
 		$cmd = "$smartctl -AHi /dev/" . $data[$i]{'id'} . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
+		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
-		main::log_data('dump','@result', \@result) if $b_log;
-		#print Data::Dumper::Dumper\@result;
+		# print Data::Dumper::Dumper\@result;
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data[$i]{'smart-error'} = main::row_defaults('smartctl-root');
@@ -8790,92 +8790,96 @@ sub smartctl_data {
 				if ($row =~ /^ID#/){
 					$splitter = '\s+';
 					$b_attributes = 1;
+					$s = 1;
 				}
 				@split = split /$splitter/, $row;
-				if (!$b_attributes){
-					next if !$split[1];
-					# usb/firewire/thunderbolt
-					if ($split[0] eq 'Device Model'){
-						if ($data[$i]{'type'}){
-							@working = device_vendor("$split[1]");
-							$data[$i]{'drive-model'} = $working[1] if $data[$i]{'model'} && $data[$i]{'model'} ne $working[1];
-							$data[$i]{'drive-vendor'} = $working[0] if $data[$i]{'vendor'} && $data[$i]{'vendor'} ne $working[0];
-						}
-					}
-					elsif ($split[0] eq 'Model Family'){
-						$data[$i]{'family'} = $split[1];
-						$data[$i]{'family'} =~ s/$data[$i]{'vendor'}\s*// if $data[$i]{'vendor'};
-					}
-					elsif ($split[0] eq 'Firmware Version'){
-						# 01.01A01 vs 1A01
-						if ($data[$i]{'firmware'} && $split[1] !~ /$data[$i]{'firmware'}/){
-							$data[$i]{'drive-firmware'} = $split[1];
-						}
-						elsif (!$data[$i]{'firmware'}){
-							$data[$i]{'firmware'} = $split[1];
-						}
-					}
-					elsif ($split[0] eq 'Serial Number'){
-						if ( !$data[$i]{'serial'}){
-							$data[$i]{'serial'} = $split[1];
-						}
-						elsif ($data[$i]{'type'} && $split[1] ne $data[$i]{'serial'}){
-							$data[$i]{'drive-serial'} = $split[1];
-						}
-					}
-					elsif ($split[0] eq 'SATA Version is'){
-						if ( $split[1] =~ /SATA ([0-9.]+), ([0-9.]+ [^\s]+)( \(current: ([1-9.]+ [^\s]+)\))?/){
-							$data[$i]{'sata'} = $1;
-							$data[$i]{'speed'} = $2 if !$data[$i]{'speed'};
-						}
-					}
-					elsif ($split[0] eq 'Sector Sizes'){
-						if( $data[$i]{'type'} || !$data[$i]{'block-logical'} || !$data[$i]{'block-physical'} ){
-							if ($split[1] =~ m|^([0-9]+) bytes logical/physical| ){
-								$data[$i]{'block-logical'} = $1;
-								$data[$i]{'block-physical'} = $1;
-							}
-							# 512 bytes logical, 4096 bytes physical
-							elsif ($split[1] =~ m|^([0-9]+) bytes logical, ([0-9]+) bytes physical|){
-								$data[$i]{'block-logical'} = $1;
-								$data[$i]{'block-physical'} = $2;
-							}
-						}
-					}
-					elsif ($split[0] eq 'SMART support is'){
-						if ($split[1] =~ /^(Available|Unavailable) /){
-							$data[$i]{'smart'} = $1;
-							$data[$i]{'smart'} = ($data[$i]{'smart'} eq 'Unavailable') ? 'no' : 'yes';
-						}
-						elsif ($split[1] =~ /^(Enabled|Disabled)/ ){
-							$data[$i]{'smart-support'} = lc($1);
-						}
-					}
-					elsif ($split[0] eq 'SMART overall-health self-assessment test result' ){
-						$data[$i]{'smart-status'} = $split[1];
-						
+				next if !$b_attributes && !$split[1];
+				# usb/firewire/thunderbolt
+				if ($split[$s] eq 'Device Model'){
+					if ($data[$i]{'type'}){
+						@working = device_vendor("$split[1]");
+						$data[$i]{'drive-model'} = $working[1] if $data[$i]{'model'} && $data[$i]{'model'} ne $working[1];
+						$data[$i]{'drive-vendor'} = $working[0] if $data[$i]{'vendor'} && $data[$i]{'vendor'} ne $working[0];
 					}
 				}
-				else {
-					if (! $data[$i]{'temp'} && $split[1] eq 'Temperature_Celsius' && $split[-1] ){
-						$data[$i]{'temp'} = $split[-1];
+				elsif ($split[$s] eq 'Model Family'){
+					@working = device_vendor("$split[1]");
+					$data[$i]{'family'} = $working[1];
+					# $data[$i]{'family'} =~ s/$data[$i]{'vendor'}\s*// if $data[$i]{'vendor'};
+				}
+				elsif ($split[$s] eq 'Firmware Version'){
+					# 01.01A01 vs 1A01
+					if ($data[$i]{'firmware'} && $split[1] !~ /$data[$i]{'firmware'}/){
+						$data[$i]{'drive-firmware'} = $split[1];
 					}
-					elsif ($split[1] eq 'Power_On_Hours' && $split[-1] ){
-						$data[$i]{'smart-power-on-hours'} = $split[-1];
+					elsif (!$data[$i]{'firmware'}){
+						$data[$i]{'firmware'} = $split[1];
 					}
-					elsif ($split[1] eq 'Power_Cycle_Count' && $split[-1] ){
-						$data[$i]{'smart-cycles'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Rotation Rate'){
+					$data[$i]{'rotation'} = $split[1];
+				}
+				elsif ($split[$s] eq 'Serial Number'){
+					if ( !$data[$i]{'serial'}){
+						$data[$i]{'serial'} = $split[1];
 					}
-					elsif ($split[1] eq 'UDMA_CRC_Error_Count' ){
-						$data[$i]{'smart-udma-crc-errors'} = $split[-1];
+					elsif ($data[$i]{'type'} && $split[1] ne $data[$i]{'serial'}){
+						$data[$i]{'drive-serial'} = $split[1];
 					}
-					elsif ($split[1] eq 'Multi_Zone_Error_Rate' ){
-						$data[$i]{'smart-multizone-errors'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'SATA Version is'){
+					if ( $split[1] =~ /SATA ([0-9.]+), ([0-9.]+ [^\s]+)( \(current: ([1-9.]+ [^\s]+)\))?/){
+						$data[$i]{'sata'} = $1;
+						$data[$i]{'speed'} = $2 if !$data[$i]{'speed'};
 					}
+				}
+				elsif ($split[$s] eq 'Sector Sizes'){
+					if( $data[$i]{'type'} || !$data[$i]{'block-logical'} || !$data[$i]{'block-physical'} ){
+						if ($split[1] =~ m|^([0-9]+) bytes logical/physical| ){
+							$data[$i]{'block-logical'} = $1;
+							$data[$i]{'block-physical'} = $1;
+						}
+						# 512 bytes logical, 4096 bytes physical
+						elsif ($split[1] =~ m|^([0-9]+) bytes logical, ([0-9]+) bytes physical|){
+							$data[$i]{'block-logical'} = $1;
+							$data[$i]{'block-physical'} = $2;
+						}
+					}
+				}
+				elsif ($split[$s] eq 'SMART support is'){
+					if ($split[1] =~ /^(Available|Unavailable) /){
+						$data[$i]{'smart'} = $1;
+						$data[$i]{'smart'} = ($data[$i]{'smart'} eq 'Unavailable') ? 'no' : 'yes';
+					}
+					elsif ($split[1] =~ /^(Enabled|Disabled)/ ){
+						$data[$i]{'smart-support'} = lc($1);
+					}
+				}
+				elsif ($split[$s] eq 'SMART overall-health self-assessment test result' ){
+					$data[$i]{'smart-status'} = $split[1];
+					# seen nvme that only report smart health, not smart support
+					$data[$i]{'smart'} = 'yes' if !$data[$i]{'smart'};
+				}
+				# Attributes data fields, sometimes are same syntax as info block:...
+				elsif (! $data[$i]{'temp'} && $split[$s] eq 'Temperature_Celsius' && $split[-1] ){
+					$data[$i]{'temp'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Power_On_Hours' && $split[-1] ){
+					$data[$i]{'smart-power-on-hours'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Power_Cycle_Count' && $split[-1] ){
+					$data[$i]{'smart-cycles'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'UDMA_CRC_Error_Count' ){
+					$data[$i]{'smart-udma-crc-errors'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Multi_Zone_Error_Rate' ){
+					$data[$i]{'smart-multizone-errors'} = $split[-1];
 				}
 			}
 		}
 	}
+	#print Data::Dumper::Dumper\@data;
 	eval $end if $b_log;
 	return @data;
 }
@@ -9046,11 +9050,11 @@ sub device_vendor {
 	return if !$model;
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 	# Data URLs: inxi-resources.txt Section: DiskData device_vendor()
-	# $model = 'MEDIAMAX ';
+	# $model = 'Crucial/Jmicron RX32 ARSS';
 	# $model = 'Patriot Memory';
 	my @vendors = (
 	## These go first because they are the most likely and common ##
-	['(Crucial|^(FC)?CT|-CT|^M4\b)','Crucial','Crucial',''],
+	['(Crucial|^(FC)?CT|-CT|^M4\b)','Crucial(\/Jmicron)?','Crucial',''],
 	['^(INTEL|SSD(PAM|SA2))','^INTEL','Intel',''],
 	['(KINGSTON|DataTraveler|DT\s?(DUO|Microduo|101)|^SMS|^SHS|^SUV|^Ultimate CF|HyperX|^S[AV][34]00)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
