@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.37';
 my $self_date='2020-01-17';
-my $self_patch='23';
+my $self_patch='24';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8258,6 +8258,31 @@ sub create_output {
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size,$used,$percent,$size_holder,
 	$used_holder) = ('','','','','','','','','');
+	my @smart_basic =(
+	['smart','SMART'],
+	['smart-error','SMART Message'],
+	['smart-support','state'],
+	['smart-status','health'],
+	['smart-power-on-hours','on'],
+	['smart-cycles','cycles'],
+	['smart-units-read','read-units'],
+	['smart-units-written','written-units'],
+	['smart-read','read'],
+	['smart-written','written'],
+	);
+	my @smart_age =(
+	['smart-media-wearout','media wearout'],
+	['smart-multizone-errors','write error rate'],
+	['smart-udma-crc-errors','UDMA CRC errors'],
+	);
+	my @smart_fail =(
+	['smart-end-to-end','end-to-end'],
+	['smart-raw-read-error-rate','read error rate'],
+	['smart-reallocated-sectors','reallocated sector'],
+	['smart-retired-blocks','retired block'],
+	['smart-spinup-time','spin-up time'],
+	['smart-ssd-life-left','life left'],
+	);
 	my @sizing = main::get_size($disks[0]{'size'}) if $disks[0]{'size'};
 	#print Data::Dumper::Dumper \@disks;
 	if (@sizing){
@@ -8378,94 +8403,31 @@ sub create_output {
 			}
 			if ($row{'smart'} || $row{'smart-error'}){
 				$j = scalar @rows;
-				## basic smart and drive info ##
-				if ($row{'smart'}){
-					$rows[$j]{main::key($num++,'SMART')} = $row{'smart'};
-				}
-				if ($row{'smart-error'}){
-					$rows[$j]{main::key($num++,'SMART Message')} = $row{'smart-error'};
-				}
-				if ($row{'smart-support'}){
-					$rows[$j]{main::key($num++,'state')} = $row{'smart-support'};
-				}
-				if ($row{'smart-status'}){
-					$rows[$j]{main::key($num++,'health')} = $row{'smart-status'};
-				}
-				if ($row{'smart-power-on-hours'}){
-					$rows[$j]{main::key($num++,'on')} = $row{'smart-power-on-hours'};
-				}
-				if ($row{'smart-cycles'}){
-					$rows[$j]{main::key($num++,'cycles')} = $row{'smart-cycles'};
-				}
-				if ($row{'smart-units-read'}){
-					$rows[$j]{main::key($num++,'units read')} = $row{'smart-units-read'};
-				}
-				if ($row{'smart-units-written'}){
-					$rows[$j]{main::key($num++,'units written')} = $row{'smart-units-written'};
-				}
-				if ($row{'smart-read'}){
-					$rows[$j]{main::key($num++,'read')} = $row{'smart-read'};
-				}
-				if ($row{'smart-written'}){
-					$rows[$j]{main::key($num++,'written')} = $row{'smart-written'};
+				## Basic SMART and drive info ##
+				for (my $i = 0; $i < scalar @smart_basic;$i++){
+					if ($row{$smart_basic[$i][0]}){
+						$rows[$j]{main::key($num++,$smart_basic[$i][1])} = $row{$smart_basic[$i][0]};
+					}
 				}
 				## Old-Age errors ##
-				if ($row{'smart-media-wearout'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Old-Age')} = '';
-						$b_prefail = 1;
+				for (my $i = 0; $i < scalar @smart_age;$i++){
+					if ($row{$smart_age[$i][0]}){
+						if (!$b_oldage){
+							$rows[$j]{main::key($num++,'Old-Age')} = '';
+							$b_oldage = 1;
+						}
+						$rows[$j]{main::key($num++,$smart_age[$i][1])} = $row{$smart_age[$i][0]};
 					}
-					$rows[$j]{main::key($num++,'media wearout')} = $row{'smart-media-wearout'};
-				}
-				if ($row{'smart-multizone-errors'}){
-					if (!$b_oldage){
-						$rows[$j]{main::key($num++,'Old-Age')} = '';
-						$b_oldage = 1;
-					}
-					$rows[$j]{main::key($num++,'write error rate')} = $row{'smart-multizone-errors'};
-				}
-				if ($row{'smart-udma-crc-errors'}){
-					if (!$b_oldage){
-						$rows[$j]{main::key($num++,'Old-Age')} = '';
-						$b_oldage = 1;
-					}
-					$rows[$j]{main::key($num++,'UDMA CRC errors')} = $row{'smart-udma-crc-errors'};
 				}
 				## Pre-Fail errors ##
-				if ($row{'smart-end-to-end'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
+				for (my $i = 0; $i < scalar @smart_fail;$i++){
+					if ($row{$smart_fail[$i][0]}){
+						if (!$b_prefail){
+							$rows[$j]{main::key($num++,'Pre-Fail')} = '';
+							$b_prefail = 1;
+						}
+						$rows[$j]{main::key($num++,$smart_fail[$i][1])} = $row{$smart_fail[$i][0]};
 					}
-					$rows[$j]{main::key($num++,'end-to-end')} = $row{'smart-end-to-end'};
-				}
-				if ($row{'smart-raw-read-error-rate'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
-					}
-					$rows[$j]{main::key($num++,'read error rate')} = $row{'smart-raw-read-error-rate'};
-				}
-				if ($row{'smart-reallocated-sectors'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
-					}
-					$rows[$j]{main::key($num++,'reallocated sector')} = $row{'smart-reallocated-sectors'};
-				}
-				if ($row{'smart-retired-blocks'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
-					}
-					$rows[$j]{main::key($num++,'retired block')} = $row{'smart-retired-blocks'};
-				}
-				if ($row{'smart-spinup-time'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
-					}
-					$rows[$j]{main::key($num++,'spin-up time')} = $row{'smart-spinup-time'};
 				}
 			}
 		}
@@ -8841,12 +8803,14 @@ sub smartctl_data {
 	eval $start if $b_log;
 	my (@data) = @_;
 	my ($b_attributes,$cmd,@working,@result,@split);
-	my ($splitter,$a,$r,$t,$v) = (':\s*',0,1,5,3); # $s is position in split array of field name
+	my ($splitter,$a,$r,$t,$v,$y) = (':\s*',0,1,5,3,6); # $y is type, $t threashold, etc
 	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @data; $i++){
 		next if !$data[$i]{'id'};
 		($b_attributes,$splitter,$a,$r) = (0,':\s*',0,1);
 		#print $data[$i]{'id'},"\n";
+		# m2 nvme failed on nvme0n1 drive id:
+		# $data[$i]{'id'} =~ s/n[0-9]+$// if $data[$i]{'id'} =~ /^nvme/;
 		$cmd = "$smartctl -AHi /dev/" . $data[$i]{'id'} . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
@@ -9033,7 +8997,7 @@ sub smartctl_data {
 				## DEVICE PRE-FAIL ##
 				elsif ($split[$a] eq 'Available_Reservd_Space'){
 					# $data[$i]{'smart-available-reserved-space'} = $split[$r];
-					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25){
 						$data[$i]{'smart-available-reserved-space'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
@@ -9043,10 +9007,10 @@ sub smartctl_data {
 						$data[$i]{'smart-end-to-end'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
-				# seen value: 0/8415644
-				elsif ($split[$a] eq 'Raw_Read_Error_Rate' && eval($split[$r])){
+				# seen raw value: 0/8415644
+				elsif ($split[$a] eq 'Raw_Read_Error_Rate'){
 					#$data[$i]{'smart-raw-read-error-rate'} = $split[$r];
-					if ($b_attributes && eval($split[$r]) > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25){
 						$data[$i]{'smart-raw-read-error-rate'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
@@ -9064,8 +9028,14 @@ sub smartctl_data {
 				}
 				elsif ($split[$a] eq 'Spin_Up_Time'){
 					# raw will always be > 0 on spinning disks
-					if ($b_attributes && main::is_numeric($split[$t]) && $split[$v] <= $split[$t] ){
+					if ($b_attributes && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25 ){
 						$data[$i]{'smart-spinup-time'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
+					}
+				}
+				elsif ($split[$a] eq 'SSD_Life_Left'){
+					# raw will always be > 0 on spinning disks
+					if ($b_attributes && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25 ){
+						$data[$i]{'smart-ssd-life-left'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 			}
