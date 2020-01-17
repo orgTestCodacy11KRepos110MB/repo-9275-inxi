@@ -8394,6 +8394,12 @@ sub create_output {
 				if ($row{'smart-cycles'}){
 					$rows[$j]{main::key($num++,'cycles')} = $row{'smart-cycles'};
 				}
+				if ($row{'smart-units-read'}){
+					$rows[$j]{main::key($num++,'units read')} = $row{'smart-units-read'};
+				}
+				if ($row{'smart-units-written'}){
+					$rows[$j]{main::key($num++,'units written')} = $row{'smart-units-written'};
+				}
 				if ($row{'smart-udma-crc-errors'}){
 					$rows[$j]{main::key($num++,'UDMA CRC Errors')} = $row{'smart-udma-crc-errors'};
 				}
@@ -8805,7 +8811,7 @@ sub smartctl_data {
 					$s = 1;
 				}
 				@split = split /$splitter/, $row;
-				next if !$b_attributes && !$split[1];
+				next if !$b_attributes && ! defined $split[1];
 				# usb/firewire/thunderbolt
 				if ($split[$s] eq 'Device Model'){
 					if ($data[$i]{'type'}){
@@ -8873,13 +8879,15 @@ sub smartctl_data {
 					$data[$i]{'smart'} = 'yes' if !$data[$i]{'smart'};
 				}
 				# Attributes data fields, sometimes are same syntax as info block:...
-				elsif (! $data[$i]{'temp'} && $split[$s] eq 'Temperature_Celsius' && $split[-1] ){
+				elsif (! $data[$i]{'temp'} && $split[-1] && 
+				 ($split[$s] eq 'Temperature_Celsius' || $split[$s] eq 'Temperature') ){
 					$data[$i]{'temp'} = $split[-1];
+					$data[$i]{'temp'} =~ s/ Celsius// if defined $data[$i]{'temp'};
 				}
 				elsif ( ( $split[$s] eq 'Power_On_Hours' || $split[$s] eq 'Power On Hours') && $split[-1] ){
 					$data[$i]{'smart-power-on-hours'} = $split[-1];
 				}
-				elsif ( ( $split[$s] eq 'Power_Cycle_Count' || $split[$s] eq 'Power Cycle Count') && $split[-1] ){
+				elsif ( ( $split[$s] eq 'Power_Cycle_Count' || $split[$s] eq 'Power Cycles') && $split[-1] ){
 					$data[$i]{'smart-cycles'} = $split[-1];
 				}
 				elsif ($split[$s] eq 'UDMA_CRC_Error_Count' ||  $split[$s] eq 'UDMA CRC Error Count'){
@@ -8887,6 +8895,12 @@ sub smartctl_data {
 				}
 				elsif ($split[$s] eq 'Multi_Zone_Error_Rate' ||  $split[$s] eq 'Multi Zone Error Rate'){
 					$data[$i]{'smart-multizone-errors'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Data Units Read'){
+					$data[$i]{'smart-units-read'} = $split[-1];
+				}
+				elsif ($split[$s] eq 'Data Units Written'){
+					$data[$i]{'smart-units-written'} = $split[-1];
 				}
 			}
 		}
