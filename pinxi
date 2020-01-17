@@ -8378,6 +8378,7 @@ sub create_output {
 			}
 			if ($row{'smart'} || $row{'smart-error'}){
 				$j = scalar @rows;
+				## basic smart and drive info ##
 				if ($row{'smart'}){
 					$rows[$j]{main::key($num++,'SMART')} = $row{'smart'};
 				}
@@ -8408,7 +8409,14 @@ sub create_output {
 				if ($row{'smart-written'}){
 					$rows[$j]{main::key($num++,'written')} = $row{'smart-written'};
 				}
-				## Old-Age errors
+				## Old-Age errors ##
+				if ($row{'smart-media-wearout'}){
+					if (!$b_prefail){
+						$rows[$j]{main::key($num++,'Old-Age')} = '';
+						$b_prefail = 1;
+					}
+					$rows[$j]{main::key($num++,'media wearout')} = $row{'smart-media-wearout'};
+				}
 				if ($row{'smart-multizone-errors'}){
 					if (!$b_oldage){
 						$rows[$j]{main::key($num++,'Old-Age')} = '';
@@ -8423,20 +8431,13 @@ sub create_output {
 					}
 					$rows[$j]{main::key($num++,'UDMA CRC errors')} = $row{'smart-udma-crc-errors'};
 				}
-				## Pre-Fail errors
+				## Pre-Fail errors ##
 				if ($row{'smart-end-to-end'}){
 					if (!$b_prefail){
 						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
 						$b_prefail = 1;
 					}
 					$rows[$j]{main::key($num++,'end-to-end')} = $row{'smart-end-to-end'};
-				}
-				if ($row{'smart-media-wearout'}){
-					if (!$b_prefail){
-						$rows[$j]{main::key($num++,'Pre-Fail')} = '';
-						$b_prefail = 1;
-					}
-					$rows[$j]{main::key($num++,'media wearout')} = $row{'smart-media-wearout'};
 				}
 				if ($row{'smart-raw-read-error-rate'}){
 					if (!$b_prefail){
@@ -9017,6 +9018,12 @@ sub smartctl_data {
 					}
 				}
 				## DEVICE OLD AGE ##
+				elsif ($split[$a] eq 'Media_Wearout_Indicator'){
+					# $data[$i]{'smart-media-wearout'} = $split[$r];
+					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
+						$data[$i]{'smart-media-wearout'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
+					}
+				}
 				elsif ($split[$a] eq 'Multi_Zone_Error_Rate' ||  $split[$a] eq 'Multi Zone Error Rate'){
 					$data[$i]{'smart-multizone-errors'} = $split[$r];
 				}
@@ -9034,12 +9041,6 @@ sub smartctl_data {
 					# $data[$i]{'smart-media-wearout'} = $split[$r];
 					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
 						$data[$i]{'smart-end-to-end'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
-					}
-				}
-				elsif ($split[$a] eq 'Media_Wearout_Indicator'){
-					# $data[$i]{'smart-media-wearout'} = $split[$r];
-					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
-						$data[$i]{'smart-media-wearout'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				# seen value: 0/8415644
@@ -9062,7 +9063,8 @@ sub smartctl_data {
 					}
 				}
 				elsif ($split[$a] eq 'Spin_Up_Time'){
-					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
+					# raw will always be > 0 on spinning disks
+					if ($b_attributes && main::is_numeric($split[$t]) && $split[$v] <= $split[$t] ){
 						$data[$i]{'smart-spinup-time'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
