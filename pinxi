@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.37';
 my $self_date='2020-01-16';
-my $self_patch='13';
+my $self_patch='14';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8389,7 +8389,7 @@ sub create_output {
 					$rows[$j]{main::key($num++,'health')} = $row{'smart-status'};
 				}
 				if ($row{'smart-power-on-hours'}){
-					$rows[$j]{main::key($num++,'on')} = $row{'smart-power-on-hours'} . ' hrs';
+					$rows[$j]{main::key($num++,'on')} = $row{'smart-power-on-hours'};
 				}
 				if ($row{'smart-cycles'}){
 					$rows[$j]{main::key($num++,'cycles')} = $row{'smart-cycles'};
@@ -8790,7 +8790,7 @@ sub smartctl_data {
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
-		 print Data::Dumper::Dumper\@result;
+		# print Data::Dumper::Dumper\@result;
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data[$i]{'smart-permissions'} = main::row_defaults('smartctl-root');
@@ -8891,6 +8891,11 @@ sub smartctl_data {
 				}
 				elsif ( ( $split[$s] eq 'Power_On_Hours' || $split[$s] eq 'Power On Hours') && $split[$v] ){
 					$data[$i]{'smart-power-on-hours'} = $split[$v];
+					if ($split[$v] =~ /^([0-9]+)$/){
+						if ($1 && $1 > 100){
+							$data[$i]{'smart-power-on-hours'} = int($1/24) . ' days ' . ($1%24) . ' hrs';
+						}
+					}
 				}
 				elsif ( ( $split[$s] eq 'Power_Cycle_Count' || $split[$s] eq 'Power Cycles') && $split[$v] ){
 					$data[$i]{'smart-cycles'} = $split[$v];
