@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.37';
-my $self_date='2020-01-16';
-my $self_patch='19';
+my $self_date='2020-01-17';
+my $self_patch='20';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4413,6 +4413,7 @@ sub get_options{
 	}
 	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
 	$b_sudo = 1 if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
+	$extra = 3 if $b_admin;
 	# override for things like -b or -v2 to -v3
 	$show{'cpu-basic'} = 0 if $show{'cpu'};
 	$show{'optical-basic'} = 0 if $show{'optical'};
@@ -4446,7 +4447,6 @@ sub get_options{
 	}
 	if ($b_admin && $show{'disk'}){
 		$b_smartctl = 1;
-		$extra = 3;
 	}
 } 
 
@@ -4481,7 +4481,7 @@ sub show_options {
 	['0', '', '', $line ],
 	['0', '', '', "Output Control Options:" ],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
-	verbose or line output, not short form):" ],
+	verbose or line output, not short form), sets --extra=3:" ],
 	['2', '-C', '', "If available: CPU vulnerabilities (bugs); family, model-id, stepping - format:
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
@@ -8408,10 +8408,16 @@ sub create_output {
 					$rows[$j]{main::key($num++,'written')} = $row{'smart-written'};
 				}
 				if ($row{'smart-udma-crc-errors'}){
-					$rows[$j]{main::key($num++,'UDMA CRC Errors')} = $row{'smart-udma-crc-errors'};
+					$rows[$j]{main::key($num++,'UDMA CRC errors')} = $row{'smart-udma-crc-errors'};
 				}
 				if ($row{'smart-multizone-errors'}){
-					$rows[$j]{main::key($num++,'Multizone Errors')} = $row{'smart-multizone-errors'};
+					$rows[$j]{main::key($num++,'write error rate')} = $row{'smart-multizone-errors'};
+				}
+				if ($row{'smart-reallocated-sectors'}){
+					$rows[$j]{main::key($num++,'reallocated sectors')} = $row{'smart-reallocated-sectors'};
+				}
+				if ($row{'smart-raw-read-error-rate'}){
+					$rows[$j]{main::key($num++,'read error rate')} = $row{'smart-raw-read-error-rate'};
 				}
 			}
 		}
@@ -8797,7 +8803,7 @@ sub smartctl_data {
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
-		print Data::Dumper::Dumper\@result if $test[12];
+		print 'Drive:/dev/' . $data[$i]{'id'} . ":\n", Data::Dumper::Dumper\@result if $test[12];
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data[$i]{'smart-permissions'} = main::row_defaults('smartctl-root');
@@ -8902,9 +8908,13 @@ sub smartctl_data {
 					$split[$v] =~ s/,//;
 					# trim off: h+0m+00.000s which is useless and at times empty anyway
 					$split[$v] =~ s/h\+.*$// if $split[$s] eq 'Power_On_Hours_and_Msec';
+					# $split[$v] = 43;
 					if ($split[$v] =~ /^([0-9]+)$/){
-						if ($1 && $1 > 100){
-							$data[$i]{'smart-power-on-hours'} = int($1/24) . ' days ' . ($1%24) . ' hrs';
+						if ($1 > 9000){
+							$data[$i]{'smart-power-on-hours'} = int($1/(24*365)) . 'y ' . int($1/24)%365 . 'd ' . $1%24 . 'h';
+						}
+						elsif ($1 > 100){
+							$data[$i]{'smart-power-on-hours'} = int($1/24) . 'd ' . $1%24 . 'h';
 						}
 						else {
 							$data[$i]{'smart-power-on-hours'} = $split[$v] . ' hrs';
@@ -8936,6 +8946,18 @@ sub smartctl_data {
 				elsif ($split[$s] eq 'Host_Writes_32MiB'){
 					$split[$v] = $split[$v] * 32 * 1024;
 					$data[$i]{'smart-written'} = join ' ', main::get_size($split[$v]);
+				}
+				elsif ($split[$s] eq 'Reallocated_Sector_Ct'){
+					$data[$i]{'smart-reallocated-sectors'} = $split[$v];
+					if ($v == 9 && $split[$v] > 0 && main::is_numeric($split[5])){
+						$data[$i]{'smart-reallocated-sectors'} .= ' (threshold:' . int($split[5]) . ')';
+					}
+				}
+				elsif ($split[$s] eq 'Raw_Read_Error_Rate'){
+					$data[$i]{'smart-raw-read-error-rate'} = $split[$v];
+					if ($v == 9 && $split[$v] > 0 && main::is_numeric($split[5])){
+						$data[$i]{'smart-raw-read-error-rate'} .= ' (threshold:' . int($split[5]) . ')';
+					}
 				}
 			}
 		}
