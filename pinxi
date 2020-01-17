@@ -8802,7 +8802,7 @@ sub dmesg_boot_data {
 sub smartctl_data {
 	eval $start if $b_log;
 	my (@data) = @_;
-	my ($b_attributes,$cmd,@working,@result,@split);
+	my ($b_attributes,$cmd,$id,@working,@result,@split);
 	my ($splitter,$a,$r,$t,$v,$y) = (':\s*',0,1,5,3,6); # $y is type, $t threashold, etc
 	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @data; $i++){
@@ -8810,12 +8810,13 @@ sub smartctl_data {
 		($b_attributes,$splitter,$a,$r) = (0,':\s*',0,1);
 		#print $data[$i]{'id'},"\n";
 		# m2 nvme failed on nvme0n1 drive id:
-		# $data[$i]{'id'} =~ s/n[0-9]+$// if $data[$i]{'id'} =~ /^nvme/;
-		$cmd = "$smartctl -AHi /dev/" . $data[$i]{'id'} . ' 2>/dev/null';
+		$id = $data[$i]{'id'};
+		$id =~ s/n[0-9]+$// if $id =~ /^nvme/;
+		$cmd = "$smartctl -AHi /dev/" . $id . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
-		print 'Drive:/dev/' . $data[$i]{'id'} . ":\n", Data::Dumper::Dumper\@result if $test[12];
+		print 'Drive:/dev/' . $id . ":\n", Data::Dumper::Dumper\@result if $test[12];
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data[$i]{'smart-permissions'} = main::row_defaults('smartctl-root');
