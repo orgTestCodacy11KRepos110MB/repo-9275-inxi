@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.37';
 my $self_date='2020-01-17';
-my $self_patch='20';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8410,6 +8410,9 @@ sub create_output {
 				if ($row{'smart-udma-crc-errors'}){
 					$rows[$j]{main::key($num++,'UDMA CRC errors')} = $row{'smart-udma-crc-errors'};
 				}
+				if ($row{'smart-retired-blocks'}){
+					$rows[$j]{main::key($num++,'retired blocks')} = $row{'smart-retired-blocks'};
+				}
 				if ($row{'smart-multizone-errors'}){
 					$rows[$j]{main::key($num++,'write error rate')} = $row{'smart-multizone-errors'};
 				}
@@ -8793,11 +8796,11 @@ sub smartctl_data {
 	eval $start if $b_log;
 	my (@data) = @_;
 	my ($b_attributes,$cmd,@working,@result,@split);
-	my ($splitter,$s,$v) = (':\s*',0,1); # $s is position in split array of field name
+	my ($splitter,$a,$r,$t,$v) = (':\s*',0,1,5,3); # $s is position in split array of field name
 	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @data; $i++){
 		next if !$data[$i]{'id'};
-		($b_attributes,$splitter,$s,$v) = (0,':\s*',0,1);
+		($b_attributes,$splitter,$a,$r) = (0,':\s*',0,1);
 		#print $data[$i]{'id'},"\n";
 		$cmd = "$smartctl -AHi /dev/" . $data[$i]{'id'} . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
@@ -8821,95 +8824,95 @@ sub smartctl_data {
 				if ($row =~ /^ID#/){
 					$splitter = '\s+';
 					$b_attributes = 1;
-					$s = 1;
-					$v = 9;
+					$a = 1;
+					$r = 9;
 				}
 				@split = split /$splitter/, $row;
-				next if !$b_attributes && ! defined $split[$v];
+				next if !$b_attributes && ! defined $split[$r];
 				# usb/firewire/thunderbolt
-				if ($split[$s] eq 'Device Model'){
+				if ($split[$a] eq 'Device Model'){
 					if ($data[$i]{'type'}){
-						@working = device_vendor("$split[$v]");
+						@working = device_vendor("$split[$r]");
 						$data[$i]{'drive-model'} = $working[1] if $data[$i]{'model'} && $data[$i]{'model'} ne $working[1];
 						$data[$i]{'drive-vendor'} = $working[0] if $data[$i]{'vendor'} && $data[$i]{'vendor'} ne $working[0];
 					}
 				}
-				elsif ($split[$s] eq 'Model Family'){
-					@working = device_vendor("$split[$v]");
+				elsif ($split[$a] eq 'Model Family'){
+					@working = device_vendor("$split[$r]");
 					$data[$i]{'family'} = $working[1];
 					# $data[$i]{'family'} =~ s/$data[$i]{'vendor'}\s*// if $data[$i]{'vendor'};
 				}
-				elsif ($split[$s] eq 'Firmware Version'){
+				elsif ($split[$a] eq 'Firmware Version'){
 					# 01.01A01 vs 1A01
-					if ($data[$i]{'firmware'} && $split[$v] !~ /$data[$i]{'firmware'}/){
-						$data[$i]{'drive-firmware'} = $split[$v];
+					if ($data[$i]{'firmware'} && $split[$r] !~ /$data[$i]{'firmware'}/){
+						$data[$i]{'drive-firmware'} = $split[$r];
 					}
 					elsif (!$data[$i]{'firmware'}){
-						$data[$i]{'firmware'} = $split[$v];
+						$data[$i]{'firmware'} = $split[$r];
 					}
 				}
-				elsif ($split[$s] eq 'Rotation Rate'){
-					$data[$i]{'rotation'} = $split[$v] if $split[$v] !~ /^Solid/;
+				elsif ($split[$a] eq 'Rotation Rate'){
+					$data[$i]{'rotation'} = $split[$r] if $split[$r] !~ /^Solid/;
 				}
-				elsif ($split[$s] eq 'Serial Number'){
+				elsif ($split[$a] eq 'Serial Number'){
 					if ( !$data[$i]{'serial'}){
-						$data[$i]{'serial'} = $split[$v];
+						$data[$i]{'serial'} = $split[$r];
 					}
-					elsif ($data[$i]{'type'} && $split[$v] ne $data[$i]{'serial'}){
-						$data[$i]{'drive-serial'} = $split[$v];
+					elsif ($data[$i]{'type'} && $split[$r] ne $data[$i]{'serial'}){
+						$data[$i]{'drive-serial'} = $split[$r];
 					}
 				}
-				elsif ($split[$s] eq 'SATA Version is'){
-					if ( $split[$v] =~ /SATA ([0-9.]+), ([0-9.]+ [^\s]+)( \(current: ([1-9.]+ [^\s]+)\))?/){
+				elsif ($split[$a] eq 'SATA Version is'){
+					if ( $split[$r] =~ /SATA ([0-9.]+), ([0-9.]+ [^\s]+)( \(current: ([1-9.]+ [^\s]+)\))?/){
 						$data[$i]{'sata'} = $1;
 						$data[$i]{'speed'} = $2 if !$data[$i]{'speed'};
 					}
 				}
-				elsif ($split[$s] eq 'Sector Sizes'){
+				elsif ($split[$a] eq 'Sector Sizes'){
 					if( $data[$i]{'type'} || !$data[$i]{'block-logical'} || !$data[$i]{'block-physical'} ){
-						if ($split[$v] =~ m|^([0-9]+) bytes logical/physical| ){
+						if ($split[$r] =~ m|^([0-9]+) bytes logical/physical| ){
 							$data[$i]{'block-logical'} = $1;
 							$data[$i]{'block-physical'} = $1;
 						}
 						# 512 bytes logical, 4096 bytes physical
-						elsif ($split[$v] =~ m|^([0-9]+) bytes logical, ([0-9]+) bytes physical|){
+						elsif ($split[$r] =~ m|^([0-9]+) bytes logical, ([0-9]+) bytes physical|){
 							$data[$i]{'block-logical'} = $1;
 							$data[$i]{'block-physical'} = $2;
 						}
 					}
 				}
-				elsif ($split[$s] eq 'SMART support is'){
-					if ($split[$v] =~ /^(Available|Unavailable) /){
+				elsif ($split[$a] eq 'SMART support is'){
+					if ($split[$r] =~ /^(Available|Unavailable) /){
 						$data[$i]{'smart'} = $1;
 						$data[$i]{'smart'} = ($data[$i]{'smart'} eq 'Unavailable') ? 'no' : 'yes';
 					}
-					elsif ($split[$v] =~ /^(Enabled|Disabled)/ ){
+					elsif ($split[$r] =~ /^(Enabled|Disabled)/ ){
 						$data[$i]{'smart-support'} = lc($1);
 					}
 				}
-				elsif ($split[$s] eq 'SMART overall-health self-assessment test result' ){
-					$data[$i]{'smart-status'} = $split[$v];
+				elsif ($split[$a] eq 'SMART overall-health self-assessment test result' ){
+					$data[$i]{'smart-status'} = $split[$r];
 					# seen nvme that only report smart health, not smart support
 					$data[$i]{'smart'} = 'yes' if !$data[$i]{'smart'};
 				}
 				# Attributes data fields, sometimes are same syntax as info block:...
 				# 'Airflow_Temperature_Cel' like: 29 (Min/Max 14/43) so can't use -1 index
 				# Temperature like 29 Celsisu
-				elsif (! $data[$i]{'temp'} && $split[$v] && 
-				 ($split[$s] eq 'Temperature_Celsius' || 
-				  $split[$s] eq 'Temperature' ||
-				  $split[$s] eq 'Airflow_Temperature_Cel') ){
-					$data[$i]{'temp'} = $split[$v];
+				elsif (! $data[$i]{'temp'} && $split[$r] && 
+				 ($split[$a] eq 'Temperature_Celsius' || 
+				  $split[$a] eq 'Temperature' ||
+				  $split[$a] eq 'Airflow_Temperature_Cel') ){
+					$data[$i]{'temp'} = $split[$r];
 					# $data[$i]{'temp'} =~ s/ (Celsius|Min\/Max.*)$// if defined $data[$i]{'temp'};
 				}
-				elsif ( ( $split[$s] eq 'Power_On_Hours' || 
-				 $split[$s] eq 'Power On Hours' ||
-				 $split[$s] eq 'Power_On_Hours_and_Msec') && $split[$v] ){
-					$split[$v] =~ s/,//;
+				elsif ( ( $split[$a] eq 'Power_On_Hours' || 
+				 $split[$a] eq 'Power On Hours' ||
+				 $split[$a] eq 'Power_On_Hours_and_Msec') && $split[$r] ){
+					$split[$r] =~ s/,//;
 					# trim off: h+0m+00.000s which is useless and at times empty anyway
-					$split[$v] =~ s/h\+.*$// if $split[$s] eq 'Power_On_Hours_and_Msec';
-					# $split[$v] = 43;
-					if ($split[$v] =~ /^([0-9]+)$/){
+					$split[$r] =~ s/h\+.*$// if $split[$a] eq 'Power_On_Hours_and_Msec';
+					# $split[$r] = 43;
+					if ($split[$r] =~ /^([0-9]+)$/){
 						if ($1 > 9000){
 							$data[$i]{'smart-power-on-hours'} = int($1/(24*365)) . 'y ' . int($1/24)%365 . 'd ' . $1%24 . 'h';
 						}
@@ -8917,47 +8920,80 @@ sub smartctl_data {
 							$data[$i]{'smart-power-on-hours'} = int($1/24) . 'd ' . $1%24 . 'h';
 						}
 						else {
-							$data[$i]{'smart-power-on-hours'} = $split[$v] . ' hrs';
+							$data[$i]{'smart-power-on-hours'} = $split[$r] . ' hrs';
 						}
 					}
 					else {
-						$data[$i]{'smart-power-on-hours'} = $split[$v];
+						$data[$i]{'smart-power-on-hours'} = $split[$r];
 					}
 				}
-				elsif ( ( $split[$s] eq 'Power_Cycle_Count' || $split[$s] eq 'Power Cycles') && $split[$v] ){
-					$data[$i]{'smart-cycles'} = $split[$v];
+				elsif ( ( $split[$a] eq 'Power_Cycle_Count' || $split[$a] eq 'Power Cycles') && $split[$r] ){
+					$data[$i]{'smart-cycles'} = $split[$r];
 				}
-				elsif ($split[$s] eq 'UDMA_CRC_Error_Count' ||  $split[$s] eq 'UDMA CRC Error Count'){
-					$data[$i]{'smart-udma-crc-errors'} = $split[$v];
+				elsif ($split[$a] eq 'UDMA_CRC_Error_Count' ||  $split[$a] eq 'UDMA CRC Error Count'){
+					$data[$i]{'smart-udma-crc-errors'} = $split[$r];
 				}
-				elsif ($split[$s] eq 'Data Units Read'){
-					$data[$i]{'smart-units-read'} = $split[$v];
-				}
-				elsif ($split[$s] eq 'Data Units Written'){
-					$data[$i]{'smart-units-written'} = $split[$v];
-				}
-				elsif ($split[$s] eq 'Host_Reads_32MiB'){
-					$split[$v] = $split[$v] * 32 * 1024;
-					$data[$i]{'smart-read'} = join ' ', main::get_size($split[$v]);
-				}
-				elsif ($split[$s] eq 'Host_Writes_32MiB'){
-					$split[$v] = $split[$v] * 32 * 1024;
-					$data[$i]{'smart-written'} = join ' ', main::get_size($split[$v]);
-				}
-				elsif ($split[$s] eq 'Reallocated_Sector_Ct'){
-					$data[$i]{'smart-reallocated-sectors'} = $split[$v];
-					if ($v == 9 && $split[$v] > 0 && main::is_numeric($split[5])){
-						$data[$i]{'smart-reallocated-sectors'} .= ' (threshold:' . int($split[5]) . ')';
+				elsif ($split[$a] eq 'Available_Reservd_Space'){
+					$data[$i]{'smart-available-reserved-space'} = $split[$r];
+					if ($r == 9 && $split[$r] > 0 && main::is_numeric($split[$t])){
+						$data[$i]{'smart-available-reserved-space'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
-				elsif ($split[$s] eq 'Raw_Read_Error_Rate'){
-					$data[$i]{'smart-raw-read-error-rate'} = $split[$v];
-					if ($v == 9 && $split[$v] > 0 && main::is_numeric($split[5])){
-						$data[$i]{'smart-raw-read-error-rate'} .= ' (threshold:' . int($split[5]) . ')';
+				elsif ($split[$a] eq 'Data Units Read'){
+					$data[$i]{'smart-units-read'} = $split[$r];
+				}
+				elsif ($split[$a] eq 'Data Units Written'){
+					$data[$i]{'smart-units-written'} = $split[$r];
+				}
+				elsif ($split[$a] eq 'Host_Reads_32MiB'){
+					$split[$r] = $split[$r] * 32 * 1024;
+					$data[$i]{'smart-read'} = join ' ', main::get_size($split[$r]);
+				}
+				elsif ($split[$a] eq 'Host_Writes_32MiB'){
+					$split[$r] = $split[$r] * 32 * 1024;
+					$data[$i]{'smart-written'} = join ' ', main::get_size($split[$r]);
+				}
+				elsif ($split[$a] eq 'Lifetime_Reads_GiB'){
+					$data[$i]{'smart-read'} = $split[$r] . ' GiB';
+				}
+				elsif ($split[$a] eq 'Lifetime_Writes_GiB'){
+					$data[$i]{'smart-written'} = $split[$r] . ' GiB';
+				}
+				elsif ($split[$a] eq 'Total_LBAs_Read'){
+					if (main::is_numeric($split[$r])){
+						# blocks in bytes, so convert to KiB, the internal unit here
+						$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
+						$data[$i]{'smart-read'} = join ' ', main::get_size($split[$r]);
 					}
 				}
-				elsif ($split[$s] eq 'Multi_Zone_Error_Rate' ||  $split[$s] eq 'Multi Zone Error Rate'){
-					$data[$i]{'smart-multizone-errors'} = $split[$v];
+				elsif ($split[$a] eq 'Total_LBAs_Written'){
+					if (main::is_numeric($split[$r])){
+						# blocks in bytes, so convert to KiB, the internal unit here
+						$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
+						$data[$i]{'smart-written'} = join ' ', main::get_size($split[$r]);
+					}
+				}
+				elsif ($split[$a] eq 'Reallocated_Sector_Ct'){
+					$data[$i]{'smart-reallocated-sectors'} = $split[$r];
+					if ($r == 9 && $split[$r] > 0 && main::is_numeric($split[$t])){
+						$data[$i]{'smart-reallocated-sectors'} = $split[$v] . ' (threshold:' . int($split[$t]) . '; raw:' . int($split[$r]) . ')';
+					}
+				}
+				elsif ($split[$a] eq 'Retired_Block_Count'){
+					$data[$i]{'smart-retired-blocks'} = $split[$r];
+					if ($r == 9 && $split[$r] > 0 && main::is_numeric($split[$t])){
+						$data[$i]{'smart-retired-blocks'} = $split[$v] . ' (threshold:' . int($split[$t]) . '; raw:' . int($split[$r]) . ')';
+					}
+				}
+				# seen value: 0/8415644
+				elsif ($split[$a] eq 'Raw_Read_Error_Rate' && eval($split[$r])){
+					$data[$i]{'smart-raw-read-error-rate'} = $split[$r];
+					if ($r == 9 && eval($split[$r]) > 0 && main::is_numeric($split[$t])){
+						$data[$i]{'smart-raw-read-error-rate'} = $split[$v] . ' (threshold:' . int($split[$t]) . '; raw:' . $split[$r] . ')';
+					}
+				}
+				elsif ($split[$a] eq 'Multi_Zone_Error_Rate' ||  $split[$a] eq 'Multi Zone Error Rate'){
+					$data[$i]{'smart-multizone-errors'} = $split[$r];
 				}
 			}
 		}
