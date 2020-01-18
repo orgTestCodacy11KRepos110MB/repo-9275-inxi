@@ -8840,7 +8840,10 @@ sub smartctl_data {
 				}
 				@split = split /$splitter/, $row;
 				next if !$b_attributes && ! defined $split[$r];
-				
+				# some cases where drive not in db threshhold will be: ---
+				# value is usually 0 padded which confuses perl
+				#$split[$t] = int($split[$t]) if $b_attributes && main::is_numeric($split[$t]);
+				#$split[$v] = int($split[$v]) if $b_attributes && main::is_numeric($split[$v]);
 				## DEVICE INFO ##
 				if ($split[$a] eq 'Device Model'){
 					$b_intel = 1 if $split[$r] =~/\bintel\b/i;
@@ -8995,6 +8998,7 @@ sub smartctl_data {
 						$data[$i]{'smart-written'} = join ' ', main::get_size($split[$r]);
 					}
 				}
+				
 				## DEVICE OLD AGE ##
 				elsif ($split[$a] eq 'Media_Wearout_Indicator'){
 					# $data[$i]{'smart-media-wearout'} = $split[$r];
@@ -9008,6 +9012,7 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'UDMA_CRC_Error_Count' ||  $split[$a] eq 'UDMA CRC Error Count'){
 					$data[$i]{'smart-udma-crc-errors'} = $split[$r];
 				}
+				
 				## DEVICE PRE-FAIL ##
 				elsif ($split[$a] eq 'Available_Reservd_Space'){
 					# $data[$i]{'smart-available-reserved-space'} = $split[$r];
@@ -9027,26 +9032,22 @@ sub smartctl_data {
 					}
 				}
 				elsif ($split[$a] eq 'End-to-End_Error'){
-					# $data[$i]{'smart-media-wearout'} = $split[$r];
 					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
 						$data[$i]{'smart-end-to-end'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				# seen raw value: 0/8415644
 				elsif ($split[$a] eq 'Raw_Read_Error_Rate'){
-					#$data[$i]{'smart-raw-read-error-rate'} = $split[$r];
-					if ($b_attributes && int($split[$v]) && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25){
+					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
 						$data[$i]{'smart-raw-read-error-rate'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'Reallocated_Sector_Ct'){
-					# $data[$i]{'smart-reallocated-sectors'} = $split[$r];
 					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
 						$data[$i]{'smart-reallocated-sectors'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'Retired_Block_Count'){
-					# $data[$i]{'smart-retired-blocks'} = $split[$r];
 					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
 						$data[$i]{'smart-retired-blocks'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
