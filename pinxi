@@ -33,7 +33,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.37';
 my $self_date='2020-01-17';
-my $self_patch='29';
+my $self_patch='30';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8280,6 +8280,7 @@ sub create_output {
 	['smart-raw-read-error-rate','read error rate'],
 	['smart-reallocated-sectors','reallocated sector'],
 	['smart-retired-blocks','retired block'],
+	['smart-seek-error-rate', 'seek error rate'],
 	['smart-spinup-time','spin-up time'],
 	['smart-ssd-life-left','life left'],
 	);
@@ -8842,9 +8843,12 @@ sub smartctl_data {
 				@split = split /$splitter/, $row;
 				next if !$b_attributes && ! defined $split[$r];
 				# some cases where drive not in db threshhold will be: ---
-				# value is usually 0 padded which confuses perl
-				#$split[$t] = int($split[$t]) if $b_attributes && main::is_numeric($split[$t]);
-				#$split[$v] = int($split[$v]) if $b_attributes && main::is_numeric($split[$v]);
+				# value is usually 0 padded which confuses perl. However this will
+				# make subsequent tests easier, and will strip off leading 0s
+				if ($b_attributes){
+					$split[$t] = int($split[$t]);
+					$split[$v] = int($split[$v]);
+				}
 				## DEVICE INFO ##
 				if ($split[$a] eq 'Device Model'){
 					$b_intel = 1 if $split[$r] =~/\bintel\b/i;
@@ -9003,11 +9007,11 @@ sub smartctl_data {
 				## DEVICE OLD AGE ##
 				elsif ($split[$a] eq 'Media_Wearout_Indicator'){
 					# $data[$i]{'smart-media-wearout'} = $split[$r];
-					if ($b_attributes && $split[$r] > 0 && main::is_numeric($split[$t])){
-						$data[$i]{'smart-media-wearout'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
+					if ($b_attributes && $split[$r] > 0){
+						$data[$i]{'smart-media-wearout'} = $split[$v] . ' (threshold:' . $split[$t] . ')';
 					}
 				}
-				elsif ($split[$a] eq 'Multi_Zone_Error_Rate' ||  $split[$a] eq 'Multi Zone Error Rate'){
+				elsif ($split[$a] eq 'Multi_Zone_Error_Rate' || $split[$a] eq 'Multi Zone Error Rate'){
 					$data[$i]{'smart-multizone-errors'} = $split[$r];
 				}
 				elsif ($split[$a] eq 'UDMA_CRC_Error_Count' ||  $split[$a] eq 'UDMA CRC Error Count'){
@@ -9017,7 +9021,7 @@ sub smartctl_data {
 				## DEVICE PRE-FAIL ##
 				elsif ($split[$a] eq 'Available_Reservd_Space'){
 					# $data[$i]{'smart-available-reserved-space'} = $split[$r];
-					if ($b_attributes && $split[$v] && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25){
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25){
 						$data[$i]{'smart-available-reserved-space'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
@@ -9033,35 +9037,41 @@ sub smartctl_data {
 					}
 				}
 				elsif ($split[$a] eq 'End-to-End_Error'){
-					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && int($split[$r]) > 0 && $split[$t]){
 						$data[$i]{'smart-end-to-end'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				# seen raw value: 0/8415644
 				elsif ($split[$a] eq 'Raw_Read_Error_Rate'){
-					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && int($split[$r]) > 0 && $split[$t]){
 						$data[$i]{'smart-raw-read-error-rate'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'Reallocated_Sector_Ct'){
-					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && int($split[$r]) > 0 && $split[$t]){
 						$data[$i]{'smart-reallocated-sectors'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'Retired_Block_Count'){
-					if ($b_attributes && int($split[$r]) > 0 && main::is_numeric($split[$t])){
+					if ($b_attributes && int($split[$r]) > 0 && $split[$t]){
 						$data[$i]{'smart-retired-blocks'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
+					}
+				}
+				elsif ($split[$a] eq 'Seek_Error_Rate'){
+					# value 72; threshold either 000 or 30
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.6 ){
+						$data[$i]{'smart-seek-error-rate'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'Spin_Up_Time'){
 					# raw will always be > 0 on spinning disks
-					if ($b_attributes && int($split[$v]) && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25 ){
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25 ){
 						$data[$i]{'smart-spinup-time'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
 				elsif ($split[$a] eq 'SSD_Life_Left'){
 					# raw will always be > 0 on spinning disks
-					if ($b_attributes && int($split[$v]) && main::is_numeric($split[$t]) && $split[$t]/$split[$v] > 0.25 ){
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25 ){
 						$data[$i]{'smart-ssd-life-left'} = $split[$v] . ' (threshold:' . int($split[$t]) . ')';
 					}
 				}
