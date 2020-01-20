@@ -8851,12 +8851,12 @@ sub dmesg_boot_data {
 sub smartctl_data {
 	eval $start if $b_log;
 	my (@data) = @_;
-	my ($b_attributes,$b_intel,$cmd,%holder,$id,@working,@result,@split);
+	my ($b_attributes,$b_intel,$b_kingston,$cmd,%holder,$id,@working,@result,@split);
 	my ($splitter,$num,$a,$f,$r,$t,$v,$w,$y) = (':\s*',0,0,8,1,5,3,4,6); # $y is type, $t threashold, etc
 	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @data; $i++){
 		next if !$data[$i]{'id'};
-		($b_attributes,$b_intel,$splitter,$num,$a,$r) = (0,0,':\s*',0,0,1);
+		($b_attributes,$b_intel,$b_kingston,$splitter,$num,$a,$r) = (0,0,0,':\s*',0,0,1);
 		%holder = ();
 		#print $data[$i]{'id'},"\n";
 		# m2 nvme failed on nvme0n1 drive id:
@@ -8903,6 +8903,7 @@ sub smartctl_data {
 				## DEVICE INFO ##
 				if ($split[$a] eq 'Device Model'){
 					$b_intel = 1 if $split[$r] =~/\bintel\b/i;
+					$b_kingston = 1 if $split[$r] =~/kingston/i;
 					# usb/firewire/thunderbolt
 					if ($data[$i]{'type'}){
 						@working = device_vendor("$split[$r]");
@@ -9032,23 +9033,35 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'Total_LBAs_Read'){
 					if (main::is_numeric($split[$r])){
 						# blocks in bytes, so convert to KiB, the internal unit here
-						if (!$b_intel){
-							$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
-						}
-						else {
+						# reports in 32MB units, sigh
+						if ($b_intel){
 							$split[$r] = $split[$r] * 32 * 1024;
+						}
+						# reports in 1 GB units, sigh
+						elsif ($b_kingston){
+							$split[$r] = $split[$r] * 1024 * 1024;
+						}
+						# this is what it's supposed to refer to
+						else {
+							$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
 						}
 						$data[$i]{'smart-read'} = join ' ', main::get_size($split[$r]);
 					}
 				}
 				elsif ($split[$a] eq 'Total_LBAs_Written'){
 					if (main::is_numeric($split[$r])){
-						if (!$b_intel){
-							# blocks in bytes, so convert to KiB, the internal unit here
-							$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
-						}
-						else {
+						# blocks in bytes, so convert to KiB, the internal unit here
+						# reports in 32MB units, sigh
+						if ($b_intel){
 							$split[$r] = $split[$r] * 32 * 1024;
+						}
+						# reports in 1 GB units, sigh
+						elsif ($b_kingston){
+							$split[$r] = $split[$r] * 1024 * 1024;
+						}
+						# this is what it's supposed to refer to, in byte blocks
+						else {
+							$split[$r] = int($data[$i]{'block-logical'} * $split[$r] / 1024);
 						}
 						$data[$i]{'smart-written'} = join ' ', main::get_size($split[$r]);
 					}
