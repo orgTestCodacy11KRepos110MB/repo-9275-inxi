@@ -114,7 +114,7 @@ my %sep = (
 's2-console' => ':',
 );
 my %show;
-#$show{'no-host'} = 1;
+#$show{'host'} = 1;
 my %size = (
 'console' => 115,
 # Default indentation level. NOTE: actual indent is 1 greater to allow for 
@@ -8302,6 +8302,9 @@ sub create_output {
 	['smart-retired-blocks-v','retired block'],
 	['smart-retired-blocks-t','threshold'],
 	['smart-retired-blocks-f','alert'],
+	['smart-runtime-bad-block-v','runtime bad block'],
+	['smart-runtime-bad-block-t','threshold'],
+	['smart-runtime-bad-block-f','alert'],
 	['smart-seek-error-rate-v', 'seek error rate'],
 	['smart-seek-error-rate-t', 'threshold'],
 	['smart-seek-error-rate-f', 'alert'],
@@ -8311,6 +8314,12 @@ sub create_output {
 	['smart-ssd-life-left-v','life left'],
 	['smart-ssd-life-left-t','threshold'],
 	['smart-ssd-life-left-f','alert'],
+	['smart-unused-reserve-block-v','unused reserve block'],
+	['smart-unused-reserve-block-t','threshold'],
+	['smart-unused-reserve-blockf','alert'],
+	['smart-used-reserve-block-v','used reserve block'],
+	['smart-used-reserve-block-t','threshold'],
+	['smart-used-reserve-block-f','alert'],
 	['smart-unknown-1-a','attribute'],
 	['smart-unknown-1-v','value'],
 	['smart-unknown-1-w','worst'],
@@ -9033,11 +9042,11 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'Total_LBAs_Read'){
 					if (main::is_numeric($split[$r])){
 						# blocks in bytes, so convert to KiB, the internal unit here
-						# reports in 32MB units, sigh
+						# reports in 32MiB units, sigh
 						if ($b_intel){
 							$split[$r] = $split[$r] * 32 * 1024;
 						}
-						# reports in 1 GB units, sigh
+						# reports in 1 GiB units, sigh
 						elsif ($b_kingston){
 							$split[$r] = $split[$r] * 1024 * 1024;
 						}
@@ -9051,11 +9060,11 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'Total_LBAs_Written'){
 					if (main::is_numeric($split[$r])){
 						# blocks in bytes, so convert to KiB, the internal unit here
-						# reports in 32MB units, sigh
+						# reports in 32MoB units, sigh
 						if ($b_intel){
 							$split[$r] = $split[$r] * 32 * 1024;
 						}
-						# reports in 1 GB units, sigh
+						# reports in 1 GiB units, sigh
 						elsif ($b_kingston){
 							$split[$r] = $split[$r] * 1024 * 1024;
 						}
@@ -9148,6 +9157,13 @@ sub smartctl_data {
 						$data[$i]{'smart-retired-blocks-f'} = $split[$f] if $split[$f] ne '-';
 					}
 				}
+				elsif ($split[$a] eq 'Runtime_Bad_Block'){
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.6 ){
+						$data[$i]{'smart-runtime-bad-block-v'} = $split[$v];
+						$data[$i]{'smart-runtime-bad-block-t'} = $split[$t];
+						$data[$i]{'smart-runtime-bad-block-f'} = $split[$f] if $split[$f] ne '-';
+					}
+				}
 				elsif ($split[$a] eq 'Seek_Error_Rate'){
 					# value 72; threshold either 000 or 30
 					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.6 ){
@@ -9158,7 +9174,7 @@ sub smartctl_data {
 				}
 				elsif ($split[$a] eq 'Spin_Up_Time'){
 					# raw will always be > 0 on spinning disks
-					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25 ){
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.75 ){
 						$data[$i]{'smart-spinup-time-v'} = $split[$v];
 						$data[$i]{'smart-spinup-time-t'} = $split[$t];
 						$data[$i]{'smart-spinup-time-f'} = $split[$f] if $split[$f] ne '-';
@@ -9172,8 +9188,25 @@ sub smartctl_data {
 						$data[$i]{'smart-ssd-life-left-f'} = $split[$f] if $split[$f] ne '-';
 					}
 				}
+				elsif ($split[$a] eq 'Unused_Rsvd_Blk_Cnt_Tot'){
+					# raw will always be > 0 on spinning disks
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25 ){
+						$data[$i]{'smart-unused-reserve-block-v'} = $split[$v];
+						$data[$i]{'smart-unused-reserve-block-t'} = $split[$t];
+						$data[$i]{'smart-unused-reserve-block-f'} = $split[$f] if $split[$f] ne '-';
+					}
+				}
+				elsif ($split[$a] eq 'Used_Rsvd_Blk_Cnt_Tot'){
+					# raw will always be > 0 on spinning disks
+					if ($b_attributes && $split[$v] && $split[$t] && $split[$t]/$split[$v] > 0.25 ){
+						$data[$i]{'smart-used-reserve-block-v'} = $split[$v];
+						$data[$i]{'smart-used-reserve-block-t'} = $split[$t];
+						$data[$i]{'smart-used-reserve-block-f'} = $split[$f] if $split[$f] ne '-';
+					}
+				}
 				elsif ($b_attributes ){
-					if ( $split[$y] eq 'Pre-fail' && $split[$f] ne '-') {
+					if ( $split[$y] eq 'Pre-fail' && ($split[$f] ne '-' ||
+					 ($split[$t] && $split[$v] && $split[$t]/$split[$v] > 0.95 ))) {
 						$num++;
 						$data[$i]{'smart-unknown-' . $num . '-a'} = $split[$a];
 						$data[$i]{'smart-unknown-' . $num . '-v'} = $split[$v];
