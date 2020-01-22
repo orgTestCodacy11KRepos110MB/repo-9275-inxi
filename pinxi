@@ -32,8 +32,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.37';
-my $self_date='2020-01-19';
-my $self_patch='35';
+my $self_date='2020-01-21';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9212,7 +9212,7 @@ sub smartctl_data {
 						$data[$i]{'smart-unknown-' . $num . '-v'} = $split[$v];
 						$data[$i]{'smart-unknown-' . $num . '-w'} = $split[$v];
 						$data[$i]{'smart-unknown-' . $num . '-t'} = $split[$t];
-						$data[$i]{'smart-unknown-' . $num . '-f'} = $split[$f];
+						$data[$i]{'smart-unknown-' . $num . '-f'} = $split[$f] if $split[$f] ne '-';
 					}
 				}
 			}
@@ -9389,26 +9389,23 @@ sub device_vendor {
 	return if !$model;
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 	# Data URLs: inxi-resources.txt Section: DiskData device_vendor()
-	# $model = 'Crucial/Jmicron RX32 ARSS';
+	# $model = 'MEDIAMAX ';
 	# $model = 'Patriot Memory';
-	#$model = 'Seagate Samsung SpinPoint M8 (AF)';
 	my @vendors = (
 	## These go first because they are the most likely and common ##
-	['(Crucial|^(FC)?CT|-CT|^M4\b)','Crucial(\/Micron)?','Crucial',''],
+	['(Crucial|^(FC)?CT|-CT|^M4\b)','Crucial','Crucial',''],
 	['^(INTEL|SSD(PAM|SA2))','^INTEL','Intel',''],
 	['(KINGSTON|DataTraveler|DT\s?(DUO|Microduo|101)|^SMS|^SHS|^SUV|^Ultimate CF|HyperX|^S[AV][34]00)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
-	# Family ID: Seagate Samsung SpinPoint M8 (AF)
-	['^(Seagate[\s-]?Samsung|Samsung[\s-]?Seagate)','(Seagate[\s-]?Samsung|Samsung[\s-]?Seagate)','Seagate-Samsung',''],
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
 	# HM320II HM320II
-	['(SAMSUNG|^MCG[0-9]+GC|^MCC|^MCB0E|^[GS]2 Portable|^DUO\b|^P3|^(HM|SP)[0-9]{2}|^MZMPC|^HD[0-9]{3}[A-Z]{2}$)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
+	['(SAMSUNG|^MCG[0-9]+GC|^MCC|^MCBOE|^[GS]2 Portable|^D3 Station|^DUO\b|^P3|^(HM|SP)[0-9]{2}|^MZMPC|^HD[0-9]{3}[A-Z]{2}$)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
 	# Android UMS Composite?
 	['(SanDisk|^SDS[S]?[DQ]|^SL([0-9]+)G|^AFGCE|^U3\b|ULTRA\sFIT|Clip Sport|Cruzer|^Extreme)','SanDisk','SanDisk',''],
 	['^STEC\b','^STEC\b','STEC',''], # ssd drive, must come before seagate ST test
 	# real, SSEAGATE Backup+; XP1600HE30002 | 024 HN (spinpoint)
-	['(^ST[^T]|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|Expansion Desk|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch)','[S]?SEAGATE','Seagate',''], 
+	['(^ST[^T]|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|Expansion Desk|^Expansion|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch)','[S]?SEAGATE','Seagate',''], 
 	['^(WD|WL[0]9]|Western Digital|My (Book|Passport)|\d*LPCX|Elements|easystore|MD0|M000|EARX|EFRX|\d*EAVS|0JD|JPVX|[0-9]+(BEV|(00)?AAK|AAV|AZL|EA[CD]S))','(^WDC|Western\s?Digital)','Western Digital',''],
 	## Then better known ones ##
 	['^(A-DATA|ADATA|AXN|CH11|HV[1-9]|IM2)','^(A-DATA|ADATA)','A-Data',''],
@@ -9417,14 +9414,14 @@ sub device_vendor {
 	# ATCS05 can be hitachi travelstar but not sure
 	['^ATP','^ATP[\s-]','ATP',''],
 	# Force MP500
-	['^(Corsair|Force\s|(Flash\s*)?Voyager)','^Corsair','Corsair',''],
+	['^(Corsair|Force\s|(Flash\s*)?(Survivor|Voyager))','^Corsair','Corsair',''],
 	['^(FUJITSU|MJA|MH[TVWYZ][0-9]|MP|MAP[0-9])','^FUJITSU','Fujitsu',''],
 	# note: 2012:  wdc bought hgst
 	['^(HGST|Touro|5450)','^HGST','HGST (Hitachi)',''], # HGST HUA
-	['^(Hitachi|HD[PST]|DK[0-9]|IC|HT|HU)','^Hitachi','Hitachi',''], 
+	['^(Hitachi|HCS|HD[PST]|DK[0-9]|IC|HT|HU)','^Hitachi','Hitachi',''], 
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
 	# DX110064A5xnNMRI ids as HP and Sandisc, same ID, made by sandisc for hp? not sure
-	['^(HP\b|MB[0-6]|G[BJ][01]|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$)','^HP','HP',''], 
+	['^(HP\b|[MV]B[0-6]|G[BJ][01]|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$)','^HP','HP',''], 
 	['^(LSD|Lexar|JumpDrive|JD\s?Firefly)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK)','^OCZ[\s-]','OCZ',''],
@@ -9547,10 +9544,13 @@ sub device_vendor {
 	['^Monster\s?Digital','^Monster\s?Digital','Monster Digital',''],
 	['^Morebeck','^Morebeck','Morebeck',''],
 	['^Motorola','^Motorola','Motorola',''],
+	#MRMAD4B128GC9M2C
+	['^(MRMA|Memoright)','^Memoright','Memoright',''],
 	['^MTRON','^MTRON','MTRON',''],
 	['^Netac','^Netac','Netac',''],
 	['^OOS[1-9]','','Utania',''],
 	['^OWC','^OWC\b','OWC',''],
+	['^oyunkey','^oyunkey','Oyunkey',''],
 	['^PALIT','PALIT','Palit',''], # ssd 
 	['^PERC\b','','Dell PowerEdge RAID Card',''], # ssd 
 	['^(PS[8F]|Patriot)','^Patriot([-\s]?Memory)?','Patriot',''],
@@ -9565,8 +9565,11 @@ sub device_vendor {
 	['^RENICE','^RENICE','Renice',''],
 	['^(Ricoh|R5)','^Ricoh','Ricoh',''],
 	['^RIM[\s]','^RIM','RIM',''],
+	 #RTDMA008RAV2BWL comes with lenovo but don't know brand
 	['^Runcore','^Runcore','Runcore',''],
+	['^Sabrent','^Sabrent','Sabrent',''],
 	['^Sage','^Sage(\s?Micro)?','Sage Micro',''],
+	['^SandForce','^SandForce','SandForce',''],
 	['^SigmaTel','^SigmaTel','SigmaTel',''],
 	# DIAMOND_040_GB
 	['^(SILICON\s?MOTION|SM[0-9])','^SILICON\s?MOTION','Silicon Motion',''],
@@ -9595,6 +9598,7 @@ sub device_vendor {
 	['^TEAM','^TEAM( Group)?','Team',''],
 	['^Teclast','^Teclast','Teclast',''],
 	['^Teleplan','^Teleplan','Teleplan',''],
+	['^TEUTONS','^TEUTONS','TEUTONS',''],
 	['^Tigo','^Tigo','Tigo',''],
 	['^TopSunligt','^TopSunligt','TopSunligt',''], # is this a typo? hard to know
 	['^TopSunlight','^TopSunlight','TopSunlight',''],
@@ -9627,7 +9631,7 @@ sub device_vendor {
 					$model = 'N/A';
 				}
 			}
-			$model =~ s/^[\s_-]+|[\s_-]+$//g;
+			$model =~ s/^[\[\s_-]+|[\s\-_-]+$//g;
 			$model =~ s/\s\s/ /g;
 			@data = ($vendor,$model);
 			last;
