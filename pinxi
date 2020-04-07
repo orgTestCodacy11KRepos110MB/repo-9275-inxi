@@ -22,6 +22,7 @@ use 5.008;
 use Cwd qw(abs_path); # qw(abs_path);#abs_path realpath getcwd
 use Data::Dumper qw(Dumper); # print_r
 use File::Find;
+use File::stat; # needed for Xorg.0.log file mtime comparisons
 use Getopt::Long qw(GetOptions);
 # Note: default auto_abbrev is enabled, that's fine
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
@@ -32,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.38';
-my $self_date='2020-03-14';
-my $self_patch='01';
+my $self_date='2020-04-07';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -571,24 +572,49 @@ sub system_files {
 		'partitions' => '/proc/partitions',
 		'scsi' => '/proc/scsi/scsi',
 		'version' => '/proc/version',
-		'xorg-log' => '/var/log/Xorg.0.log'
+		'xorg-log' => set_xorg_log()
 		);
 		foreach ( keys %files ){
 			$system_files{$_} = ( -e $files{$_} ) ? $files{$_} : '';
-		}
-		if ( ! $system_files{'xorg-log'} && check_program('xset') ){
-			my $data = qx(xset q 2>/dev/null);
-			foreach ( split /\n/, $data){
-				if ($_ =~ /Log file/i){
-					$system_files{'xorg-log'} = get_piece($_,3);
-					last;
-				}
-			}
 		}
 	}
 	else {
 		return $system_files{$file};
 	}
+}
+sub set_xorg_log {
+	my (@x_times);
+	my ($file_holder,$time_holder,$x_time) = ('',0,0);
+	# NOTE: other variations may be /var/run/gdm3/... but not confirmed
+	my %x_logs = (
+	'/var/log/Xorg.0.log' => 0,
+	'/var/lib/gdm/.local/share/xorg/Xorg.0.log' => 0,
+	$ENV{'HOME'} . '/.local/share/xorg/Xorg.0.log' => 0,
+	);
+	foreach (keys %x_logs){
+		if (-e $_ && -r $_){
+			my $src_info = File::stat::stat("$_");
+			#print "$_\n";
+			if ($src_info){
+				$x_logs{$_} = $src_info->mtime;
+				# print $_ . ": $x_logs{$_}" . "\n";
+				if ($x_logs{$_} > $time_holder ){
+					$time_holder = $x_logs{$_};
+					$file_holder = $_;
+				}
+			}
+		}
+	}
+	if ( ! $file_holder && check_program('xset') ){
+		my $data = qx(xset q 2>/dev/null);
+		foreach ( split /\n/, $data){
+			if ($_ =~ /Log file/i){
+				$file_holder = get_piece($_,3);
+				last;
+			}
+		}
+	}
+	return $file_holder;
 }
 
 ########################################################################
@@ -1568,7 +1594,11 @@ sub display_data {
 	else {
 		@files = ('/xorg-conf-d');
 	}
-	push (@files, $files{'xorg-log'});
+	# keep this updated to handle all possible locations we know about for Xorg.0.log
+	# not using $system_files{'xorg-log'} for now though it would be best to know what file is used
+	push (@files, '/var/log/Xorg.0.log');
+	push (@files, '/var/lib/gdm/.local/share/xorg/Xorg.0.log');
+	push (@files, $ENV{'HOME'} . '/.local/share/xorg/Xorg.0.log');
 	push (@files, '/etc/X11/xorg.conf');
 	copy_files(\@files,'display-xorg');
 	print "Collecting X, xprop, glxinfo, xrandr, xdpyinfo data, wayland, weston...\n";
