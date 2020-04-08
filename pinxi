@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-07';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -584,28 +584,34 @@ sub system_files {
 }
 sub set_xorg_log {
 	my (@x_times);
-	my ($file_holder,$time_holder,$x_time) = ('',0,0);
+	my ($file_holder,$time_holder,$x_mtime) = ('',0,0);
 	# NOTE: other variations may be /var/run/gdm3/... but not confirmed
-	my %x_logs = (
-	'/var/log/Xorg.0.log' => 0,
-	'/var/lib/gdm/.local/share/xorg/Xorg.0.log' => 0,
-	$ENV{'HOME'} . '/.local/share/xorg/Xorg.0.log' => 0,
+	my @x_logs = (
+	'/var/log/Xorg.0.log',
+	'/var/lib/gdm/.local/share/xorg/Xorg.0.log',
+	$ENV{'HOME'} . '/.local/share/xorg/Xorg.0.log',
 	);
-	foreach (keys %x_logs){
-		if (-e $_ && -r $_){
+	# root will not have a /root/.local/share/xorg directory so need to use a 
+	# user one if we can find one.
+	if ($b_root){
+		my @temp = globber('/home/*/.local/share/xorg/Xorg.0.log');
+		push @x_logs, @temp if @temp;
+	}
+	foreach (@x_logs){
+		if (-r $_){
 			my $src_info = File::stat::stat("$_");
 			#print "$_\n";
 			if ($src_info){
-				$x_logs{$_} = $src_info->mtime;
-				# print $_ . ": $x_logs{$_}" . "\n";
-				if ($x_logs{$_} > $time_holder ){
-					$time_holder = $x_logs{$_};
+				$x_mtime = $src_info->mtime;
+				# print $_ . ": $x_time" . "\n";
+				if ($x_mtime > $time_holder ){
+					$time_holder = $x_mtime;
 					$file_holder = $_;
 				}
 			}
 		}
 	}
-	if ( ! $file_holder && check_program('xset') ){
+	if ( !$file_holder && check_program('xset') ){
 		my $data = qx(xset q 2>/dev/null);
 		foreach ( split /\n/, $data){
 			if ($_ =~ /Log file/i){
