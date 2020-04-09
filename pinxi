@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-09';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5511,6 +5511,7 @@ sub row_defaults {
 	'display-root' => 'Advanced graphics data unavailable in console for root.',
 	'display-root-x' => 'Advanced graphics data unavailable for root.',
 	'display-server' => "No display server data found. Headless machine?",
+	'driver-root-suggested' => "Try sudo/root. Shown driver may be wrong.",
 	'glxinfo-missing' => "Unable to show advanced data. Required tool glxinfo missing.",
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'display-try' => 'Advanced graphics data unavailable in console. Try -G --display',
@@ -5536,6 +5537,7 @@ sub row_defaults {
 	'raid-data' => "No RAID data was found.",
 	'ram-data' => "No RAM data was found.",
 	'root-required' => "<superuser/root required>",
+	'root-suggested' => "Try sudo/root. Non-superuser values may be wrong.",
 	'sensors-data-ipmi' => "No ipmi sensors data was found.",
 	'sensors-data-linux' => "No sensors data was found. Is sensors configured?",
 	'sensors-ipmi-root' => "Unable to run ipmi sensors.  Root privileges required.",
@@ -9992,10 +9994,9 @@ sub usb_data {
 }
 sub display_data(){
 	eval $start if $b_log;
-	my (%graphics,@row);
-	my @xdpyinfo;
+	my (%graphics,@row,@xdpyinfo);
 	my $num = 0;
-	my ($protocol,$server) = ('','');
+	my ($driver_missing,$protocol,$server) = ('','','');
 	# note: these may not always be set, they won't be out of X, for example
 	$protocol = $ENV{'XDG_SESSION_TYPE'} if $ENV{'XDG_SESSION_TYPE'};
 	$protocol = $ENV{'WAYLAND_DISPLAY'} if (!$protocol && $ENV{'WAYLAND_DISPLAY'});
@@ -10165,12 +10166,26 @@ sub display_data(){
 			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
 			# obviously, so we use the last driver found on the card section in that case.
 			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
-			$driver = ($drivers[0]) ? $drivers[0]: $driver;
+			if (!$drivers[0]){
+				# specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is located
+				# inside this directory, which is not readable unless you are root
+				# do nothing unless root and gdm directory, just keep the last found driver value, 
+				# we can't do more
+				if (-e '/var/lib/gdm' && !$b_root ){
+					$driver_missing = main::row_defaults('driver-root-suggested');
+				}
+			}
+			else {
+				$driver = $drivers[0];
+			}
 			@row = ({
 			main::key($num++,'Display') => $protocol,
 			main::key($num++,'server') => $server_string,
 			main::key($num++,'driver') => $driver,
 			});
+			if ($driver_missing){
+				$row[0]{main::key($num++,'note')} = $driver_missing;
+			}
 			if ($drivers[2]){
 				$row[0]{main::key($num++,'FAILED')} = $drivers[2];
 			}
