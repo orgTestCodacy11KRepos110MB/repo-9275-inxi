@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-09';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -588,8 +588,11 @@ sub set_xorg_log {
 	# NOTE: other variations may be /var/run/gdm3/... but not confirmed
 	my @x_logs = (
 	'/var/log/Xorg.0.log',
+	'/var/log/Xorg.1.log',
 	'/var/lib/gdm/.local/share/xorg/Xorg.0.log',
+	'/var/lib/gdm/.local/share/xorg/Xorg.1.log',
 	$ENV{'HOME'} . '/.local/share/xorg/Xorg.0.log',
+	$ENV{'HOME'} . '/.local/share/xorg/Xorg.1.log',
 	);
 	# root will not have a /root/.local/share/xorg directory so need to use a 
 	# user one if we can find one.
@@ -5507,7 +5510,7 @@ sub row_defaults {
 	'disk-data' => "No Disk data was found.",
 	'disk-size-0' => "Total N/A",
 	'display-console' => 'No advanced graphics data found on this system in console.',
-	'display-driver-hardware' => "hardware (not display) driver",
+	'display-driver-na' => "display driver n/a",
 	'display-null' => 'No advanced graphics data found on this system.',
 	'display-root' => 'Advanced graphics data unavailable in console for root.',
 	'display-root-x' => 'Advanced graphics data unavailable for root.',
@@ -10126,7 +10129,6 @@ sub display_data(){
 	$graphics{'version'} = $graphics{'xorg-version'} if $graphics{'xorg-version'};;
 	$graphics{'version'} = x_version() if !$graphics{'version'};
 	$graphics{'version'} = $graphics{'version-id'} if !$graphics{'version'};
-	
 	undef @xdpyinfo;
 	#print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
@@ -10173,20 +10175,20 @@ sub display_data(){
 				# we can't do more
 				if ($driver){
 					if (-e '/var/lib/gdm' && !$b_root ){
-						$driver_missing = main::row_defaults('display-driver-hardware') . ' - ' . main::row_defaults('root-suggested');
+						$driver_missing = main::row_defaults('display-driver-na') . ' - ' . main::row_defaults('root-suggested');
 					}
 					else {
-						$driver_missing = main::row_defaults('display-driver-hardware');
+						$driver_missing = main::row_defaults('display-driver-na');
 					}
 				}
 				else {
-					$driver = 'N/A';
 					$driver_missing = main::row_defaults('root-suggested') if -e '/var/lib/gdm' && !$b_root;
 				}
 			}
 			else {
 				$driver = $drivers[0];
 			}
+			$driver ||= 'N/A';
 			@row = ({
 			main::key($num++,'Display') => $protocol,
 			main::key($num++,'server') => $server_string,
@@ -10472,7 +10474,6 @@ sub x_drivers {
 				$alternate .= $sep . $_;
 			}
 		}
-		$loaded ||= 'none';
 		@driver_data = ($loaded,$unloaded,$failed,$alternate);
 	}
 	eval $end if $b_log;
@@ -17503,7 +17504,7 @@ sub set_info_data {
 	my (@data,@info,$item);
 	my $pattern = 'alltray|awn|bar|bmpanel|bmpanel2|budgie-panel|cairo-dock|';
 	$pattern .= 'dde-dock|dmenu|dockbarx|docker|docky|dzen|dzen2|';
-	$pattern .= 'fancybar|fbpanel|fspanel|glx-dock|gnome-panel|hpanel|i3bar|icewmtray|';
+	$pattern .= 'fancybar|fbpanel|fspanel|glx-dock|gnome-panel|hpanel|i3bar|i3status|icewmtray|';
 	$pattern .= 'kdocker|kicker|';
 	$pattern .= 'latte|latte-dock|lemonbar|ltpanel|lxpanel|lxqt-panel|';
 	$pattern .= 'matchbox-panel|mate-panel|ourico|';
