@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.38';
-my $self_date='2020-04-16';
-my $self_patch='18';
+my $self_date='2020-04-17';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -63,7 +63,7 @@ my (@app,@dmesg_boot,@devices_audio,@devices_graphics,@devices_network,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
-@lsblk,@partitions,@raid,@sysctl_disks,@uuids);
+@lsblk,@partitions,@raid,@swaps,@sysctl_disks,@uuids);
 my @test = (0,0,0,0,0);
 
 ## Booleans
@@ -75,7 +75,8 @@ $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_ppc,$b_proc_partitions,$b_ps_gui,
 $b_root,$b_running_in_display,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
-$b_sudo,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,$b_wmctrl);
+$b_sudo,$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
+$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid,$b_smartctl);
@@ -3944,6 +3945,7 @@ sub get_options{
 		$show{'partition'} = 1;
 		$show{'raid'} = 1;
 		$show{'sensor'} = 1;
+		$show{'swap'} = 1;
 		$show{'system'} = 1; },
 	'G|graphics|graphic' => sub {
 		$show{'short'} = 0;
@@ -4030,6 +4032,9 @@ sub get_options{
 	'slots|slot' => sub {
 		$show{'short'} = 0;
 		$show{'slot'} = 1; },
+	'swap|swaps' => sub {
+		$show{'short'} = 0;
+		$show{'swap'} = 1; },
 	'S|system' => sub {
 		$show{'short'} = 0;
 		$show{'system'} = 1; },
@@ -4097,6 +4102,7 @@ sub get_options{
 				$show{'ram'} = 1;
 				$show{'raid'} = 1;
 				$show{'sensor'} = 1;
+				$show{'swap'} = 1;
 				$show{'uuid'} = 1;
 			}
 			if ($arg >= 6 ){
@@ -4571,7 +4577,7 @@ sub show_options {
 	['1', '-f', '--flags', "All CPU $flags. Triggers -C. Not shown with -F to 
 	avoid spamming." ],
 	['1', '-F', '--full', "Full output. Includes all Upper Case line letters 
-	except -W, plus -s and -n. Does not show extra verbose options such 
+	except -W, plus --swap, -s and -n. Does not show extra verbose options such 
 	as -d -f -i -l -m -o -p -r -t -u -x, unless specified." ],
 	['1', '-G', '--graphics', "Graphics info (card(s), driver, display protocol 
 	(if available), display server/Wayland compositor, resolution, renderer, 
@@ -4605,8 +4611,8 @@ sub show_options {
 	['1', '-p', '--partitions-full', "Full $partition_string information (-P plus all other 
 	detected ${partition_string}s)." ],
 	['1', '-P', '--partitions', "Basic $partition_string info. Shows, if detected: 
-	/ /boot /home /opt /tmp /usr /usr/home /var /var/log /var/tmp. Use -p to see all 
-	mounted ${partition_string}s." ],
+	/ /boot /home /opt /tmp /usr /usr/home /var /var/log /var/tmp. Swap partitions
+	show if --swap is not used. Use -p to see all mounted ${partition_string}s." ],
 	['1', '-r', '--repos', "Distro repository data. Supported repo types: APK, 
 	APT, CARDS, EOPKG, PACMAN, PACMAN-G2, PISI, PORTAGE, PORTS (BSDs), SLACKPKG,
 	TCE, URPMQ, XBPS, YUM/ZYPP." ],
@@ -4616,6 +4622,7 @@ sub show_options {
 	mobo/CPU/GPU temp; detected fan speeds. GPU temp only for Fglrx/Nvidia drivers. 
 	Nvidia shows screen number for > 1 screen. IPMI sensors if present." ],
 	['1', '', '--slots', "PCI slots: type, speed, status. Requires root." ],
+	['1', '', '--swap', "Swap in use. Includes partitions, zram, file." ],
 	['1', '-S', '--system', "System info: host name, kernel, desktop environment 
 	(if in X/Wayland), distro." ],
 	['1', '-t', '--processes', "Processes. Requires extra options: c (CPU), m 
@@ -4638,7 +4645,7 @@ sub show_options {
 	['2', '4', '', "$partition_string_u size/used data (-P) for 
 	(if present) /, /home, /var/, /boot. Shows full disk data (-D). " ],
 	['2', '5', '', "Audio card (-A), sensors (-s), memory/RAM (-m), 
-	$partition_string label^(-l), UUID^(-u), short form of optical drives, 
+	$partition_string label^(-l), swap, UUID^(-u), short form of optical drives, 
 	standard RAID data (-R). " ],
 	['2', '6', '', "Full $partition_string (-p), unmounted $partition_string (-o), 
 	optical drive (-d), USB (--usb), full RAID; triggers -xx." ],
@@ -5560,6 +5567,7 @@ sub row_defaults {
 	'smartctl-udma-crc' => "Bad cable/connection?",
 	'smartctl-usb' => "Unknown USB bridge. Flash drive/Unsupported enclosure?",
 	'smartctl-unknown' => "Unknown smartctl error. Unable to get data.",
+	'swap-data' => "No Swap data was found.",
 	'tool-missing' => "<missing $id>",
 	'unmounted-data' => "No unmounted partitions found.",
 	'unmounted-data-bsd' => "No unmounted partition data found for this BSD system.",
@@ -8563,6 +8571,8 @@ sub disk_data {
 		# don't count remote used, also, some cases mount 
 		# panfs is parallel NAS volume manager, need more data
 		next if ($row{'fs'} && $row{'fs'} =~ /cifs|iso9660|nfs|panfs|sshfs|smbfs|unionfs/);
+		# don't count zfs or file type swap
+		next if ($row{'swap-type'} && $row{'swap-type'} ne 'partition');
 		# in some cases, like redhat, mounted cdrom/dvds show up in partition data
 		next if ($row{'dev-base'} && $row{'dev-base'} =~ /^sr[0-9]+$/);
 		# this is used for specific cases where bind, or incorrect multiple mounts 
@@ -12178,6 +12188,8 @@ sub create_output {
 		my %row = %$ref;
 		$num = 1;
 		next if $row{'type'} eq 'secondary' && $show{'partition'};
+		next if $show{'swap'} && $row{'fs'} && $row{'fs'} eq 'swap';
+		next if $row{'swap-type'} && $row{'swap-type'} ne 'partition';
 		if (!$row{'hidden'}){
 			@data2 = main::get_size($row{'size'}) if (defined $row{'size'});
 			$size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
@@ -12459,7 +12471,11 @@ sub partition_data {
 
 sub swap_data {
 	eval $start if $b_log;
-	my (@swap,@working,$cache_pressure,$path,$label,$swappiness,$uuid);
+	return @swaps if $b_swaps;
+	$b_swaps = 1;
+	my (@data,@working);
+	my ($cache_pressure,$dev_base,$dev_type,$label,$mount,$path,
+	$pattern1,$pattern2,$percent_used,$size,$swap_type,$swappiness,$used,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
 		# faster, avoid subshell, same as swapon -s
@@ -12472,10 +12488,12 @@ sub swap_data {
 			@working = main::grabber("$path -s 2>/dev/null");
 		}
 		if ($b_admin){
-			my @data = swap_advanced_data();
+			@data = swap_advanced_data();
 			$swappiness = $data[0];
 			$cache_pressure = $data[1];
 		}
+		$pattern1 = 'partition|file|ram';
+		$pattern2 = '[^\s].*[^\s]';
 	}
 	else {
 		if ( $path = main::check_program('swapctl') ){
@@ -12483,32 +12501,56 @@ sub swap_data {
 			@working = main::grabber("$path -l -k 2>/dev/null");
 		}
 		($size_id,$used_id) = (1,2);
+		$pattern1 = '[0-9]+';
+		$pattern2 = '[^\s]+';
 	}
 	# now add the swap partition data, don't want to show swap files, just partitions,
 	# though this can include /dev/ramzswap0. Note: you can also use /proc/swaps for this
 	# data, it's the same exact output as swapon -s
 	foreach (@working){
-		next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
-		my @data = split /\s+/, $_;
-		my $dev_base = $data[0];
-		$dev_base =~ s/^\/dev\///;
-		my $dev_type = 'dev';
-		my $size = $data[$size_id];
-		my $used = $data[$used_id];
-		my $percent_used = sprintf( "%.1f", ( $used/$size )*100 );
-		if ($show{'label'} && @labels){
-			$label = get_label($data[0]);
+		#next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
+		next if /^(Device|Filename)/;
+		($dev_base,$dev_type,$label,$mount,
+		$swap_type,$uuid) = ('','','','','partition','');
+		@data = split /\s+/, $_;
+		if (/^\/dev\/(compcache|ramzwap|zram)/i){
+			$swap_type = 'zram';
+			$dev_type = 'dev';
 		}
-		if ($show{'uuid'} && @uuids){
-			$uuid = get_uuid($data[0]);
+		elsif ($data[1] && $data[1] eq 'ram'){
+			$swap_type = 'ram';
 		}
-		if ($bsd_type && @gpart && ($show{'label'} || $show{'uuid'} ) ){
-			my @extra = get_bsd_label_uuid("$dev_base");
-			if (@extra){
-				$label = $extra[0];
-				$uuid = $extra[1];
+		elsif (m|^/dev|){
+			$swap_type = 'partition';
+			$dev_base = $data[0];
+			$dev_base =~ s|^/dev/||;
+			if ($show{'label'} && @labels){
+				$label = get_label($data[0]);
 			}
+			if ($show{'uuid'} && @uuids){
+				$uuid = get_uuid($data[0]);
+			}
+			if ($bsd_type && @gpart && ($show{'label'} || $show{'uuid'} ) ){
+				my @extra = get_bsd_label_uuid("$dev_base");
+				if (@extra){
+					$label = $extra[0];
+					$uuid = $extra[1];
+				}
+			}
+			$dev_type = 'dev';
 		}
+		elsif ($data[1] && $data[1] eq 'file' || m|^/|){
+			$swap_type = 'file';
+		}
+		# swpaon -s: /dev/sdb1 partition 16383996 109608  -2
+		# swapctl -l -k: /dev/label/swap0.eli     524284     154092
+		# users could have space in swapfile name
+		if (/^($pattern2)\s+($pattern1)\s+/){
+			$mount = main::trimmer($1);
+		}
+		$size = $data[$size_id];
+		$used = $data[$used_id];
+		$percent_used = sprintf( "%.1f", ( $used/$size )*100 );
 		@data = ({
 		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
@@ -12516,18 +12558,22 @@ sub swap_data {
 		'fs' => 'swap',
 		'id' => "swap-$s",
 		'label' => $label,
+		'mount' => $mount,
 		'size' => $size,
 		'swappiness' => $swappiness,
 		'type' => 'main',
+		'swap-type' => $swap_type,
 		'used' => $used,
 		'uuid' => $uuid,
 		'percent-used' => $percent_used,
 		});
-		@swap = (@swap,@data);
+		@swaps = (@swaps,@data);
 		$s++;
 	}
+	main::log_data('dump','@swaps',\@swaps) if $b_log;
+	# print Data::Dumper::Dumper \@swaps;
 	eval $end if $b_log;
-	return @swap;
+	return @swaps;
 }
 sub swap_advanced_data {
 	eval $start if $b_log;
@@ -15999,6 +16045,91 @@ sub slot_data {
 	eval $end if $b_log;
 	return @rows;
 }
+}
+
+## SwapData 
+{
+package SwapData;
+
+sub get {
+	eval $start if $b_log;
+	my (@data,@rows,$key1,$val1);
+	my $num = 0;
+	@rows =create_output();
+	if (!@rows){
+		@data = (
+		{main::key($num++,'Alert') => main::row_defaults('swap-data')},
+		);
+		@rows = (@data);
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub create_output {
+	eval $start if $b_log;
+	my $num = 0;
+	my $j = 0;
+	my (@data,@data2,%part,@rows,$dev,$percent,$raw_size,$size,$used);
+	my @swap_data = PartitionData::swap_data();
+	foreach my $ref (@swap_data){
+		my %row = %$ref;
+		$num = 1;
+		@data2 = main::get_size($row{'size'}) if (defined $row{'size'});
+		$size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+		@data2 = main::get_size($row{'used'}) if (defined $row{'used'});
+		$used = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+		$percent = (defined $row{'percent-used'}) ? ' (' . $row{'percent-used'} . '%)' : '';
+		%part = ();
+		$dev = ($row{'swap-type'} eq 'file') ? 'file' : 'dev';
+		$row{'swap-type'} = ($row{'swap-type'}) ? $row{'swap-type'} : 'N/A';
+		$j = scalar @rows;
+		@data = ({
+		main::key($num++,'ID') => $row{'id'},
+		main::key($num++,'type') => $row{'swap-type'},
+		});
+		@rows = (@rows,@data);
+		# not used for swap as far as I know
+		if ($b_admin && $row{'raw-size'} ){
+			# It's an error! permissions or missing tool
+			if (!main::is_numeric($row{'raw-size'})){
+				$raw_size = $row{'raw-size'};
+			}
+			else {
+				@data2 = main::get_size($row{'raw-size'});
+				$raw_size = (@data2) ? $data2[0] . ' ' . $data2[1]: 'N/A';
+			}
+			$rows[$j]{main::key($num++,'raw size')} = $raw_size;
+		}
+		# not used for swap as far as I know
+		if ($b_admin && $row{'raw-available'} && $size ne 'N/A'){
+			$size .=  ' (' . $row{'raw-available'} . '%)';
+		}
+		$rows[$j]{main::key($num++,'size')} = $size;
+		$rows[$j]{main::key($num++,'used')} = $used . $percent;
+		if ($b_admin && $row{'swappiness'}){
+			$rows[$j]{main::key($num++,'swappiness')} = $row{'swappiness'};
+		}
+		if ($b_admin && $row{'cache-pressure'}){
+			$rows[$j]{main::key($num++,'cache pressure')} = $row{'cache-pressure'};
+		}
+		# not used for swap as far as I know
+		if ($b_admin && $row{'block-size'}){
+			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' B';;
+			#$rows[$j]{main::key($num++,'physical')} = $row{'block-size'} . ' B';
+			#$rows[$j]{main::key($num++,'logical')} = $row{'block-logical'} . ' B';
+		}
+		$rows[$j]{main::key($num++,$dev)} = ($row{'mount'}) ? $row{'mount'} : 'N/A';
+		if ($show{'label'} && $row{'swap-type'} eq 'partition'){
+			$rows[$j]{main::key($num++,'label')} = ($row{'label'}) ? $row{'label'}: 'N/A';
+		}
+		if ($show{'uuid'} && $row{'swap-type'} eq 'partition'){
+			$rows[$j]{main::key($num++,'uuid')} = ($row{'uuid'}) ? $row{'uuid'}: 'N/A';
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+
 }
 
 ## UnmountedData
@@ -20421,6 +20552,10 @@ sub generate_lines {
 			%row = line_handler('Partition','partition');
 			assign_data(%row);
 		}
+		if ( $show{'swap'} ){
+			%row = line_handler('Swap','swap');
+			assign_data(%row);
+		}
 		if ( $show{'unmounted'} ){
 			%row = line_handler('Unmounted','unmounted');
 			assign_data(%row);
@@ -20475,6 +20610,7 @@ sub line_handler {
 	'process' => \&ProcessData::get,
 	'sensor' => \&SensorData::get,
 	'slot' => \&SlotData::get,
+	'swap' => \&SwapData::get,
 	'unmounted' => \&UnmountedData::get,
 	'usb' => \&UsbData::get,
 	'weather' => \&WeatherData::get,
