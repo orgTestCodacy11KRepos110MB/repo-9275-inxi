@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-17';
-my $self_patch='22';
+my $self_patch='23';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5575,6 +5575,7 @@ sub row_defaults {
 	'smartctl-udma-crc' => "Bad cable/connection?",
 	'smartctl-usb' => "Unknown USB bridge. Flash drive/Unsupported enclosure?",
 	'smartctl-unknown' => "Unknown smartctl error. Unable to get data.",
+	'swap-admin' => "No admin swap data available.",
 	'swap-data' => "No Swap data was found.",
 	'tool-missing' => "<missing $id>",
 	'unmounted-data' => "No unmounted partitions found.",
@@ -12217,6 +12218,7 @@ sub create_output {
 		$dev_type = ($row{'dev-type'}) ? $row{'dev-type'} : 'dev';
 		$row{'dev-base'} = '/dev/' . $row{'dev-base'} if $dev_type eq 'dev' && $row{'dev-base'};
 		$dev = ($row{'dev-base'}) ? $row{'dev-base'} : 'N/A';
+		$row{'id'} =~ s|/home/[^/]+/(.*)|/home/$filter_string/$1| if $use{'filter'};
 		$j = scalar @rows;
 		@data = ({
 		main::key($num++,'ID') => $row{'id'},
@@ -12244,6 +12246,9 @@ sub create_output {
 		}
 		if ($b_admin && $fs eq 'swap' && $row{'cache-pressure'}){
 			$rows[$j]{main::key($num++,'cache pressure')} = $row{'cache-pressure'};
+		}
+		if ($extra > 1 && $fs eq 'swap' && defined $row{'priority'}){
+			$rows[$j]{main::key($num++,'priority')} = $row{'priority'};
 		}
 		if ($b_admin && $row{'block-size'}){
 			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' B';;
@@ -12422,7 +12427,6 @@ sub partition_data {
 				}
 			}
 			$id = join ' ', @row[$cols .. $#row];
-			$id =~ s/\/home\/[^\/]+\/(.*)/\/home\/$filter_string\/$1/ if $use{'filter'};
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
 				@working = admin_data($blockdev,$dev_base,$size);
@@ -12471,12 +12475,13 @@ sub partition_data {
 	}
 	@data = swap_data();
 	@partitions = (@partitions,@data);
+	# print Data::Dumper::Dumper \@partitions if $test[16];
 	if (!$bsd_type && @lsblk){
 		@data = check_partition_data();
 		@partitions = (@partitions,@data) if @data;
 	}
 	main::log_data('dump','@partitions',\@partitions) if $b_log;
-	# print Data::Dumper::Dumper \@partitions;
+	print Data::Dumper::Dumper \@partitions if $test[16];
 	eval $end if $b_log;
 }
 
@@ -12486,7 +12491,8 @@ sub swap_data {
 	$b_swaps = 1;
 	my (@data,@working);
 	my ($cache_pressure,$dev_base,$dev_type,$label,$mount,$path,
-	$pattern1,$pattern2,$percent_used,$size,$swap_type,$swappiness,$used,$uuid);
+	$pattern1,$pattern2,$percent_used,$priority,$size,$swap_type,
+	$swappiness,$used,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
 		# faster, avoid subshell, same as swapon -s
@@ -12521,8 +12527,8 @@ sub swap_data {
 	foreach (@working){
 		#next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
 		next if /^(Device|Filename)/;
-		($dev_base,$dev_type,$label,$mount,
-		$swap_type,$uuid) = ('','','','','partition','');
+		($dev_base,$dev_type,$label,$mount,$priority,
+		$swap_type,$uuid) = ('','','','',undef,'partition','');
 		@data = split /\s+/, $_;
 		if (/^\/dev\/(compcache|ramzwap|zram)/i){
 			$swap_type = 'zram';
@@ -12553,6 +12559,7 @@ sub swap_data {
 		elsif ($data[1] && $data[1] eq 'file' || m|^/|){
 			$swap_type = 'file';
 		}
+		$priority = $data[-1] if !$bsd_type;
 		# swpaon -s: /dev/sdb1 partition 16383996 109608  -2
 		# swapctl -l -k: /dev/label/swap0.eli     524284     154092
 		# users could have space in swapfile name
@@ -12570,6 +12577,7 @@ sub swap_data {
 		'id' => "swap-$s",
 		'label' => $label,
 		'mount' => $mount,
+		'priority' => $priority,
 		'size' => $size,
 		'swappiness' => $swappiness,
 		'type' => 'main',
@@ -12582,7 +12590,7 @@ sub swap_data {
 		$s++;
 	}
 	main::log_data('dump','@swaps',\@swaps) if $b_log;
-	# print Data::Dumper::Dumper \@swaps;
+	print Data::Dumper::Dumper \@swaps if $test[15];;
 	eval $end if $b_log;
 	return @swaps;
 }
@@ -16093,6 +16101,21 @@ sub create_output {
 		%part = ();
 		$dev = ($row{'swap-type'} eq 'file') ? 'file' : 'dev';
 		$row{'swap-type'} = ($row{'swap-type'}) ? $row{'swap-type'} : 'N/A';
+		if ($b_admin && $j == 0){
+			$j = scalar @rows;
+			if ($row{'swappiness'} || $row{'cache-pressure'}){
+				$rows[$j]{main::key($num++,'Info')} = '';
+				if ($row{'swappiness'}){
+					$rows[$j]{main::key($num++,'swappiness')} = $row{'swappiness'};
+				}
+				if ($row{'cache-pressure'}){
+					$rows[$j]{main::key($num++,'cache pressure')} = $row{'cache-pressure'};
+				}
+			}
+			else {
+				$rows[$j]{main::key($num++,'Message')} = main::row_defaults('swap-admin');
+			}
+		}
 		$j = scalar @rows;
 		@data = ({
 		main::key($num++,'ID') => $row{'id'},
@@ -16117,23 +16140,21 @@ sub create_output {
 		}
 		$rows[$j]{main::key($num++,'size')} = $size;
 		$rows[$j]{main::key($num++,'used')} = $used . $percent;
-		if ($b_admin && $row{'swappiness'}){
-			$rows[$j]{main::key($num++,'swappiness')} = $row{'swappiness'};
-		}
-		if ($b_admin && $row{'cache-pressure'}){
-			$rows[$j]{main::key($num++,'cache pressure')} = $row{'cache-pressure'};
-		}
 		# not used for swap as far as I know
 		if ($b_admin && $row{'block-size'}){
 			$rows[$j]{main::key($num++,'block size')} = $row{'block-size'} . ' B';;
 			#$rows[$j]{main::key($num++,'physical')} = $row{'block-size'} . ' B';
 			#$rows[$j]{main::key($num++,'logical')} = $row{'block-logical'} . ' B';
 		}
+		if ($extra > 1 && defined $row{'priority'}){
+			$rows[$j]{main::key($num++,'priority')} = $row{'priority'};
+		}
+		$row{'mount'} =~ s|/home/[^/]+/(.*)|/home/$filter_string/$1| if $row{'mount'} && $use{'filter'};
 		$rows[$j]{main::key($num++,$dev)} = ($row{'mount'}) ? $row{'mount'} : 'N/A';
-		if ($show{'label'} && $row{'swap-type'} eq 'partition'){
+		if ($show{'label'} && ($row{'label'} || $row{'swap-type'} eq 'partition') ){
 			$rows[$j]{main::key($num++,'label')} = ($row{'label'}) ? $row{'label'}: 'N/A';
 		}
-		if ($show{'uuid'} && $row{'swap-type'} eq 'partition'){
+		if ($show{'uuid'} && ($row{'uuid'} || $row{'swap-type'} eq 'partition' )){
 			$rows[$j]{main::key($num++,'uuid')} = ($row{'uuid'}) ? $row{'uuid'}: 'N/A';
 		}
 	}
