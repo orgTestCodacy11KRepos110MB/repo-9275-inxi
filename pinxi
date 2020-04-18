@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.0.38';
-my $self_date='2020-04-17';
-my $self_patch='25';
+my $self_date='2020-04-18';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1883,7 +1883,7 @@ sub run_self {
 	my $z = ($debugger{'z'}) ? ' -z' : '';
 	my $iz = "$i$z";
 	$iz =~ s/[\s-]//g;
-	my $cmd = "$self_path/$self_name -FRfrploudmaxxx$i$z --usb --slots --debug 10 -y 120 > $data_dir/$self_name-FRfrploudmaxxx$iz-usb-slots-y120.txt 2>&1";
+	my $cmd = "$self_path/$self_name -FRfJrploudmaxxx$i$z --slots --debug 10 -y 120 > $data_dir/$self_name-FRfJrploudmaxxx$iz-slots-y120.txt 2>&1";
 	system($cmd);
 	copy($log_file, "$data_dir") or main::error_handler('copy-failed', "$log_file", "$!");
 	system("$self_path/$self_name --recommends -y 120 > $data_dir/$self_name-recommends-120.txt 2>&1");
@@ -2906,8 +2906,8 @@ sub item_data {
 	'rpm' => 'util-linux-ng',
 	}),
 	'lsusb' => ({
-	'info' => '-A usb audio; -N usb networking; --usb (optional)',
-	'info-bsd' => '-A; -N; --usb. Alternate to usbdevs',
+	'info' => '-A usb audio; -J (optional); -N usb networking',
+	'info-bsd' => '-A; -J; -N. Alternate to usbdevs',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
@@ -2984,7 +2984,7 @@ sub item_data {
 	}),
 	'usbdevs' => ({
 	'info' => '',
-	'info-bsd' => '-A; -N; --usb;',
+	'info-bsd' => '-A; -J; -N;',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
@@ -3963,6 +3963,9 @@ sub get_options{
 	'j|swap|swaps' => sub {
 		$show{'short'} = 0;
 		$show{'swap'} = 1; },
+	'J|usb' => sub {
+		$show{'short'} = 0;
+		$show{'usb'} = 1; },
 	'l|labels|label' => sub {
 		$show{'short'} = 0;
 		$show{'label'} = 1;
@@ -4058,9 +4061,6 @@ sub get_options{
 		else {
 			error_handler('bad-arg',$opt,$arg);
 		} },
-	'usb' => sub {
-		$show{'short'} = 0;
-		$show{'usb'} = 1; },
 	'u|uuid' => sub {
 		$show{'short'} = 0;
 		$show{'partition'} = 1;
@@ -4447,7 +4447,7 @@ sub get_options{
 		$b_usb_sys = 1 },
 	'usb-tool' => sub {
 		$b_usb_tool = 1 },
-	'V|version' => sub { 
+	'version' => sub { 
 		$b_version = 1 },
 	'wan-ip-url:s' => sub {
 		my ($opt,$arg) = @_;
@@ -4535,17 +4535,18 @@ sub show_options {
 		$line = $line . '- ';
 	}
 	@rows = (
-	['0', '', '', "$self_name supports the following options. You can combine
-	these or list them one by one. For more detailed information, see man^$self_name.
-	Examples:^$self_name^-v4^-c6 OR 
-	$self_name^-bDc^6. If you start $self_name with no arguments, it will display 
-	a short system summary." ],
+	['0', '', '', "$self_name supports the following options. For more detailed 
+	information, see man^$self_name. If you start $self_name with no arguments,
+	it will display a short system summary." ],
 	['0', '', '', '' ],
-	['0', '', '', "The following options, if used without -F, -b, or -v, will 
-	show option line(s): A, B, C, D, G, I, M, N, P, R, S, W, d, f, i, l, m, n, 
-	o, p, r, s, t, u, w, --slots, --usb - you can use these alone or together 
-	to show just the line(s) you want to see. If you use them with -v [level], 
-	-b or -F, $self_name will combine the outputs." ],
+	['0', '', '', "You can use these options alone or together, 
+	to show or add the item(s) you want to see: A, B, C, D, G, I, J, M, N, P, 
+	R, S, W, d, f, i, j, l, m, n, o, p, r, s, t, u, w, --slots. 
+	If you use them with -v [level], -b or -F, $self_name will add the requested
+	lines to the output." ],
+	['0', '', '', '' ],
+	['0', '', '', "Examples:^$self_name^-v4^-c6 OR $self_name^-bDc^6 OR
+	$self_name^-FzjJxy^80" ],
 	['0', '', '', $line ],
 	['0', '', '', "Output Control Options:" ],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
@@ -4554,9 +4555,10 @@ sub show_options {
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
 	USB drive specifics; SMART report." ],
-	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
-	block size of file system (root required); for swap, shows swapiness and vfs cache 
+	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not." ],
+	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
+	block size of file system (root required)." ],
 	['2', '-S', '', "If available: kernel boot parameters." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
@@ -4593,6 +4595,7 @@ sub show_options {
 	['1', '-I', '--info', "General info, including processes, uptime, memory, 
 	IRC client or shell type, $self_name version." ],
 	['1', '-j', '--swap', "Swap in use. Includes partitions, zram, file." ],
+	['1', '-J', '--usb', "Show USB data: Hubs and Devices." ],
 	['1', '-l', '--label', "$partition_string_u labels. Triggers -P. 
 	For full -p output, use -pl." ],
 	['1', '-m', '--memory', "Memory (RAM) data. Requires root. Numbers of 
@@ -4635,7 +4638,6 @@ sub show_options {
 	of processes for each type (default: 5; if in IRC, max: 5). " ],
 	['1', '', '', "Make sure that there is no space between letters and 
 	numbers (e.g.^-t^cm10)." ],
-	['1', '', '--usb', "Show USB data: Hubs and Devices." ],
 	['1', '-u', '--uuid', "$partition_string_u UUIDs. Triggers -P. For full -p 
 	output, use -pu." ],
 	['1', '-v', '--verbosity', "Set $self_name verbosity level (0-8). 
@@ -4653,7 +4655,7 @@ sub show_options {
 	$partition_string label^(-l), swap, UUID^(-u), short form of optical drives, 
 	standard RAID data (-R). " ],
 	['2', '6', '', "Full $partition_string (-p), unmounted $partition_string (-o), 
-	optical drive (-d), USB (--usb), full RAID; triggers -xx." ],
+	optical drive (-d), USB (-J), full RAID; triggers -xx." ],
 	['2', '7', '', "Network IP data (-i); triggers -xxx."],
 	['2', '8', '', "Everything available, including repos (-r), processes 
 	(-tcm), PCI slots (--slots)."],
@@ -4700,6 +4702,7 @@ sub show_options {
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
 	GCC versions. If running in shell, not in IRC client, shows shell version 
 	number, if detected. Init/RC type and runlevel (if available)." ],
+	['2', '-J', '', "For Device: driver." ],
 	['2', '-m,--memory-modules', '', "Max memory module size (if available), device type." ],
 	['2', '-N', '', "Specific vendor/product information (if relevant); 
 	PCI Bus ID/USB ID number of card; Version/port(s)/driver version (if available)." ],
@@ -4711,7 +4714,6 @@ sub show_options {
 	and detected)" ],
 	['2', '-t', '', "Adds memory use output to CPU (-xt c), and CPU use to 
 	memory (-xt m)." ],
-	['2', '--usb', '', "For Device: driver." ],
 	);
 	push @data, @rows;
 	if ( $use{'weather'} ){
@@ -4733,6 +4735,8 @@ sub show_options {
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found)." ],
+	['2', '-j,-p,-P', '', "Swap priority." ],
+	['2', '-J', '', "Vendor:chip ID." ],
 	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double bank (if found)." ],
 	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available." ],
 	['2', '-N', '', "Chip vendor:product ID." ],
@@ -4743,7 +4747,6 @@ sub show_options {
 	gdm3, lightdm); active window manager if detected; desktop toolkit, 
 	if available (Xfce/KDE/Trinity only)." ],
 	['2', '--slots', '', "Slot length." ],
-	['2', '--usb', '', "Vendor:chip ID." ],
 	);
 	push @data, @rows;
 	if ( $use{'weather'} ){
@@ -4762,6 +4765,7 @@ sub show_options {
 	['2', '-G', '', "Xorg Compositor version (if detectable)." ],
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	for 'running in:' adds (SSH) if SSH session." ],
+	['2', '-J', '', "For Device: serial number (if present), interface count; USB speed." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
 	number." ],
@@ -4772,7 +4776,6 @@ sub show_options {
 	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like lxpanel, 
 	xfce4-panel, mate-panel); (if available) dm version number, window manager
 	version number." ],
-	['2', '--usb', '', "For Device: serial number (if present), interface count; USB speed." ],
 	);
 	push @data, @rows;
 	if ( $use{'weather'} ){
@@ -4811,7 +4814,7 @@ sub show_options {
 		push @data, @rows;
 	}
 	@rows = (
-	['1', '-V', '--version', "Prints $self_name version info then exits." ],
+	['1', '', '--version', "Prints $self_name version info then exits." ],
 	['0', '', '', "$line" ],
 	['0', '', '', "Advanced Options:" ],
 	['1', '', '--alt', "Trigger for various advanced options:" ],
