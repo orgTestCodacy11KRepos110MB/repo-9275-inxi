@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-18';
-my $self_patch='26';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5860,6 +5860,7 @@ sub print_data {
 			'Hardware' => 1, # hardware raid report
 			'ID' => 1,
 			'IF-ID' => 1,
+			'monitor' => 1,
 			'Optical' => 1,
 			'variant' => 1, # arm > 1 cpu type
 			);
@@ -9896,7 +9897,8 @@ sub set_glabel {
 ## GraphicData 
 {
 package GraphicData;
-my $driver = ''; # we need this as a fallback in case no xorg.0.log
+my $driver = ''; # we need this as a fallback in case no xorg log found
+my %graphics;
 sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
@@ -10035,10 +10037,371 @@ sub usb_data {
 }
 sub display_data(){
 	eval $start if $b_log;
-	my (%graphics,@row,@xdpyinfo);
-	my $num = 0;
-	my ($driver_missing,$protocol,$server) = ('','','');
+	my (@row);
+	my ($num,$protocol) = (0,'');
 	# note: these may not always be set, they won't be out of X, for example
+	$protocol = get_protocol();
+	# note, since the compositor is the server with wayland, always show it
+	if ($extra > 1 || $protocol eq 'wayland'){
+		set_compositor($protocol);
+	}
+	if ( $b_display){
+		x_display_data();
+	}
+	else {
+		$graphics{'tty'} = tty_data();
+	}
+	# this gives better output than the failure last case, which would only show:
+	# for example: X.org: 1.9 instead of: X.org: 1.9.0
+	$graphics{'x-version'} = $graphics{'xorg-version'} if $graphics{'xorg-version'};;
+	$graphics{'x-version'} = x_version() if !$graphics{'x-version'};
+	$graphics{'x-version'} = $graphics{'x-version-id'} if !$graphics{'x-version'};
+	#print Data::Dumper::Dumper \%graphics;
+	if (%graphics){
+		my ($driver_missing,$resolution,$server_string) = ('','','');
+		if ($graphics{'x-vendor'}){
+			my $version = ($graphics{'x-version'}) ? " $graphics{'x-version'}" : '';
+			$server_string = "$graphics{'x-vendor'}$version";
+		}
+		elsif ($graphics{'x-version'}) {
+			if ($graphics{'x-version'} =~ /^Xvesa/){
+				$server_string = $graphics{'x-version'};
+			}
+			else {
+				$server_string = "X.org $graphics{'x-version'}";
+			}
+		}
+# 		if ($graphics{'screens'}){
+# 			my $ref = $graphics{'screens'};
+# 			my @screens = @$ref;
+# 			my $sep = '';
+# 			foreach (@screens){
+# 				$resolution .= $sep . $_;
+# 				$sep = ', ';
+# 			}
+# 		}
+		my @drivers = x_drivers();
+		if (!$protocol && !$server_string && !$graphics{'x-vendor'} && !@drivers){
+			$server_string = main::row_defaults('display-server');
+			@row = ({
+			main::key($num++,'Display') => '',
+			main::key($num++,'server') => $server_string,
+			});
+		}
+		else {
+			$server_string ||= 'N/A';
+			@row = ({
+			main::key($num++,'Display') => $protocol,
+			main::key($num++,'server') => $server_string,
+			});
+			if ($graphics{'compositor'}){
+				$row[0]{main::key($num++,'compositor')} = $graphics{'compositor'};
+				if ($graphics{'compositor-version'}){
+					$row[0]{main::key($num++,'v')} = $graphics{'compositor-version'};
+				}
+			}
+			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
+			# obviously, so we use the last driver found on the card section in that case.
+			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
+			if (!$drivers[0]){
+				# Fallback: specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is 
+				# located inside this directory, which is not readable unless you are root
+				# Normally Arch gdm log is here: ~/.local/share/xorg/Xorg.1.log
+				# $driver comes from the Device lines, and is just last fallback.
+				if ($driver){
+					if (-e '/var/lib/gdm' && !$b_root ){
+						$driver_missing = main::row_defaults('display-driver-na') . ' - ' . main::row_defaults('root-suggested');
+					}
+					else {
+						$driver_missing = main::row_defaults('display-driver-na');
+					}
+				}
+				else {
+					$driver_missing = main::row_defaults('root-suggested') if -e '/var/lib/gdm' && !$b_root;
+				}
+			}
+			else {
+				$driver = $drivers[0];
+			}
+			$driver ||= 'N/A';
+			$row[0]{main::key($num++,'driver')} = $driver;
+			if ($driver_missing){
+				$row[0]{main::key($num++,'note')} = $driver_missing;
+			}
+			if ($drivers[2]){
+				$row[0]{main::key($num++,'FAILED')} = $drivers[2];
+			}
+			if ($drivers[1]){
+				$row[0]{main::key($num++,'unloaded')} = $drivers[1];
+			}
+			if ($extra > 1 && $drivers[3]){
+				$row[0]{main::key($num++,'alternate')} = $drivers[3];
+			}
+		}
+		if ($b_admin ){
+			if ($graphics{'x-display-name'}){
+				$row[0]{main::key($num++,'display name')} = $graphics{'x-display-name'};
+			}
+			if (defined $graphics{'x-screens'}){
+				$row[0]{main::key($num++,'screens')} = $graphics{'x-screens'};
+			}
+			if (defined $graphics{'x-default-screen'}){
+				$row[0]{main::key($num++,'default screen')} = $graphics{'x-default-screen'};
+			}
+		}
+		if ($graphics{'screens'}){
+			foreach (@{$graphics{'screens'}}){
+				my %main = %$_;
+				if ( ($b_admin || scalar @{$graphics{'screens'}} > 1) && defined $main{'screen'} ){
+					$row[0]{main::key($num++,'Screen')} = $main{'screen'};
+				}
+				if ($main{'monitors'}){
+					foreach my $ref2 (@{$main{'monitors'}}){
+						my %monitor = %$ref2;
+						if ($extra > 0 || scalar @{$main{'monitors'}} > 1 ){
+							$row[0]{main::key($num++,'Monitor')} = $monitor{'monitor'};
+						}
+						$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} . 'px' : 'N/A';
+						$row[0]{main::key($num++,'res')} = $resolution;
+						my $hz = ($monitor{'hz'}) ? $monitor{'hz'} : '';
+						$row[0]{main::key($num++,'hz')} = $hz if $hz;
+						if ($extra > 1){
+							my $dpi = ($monitor{'dpi'}) ? $monitor{'dpi'} : '';
+							$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
+						}
+						if ($extra > 2){
+							my $size = ($monitor{'size-x'} && $monitor{'size-y'}) ? $monitor{'size-x'} . 'x' . $monitor{'size-y'} . 'mm' : '';
+							$row[0]{main::key($num++,'size')} = $size if $size;
+							my $diag = ($monitor{'diagonal'}) ? $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")' : '';
+							$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
+						}
+					}
+				}
+				else {
+					$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} . 'px' : 'N/A';
+					$row[0]{main::key($num++,'res')} = $resolution;
+					my $hz = ($main{'hz'}) ? $main{'hz'} : '';
+					$row[0]{main::key($num++,'hz')} = $hz if $hz;
+					if ($extra > 1){
+						my $dpi = ($main{'dpi'}) ? $main{'dpi'} : '';
+						$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
+					}
+					if ($extra > 2){
+						my $size = ($main{'size-x'} && $main{'size-y'}) ? $main{'size-x'} . 'x' . $main{'size-y'} . 'mm' : '';
+						$row[0]{main::key($num++,'size')} = $size if $size;
+						my $diag = ($main{'diagonal'}) ? $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")' : '';
+						$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
+					}
+				}
+			}
+		}
+# 		if ($resolution){
+# 			$row[0]{main::key($num++,'resolution')} = $resolution;
+# 		}
+		else {
+			$graphics{'tty'} ||= 'N/A';
+			$row[0]{main::key($num++,'tty')} = $graphics{'tty'};
+		}
+	}
+	eval $end if $b_log;
+	return @row;
+}
+
+sub x_display_data {
+	eval $start if $b_log;
+	# X vendor and version detection.
+	# new method added since radeon and X.org and the disappearance of 
+	# <X server name> version : ...etc. Later on, the normal textual version string 
+	# returned, e.g. like: X.Org version: 6.8.2 
+	# A failover mechanism is in place: if $version empty, release number parsed instead
+	if (my $program = main::check_program('xdpyinfo')){
+		my ($diagonal,$diagonal_m,$dpi,$screen_size) = ('','','','');
+		my ($screen_id,$screen,@working);
+		my ($res_x,$res_y,$size_x,$size_y);
+		my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
+		#@xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
+		#print join "\n",@xdpyinfo, "\n";
+		foreach (@xdpyinfo){
+			@working = split /:\s+/, $_;
+			next if ( ($graphics{'screens'} && $working[0] !~ /^(dimensions$|screen\s#)/ ) || !$working[0] );
+			#print "$_\n";
+			if ($working[0] eq 'vendor string'){
+				$working[1] =~ s/The\s|\sFoundation//g;
+				# some distros, like fedora, report themselves as the xorg vendor, 
+				# so quick check here to make sure the vendor string includes Xorg in string
+				if ($working[1] !~ /x/i){
+					$working[1] .= ' X.org';
+				}
+				$graphics{'x-vendor'} = $working[1];
+			}
+			elsif ($working[0] eq 'name of display'){
+				$graphics{'x-display-name'} = $working[1];
+			}
+			elsif ($working[0] eq 'version number'){
+				$graphics{'x-version-id'} = $working[1];
+			}
+			elsif ($working[0] eq 'vendor release number'){
+				$graphics{'vendor-release'} = $working[1];
+			}
+			elsif ($working[0] eq 'X.Org version'){
+				$graphics{'xorg-version'} = $working[1];
+			}
+			elsif ($working[0] eq 'default screen number'){
+				$graphics{'x-default-screen'} = $working[1];
+			}
+			elsif ($working[0] eq 'number of screens'){
+				$graphics{'x-screens'} = $working[1];
+			}
+			elsif  ($working[0] =~ /^screen #([0-9]+):/){
+				$screen_id = $1;
+				$graphics{'screens'} = () if !$graphics{'screens'};
+			}
+			elsif ($working[0] eq 'dimensions'){
+				($dpi,$res_x,$res_y,$size_x,$size_y) = (undef,undef,undef,undef,undef);
+				if ($working[1] =~ /([0-9]+)\s*x\s*([0-9]+)\s+pixels\s+\(([0-9]+)\s*x\s*([0-9]+)\s*millimeters\)/){
+					$res_x = $1;
+					$res_y = $2;
+					$size_x = $3;
+					$size_y = $4;
+					$dpi = ($res_x && $size_x) ? sprintf("%.0f", ($res_x*25.4/$size_x)) : '';
+					$diagonal = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+				}
+				$working[1] =~ s/\spixels//;
+				$working[1] =~ s/\smillimeters/ mm/;
+				if ($graphics{'dimensions'}){
+					$graphics{'dimensions'} = ([@{$graphics{'dimensions'}},$working[1]]);
+				}
+				else {
+					$graphics{'dimensions'} = ([$working[1]]);
+				}
+				$screen = {
+				'screen' => $screen_id,
+				'res-x' => $res_x,
+				'res-y' => $res_y,
+				'size-x' => $size_x,
+				'size-y' => $size_y,
+				'dpi' => $dpi,
+				'diagonal' => $diagonal,
+				'diagonal-m' => $diagonal_m,
+				};
+# 				if ($graphics{'screens'}){
+# 					$graphics{'screens'} = ([@{$graphics{'screens'}},\%screen]);
+# 				}
+# 				else {
+# 					$graphics{'screens'} = ([\%screen]);
+# 				}
+				# $graphics{'screens'}[$screen_id] = ([\%screen]);
+				push @{$graphics{'screens'}}, $screen;
+			}
+		}
+		#print Data::Dumper::Dumper $graphics{'screens'};
+		if (my $program = main::check_program('xrandr')){
+			my ($resolution,$res_x,$res_y,$size_x,$size_y);
+			my ($monitor,@monitors,$monitor_id,$screen,$screen_id,@xrandr_screens);
+			my $counter = 0;
+			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
+			#$graphics{'dimensions'} = (\@dimensions);
+			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
+			# multiple screens from different video cards
+			foreach (@xrandr){
+				if (/^Screen ([0-9]+):/){
+					$screen_id = $1;
+					$counter++;
+					push @xrandr_screens, \@monitors if @monitors;
+					@monitors = ();
+				}
+				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+[0-9+]+(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+					$resolution = $3 . 'x' . $4 if $3 && $4;
+					$monitor_id = $1;
+					$res_x = $3;
+					$res_y = $4;
+					$size_x = $7;
+					$size_y = $8;
+					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
+					$screen_size = ($size_x && $size_y) ? "~${size_x}x${size_y}mm": '';
+					$diagonal = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+					$monitor = {
+					'screen' => $screen_id,
+					'monitor' => $monitor_id,
+					'res-x' => $res_x,
+					'res-y' => $res_y,
+					'size-x' => $size_x,
+					'size-y' => $size_y,
+					'dpi' => $dpi,
+					'diagonal' => $diagonal,
+					'diagonal-m' => $diagonal_m,
+					};
+					push @monitors, $monitor;
+					# print "x:$size_x y:$size_y rx:$res_x ry:$res_y dpi:$dpi\n";
+					($res_x,$res_y,$size_x,$size_y) = (0,0,0,0);
+					
+				}
+				my @working = split /\s+/,$_;
+				# print join "$_\n";
+				if ($working[1] =~ /\*/){
+					$working[1] =~ s/\*|\+//g;
+					$working[1] = sprintf("%.0f",$working[1]);
+					$monitors[scalar @monitors - 1]{'hz'} = $working[1] if @monitors;
+					$working[1] =  ($working[1]) ? "$working[1]Hz" : 'N/A';
+					# case where 0 is 'preferred, sigh.
+					$working[0] = ($working[0] !~ /[0-9]\s*x\s*[0-9]/ && $resolution) ? $resolution : $working[0];
+					my $screen = "$working[0]$dpi~$working[1]$screen_size$diagonal";
+# 					if ($graphics{'screens'}){
+# 						$graphics{'screens'} = ([@{$graphics{'screens'}},$screen]);
+# 					}
+# 					else {
+# 						$graphics{'screens'} = ([$screen]);
+# 					}
+					($diagonal,$dpi,$resolution,$screen_size) = ('','','','');
+					# print Data::Dumper::Dumper \@monitors;
+				}
+			}
+			push @xrandr_screens, \@monitors if @monitors;
+			#print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
+			my ($i) = (0);
+			foreach (@{$graphics{'screens'}}){
+				my %main = %$_;
+				#print "h: " . Data::Dumper::Dumper \%main;
+				#print $main{'screen'}, "\n";
+				foreach my $ref2 (@xrandr_screens){
+					my @screens = @$ref2;
+					#print "d: " . Data::Dumper::Dumper \@screens;
+					if ($screens[0]{'screen'} eq $main{'screen'}){
+						${$graphics{'screens'}}[$i]{'monitors'} = \@screens;
+						last;
+					}
+				}
+				$i++;
+			}
+			if (!$graphics{'screens'}) {
+				$graphics{'tty'} = tty_data();
+			}
+		}
+		#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
+	}
+	else {
+		$graphics{'screens'} = ([main::row_defaults('xdpyinfo-missing')]);
+	}
+	eval $end if $b_log;
+}
+sub set_compositor {
+	eval $start if $b_log;
+	my ($protocol) = @_;
+	# initial tests, if wayland, it is certainly a compositor
+	$protocol = lc($protocol) if $protocol;
+	$graphics{'compositor'} = display_compositor($protocol);
+	# gnome-shell is incredibly slow to return version
+	if (($extra > 2 || $protocol eq 'wayland') && $graphics{'compositor'} && 
+		( !$show{'system'} || $graphics{'compositor'} ne 'gnome-shell' ) ){
+		$graphics{'compositor-version'} = (main::program_data($graphics{'compositor'},$graphics{'compositor'},3))[1];
+	}
+	eval $end if $b_log;
+}
+sub get_protocol {
+	eval $start if $b_log;
+	my ($protocol) = ('');
 	$protocol = $ENV{'XDG_SESSION_TYPE'} if $ENV{'XDG_SESSION_TYPE'};
 	$protocol = $ENV{'WAYLAND_DISPLAY'} if (!$protocol && $ENV{'WAYLAND_DISPLAY'});
 	# yes, I've seen this in 2019 distros, sigh
@@ -10063,206 +10426,8 @@ sub display_data(){
 			}
 		}
 	}
-	# note, since the compositor is the server with wayland, always show it
-	if ($extra > 1 || $protocol eq 'wayland'){
-		# initial tests, if wayland, it is certainly a compositor
-		$protocol = lc($protocol) if $protocol;
-		$graphics{'compositor'} = display_compositor($protocol);
-		# gnome-shell is incredibly slow to return version
-		if (($extra > 2 || $protocol eq 'wayland') && $graphics{'compositor'} && 
-		 ( !$show{'system'} || $graphics{'compositor'} ne 'gnome-shell' ) ){
-			$graphics{'compositor-version'} = (main::program_data($graphics{'compositor'},$graphics{'compositor'},3))[1];
-		}
-	}
-	if ( $b_display){
-		# X vendor and version detection.
-		# new method added since radeon and X.org and the disappearance of 
-		# <X server name> version : ...etc. Later on, the normal textual version string 
-		# returned, e.g. like: X.Org version: 6.8.2 
-		# A failover mechanism is in place: if $version empty, release number parsed instead
-		if (my $program = main::check_program('xdpyinfo')){
-			my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
-			#@xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
-			#print join "\n",@xdpyinfo, "\n";
-			foreach (@xdpyinfo){
-				my @working = split /:\s+/, $_;
-				next if ( ($graphics{'dimensions'} && $working[0] ne 'dimensions' ) || !$working[0] );
-				#print "$_\n";
-				if ($working[0] eq 'vendor string'){
-					$working[1] =~ s/The\s|\sFoundation//g;
-					# some distros, like fedora, report themselves as the xorg vendor, 
-					# so quick check here to make sure the vendor string includes Xorg in string
-					if ($working[1] !~ /x/i){
-						$working[1] .= ' X.org';
-					}
-					$graphics{'vendor'} = $working[1];
-				}
-				elsif ($working[0] eq 'version number'){
-					$graphics{'version-id'} = $working[1];
-				}
-				elsif ($working[0] eq 'vendor release number'){
-					$graphics{'vendor-release'} = $working[1];
-				}
-				elsif ($working[0] eq 'X.Org version'){
-					$graphics{'xorg-version'} = $working[1];
-				}
-				elsif ($working[0] eq 'dimensions'){
-					$working[1] =~ s/\spixels//;
-					$working[1] =~ s/\smillimeters/ mm/;
-					if ($graphics{'dimensions'}){
-						$graphics{'dimensions'} = ([@{$graphics{'dimensions'}},$working[1]]);
-					}
-					else {
-						$graphics{'dimensions'} = ([$working[1]]);
-					}
-				}
-			}
-			#$graphics{'dimensions'} = (\@dimensions);
-			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
-			# multiple screens from different video cards
-			my $ref = $graphics{'dimensions'};
-			if (defined $ref){
-				my @screens = @$ref;
-				my $resolution;
-				if (scalar @screens == 1){
-					if (my $program = main::check_program('xrandr')){
-						my $counter = 0;
-						my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
-						foreach (@xrandr){
-							$counter++;
-							if (/^[^\s]+\sconnected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+/){
-								$resolution = $2 . 'x' . $3 if $2 && $3;
-							}
-							my @working = split /\s+/,$_;
-							# print join "$_\n";
-							if ($working[1] =~ /\*/){
-								$working[1] =~ s/\*|\+//g;
-								$working[1] = sprintf("%.0f",$working[1]);
-								$working[1] =  ($working[1]) ? "$working[1]Hz" : 'N/A';
-								# case where 0 is 'preferred, sigh.
-								$working[0] = ($working[0] !~ /[0-9]\s*x\s*[0-9]/ && $resolution) ? $resolution : $working[0];
-								my $screen = "$working[0]~$working[1]";
-								if ($graphics{'screens'}){
-									$graphics{'screens'} = ([@{$graphics{'screens'}},$screen]);
-								}
-								else {
-									$graphics{'screens'} = ([$screen]);
-								}
-							}
-						}
-					}
-				}
-			}
-			else {
-				$graphics{'tty'} = tty_data();
-			}
-		}
-		else {
-			$graphics{'screens'} = ([main::row_defaults('xdpyinfo-missing')]);
-		}
-	}
-	else {
-		$graphics{'tty'} = tty_data();
-	}
-	# this gives better output than the failure last case, which would only show:
-	# for example: X.org: 1.9 instead of: X.org: 1.9.0
-	$graphics{'version'} = $graphics{'xorg-version'} if $graphics{'xorg-version'};;
-	$graphics{'version'} = x_version() if !$graphics{'version'};
-	$graphics{'version'} = $graphics{'version-id'} if !$graphics{'version'};
-	undef @xdpyinfo;
-	#print Data::Dumper::Dumper \%graphics;
-	if (%graphics){
-		my $resolution = '';
-		my $server_string = '';
-		if ($graphics{'vendor'}){
-			my $version = ($graphics{'version'}) ? " $graphics{'version'}" : '';
-			$server_string = "$graphics{'vendor'}$version";
-		}
-		elsif ($graphics{'version'}) {
-			if ($graphics{'version'} =~ /^Xvesa/){
-				$server_string = $graphics{'version'};
-			}
-			else {
-				$server_string = "X.org $graphics{'version'}";
-			}
-		}
-		if ($graphics{'screens'}){
-			my $ref = $graphics{'screens'};
-			my @screens = @$ref;
-			my $sep = '';
-			foreach (@screens){
-				$resolution .= $sep . $_;
-				$sep = ', ';
-			}
-		}
-		my @drivers = x_drivers();
-		if (!$protocol && !$server_string && !$graphics{'vendor'} && !@drivers){
-			$server_string = main::row_defaults('display-server');
-			@row = ({
-			main::key($num++,'Display') => '',
-			main::key($num++,'server') => $server_string,
-			});
-		}
-		else {
-			$server_string ||= 'N/A';
-			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
-			# obviously, so we use the last driver found on the card section in that case.
-			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
-			if (!$drivers[0]){
-				# specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is located
-				# inside this directory, which is not readable unless you are root
-				# do nothing unless root and gdm directory, just keep the last found driver value, 
-				# we can't do more
-				if ($driver){
-					if (-e '/var/lib/gdm' && !$b_root ){
-						$driver_missing = main::row_defaults('display-driver-na') . ' - ' . main::row_defaults('root-suggested');
-					}
-					else {
-						$driver_missing = main::row_defaults('display-driver-na');
-					}
-				}
-				else {
-					$driver_missing = main::row_defaults('root-suggested') if -e '/var/lib/gdm' && !$b_root;
-				}
-			}
-			else {
-				$driver = $drivers[0];
-			}
-			$driver ||= 'N/A';
-			@row = ({
-			main::key($num++,'Display') => $protocol,
-			main::key($num++,'server') => $server_string,
-			});
-			if ($graphics{'compositor'}){
-				$row[0]{main::key($num++,'compositor')} = $graphics{'compositor'};
-				if ($graphics{'compositor-version'}){
-					$row[0]{main::key($num++,'v')} = $graphics{'compositor-version'};
-				}
-			}
-			$row[0]{main::key($num++,'driver')} = $driver;
-			if ($driver_missing){
-				$row[0]{main::key($num++,'note')} = $driver_missing;
-			}
-			if ($drivers[2]){
-				$row[0]{main::key($num++,'FAILED')} = $drivers[2];
-			}
-			if ($drivers[1]){
-				$row[0]{main::key($num++,'unloaded')} = $drivers[1];
-			}
-			if ($extra > 1 && $drivers[3]){
-				$row[0]{main::key($num++,'alternate')} = $drivers[3];
-			}
-		}
-		if ($resolution){
-			$row[0]{main::key($num++,'resolution')} = $resolution;
-		}
-		else {
-			$graphics{'tty'} ||= 'N/A';
-			$row[0]{main::key($num++,'tty')} = $graphics{'tty'};
-		}
-	}
 	eval $end if $b_log;
-	return @row;
+	return $protocol;
 }
 sub gl_data(){
 	eval $start if $b_log;
