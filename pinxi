@@ -10052,6 +10052,12 @@ sub display_data(){
 	}
 	if ( $b_display){
 		x_display_data();
+		# currently a stub, wayland needs a lot more work
+		if ($protocol && $protocol eq 'wayland' && !$graphics{'screens'}){
+			wayland_display_data();
+			# it worked! we got screen data
+			$graphics{'no-xdpyinfo'} = undef if $graphics{'screens'};
+		}
 	}
 	else {
 		$graphics{'tty'} = tty_data();
@@ -10066,6 +10072,7 @@ sub display_data(){
 		my ($driver_missing,$resolution,$server_string) = ('','','');
 		if ($graphics{'x-vendor'}){
 			my $version = ($graphics{'x-version'}) ? " $graphics{'x-version'}" : '';
+			$version = (!$version && $graphics{'x-vendor-release'}) ? " $graphics{'x-vendor-release'}" : '';
 			$server_string = "$graphics{'x-vendor'}$version";
 		}
 		elsif ($graphics{'x-version'}) {
@@ -10076,15 +10083,6 @@ sub display_data(){
 				$server_string = "X.org $graphics{'x-version'}";
 			}
 		}
-# 		if ($graphics{'screens'}){
-# 			my $ref = $graphics{'screens'};
-# 			my @screens = @$ref;
-# 			my $sep = '';
-# 			foreach (@screens){
-# 				$resolution .= $sep . $_;
-# 				$sep = ', ';
-# 			}
-# 		}
 		my @drivers = x_drivers();
 		if (!$protocol && !$server_string && !$graphics{'x-vendor'} && !@drivers){
 			$server_string = main::row_defaults('display-server');
@@ -10154,27 +10152,40 @@ sub display_data(){
 				$row[0]{main::key($num++,'default screen')} = $graphics{'x-default-screen'};
 			}
 		}
-		if ($graphics{'screens'}){
-			my @resolutions;
-			my $b_alert;
+		if ($graphics{'no-xdpyinfo'}){
+			$row[0]{main::key($num++,'resolution')} = $graphics{'no-xdpyinfo'};
+		}
+		elsif ($graphics{'screens'}){
+			my ($diag,$dpi,$hz,$key1,$size);
+			my ($m_count,$basic_count) = (0,0);
+			my $s_count = ($graphics{'screens'}) ? scalar @{$graphics{'screens'}}:  0;
 			foreach (@{$graphics{'screens'}}){
 				my %main = %$_;
-				if ($main{'alert'}){
-					$row[0]{main::key($num++,'resolution')} = $main{'alert'};
-					$b_alert = 1;
-					last;
-				}
-				if ( !$show{'graphic-basic'} && ($b_admin || scalar @{$graphics{'screens'}} > 1) && defined $main{'screen'} ){
+				if ( !$show{'graphic-basic'} && ($b_admin || $s_count > 1) && defined $main{'screen'} ){
 					$row[0]{main::key($num++,'Screen')} = $main{'screen'};
 				}
 				if ($main{'monitors'}){
+					my $m_count = scalar @{$main{'monitors'}};
+					#print $basic_count . '::' . $m_count, "\n";
 					foreach my $ref2 (@{$main{'monitors'}}){
 						my %monitor = %$ref2;
 						if ($show{'graphic-basic'}){
-							$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} : 'N/A';
-							$resolution .= '~' . $monitor{'dpi'} . 'dpi' if $extra > 1 && $monitor{'dpi'};
-							$resolution .= '~' . $monitor{'hz'} . 'Hz' if $monitor{'hz'};
-							push @resolutions, $resolution;
+							$basic_count++;
+							if ($monitor{'res-x'} && $monitor{'res-y'}){
+								$resolution = $monitor{'res-x'} . 'x' . $monitor{'res-y'};
+								$resolution .= ' ' . $monitor{'dpi'} . 'dpi' if $extra > 1 && $monitor{'dpi'};
+								$resolution .= ' ' . $monitor{'hz'} . 'Hz' if $monitor{'hz'};
+							}
+							else {
+								$resolution = 'N/A'
+							}
+							if ($s_count == 1 && $m_count == 1){
+								$row[0]{main::key($num++,'resolution')} = $resolution;
+							}
+							else {
+								$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
+								$row[0]{main::key($num++,$basic_count)} = $resolution;
+							}
 							next;
 						}
 						if ($extra > 0 || scalar @{$main{'monitors'}} > 1 ){
@@ -10182,47 +10193,67 @@ sub display_data(){
 						}
 						$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} : 'N/A';
 						$row[0]{main::key($num++,'res')} = $resolution;
-						my $hz = ($monitor{'hz'}) ? $monitor{'hz'} : '';
+						$hz = ($monitor{'hz'}) ? $monitor{'hz'} : '';
 						$row[0]{main::key($num++,'hz')} = $hz if $hz;
 						if ($extra > 1){
-							my $dpi = ($monitor{'dpi'}) ? $monitor{'dpi'} : '';
+							$dpi = ($monitor{'dpi'}) ? $monitor{'dpi'} : '';
 							$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
 						}
 						if ($extra > 2){
-							my $size = ($monitor{'size-x'} && $monitor{'size-y'}) ? $monitor{'size-x'} . 'x' . $monitor{'size-y'} . 'mm' : '';
+							if ($monitor{'size-x'} && $monitor{'size-y'}){
+								$size =  $monitor{'size-x'} . 'x' . $monitor{'size-y'} . 'mm ('. $monitor{'size-x-i'} . 'x' . $monitor{'size-y-i'} . '")';
+							}
+							$size ||= '';
 							$row[0]{main::key($num++,'size')} = $size if $size;
-							my $diag = ($monitor{'diagonal'}) ? $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")' : '';
+							if ($monitor{'diagonal'}){
+								$diag = $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")';
+							}
+							$diag ||= '';
 							$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
 						}
 					}
 				}
 				else {
 					if ($show{'graphic-basic'}){
-						$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} : 'N/A';
-						$resolution .= '~' . $main{'dpi'} . 'dpi' if $extra > 1 && $main{'dpi'};
-						$resolution .= '~' . $main{'hz'} . 'Hz' if $main{'hz'};
-						push @resolutions, $resolution;
+						$basic_count++;
+						if ($main{'res-x'} && $main{'res-y'}){
+							$resolution = $main{'res-x'} . 'x' . $main{'res-y'};
+							$resolution .= ' ' . $main{'dpi'} . 'dpi' if $extra > 1 && $main{'dpi'};
+							$resolution .= ' ' . $main{'hz'} . 'Hz' if $main{'hz'};
+						}
+						else {
+							$resolution = 'N/A'
+						}
+						if ($s_count == 1){
+							$row[0]{main::key($num++,'resolution')} = $resolution;
+						}
+						else {
+							$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
+							$row[0]{main::key($num++,$basic_count)} = $resolution;
+						}
 						next;
 					}
 					$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} : 'N/A';
 					$row[0]{main::key($num++,'res')} = $resolution;
-					my $hz = ($main{'hz'}) ? $main{'hz'} : '';
+					$hz = ($main{'hz'}) ? $main{'hz'} : '';
 					$row[0]{main::key($num++,'hz')} = $hz if $hz;
 					if ($extra > 1){
-						my $dpi = ($main{'dpi'}) ? $main{'dpi'} : '';
+						$dpi = ($main{'dpi'}) ? $main{'dpi'} : '';
 						$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
 					}
 					if ($extra > 2){
-						my $size = ($main{'size-x'} && $main{'size-y'}) ? $main{'size-x'} . 'x' . $main{'size-y'} . 'mm' : '';
+						if ($main{'size-x'} && $main{'size-y'}){
+							$size = $main{'size-x'} . 'x' . $main{'size-y'} . 'mm ('. $main{'size-x-i'} . 'x' . $main{'size-y-i'} . '")';
+						}
+						$size ||= '';
 						$row[0]{main::key($num++,'size')} = $size if $size;
-						my $diag = ($main{'diagonal'}) ? $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")' : '';
+						if ($main{'diagonal'}){
+							$diag = $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")';
+						}
+						$diag ||= '';
 						$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
 					}
 				}
-			}
-			if (!$b_alert && $show{'graphic-basic'}){
-				$resolution = ( @resolutions) ? join(', ', @resolutions) : 'N/A';
-				$row[0]{main::key($num++,'resolution')} = $resolution;
 			}
 		}
 		else {
@@ -10242,9 +10273,9 @@ sub x_display_data {
 	# returned, e.g. like: X.Org version: 6.8.2 
 	# A failover mechanism is in place: if $version empty, release number parsed instead
 	if (my $program = main::check_program('xdpyinfo')){
-		my ($diagonal,$diagonal_m,$dpi,$screen_size) = ('','','','');
+		my ($diagonal,$diagonal_m,$dpi) = ('','','');
 		my ($screen_id,$screen,@working);
-		my ($res_x,$res_y,$size_x,$size_y);
+		my ($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i);
 		my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
 		#@xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
 		#print join "\n",@xdpyinfo, "\n";
@@ -10267,8 +10298,9 @@ sub x_display_data {
 			elsif ($working[0] eq 'version number'){
 				$graphics{'x-version-id'} = $working[1];
 			}
+			# note used, fix that
 			elsif ($working[0] eq 'vendor release number'){
-				$graphics{'vendor-release'} = $working[1];
+				$graphics{'x-vendor-release'} = $working[1];
 			}
 			elsif ($working[0] eq 'X.Org version'){
 				$graphics{'xorg-version'} = $working[1];
@@ -10290,24 +10322,24 @@ sub x_display_data {
 					$res_y = $2;
 					$size_x = $3;
 					$size_y = $4;
+					$res_x_i = ($1) ? sprintf("%.1f", ($1/25.4)) : 0;
+					$res_y_i = ($2) ? sprintf("%.1f", ($2/25.4)) : 0;
+					$size_x_i = ($3) ? sprintf("%.1f", ($3/25.4)) : 0;
+					$size_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", ($res_x*25.4/$size_x)) : '';
-					$diagonal = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
-				}
-				$working[1] =~ s/\spixels//;
-				$working[1] =~ s/\smillimeters/ mm/;
-				if ($graphics{'dimensions'}){
-					$graphics{'dimensions'} = ([@{$graphics{'dimensions'}},$working[1]]);
-				}
-				else {
-					$graphics{'dimensions'} = ([$working[1]]);
 				}
 				$screen = {
 				'screen' => $screen_id,
 				'res-x' => $res_x,
+				'res-x-i' => $res_x_i,
 				'res-y' => $res_y,
+				'res-y-i' => $res_y_i,
 				'size-x' => $size_x,
+				'size-x-i' => $size_x_i,
 				'size-y' => $size_y,
+				'size-y-i' => $size_y_i,
 				'dpi' => $dpi,
 				'diagonal' => $diagonal,
 				'diagonal-m' => $diagonal_m,
@@ -10317,9 +10349,10 @@ sub x_display_data {
 		}
 		#print Data::Dumper::Dumper $graphics{'screens'};
 		if (my $program = main::check_program('xrandr')){
-			my ($resolution,$res_x,$res_y,$size_x,$size_y);
+			($diagonal,$diagonal_m,$dpi) = (undef);
+			($screen_id,$screen,@working) = (undef);
+			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
 			my ($monitor,@monitors,$monitor_id,$screen,$screen_id,@xrandr_screens);
-			my $counter = 0;
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			#$graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -10327,35 +10360,40 @@ sub x_display_data {
 			foreach (@xrandr){
 				if (/^Screen ([0-9]+):/){
 					$screen_id = $1;
-					$counter++;
 					push @xrandr_screens, \@monitors if @monitors;
 					@monitors = ();
 				}
 				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+[0-9+]+(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
-					$resolution = $3 . 'x' . $4 if $3 && $4;
 					$monitor_id = $1;
 					$res_x = $3;
 					$res_y = $4;
 					$size_x = $7;
 					$size_y = $8;
+					$res_x_i = ($3) ? sprintf("%.1f", ($3/25.4)) : 0;
+					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
+					$size_x_i = ($7) ? sprintf("%.1f", ($7/25.4)) : 0;
+					$size_y_i = ($8) ? sprintf("%.1f", ($8/25.4)) : 0;
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
-					$screen_size = ($size_x && $size_y) ? "~${size_x}x${size_y}mm": '';
-					$diagonal = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 					$monitor = {
 					'screen' => $screen_id,
 					'monitor' => $monitor_id,
 					'res-x' => $res_x,
+					'res-x-i' => $res_x_i,
 					'res-y' => $res_y,
+					'res-y-i' => $res_y_i,
 					'size-x' => $size_x,
+					'size-x-i' => $size_x_i,
 					'size-y' => $size_y,
+					'size-y-i' => $size_y_i,
 					'dpi' => $dpi,
 					'diagonal' => $diagonal,
 					'diagonal-m' => $diagonal_m,
 					};
 					push @monitors, $monitor;
 					# print "x:$size_x y:$size_y rx:$res_x ry:$res_y dpi:$dpi\n";
-					($res_x,$res_y,$size_x,$size_y) = (0,0,0,0);
+					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (0,0,0,0,0,0,0,0);
 					
 				}
 				my @working = split /\s+/,$_;
@@ -10364,11 +10402,7 @@ sub x_display_data {
 					$working[1] =~ s/\*|\+//g;
 					$working[1] = sprintf("%.0f",$working[1]);
 					$monitors[scalar @monitors - 1]{'hz'} = $working[1] if @monitors;
-					$working[1] =  ($working[1]) ? "$working[1]Hz" : 'N/A';
-					# case where 0 is 'preferred, sigh.
-					$working[0] = ($working[0] !~ /[0-9]\s*x\s*[0-9]/ && $resolution) ? $resolution : $working[0];
-					my $screen = "$working[0]$dpi~$working[1]$screen_size$diagonal";
-					($diagonal,$dpi,$resolution,$screen_size) = ('','','','');
+					($diagonal,$dpi) = ('','');
 					# print Data::Dumper::Dumper \@monitors;
 				}
 			}
@@ -10393,11 +10427,16 @@ sub x_display_data {
 				$graphics{'tty'} = tty_data();
 			}
 		}
-		
 	}
 	else {
-		$graphics{'screens'} = ([{'alert' => main::row_defaults('xdpyinfo-missing')}]);
+		$graphics{'no-xdpyinfo'} = main::row_defaults('xdpyinfo-missing');
 	}
+	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
+	eval $end if $b_log;
+}
+sub wayland_display_data {
+	eval $start if $b_log;
+	
 	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
 	eval $end if $b_log;
 }
