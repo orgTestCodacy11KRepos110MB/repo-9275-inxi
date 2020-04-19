@@ -3899,6 +3899,7 @@ sub get_options{
 		$show{'raid-basic'} = 1;
 		$show{'disk-total'} = 1;
 		$show{'graphic'} = 1;
+		$show{'graphic-basic'} = 1;
 		$show{'info'} = 1;
 		$show{'machine'} = 1;
 		$show{'network'} = 1;
@@ -3939,6 +3940,7 @@ sub get_options{
 		$show{'cpu'} = 1;
 		$show{'disk'} = 1;
 		$show{'graphic'} = 1;
+		$show{'graphic-basic'} = 1;
 		$show{'info'} = 1;
 		$show{'machine'} = 1;
 		$show{'network'} = 1;
@@ -3950,7 +3952,8 @@ sub get_options{
 		$show{'system'} = 1; },
 	'G|graphics|graphic' => sub {
 		$show{'short'} = 0;
-		$show{'graphic'} = 1; },
+		$show{'graphic'} = 1; 
+		$show{'graphic-basic'} = 1; },
 	'i|ip' => sub {
 		$show{'short'} = 0;
 		$show{'ip'} = 1;
@@ -4076,6 +4079,7 @@ sub get_options{
 				$show{'cpu-basic'} = 1;
 				$show{'disk-total'} = 1;
 				$show{'graphic'} = 1;
+				$show{'graphic-basic'} = 1;
 				$show{'info'} = 1;
 				$show{'system'} = 1;
 			}
@@ -4478,6 +4482,7 @@ sub get_options{
 			error_handler('bad-arg', '--output', '--output-file not provided');
 		}
 	}
+	$show{'graphic-basic'} = 0 if $b_admin;
 	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
 	$b_sudo = 1 if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
@@ -10150,18 +10155,32 @@ sub display_data(){
 			}
 		}
 		if ($graphics{'screens'}){
+			my @resolutions;
+			my $b_alert;
 			foreach (@{$graphics{'screens'}}){
 				my %main = %$_;
-				if ( ($b_admin || scalar @{$graphics{'screens'}} > 1) && defined $main{'screen'} ){
+				if ($main{'alert'}){
+					$row[0]{main::key($num++,'resolution')} = $main{'alert'};
+					$b_alert = 1;
+					last;
+				}
+				if ( !$show{'graphic-basic'} && ($b_admin || scalar @{$graphics{'screens'}} > 1) && defined $main{'screen'} ){
 					$row[0]{main::key($num++,'Screen')} = $main{'screen'};
 				}
 				if ($main{'monitors'}){
 					foreach my $ref2 (@{$main{'monitors'}}){
 						my %monitor = %$ref2;
+						if ($show{'graphic-basic'}){
+							$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} : 'N/A';
+							$resolution .= '~' . $monitor{'dpi'} . 'dpi' if $extra > 1 && $monitor{'dpi'};
+							$resolution .= '~' . $monitor{'hz'} . 'Hz' if $monitor{'hz'};
+							push @resolutions, $resolution;
+							next;
+						}
 						if ($extra > 0 || scalar @{$main{'monitors'}} > 1 ){
 							$row[0]{main::key($num++,'Monitor')} = $monitor{'monitor'};
 						}
-						$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} . 'px' : 'N/A';
+						$resolution = ($monitor{'res-x'} && $monitor{'res-y'}) ? $monitor{'res-x'} . 'x' . $monitor{'res-y'} : 'N/A';
 						$row[0]{main::key($num++,'res')} = $resolution;
 						my $hz = ($monitor{'hz'}) ? $monitor{'hz'} : '';
 						$row[0]{main::key($num++,'hz')} = $hz if $hz;
@@ -10178,7 +10197,14 @@ sub display_data(){
 					}
 				}
 				else {
-					$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} . 'px' : 'N/A';
+					if ($show{'graphic-basic'}){
+						$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} : 'N/A';
+						$resolution .= '~' . $main{'dpi'} . 'dpi' if $extra > 1 && $main{'dpi'};
+						$resolution .= '~' . $main{'hz'} . 'Hz' if $main{'hz'};
+						push @resolutions, $resolution;
+						next;
+					}
+					$resolution = ($main{'res-x'} && $main{'res-y'}) ? $main{'res-x'} . 'x' . $main{'res-y'} : 'N/A';
 					$row[0]{main::key($num++,'res')} = $resolution;
 					my $hz = ($main{'hz'}) ? $main{'hz'} : '';
 					$row[0]{main::key($num++,'hz')} = $hz if $hz;
@@ -10194,10 +10220,11 @@ sub display_data(){
 					}
 				}
 			}
+			if (!$b_alert && $show{'graphic-basic'}){
+				$resolution = ( @resolutions) ? join(', ', @resolutions) : 'N/A';
+				$row[0]{main::key($num++,'resolution')} = $resolution;
+			}
 		}
-# 		if ($resolution){
-# 			$row[0]{main::key($num++,'resolution')} = $resolution;
-# 		}
 		else {
 			$graphics{'tty'} ||= 'N/A';
 			$row[0]{main::key($num++,'tty')} = $graphics{'tty'};
@@ -10285,13 +10312,6 @@ sub x_display_data {
 				'diagonal' => $diagonal,
 				'diagonal-m' => $diagonal_m,
 				};
-# 				if ($graphics{'screens'}){
-# 					$graphics{'screens'} = ([@{$graphics{'screens'}},\%screen]);
-# 				}
-# 				else {
-# 					$graphics{'screens'} = ([\%screen]);
-# 				}
-				# $graphics{'screens'}[$screen_id] = ([\%screen]);
 				push @{$graphics{'screens'}}, $screen;
 			}
 		}
@@ -10348,12 +10368,6 @@ sub x_display_data {
 					# case where 0 is 'preferred, sigh.
 					$working[0] = ($working[0] !~ /[0-9]\s*x\s*[0-9]/ && $resolution) ? $resolution : $working[0];
 					my $screen = "$working[0]$dpi~$working[1]$screen_size$diagonal";
-# 					if ($graphics{'screens'}){
-# 						$graphics{'screens'} = ([@{$graphics{'screens'}},$screen]);
-# 					}
-# 					else {
-# 						$graphics{'screens'} = ([$screen]);
-# 					}
 					($diagonal,$dpi,$resolution,$screen_size) = ('','','','');
 					# print Data::Dumper::Dumper \@monitors;
 				}
@@ -10379,11 +10393,12 @@ sub x_display_data {
 				$graphics{'tty'} = tty_data();
 			}
 		}
-		#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
+		
 	}
 	else {
-		$graphics{'screens'} = ([main::row_defaults('xdpyinfo-missing')]);
+		$graphics{'screens'} = ([{'alert' => main::row_defaults('xdpyinfo-missing')}]);
 	}
+	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
 	eval $end if $b_log;
 }
 sub set_compositor {
