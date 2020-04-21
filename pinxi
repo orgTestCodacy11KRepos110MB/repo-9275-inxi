@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-21';
-my $self_patch='36';
+my $self_patch='37';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4565,7 +4565,8 @@ sub show_options {
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
 	USB drive specifics; SMART report." ],
 	['2', '-G', '', "If available: display ID; X screens total; X default screen;
-	X Screen; per monitor (or screen): resolution; hz; dpi; size; screen diagonal." ],
+	X Screen; per monitor (or screen): resolution; hz; dpi; x-dpi; size; 
+	monitor diagonal. See man." ],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not." ],
 	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
@@ -4742,7 +4743,8 @@ sub show_options {
 	['2', '-G', '', "Chip vendor:product ID for each video card; OpenGL 
 	compatibility version, if free drivers and available; Xorg compositor;
 	alternate Xorg drivers (if available). Alternate means driver is on automatic 
-	driver check list of Xorg for the card vendor, but is not installed on system." ],
+	driver check list of Xorg for the card vendor, but is not installed on system;
+	Xorg dpi." ],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found)." ],
@@ -10164,8 +10166,8 @@ sub display_data(){
 			}
 		}
 		if ($b_admin ){
-			if ($graphics{'x-display-name'}){
-				$row[0]{main::key($num++,'display name')} = $graphics{'x-display-name'};
+			if ($graphics{'x-display-id'}){
+				$row[0]{main::key($num++,'display ID')} = $graphics{'x-display-id'};
 			}
 			if (defined $graphics{'x-screens'}){
 				$row[0]{main::key($num++,'screens')} = $graphics{'x-screens'};
@@ -10183,6 +10185,7 @@ sub display_data(){
 			my $s_count = ($graphics{'screens'}) ? scalar @{$graphics{'screens'}}:  0;
 			foreach (@{$graphics{'screens'}}){
 				my %main = %$_;
+				($diag,$dpi,$hz,$resolution,$size) = (undef);
 				if ( !$show{'graphic-basic'} && ($b_admin || $s_count > 1) && defined $main{'screen'} ){
 					$row[0]{main::key($num++,'Screen')} = $main{'screen'};
 				}
@@ -10203,16 +10206,14 @@ sub display_data(){
 							$resolution ||= 'N/A';
 							if ($s_count == 1 && $m_count == 1){
 								$row[0]{main::key($num++,'resolution')} = $resolution;
-								$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
-								$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 							}
 							else {
 								$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
 								$row[0]{main::key($num++,$basic_count)} = $resolution;
-								$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
-								if ($m_count == $basic_count){
-									$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
-								}
+							}
+							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+							if ($m_count == $basic_count){
+								$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 							}
 							next;
 						}
@@ -10256,14 +10257,14 @@ sub display_data(){
 						$resolution ||= 'N/A';
 						if ($s_count == 1){
 							$row[0]{main::key($num++,'resolution')} = $resolution;
-							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
-							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 						}
 						else {
 							$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
 							$row[0]{main::key($num++,$basic_count)} = $resolution;
-							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
-							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi && $s_count == $basic_count;
+						}
+						$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+						if ($s_count == $basic_count){
+							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 						}
 						next;
 					}
@@ -10327,7 +10328,7 @@ sub x_display_data {
 				$graphics{'x-vendor'} = $working[1];
 			}
 			elsif ($working[0] eq 'name of display'){
-				$graphics{'x-display-name'} = $working[1];
+				$graphics{'x-display-id'} = $working[1];
 			}
 			elsif ($working[0] eq 'version number'){
 				$graphics{'x-version-id'} = $working[1];
@@ -10351,7 +10352,7 @@ sub x_display_data {
 				$graphics{'screens'} = () if !$graphics{'screens'};
 			}
 			elsif ($working[0] eq 'resolution'){
-				$working[1] =~ s/^\s*([0-9]+)x/$1/;
+				$working[1] =~ s/^([0-9]+)x/$1/;
 				$graphics{'x-dpi'} = $working[1];
 			}
 			elsif ($working[0] eq 'dimensions'){
