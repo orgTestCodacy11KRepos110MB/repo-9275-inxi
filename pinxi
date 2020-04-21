@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-21';
-my $self_patch='35';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10191,22 +10191,28 @@ sub display_data(){
 					#print $basic_count . '::' . $m_count, "\n";
 					foreach my $ref2 (@{$main{'monitors'}}){
 						my %monitor = %$ref2;
+						($diag,$dpi,$hz,$resolution,$size) = (undef);
 						if ($show{'graphic-basic'}){
 							$basic_count++;
 							if ($monitor{'res-x'} && $monitor{'res-y'}){
 								$resolution = $monitor{'res-x'} . 'x' . $monitor{'res-y'};
-								$resolution .= ' ' . $monitor{'dpi'} . 'dpi' if $extra > 1 && $monitor{'dpi'};
-								$resolution .= ' ' . $monitor{'hz'} . 'Hz' if $monitor{'hz'};
+								$hz = $monitor{'hz'} if $monitor{'hz'};
 							}
-							else {
-								$resolution = 'N/A'
-							}
+							# using main, noit monitor, dpi because we want xorg dpi, not physical screen dpi
+							$dpi = $main{'x-dpi'} if $resolution && $extra > 1 && $main{'x-dpi'};
+							$resolution ||= 'N/A';
 							if ($s_count == 1 && $m_count == 1){
 								$row[0]{main::key($num++,'resolution')} = $resolution;
+								$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+								$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 							}
 							else {
 								$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
 								$row[0]{main::key($num++,$basic_count)} = $resolution;
+								$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+								if ($m_count == $basic_count){
+									$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
+								}
 							}
 							next;
 						}
@@ -10222,19 +10228,21 @@ sub display_data(){
 						$row[0]{main::key($num++,'hz')} = $hz if $hz;
 						$dpi = ($monitor{'dpi'}) ? $monitor{'dpi'} : '';
 						$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
-						if ($extra > 2){
-							if ($monitor{'size-x'} && $monitor{'size-y'}){
-								$size =  $monitor{'size-x'} . 'x' . $monitor{'size-y'} .
-								'mm ('. $monitor{'size-x-i'} . 'x' . $monitor{'size-y-i'} . '")';
-							}
-							$size ||= '';
-							$row[0]{main::key($num++,'size')} = $size if $size;
-							if ($monitor{'diagonal'}){
-								$diag = $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")';
-							}
-							$diag ||= '';
-							$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
+						#print "$dpi :: $main{'x-dpi'}\n";
+						if ($dpi && $main{'x-dpi'} && $dpi != $main{'x-dpi'}){
+							$row[0]{main::key($num++,'x-dpi')} = $main{'x-dpi'};
 						}
+						if ($monitor{'size-x'} && $monitor{'size-y'}){
+							$size =  $monitor{'size-x'} . 'x' . $monitor{'size-y'} .
+							'mm ('. $monitor{'size-x-i'} . 'x' . $monitor{'size-y-i'} . '")';
+						}
+						$size ||= '';
+						$row[0]{main::key($num++,'size')} = $size if $size;
+						if ($monitor{'diagonal'}){
+							$diag = $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")';
+						}
+						$diag ||= '';
+						$row[0]{main::key($num++,'diag')} = $diag if $diag;
 					}
 				}
 				else {
@@ -10242,18 +10250,20 @@ sub display_data(){
 						$basic_count++;
 						if ($main{'res-x'} && $main{'res-y'}){
 							$resolution = $main{'res-x'} . 'x' . $main{'res-y'};
-							$resolution .= ' ' . $main{'dpi'} . 'dpi' if $extra > 1 && $main{'dpi'};
-							$resolution .= ' ' . $main{'hz'} . 'Hz' if $main{'hz'};
+							$hz = $main{'hz'} if $main{'hz'};
 						}
-						else {
-							$resolution = 'N/A'
-						}
+						$dpi = $main{'x-dpi'} if !$dpi && $resolution && $extra > 1 && $main{'x-dpi'};
+						$resolution ||= 'N/A';
 						if ($s_count == 1){
 							$row[0]{main::key($num++,'resolution')} = $resolution;
+							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 						}
 						else {
 							$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
 							$row[0]{main::key($num++,$basic_count)} = $resolution;
+							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
+							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi && $s_count == $basic_count;
 						}
 						next;
 					}
@@ -10264,8 +10274,8 @@ sub display_data(){
 					$row[0]{main::key($num++,'res')} = $resolution;
 					$hz = ($main{'hz'}) ? $main{'hz'} : '';
 					$row[0]{main::key($num++,'hz')} = $hz if $hz;
-					$dpi = ($main{'dpi'}) ? $main{'dpi'} : '';
-					$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
+					$dpi = ($main{'x-dpi'}) ? $main{'x-dpi'} : '';
+					$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
 					if ($main{'size-x'} && $main{'size-y'}){
 						$size = $main{'size-x'} . 'x' . $main{'size-y'} . 
 						'mm ('. $main{'size-x-i'} . 'x' . $main{'size-y-i'} . '")';
@@ -10276,7 +10286,7 @@ sub display_data(){
 						$diag = $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")';
 					}
 					$diag ||= '';
-					$row[0]{main::key($num++,'diagonal')} = $diag if $diag;
+					$row[0]{main::key($num++,'diag')} = $diag if $diag;
 				}
 			}
 		}
@@ -10335,9 +10345,14 @@ sub x_display_data {
 			elsif ($working[0] eq 'number of screens'){
 				$graphics{'x-screens'} = $working[1];
 			}
+			
 			elsif  ($working[0] =~ /^screen #([0-9]+):/){
 				$screen_id = $1;
 				$graphics{'screens'} = () if !$graphics{'screens'};
+			}
+			elsif ($working[0] eq 'resolution'){
+				$working[1] =~ s/^\s*([0-9]+)x/$1/;
+				$graphics{'x-dpi'} = $working[1];
 			}
 			elsif ($working[0] eq 'dimensions'){
 				($dpi,$res_x,$res_y,$size_x,$size_y) = (undef,undef,undef,undef,undef);
@@ -10352,6 +10367,7 @@ sub x_display_data {
 					$size_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", ($res_x*25.4/$size_x)) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal += 0 if $diagonal;# trick to get rid of decimal 0
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 				}
 				$screen = {
@@ -10364,7 +10380,7 @@ sub x_display_data {
 				'size-x-i' => $size_x_i,
 				'size-y' => $size_y,
 				'size-y-i' => $size_y_i,
-				'dpi' => $dpi,
+				'x-dpi' => $dpi,
 				'diagonal' => $diagonal,
 				'diagonal-m' => $diagonal_m,
 				};
@@ -10399,6 +10415,7 @@ sub x_display_data {
 					$size_y_i = ($8) ? sprintf("%.1f", ($8/25.4)) : 0;
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4 )) : '';
+					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 					$monitor = {
 					'screen' => $screen_id,
