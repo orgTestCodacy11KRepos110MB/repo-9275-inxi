@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.0.38';
 my $self_date='2020-04-21';
-my $self_patch='37';
+my $self_patch='38';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4564,9 +4564,9 @@ sub show_options {
 	hex (decimal) if greater than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
 	USB drive specifics; SMART report." ],
-	['2', '-G', '', "If available: display ID; X screens total; X default screen;
-	X Screen; per monitor (or screen): resolution; hz; dpi; x-dpi; size; 
-	monitor diagonal. See man." ],
+	['2', '-G', '', "If available: Display ID; X Screens total; X default Screen;
+	X Screen; per monitor (or Screen): resolution; hz; dpi; X dpi; size; X size; 
+	monitor diagonal; X diagonal. See man." ],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not." ],
 	['2', '-p,-P', '', "If available: raw size of partition, percent available for user, 
@@ -10180,17 +10180,48 @@ sub display_data(){
 			$row[0]{main::key($num++,'resolution')} = $graphics{'no-xdpyinfo'};
 		}
 		elsif ($graphics{'screens'}){
-			my ($diag,$dpi,$hz,$key1,$size);
-			my ($m_count,$basic_count) = (0,0);
+			my ($diag,$dpi,$hz,$size);
+			my ($m_count,$basic_count,$row_key,$screen_count) = (0,0,0,0);
 			my $s_count = ($graphics{'screens'}) ? scalar @{$graphics{'screens'}}:  0;
 			foreach (@{$graphics{'screens'}}){
 				my %main = %$_;
+				$m_count = scalar @{$main{'monitors'}} if $main{'monitors'};
+				$screen_count++;
 				($diag,$dpi,$hz,$resolution,$size) = (undef);
-				if ( !$show{'graphic-basic'} && ($b_admin || $s_count > 1) && defined $main{'screen'} ){
-					$row[0]{main::key($num++,'Screen')} = $main{'screen'};
+				$row_key = $screen_count if !$show{'graphic-basic'};
+				if ( !$show{'graphic-basic'} || $m_count == 0 ){
+					if ( !$show{'graphic-basic'} && defined $main{'screen'} ){
+						$row[$row_key]{main::key($num++,'Screen')} = $main{'screen'};
+					}
+					$resolution = $main{'res-x'} . 'x' . $main{'res-y'} if $main{'res-x'} && $main{'res-y'};
+					$resolution .= '~' . $main{'hz'} . 'Hz' if $show{'graphic-basic'} && $main{'hz'} && $resolution;
+					$resolution ||= 'N/A';
+					if ($s_count == 1 || !$show{'graphic-basic'}){
+						$row[$row_key]{main::key($num++,'s-res')} = $resolution;
+					}
+					elsif ($show{'graphic-basic'}) {
+						$row[$row_key]{main::key($num++,'s-res')} = '' if $screen_count == 1;
+						$row[$row_key]{main::key($num++,$screen_count)} = $resolution;
+					}
+					$resolution = '';
+					if ($main{'s-dpi'} && (!$show{'graphic-basic'} || $extra > 1)){
+						$row[$row_key]{main::key($num++,'s-dpi')} = $main{'s-dpi'};
+					}
+					if ( !$show{'graphic-basic'} ){
+						if ($main{'size-x'} && $main{'size-y'}){
+							$size = $main{'size-x'} . 'x' . $main{'size-y'} . 
+							'mm ('. $main{'size-x-i'} . 'x' . $main{'size-y-i'} . '")';
+						}
+						$size ||= '';
+						$row[$row_key]{main::key($num++,'s-size')} = $size if $size;
+						if ($main{'diagonal'}){
+							$diag = $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")';
+						}
+						$diag ||= '';
+						$row[$row_key]{main::key($num++,'s-diag')} = $diag if $diag;
+					}
 				}
 				if ($main{'monitors'}){
-					my $m_count = scalar @{$main{'monitors'}};
 					#print $basic_count . '::' . $m_count, "\n";
 					foreach my $ref2 (@{$main{'monitors'}}){
 						my %monitor = %$ref2;
@@ -10199,95 +10230,46 @@ sub display_data(){
 							$basic_count++;
 							if ($monitor{'res-x'} && $monitor{'res-y'}){
 								$resolution = $monitor{'res-x'} . 'x' . $monitor{'res-y'};
-								$hz = $monitor{'hz'} if $monitor{'hz'};
 							}
 							# using main, noit monitor, dpi because we want xorg dpi, not physical screen dpi
-							$dpi = $main{'x-dpi'} if $resolution && $extra > 1 && $main{'x-dpi'};
+							$dpi = $main{'s-dpi'} if $resolution && $extra > 1 && $main{'s-dpi'};
+							$resolution .= '~' . $monitor{'hz'} . 'Hz' if $monitor{'hz'} && $resolution;
 							$resolution ||= 'N/A';
-							if ($s_count == 1 && $m_count == 1){
-								$row[0]{main::key($num++,'resolution')} = $resolution;
+							if ($basic_count == 1 && $m_count == 1){
+								$row[$row_key]{main::key($num++,'resolution')} = $resolution;
 							}
 							else {
-								$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
-								$row[0]{main::key($num++,$basic_count)} = $resolution;
+								$row[$row_key]{main::key($num++,'resolution')} = '' if $basic_count == 1;
+								$row[$row_key]{main::key($num++,$basic_count)} = $resolution;
 							}
-							$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
 							if ($m_count == $basic_count){
-								$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
+								$row[$row_key]{main::key($num++,'s-dpi')} = $dpi if $dpi;
 							}
 							next;
 						}
-						if ($m_count > 1 ){
-							$row[0]{main::key($num++,'monitor')} = $monitor{'monitor'};
-						}
+						$row[$row_key]{main::key($num++,'Monitor')} = $monitor{'monitor'};
 						if ($monitor{'res-x'} && $monitor{'res-y'}){
 							$resolution = $monitor{'res-x'} . 'x' . $monitor{'res-y'};
 						}
 						$resolution ||= 'N/A';
-						$row[0]{main::key($num++,'res')} = $resolution;
+						$row[$row_key]{main::key($num++,'res')} = $resolution;
 						$hz = ($monitor{'hz'}) ? $monitor{'hz'} : '';
-						$row[0]{main::key($num++,'hz')} = $hz if $hz;
+						$row[$row_key]{main::key($num++,'hz')} = $hz if $hz;
 						$dpi = ($monitor{'dpi'}) ? $monitor{'dpi'} : '';
-						$row[0]{main::key($num++,'dpi')} = $dpi if $dpi;
-						#print "$dpi :: $main{'x-dpi'}\n";
-						if ($dpi && $main{'x-dpi'} && $dpi != $main{'x-dpi'}){
-							$row[0]{main::key($num++,'x-dpi')} = $main{'x-dpi'};
-						}
+						$row[$row_key]{main::key($num++,'dpi')} = $dpi if $dpi;
+						#print "$dpi :: $main{'s-dpi'}\n";
 						if ($monitor{'size-x'} && $monitor{'size-y'}){
 							$size =  $monitor{'size-x'} . 'x' . $monitor{'size-y'} .
 							'mm ('. $monitor{'size-x-i'} . 'x' . $monitor{'size-y-i'} . '")';
 						}
 						$size ||= '';
-						$row[0]{main::key($num++,'size')} = $size if $size;
+						$row[$row_key]{main::key($num++,'size')} = $size if $size;
 						if ($monitor{'diagonal'}){
 							$diag = $monitor{'diagonal-m'} . 'mm ('. $monitor{'diagonal'} . '")';
 						}
 						$diag ||= '';
-						$row[0]{main::key($num++,'diag')} = $diag if $diag;
+						$row[$row_key]{main::key($num++,'diag')} = $diag if $diag;
 					}
-				}
-				else {
-					if ($show{'graphic-basic'}){
-						$basic_count++;
-						if ($main{'res-x'} && $main{'res-y'}){
-							$resolution = $main{'res-x'} . 'x' . $main{'res-y'};
-							$hz = $main{'hz'} if $main{'hz'};
-						}
-						$dpi = $main{'x-dpi'} if !$dpi && $resolution && $extra > 1 && $main{'x-dpi'};
-						$resolution ||= 'N/A';
-						if ($s_count == 1){
-							$row[0]{main::key($num++,'resolution')} = $resolution;
-						}
-						else {
-							$row[0]{main::key($num++,'resolution')} = '' if $basic_count == 1;
-							$row[0]{main::key($num++,$basic_count)} = $resolution;
-						}
-						$row[0]{main::key($num++,'hz')} = $hz if $hz && $resolution ne 'N/A';
-						if ($s_count == $basic_count){
-							$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
-						}
-						next;
-					}
-					if ($main{'res-x'} && $main{'res-y'}){
-						$resolution =  $main{'res-x'} . 'x' . $main{'res-y'};
-					}
-					$resolution ||= 'N/A';
-					$row[0]{main::key($num++,'res')} = $resolution;
-					$hz = ($main{'hz'}) ? $main{'hz'} : '';
-					$row[0]{main::key($num++,'hz')} = $hz if $hz;
-					$dpi = ($main{'x-dpi'}) ? $main{'x-dpi'} : '';
-					$row[0]{main::key($num++,'x-dpi')} = $dpi if $dpi;
-					if ($main{'size-x'} && $main{'size-y'}){
-						$size = $main{'size-x'} . 'x' . $main{'size-y'} . 
-						'mm ('. $main{'size-x-i'} . 'x' . $main{'size-y-i'} . '")';
-					}
-					$size ||= '';
-					$row[0]{main::key($num++,'x-size')} = $size if $size;
-					if ($main{'diagonal'}){
-						$diag = $main{'diagonal-m'} . 'mm ('. $main{'diagonal'} . '")';
-					}
-					$diag ||= '';
-					$row[0]{main::key($num++,'x-diag')} = $diag if $diag;
 				}
 			}
 		}
@@ -10346,14 +10328,13 @@ sub x_display_data {
 			elsif ($working[0] eq 'number of screens'){
 				$graphics{'x-screens'} = $working[1];
 			}
-			
 			elsif  ($working[0] =~ /^screen #([0-9]+):/){
 				$screen_id = $1;
 				$graphics{'screens'} = () if !$graphics{'screens'};
 			}
 			elsif ($working[0] eq 'resolution'){
 				$working[1] =~ s/^([0-9]+)x/$1/;
-				$graphics{'x-dpi'} = $working[1];
+				$graphics{'s-dpi'} = $working[1];
 			}
 			elsif ($working[0] eq 'dimensions'){
 				($dpi,$res_x,$res_y,$size_x,$size_y) = (undef,undef,undef,undef,undef);
@@ -10381,7 +10362,7 @@ sub x_display_data {
 				'size-x-i' => $size_x_i,
 				'size-y' => $size_y,
 				'size-y-i' => $size_y_i,
-				'x-dpi' => $dpi,
+				's-dpi' => $dpi,
 				'diagonal' => $diagonal,
 				'diagonal-m' => $diagonal_m,
 				};
