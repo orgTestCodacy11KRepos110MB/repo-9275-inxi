@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.00';
-my $self_date='2020-05-16';
-my $self_patch='04';
+my $self_date='2020-05-27';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4749,7 +4749,7 @@ sub show_options {
 	or line output, not short form):" ],
 	['2', '-A', '', "Chip vendor:product ID for each audio device." ],
 	['2', '-B', '', "Serial number, voltage now/minimum (if available)." ],
-	['2', '-C', '', "L1/L3 cache (if root and dmidecode installed)." ],
+	['2', '-C', '', "L1/L3 cache, CPU socket type (if root and dmidecode installed)." ],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number." ],
 	['2', '-G', '', "Chip vendor:product ID for each video card; OpenGL 
 	compatibility version, if free drivers and available; Xorg compositor;
@@ -4783,7 +4783,8 @@ sub show_options {
 	with verbose or line output, not short form):" ],
 	['2', '-A', '', "Serial number." ],
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
-	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present." ],
+	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present; 
+	CPU DMI current/max speeds (if root and dmidecode installed)." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
 	rotation speed (if detected)." ],
 	['2', '-G', '', "Xorg Compositor version (if detectable)." ],
@@ -6808,6 +6809,9 @@ sub create_output_full {
 			$rows[$j]{main::key($num++,'variant'.$counter)} = $key;
 		}
 	}
+	if ($extra > 1 && $properties{'socket'}){
+		$rows[$j]{main::key($num++,'socket')} = $properties{'socket'};
+	}
 	$properties{'bits-sys'} ||= 'N/A';
 	$rows[$j]{main::key($num++,'bits')} = $properties{'bits-sys'};
 	if ($type){
@@ -6837,6 +6841,7 @@ sub create_output_full {
 	if ($extra > 1 && $properties{'l3-cache'}){
 		$rows[$j]{main::key($num++,'L3 cache')} = $properties{'l3-cache'};
 	}
+	
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split /\s+/, $cpu{'flags'} if $cpu{'flags'};
@@ -6887,9 +6892,18 @@ sub create_output_full {
 	main::key($num++,$min_max_key) => $min_max,
 	});
 	@rows = (@rows,@data);
+	if ($b_admin && $properties{'dmi-speed'} && $properties{'dmi-max-speed'}){
+		$rows[$j]{main::key($num++,'dmi current/max')} = $properties{'dmi-speed'} . '/' . $properties{'dmi-max-speed'};
+	}
 	if ($extra > 2){
 		my $boost = get_boost_status();
 		$rows[$j]{main::key($num++,'boost')} = $boost if $boost;
+		if ($properties{'volts'}){
+			$rows[$j]{main::key($num++,'volts')} = $properties{'volts'} . ' V';
+		}
+		if ($properties{'ext-clock'}){
+			$rows[$j]{main::key($num++,'ext-clock')} = $properties{'ext-clock'};
+		}
 	}
 	$rows[$j]{main::key($num++,$core_key)} = $core_speeds_value;
 	my $i = 1;
@@ -7502,6 +7516,7 @@ sub cpu_properties {
 	#print Data::Dumper::Dumper \@processors;
 	# $cpu_cores is per physical cpu
 	my ($cpu_layout,$cpu_type,$min_max,$min_max_key) = ('','','','');
+	my ($dmi_max_speed,$ext_clock,$socket,$dmi_speed,$volts) = (undef);
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	if ($b_elbrus && $processors_count){
@@ -7515,12 +7530,17 @@ sub cpu_properties {
 	if ($extra > 1){
 		# note: dmidecode has one entry per cpu per cache type, so this already 
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
-		my %caches = cpu_cache_dmi();
-		$l1_cache = $caches{'L1'} if $caches{'L1'};
-		$l3_cache = $caches{'L3'} if $caches{'L3'};
+		my %cpu_dmi = cpu_dmi_data();
+		$l1_cache = $cpu_dmi{'L1'} if $cpu_dmi{'L1'};
+		$l3_cache = $cpu_dmi{'L3'} if $cpu_dmi{'L3'};
 		# bsd sysctl can have these values so let's check just in case
 		$l1_cache = $cpu{'l1-cache'} * $phyical_count if !$l1_cache && $cpu{'l1-cache'};
 		$l3_cache = $cpu{'l3-cache'} * $phyical_count if !$l3_cache && $cpu{'l3-cache'};
+		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
+		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
+		$dmi_speed = $cpu_dmi{'speed'} if $cpu_dmi{'speed'};
+		$ext_clock = $cpu_dmi{'ext-clock'} if $cpu_dmi{'ext-clock'};
+		$volts = $cpu_dmi{'volts'} if $cpu_dmi{'volts'};
 	}
 	foreach my $die_ref ( @phys ){
 		next if ! $die_ref;
@@ -7737,10 +7757,15 @@ sub cpu_properties {
 	'bits-sys' => $bits_sys,
 	'cpu-layout' => $cpu_layout,
 	'cpu-type' => $cpu_type,
+	'dmi-max-speed' => $dmi_max_speed,
+	'dmi-speed' => $dmi_speed,
+	'ext-clock' => $ext_clock,
 	'min-max-key' => $min_max_key,
 	'min-max' => $min_max,
+	'socket' => $socket,
 	'speed-key' => $speed_key,
 	'speed' => $speed,
+	'volts' => $volts,
 	'l1-cache' => $l1_cache,
 	'l2-cache' => $l2_cache,
 	'l3-cache' => $l3_cache,
@@ -7753,41 +7778,74 @@ sub cpu_properties {
 	eval $end if $b_log;
 	return %cpu_properties;
 }
-sub cpu_cache_dmi {
+sub cpu_dmi_data {
 	eval $start if $b_log;
 	return if !@dmi;
-	my %caches = ('L1' => 0, 'L2' => 0,'L3' => 0);
+	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'ext-clock' => undef, 'socket' => undef, 
+	'speed' => undef, 'max-speed' => undef, 'volts' => undef);
 	my ($id,$amount);
 	foreach my $ref (@dmi){
 		next if ref $ref ne 'ARRAY';
 		my @item = @$ref;
-		next if $item[0] != 7;
+		next if ($item[0] < 4 || $item[0] == 5);
 		last if $item[0] > 7;
-		# skip first three row, we don't need that data
-		splice @item, 0, 3;
-		($id,$amount) = ('',0);
-		foreach my $value (@item){
-			# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
-			if ($value =~ /^Socket Designation:.* (L[1-3])\b/){
-				$id = $1;
+		
+		if ($item[0] == 7){
+			# skip first three row, we don't need that data
+			splice @item, 0, 3;
+			($id,$amount) = ('',0);
+			foreach my $value (@item){
+				next if $value =~ /~/;
+				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
+				if ($value =~ /^Socket Designation:.* (L[1-3])\b/){
+					$id = $1;
+				}
+				# some cpus only show Socket Designation: Internal cache
+				elsif (!$id && $value =~ /^Configuration:.* Level.*([1-3])\b/){
+					$id = "L$1";
+				}
+				elsif ($id && $value =~ /^Installed Size:\s+(.*B)$/){
+					$amount = main::translate_size($1);
+				}
+				if ($id && $amount){
+					$dmi_data{$id} += $amount;
+					last;
+				}
 			}
-			# some cpus only show Socket Designation: Internal cache
-			elsif (!$id && $value =~ /^Configuration:.* Level.*([1-3])\b/){
-				$id = "L$1";
-			}
-			elsif ($id && $value =~ /^Installed Size:\s+(.*B)$/){
-				$amount = main::translate_size($1);
-			}
-			if ($id && $amount){
-				$caches{$id} += $amount;
-				last;
+		}
+		# note: for multi cpu systems, we're hoping that these values are
+		# the same for each cpu, which in most pc situations they will be,
+		# and ARM etc won't be using dmi data here anyway.
+		elsif ($item[0] == 4){
+			# skip first three row, we don't need that data
+			splice @item, 0, 3;
+			foreach my $value (@item){
+				next if $value =~ /~/;
+				if ($value =~ /^Socket Designation: (Socket\s*)?(.*)\b/){
+					$dmi_data{'socket'} = $2;
+				}
+				elsif ($value =~ /^Voltage: ([0-9\.]+)\s*(V|Volts)?\b/){
+					$dmi_data{'volts'} = $1;
+				}
+				elsif ($value =~ /^Current Speed: ([0-9\.]+)\s*([MGK]Hz)?\b/){
+					$dmi_data{'speed'} = $1;
+				}
+				elsif ($value =~ /^Max Speed: ([0-9\.]+)\s*([MGK]Hz)?\b/){
+					$dmi_data{'max-speed'} = $1;
+				}
+				elsif ($value =~ /^Max Speed: ([0-9\.]+)\s*([MGK]Hz)?\b/){
+					$dmi_data{'max-speed'} = $1;
+				}
+				elsif ($value =~ /^External Clock: ([0-9\.]+\s*[MGK]Hz)\b/){
+					$dmi_data{'ext-clock'} = $1;
+				}
 			}
 		}
 	}
-	main::log_data('dump','%caches',\%caches) if $b_log;
-	#print Data::Dumper::Dumper \%caches;
+	main::log_data('dump','%dmi_data',\%dmi_data) if $b_log;
+	# print Data::Dumper::Dumper \%dmi_data;
 	eval $end if $b_log;
-	return %caches;
+	return %dmi_data;
 }
 sub cpu_bugs_sys {
 	eval $start if $b_log;
