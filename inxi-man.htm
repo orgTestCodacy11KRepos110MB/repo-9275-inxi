@@ -36,8 +36,8 @@
 <h1>inxi man page</h1>
 
 <pre>
-Page Updated: 2020-04-22
-inxi version: 3.1.00
+Page Updated: 2020-05-31
+inxi version: 3.1.01
 </pre>
 
 <p>The following are the supported options of inxi. If your version of inxi is missing any of
@@ -113,7 +113,7 @@ Letters with numbers can have no gap or a gap at your discretion, except when
   can use those separately as well.
 <div class="Pp"></div>
 For example: <b>inxi -AG</b> | <b>inxi -A -G</b> | <b>inxi -b</b> | <b>inxi
-  -c10</b> | <b>inxi -FxxzJy80</b>
+  -c10</b> | <b>inxi -FxxzJy90</b> | <b>inxi -bay</b>
 <div class="Pp"></div>
 Note that all the short form options have long form equivalents, which are
   listed below. However, usually the short form is used in examples in order to
@@ -244,6 +244,10 @@ Note that all the short form options have long form equivalents, which are
     * <b>SMP</b> - Symmetric Multi Processing (more than 1 physical CPU).
     <div class="Pp"></div>
     * <b>UP</b> - Uni (single core) Processor.
+    <div class="Pp"></div>
+    Note that <b>min/max:</b> speeds are not necessarily true in cases of
+      overclocked CPUs or CPUs in turbo/boost mode. See <b>-Ca</b> for alternate
+      <b>base/boost:</b> speed data.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -830,11 +834,12 @@ Note that all the short form options have long form equivalents, which are
   </dd>
 </dl>
 <dl class="Bl-tag">
-  <dt><b>-y,<b> --width &lt;integer&gt;</b></b></dt>
+  <dt><b>-y,<b> --width [integer]</b></b></dt>
   <dd>This is an absolute width override which sets the output line width max.
       Overrides <b>COLS_MAX_IRC</b> / <b>COLS_MAX_CONSOLE</b> globals, or the
       actual widths of the terminal. <b>80</b> is the minimum width supported.
-      <b>-1</b> removes width limits. Example: <b>inxi -Fxx&#x00A0;-y 130</b>
+      <b>-1</b> removes width limits. If no value is given, it will set width to
+      80. Examples: <b>inxi -Fxx&#x00A0;-y 130</b> or <b>inxi -Fxxy</b>
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1245,6 +1250,9 @@ The following details show which lines / items display extra information for
   <dd>- Adds <b>boost: [enabled|disabled]</b> if detected, aka <b>turbo</b>. Not
       all CPUs have this feature.
     <div class="Pp"></div>
+    - Adds CPU voltage and external clock speed (this is the motherboard speed).
+      Requires sudo/root and <b>dmidecode</b>.
+    <div class="Pp"></div>
   </dd>
 </dl>
 <dl class="Bl-tag">
@@ -1359,6 +1367,50 @@ The <b>--admin</b> option sets <b>-xxx</b>, and only has to be used once. It
       otherwise <b>hexadecimal</b>.
     <div class="Pp"></div>
     - Adds CPU microcode. Format is <b>hexadecimal</b>.
+    <div class="Pp"></div>
+    - Adds socket type (for motherboard CPU socket, if available). If results
+      doubtful will list two socket types and <b>note: check</b>. Requires
+      sudo/root and <b>dmidecode</b>. The item in parentheses may simply be a
+      different syntax for the same socket, but in general, check this before
+      trusting it.
+    <pre>
+Sample:  <b>socket: 775 (478) note: check</b>
+Sample:  <b>socket: AM4</b>
+    </pre>
+    <div class="Pp"></div>
+    - Adds DMI CPU base and boost/turbo speeds. Requires sudo/root and
+      <b>dmidecode</b>. In some cases, like with overclocking or 'turbo' or
+      'boost' modes, voltage and external clock speeds may be increased, or
+      short term limits raised on max CPU speeds. These are often not reflected
+      in /sys based CPU <b>min/max:</b> speed results, but often are using this
+      source.
+    <div class="Pp"></div>
+    Samples:
+    <pre>
+CPU not overclocked, with boost, like Ryzen:
+<b>Speed: 2861 MHz min/max: 1550/3400 MHz boost: enabled base/boost: 3400/3900</b> 
+<div class="Pp"></div>
+Overclocked 2900 MHz CPU, with no boost available: 
+<b>Speed: 2900 MHz min/max: 800/2900 MHz base/boost: 3350/3000</b>
+<div class="Pp"></div>
+Overclocked 3000 MHz CPU, with boosted max speed:
+<b>Speed: 4190 MHz min/max: 1200/3001 MHz base/boost: 3000/4000</b>
+    </pre>
+    <div class="Pp"></div>
+    Note that these numbers can be confusing, but basically, the <b>base</b>
+      number is the actual normal top speed the CPU runs at without boost mode,
+      and the <b>boost</b> number is the max speed the CPU reports itself able
+      to run at. The actual max speed may be higher than either value, or lower.
+      The <b>boost</b> number appears to be hard-coded into the CPU DMI data,
+      and does not seem to reflect actual max speeds that overclocking or other
+      combinations of speed boosters can enable, as you can see from the example
+      where the CPU is running at a speed faster than the min/max or base/boost
+      values.
+    <div class="Pp"></div>
+    Note that the normal <b>min/max:</b> speeds do NOT show actual overclocked
+      OR boost/turbo mode speeds, and appear to be hard-coded values, not
+      dynamic real values. The <b>base/boost:</b> values are sometimes real, and
+      sometimes not. <b>base</b> appears in general to be real.
     <div class="Pp"></div>
     - Adds CPU Vulnerabilities (bugs) as known by your current kernel. Lists by
       <b>Type: ... (status|mitigation): ....</b> for systems that support this
@@ -2059,7 +2111,7 @@ See the documentation page for more complete information on how to set these up,
       <b>--weather-source</b>. Values 4-9 are not currently supported, but this
       can change at any time.
     <div class="Pp"></div>
-     <b>WEATHER_UNIT</b> Values: [<b>c</b>|<b>f</b>|<b>cf</b>|<b>fc</b>]. Same
+     <b>WEATHER_UNIT</b> Values: [<b>m</b>|<b>i</b>|<b>mi</b>|<b>im</b>]. Same
       as <b>--weather-unit</b>.
     <div class="Pp"></div>
   </dd>
@@ -2183,7 +2235,7 @@ And of course, a big thanks to locsmif, who figured out a lot of the core
   methods, logic, and tricks originally used in inxi Gawk/Bash.</div>
 <table class="foot">
   <tr>
-    <td class="foot-date">2020-04-22</td>
+    <td class="foot-date">2020-05-31</td>
     <td class="foot-os">inxi</td>
   </tr>
 </table>
