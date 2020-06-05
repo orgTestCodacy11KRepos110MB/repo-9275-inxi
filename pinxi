@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.01';
-my $self_date='2020-06-04';
-my $self_patch='02';
+my $self_date='2020-06-05';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5870,6 +5870,7 @@ sub print_data {
 	my $start2 = '';
 	my $length = 0;
 	my $indent = $size{'indent'};
+	my $indent2 = 0;
 	my (@temp,@working,@values,%ids,$holder2,%row);
 	my ($key,$line,$val2,$val3);
 	# $size{'max'} = 88;
@@ -5912,7 +5913,7 @@ sub print_data {
 			);
 			$array_holder = 1;
 			foreach my $val1 (@{$data{$key1}}){
-				$length = $indent;
+				$indent2 = $length = $indent;
 				if (ref($val1) eq 'HASH'){
 					#%row = %$val1;
 					$counter=0;
@@ -5949,9 +5950,6 @@ sub print_data {
 						# in Perl 5.08 oddly enough.
 						@temp = split/\s+/, $val2;
 						$split_count = scalar @temp;
-# 						if ($size{'max'} == 1){
-# 							$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
-# 						}
 						if ( $size{'max'} != 1 && ( length( "$key$sep{'s2'} $val2" ) + $length ) < $size{'max'} ) {
 							$length += length("$key$sep{'s2'} $val2");
 							$holder .= "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
@@ -6023,25 +6021,29 @@ sub print_data {
 							#print "H: $counter $hash\n";
 							if ($holder){
 								#print "five\n";
-								$line = sprintf("%-${indent}s%s$colors{'cn'}\n",$start,"$holder");
-								$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
-								$length = length("$key$sep{'s2'} $val2") + $indent;
+								$line = sprintf("%-${indent2}s%s$colors{'cn'}\n",$start,"$holder");
+								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
+								$length = length("$key$sep{'s2'} $val2") + $indent2;
 								print_line($line);
 								$start = '';
 							}
 							else {
 								#print "six\n";
-								$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
+								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 								#$line = sprintf("%-${indent}s%s$colors{'cn'}\n",$start,"$holder");
-								$length = $indent;
+								$length = $indent2;
 								#$holder = '';
 							}
+							$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 						}
 						$counter++;
+						if ($size{'max'} == 1){
+							$indent2 = ($key !~ /^[A-Z]/ || $key =~ /^(SMART$|L[1-4]|EC$|FAIL)/) ? $indent + 2: $indent;
+						}
 					}
 					if ($holder !~ /^\s*$/){
 						#print "seven\n";
-						$line = sprintf("%-${indent}s%s$colors{'cn'}\n",$start,"$start2$holder");
+						$line = sprintf("%-${indent2}s%s$colors{'cn'}\n",$start,"$start2$holder");
 						print_line($line);
 						$holder = '';
 						$length = 0;
@@ -6054,8 +6056,9 @@ sub print_data {
 					$array=0;
 					foreach my $item (@$val1){
 						$array++;
+						$indent2 = ($size{'max'} == 1) ? $indent + 2: $indent;
 						$line = "$colors{'c1'}$array$sep{'s2'} $colors{'c2'}$item$colors{'cn'}";
-						$line = sprintf("%-${indent}s%s\n","","$line");
+						$line = sprintf("%-${indent2}s%s\n","","$line");
 						print_line($line);
 					}
 				}
