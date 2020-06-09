@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.01';
 my $self_date='2020-06-09';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5867,7 +5867,7 @@ sub print_data {
 	my $screen_holder = 0;
 	my ($start,$start2,$start_holder) = ('','','');
 	my $indent = $size{'indent'};
-	my ($indent2,$indent3,$indent4,$length) = (0,0,0,0);
+	my ($indent_use,$indent2,$indent3,$indent4,$length) = (0,0,0,0,0);
 	my (@temp,@working,@values,%ids,$holder2,%row);
 	my ($key,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
@@ -5918,8 +5918,7 @@ sub print_data {
 					#%row = %$val1;
 					$counter=0;
 					if ($b_single){
-						$indent3 = 0;
-						$indent4 = 0;
+						($indent2,$indent3,$indent4) = (0,0,0);
 					}
 					$split_count = 0;
 					$hash = scalar %$val1;
@@ -6025,18 +6024,18 @@ sub print_data {
 							#print "H: $counter $hash $indent3 $indent2\n";
 							if ($holder){
 								#print "five\n";
-								$line = sprintf("%-${indent2}s%s$colors{'cn'}\n",$start,"$holder");
+								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$holder");
 								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
-								$length = length("$key$sep{'s2'} $val2") + $indent2;
+								$length = length("$key$sep{'s2'} $val2") + $indent_use;
 								print_line($line);
 								$start = '';
-								$indent2 += $indent3 + $indent4;
+								$indent_use += $indent3 + $indent4;
 							}
 							else {
 								#print "six\n";
 								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 								#$line = sprintf("%-${indent}s%s$colors{'cn'}\n",$start,"$holder");
-								$length = $indent2;
+								$length = $indent_use;
 								#$holder = '';
 							}
 							$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
@@ -6044,36 +6043,43 @@ sub print_data {
 						$counter++;
 						if ($b_single){
 							if ($key !~ /^([A-Z]|$self_name)/ ||
-							 $key =~ /^(SMART$|L[1-4]|EC$|FAIL|Features$)/){
-								$indent2 = $indent + 2  + $indent3 + $indent4;
+							 ($start_holder eq 'CPU' && $key =~ /^L[1-4]/) || 
+							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
+							 ($start_holder eq 'Memory' && $key eq 'EC' ) ||
+							 ($start_holder eq 'Network' && $key eq 'IF') ||
+							 ($start_holder eq 'RAID' && $key =~ /^Array/) ||
+							 ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) ) ||
+							 ( ($start_holder eq 'Graphics' || $start_holder eq 'RAID') && $key =~ /^FAIL/)){
+								$indent2 = 2;
 							}
 							else {
-								$indent2 = $indent;
+								$indent2 = 0;
 							}
-							# smart/features for disks are last per primary array, so we can indent them
-							# once more without worrying about the next item in the line. BSD uses
-							# 'Features' for CPU Flags
+							if (($start_holder eq 'Network' && $key =~ /^IP /) ||
+							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/) || 
+							 ($start_holder eq 'RAID' && $key eq 'Cmmponents')){
+								$indent2 = 2;
+								$indent3 = 2;
+							}
+							$indent_use = $indent + $indent2  + $indent3 + $indent4;
+							
 							if ( ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
+							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
 							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
 							 ($start_holder eq 'Network' && $key eq 'IF') ||
 							 ($start_holder eq 'RAID' && $key =~ /^Array/)){
 								$indent3 = 2;
 							}
-							if (($start_holder eq 'RAID' && $key =~ /^Array/) || 
-							  ($start_holder eq 'Network' && $key eq 'IF')){
-							  $indent2 = $indent + 2;
-							  $indent4 = 4;
-							}
-							if (($start_holder eq 'RAID' && $key eq 'Cmmponents') || 
-							  ($start_holder eq 'Network' && $key =~ /^IP /)){
-								$indent2 = $indent + 4;
-								$indent4 = 4;
+							if (($start_holder eq 'Network' && $key =~ /^IP /) ||
+							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/) || 
+							 ($start_holder eq 'RAID' && $key eq 'Cmmponents')){
+								$indent4 = 2;
 							}
 						}
 					}
 					if ($holder !~ /^\s*$/){
 						#print "seven\n";
-						$line = sprintf("%-${indent2}s%s$colors{'cn'}\n",$start,"$start2$holder");
+						$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$start2$holder");
 						print_line($line);
 						$holder = '';
 						$length = 0;
@@ -6086,9 +6092,9 @@ sub print_data {
 					$array=0;
 					foreach my $item (@$val1){
 						$array++;
-						$indent2 = ($b_single) ? $indent + 2: $indent;
+						$indent_use = ($b_single) ? $indent + 2: $indent;
 						$line = "$colors{'c1'}$array$sep{'s2'} $colors{'c2'}$item$colors{'cn'}";
-						$line = sprintf("%-${indent2}s%s\n","","$line");
+						$line = sprintf("%-${indent_use}s%s\n","","$line");
 						print_line($line);
 					}
 				}
