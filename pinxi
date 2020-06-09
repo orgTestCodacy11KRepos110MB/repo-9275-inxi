@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.01';
-my $self_date='2020-06-06';
-my $self_patch='04';
+my $self_date='2020-06-09';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5865,11 +5865,9 @@ sub print_data {
 	my $holder = '';
 	my $id_holder = 0;
 	my $screen_holder = 0;
-	my $start = '';
-	my $start2 = '';
-	my $length = 0;
+	my ($start,$start2,$start_holder) = ('','','');
 	my $indent = $size{'indent'};
-	my $indent2 = 0;
+	my ($indent2,$indent3,$length) = (0,0,0);
 	my (@temp,@working,@values,%ids,$holder2,%row);
 	my ($key,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
@@ -5884,11 +5882,13 @@ sub print_data {
 		$key = (split/#/, $key1)[1];
 		if ($key ne 'SHORT' ) {
 			$start = sprintf("$colors{'c1'}%-${indent}s$colors{'cn'}","$key$sep{'s1'}");
+			$start_holder = $key;
 			if ($indent < 10){
 				$line = "$start\n";
 				print_line($line);
 				$start = '';
 				$line = '';
+				
 			}
 		}
 		else {
@@ -5917,6 +5917,7 @@ sub print_data {
 				if (ref($val1) eq 'HASH'){
 					#%row = %$val1;
 					$counter=0;
+					$indent3 = 0;
 					$split_count = 0;
 					$hash = scalar %$val1;
 					#foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
@@ -6018,7 +6019,7 @@ sub print_data {
 							}
 						}
 						else {
-							#print "H: $counter $hash\n";
+							#print "H: $counter $hash $indent3 $indent2\n";
 							if ($holder){
 								#print "five\n";
 								$line = sprintf("%-${indent2}s%s$colors{'cn'}\n",$start,"$holder");
@@ -6026,6 +6027,7 @@ sub print_data {
 								$length = length("$key$sep{'s2'} $val2") + $indent2;
 								print_line($line);
 								$start = '';
+								$indent2 += $indent3;
 							}
 							else {
 								#print "six\n";
@@ -6038,7 +6040,15 @@ sub print_data {
 						}
 						$counter++;
 						if ($b_single){
-							$indent2 = ($key !~ /^([A-Z]|$self_name)/ || $key =~ /^(SMART$|L[1-4]|EC$|FAIL|IP )/) ? $indent + 2: $indent;
+							$indent2 = ($key !~ /^([A-Z]|$self_name)/ || $key =~ /^(SMART$|L[1-4]|EC$|FAIL|Features$|IP )/) ? $indent + 2  + $indent3: $indent;
+							# smart/features for disks are last per primary array, so we can indent them
+							# once more without worrying about the next item in the line. BSD uses
+							# 'Features' for CPU Flags
+							if ( ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
+							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
+							 ($start_holder eq 'Network' && $key =~ /^IP /) ){
+								$indent3 = 2;
+							}
 						}
 					}
 					if ($holder !~ /^\s*$/){
