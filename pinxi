@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.01';
 my $self_date='2020-06-09';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5867,7 +5867,7 @@ sub print_data {
 	my $screen_holder = 0;
 	my ($start,$start2,$start_holder) = ('','','');
 	my $indent = $size{'indent'};
-	my ($indent2,$indent3,$length) = (0,0,0);
+	my ($indent2,$indent3,$indent4,$length) = (0,0,0,0);
 	my (@temp,@working,@values,%ids,$holder2,%row);
 	my ($key,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
@@ -5917,7 +5917,10 @@ sub print_data {
 				if (ref($val1) eq 'HASH'){
 					#%row = %$val1;
 					$counter=0;
-					$indent3 = 0;
+					if ($b_single){
+						$indent3 = 0;
+						$indent4 = 0;
+					}
 					$split_count = 0;
 					$hash = scalar %$val1;
 					#foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
@@ -5926,13 +5929,13 @@ sub print_data {
 						$key = (split/#/, $key2)[1];
 						# for ram with > 1 system array, we want to reset device count to 1 for each
 						# new array
-						if ($key eq 'Array' && $array_holder != $ids{$key} ){
+						if ($start_holder eq 'Memory' &&$key eq 'Array' && $array_holder != $ids{$key} ){
 							$array_holder = $ids{$key};
 							$ids{'Device'} = 1 if ($ids{'Device'} > 1);
 						}
-						if ($key eq 'Device' && $ids{'array'} > 1 && $id_holder != $ids{$key} ){
+						if ($start_holder eq 'RAID' && $key eq 'Device' && $ids{'Array'} > 1 && $id_holder != $ids{$key} ){
 							$id_holder = $ids{$key};
-							$ids{'array'} = 1 if ($ids{'array'} > 1);
+							$ids{'Array'} = 1 if ($ids{'Array'} > 1);
 						}
 						# new Screen
 						if ($key eq 'Screen' && $screen_holder != $ids{$key} ){
@@ -6027,7 +6030,7 @@ sub print_data {
 								$length = length("$key$sep{'s2'} $val2") + $indent2;
 								print_line($line);
 								$start = '';
-								$indent2 += $indent3;
+								$indent2 += $indent3 + $indent4;
 							}
 							else {
 								#print "six\n";
@@ -6040,15 +6043,30 @@ sub print_data {
 						}
 						$counter++;
 						if ($b_single){
-							$indent2 = ($key !~ /^([A-Z]|$self_name)/ || $key =~ /^(SMART$|L[1-4]|EC$|FAIL|Components$|Features$|IP )/) ? $indent + 2  + $indent3: $indent;
+							if ($key !~ /^([A-Z]|$self_name)/ ||
+							 $key =~ /^(SMART$|L[1-4]|EC$|FAIL|Features$)/){
+								$indent2 = $indent + 2  + $indent3 + $indent4;
+							}
+							else {
+								$indent2 = $indent;
+							}
 							# smart/features for disks are last per primary array, so we can indent them
 							# once more without worrying about the next item in the line. BSD uses
 							# 'Features' for CPU Flags
 							if ( ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
 							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
-							 ($start_holder eq 'Network' && $key =~ /^IP /) ||
-							 ($start_holder eq 'RAID' && $key eq 'Components')){
+							 ($start_holder eq 'Network' && $key eq 'IF') ||
+							 ($start_holder eq 'RAID' && $key eq 'Array')){
 								$indent3 = 2;
+							}
+							if (($start_holder eq 'RAID' && $key eq 'Array') || 
+							  ($start_holder eq 'Network' && $key eq 'IF')){
+							  $indent2 = $indent + 2;
+							}
+							if (($start_holder eq 'RAID' && $key eq 'Cmmponents') || 
+							  ($start_holder eq 'Network' && $key =~ /^IP /)){
+								$indent2 = $indent + 4;
+								$indent4 = 4;
 							}
 						}
 					}
