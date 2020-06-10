@@ -5857,20 +5857,14 @@ sub print_basic {
 # hash key to force sorts. 
 sub print_data {
 	my (%data) = @_;
-	my $array = 0;
+	my ($array,$counter,$hash,$id_holder,$screen_holder,$split_count) = (0,0,0,0,0,0);
 	my $array_holder = 1;
-	my $counter=0;
-	my $split_count = 0;
-	my $hash = 0;
-	my $holder = '';
-	my $id_holder = 0;
-	my $screen_holder = 0;
-	my ($start,$start2,$start_holder) = ('','','');
+	my ($holder,$start,$start2,$start_holder) = ('','','','');
 	my $indent = $size{'indent'};
 	my ($indent_use,$indent2,$indent3,$indent4,$length) = (0,0,0,0,0);
 	my ($b_if_id,$b_zfs_array);
-	my (@temp,@working,@values,%ids,$holder2,%row);
-	my ($key,$line,$val2,$val3);
+	my (@temp,@working,@values,%ids,%row);
+	my ($holder2,$key,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
 	# $size{'max'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
@@ -5912,31 +5906,33 @@ sub print_data {
 			);
 			$array_holder = 1;
 			foreach my $val1 (@{$data{$key1}}){
-				$indent2 = $length = $indent;
+				$length = $indent;
 				if (ref($val1) eq 'HASH'){
 					#%row = %$val1;
-					$counter=0;
+					($counter,$split_count) = (0,0);
 					if ($b_single){
 						($indent2,$indent3,$indent4) = (0,0,0);
 					}
-					$split_count = 0;
 					$hash = scalar %$val1;
 					#foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
 					foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
 					#foreach my $key2 (sort { $a cmp $b } keys %$val1){
 						$key = (split/#/, $key2)[1];
-						# for ram with > 1 system array, we want to reset device count to 1 for each
-						# new array
-						if ($start_holder eq 'Memory' && $key eq 'Array' && $array_holder != $ids{$key} ){
+						# for ram with > 1 system array, we want to reset device count to 1 
+						# for each new array
+						if ($start_holder eq 'Memory' && 
+						 $key eq 'Array' && $array_holder != $ids{$key} ){
 							$array_holder = $ids{$key};
 							$ids{'Device'} = 1 if ($ids{'Device'} > 1);
 						}
-						elsif ($start_holder eq 'RAID' && $key eq 'Device' && $ids{'Array'} > 1 && $id_holder != $ids{$key} ){
+						elsif ($start_holder eq 'RAID' && 
+						 $key eq 'Device' && $ids{'Array'} > 1 && $id_holder != $ids{$key} ){
 							$id_holder = $ids{$key};
 							$ids{'Array'} = 1 if ($ids{'Array'} > 1);
 						}
 						# new Screen
-						elsif ($start_holder eq 'Graphics' && $key eq 'Screen' && $screen_holder != $ids{$key} ){
+						elsif ($start_holder eq 'Graphics' && 
+						 $key eq 'Screen' && $screen_holder != $ids{$key} ){
 							$screen_holder = $ids{$key};
 							$ids{'Monitor'} = 1 if ($ids{'Monitor'} > 1);
 						}
@@ -6019,21 +6015,18 @@ sub print_data {
 								#$length2 = 0;
 							}
 						}
+						# NOTE: only these and the last fallback are used for b_single output
 						else {
 							#print "H: $counter $hash $indent3 $indent2\n";
 							if ($holder){
 								#print "five\n";
 								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$holder");
-								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 								$length = length("$key$sep{'s2'} $val2") + $indent_use;
 								print_line($line);
 								$start = '';
-								$indent_use += $indent3 + $indent4;
 							}
 							else {
 								#print "six\n";
-								#$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
-								#$line = sprintf("%-${indent}s%s$colors{'cn'}\n",$start,"$holder");
 								$length = $indent_use;
 								#$holder = '';
 							}
@@ -6119,9 +6112,6 @@ sub print_data {
 						$line = sprintf("%-${indent_use}s%s\n","","$line");
 						print_line($line);
 					}
-				}
-				else {
-					
 				}
 			}
 			# we want a space between data blocks for single
