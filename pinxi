@@ -6054,13 +6054,16 @@ sub print_data {
 							 ($start_holder eq 'RAID' && 
 							  ($key =~ /^(Array|Info$|FAIL|Recovering$)/ || !$b_zfs_array && $key eq 'Components' )) ||
 							 ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) ) ||
+							 ($start_holder eq 'CPU' && $key eq 'Type') ||
 							 ($start_holder eq 'Graphics' && $key =~ /^FAIL/)){
 								$indent2 = 2;
 							}
 							elsif (($start_holder eq 'Network' && (!$b_if_id && $key =~ /^IP /)) ||
+							 ($start_holder eq 'Drives' && ($key eq 'Pre-Fail' || $key eq 'Old-Age' ) ) ||
 							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/)){
 								$indent2 = 2;
 								$indent3 = 2;
+								$indent4 = 0;
 							}
 							# 3 in with zfs; 2 in with mdraid
 							elsif (($start_holder eq 'RAID' && $b_zfs_array && $key eq 'Components')){
@@ -6080,12 +6083,14 @@ sub print_data {
 							if ( ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
 							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
 							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
+							 ($start_holder eq 'CPU' && $key eq 'Type') ||
 							 ($start_holder eq 'Network' && ($key eq 'IF' || ($b_if_id && $key =~ /^IP / ))) ||
 							 ($start_holder eq 'RAID' && $key =~ /^(Array|Info$|Recovering$)/)){
 								$indent3 = 2;
 							}
 							elsif (($start_holder eq 'Network' && $key =~ /^IP /) ||
 							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/) || 
+							 ($start_holder eq 'Drives' && ($key eq 'Pre-Fail' || $key eq 'Old-Age' ) ) ||
 							 ($start_holder eq 'Memory' && $key =~ /^Device-/) || 
 							 ($start_holder eq 'RAID' && $key eq 'Components')){
 								$indent4 = 2;
@@ -14244,13 +14249,13 @@ sub create_output {
 					$mod{'data-width'} ||= 'N/A';
 					$rows[$j]{main::key($num++,'bus width')} = $mod{'data-width'};
 					$mod{'total-width'} ||= 'N/A';
-					$rows[$j]{main::key($num++,'total')} = $mod{'total-width'};
+					$rows[$j]{ ($num++,'total')} = $mod{'total-width'};
 				}
 				if ($extra > 1 ){
 					$mod{'manufacturer'} ||= 'N/A';
 					$rows[$j]{main::key($num++,'manufacturer')} = $mod{'manufacturer'};
 					$mod{'part-number'} ||= 'N/A';
-					$rows[$j]{main::key($num++,'part-no')} = $mod{'part-number'};
+					$rows[$j]{ ($num++,'part-no')} = $mod{'part-number'};
 				}
 				if ($extra > 2 ){
 					$mod{'serial'} = main::apply_filter($mod{'serial'});
@@ -15630,7 +15635,7 @@ sub create_output {
 	}
 	if (scalar @gpu > 1){
 		$j = scalar @rows;
-		$rows[$j]{main::key($num++,'GPU')} = '';
+		$rows[$j]{main::key($num++,'gpu')} = '';
 		my $gpu_unit = (defined $gpu[0]{'temp-unit'} ) ? " $gpu[0]{'temp-unit'}" : ' C';
 		foreach my $ref (@gpu){
 			my %info = %$ref;
@@ -21277,10 +21282,9 @@ sub generate_info_data {
 	}
 	my %data = (
 	$data_name => [{
-		main::key($num++,'Processes') => scalar @ps_aux, 
-		main::key($num++,'Uptime') => &get_uptime(),
-		
-		},],
+	main::key($num++,'Processes') => scalar @ps_aux, 
+	main::key($num++,'Uptime') => &get_uptime(),
+	},],
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
 	if (!$b_mem){
