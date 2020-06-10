@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.01';
-my $self_date='2020-06-09';
-my $self_patch='14';
+my $self_date='2020-06-10';
+my $self_patch='16';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5868,7 +5868,7 @@ sub print_data {
 	my ($start,$start2,$start_holder) = ('','','');
 	my $indent = $size{'indent'};
 	my ($indent_use,$indent2,$indent3,$indent4,$length) = (0,0,0,0,0);
-	my ($b_if_id);
+	my ($b_if_id,$b_zfs_array);
 	my (@temp,@working,@values,%ids,$holder2,%row);
 	my ($key,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
@@ -6051,7 +6051,8 @@ sub print_data {
 							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
 							 ($start_holder eq 'Memory' && ($key eq 'EC' || $key =~ /^Device-/)) ||
 							 ($start_holder eq 'Network' && ($key eq 'IF' || ($b_if_id && $key =~ /^IP / ))) ||
-							 ($start_holder eq 'RAID' && $key =~ /^(Array|Info$|FAIL)/) ||
+							 ($start_holder eq 'RAID' && 
+							  ($key =~ /^(Array|Info$|FAIL|Recovering$)/ || !$b_zfs_array && $key eq 'Components' )) ||
 							 ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) ) ||
 							 ($start_holder eq 'Graphics' && $key =~ /^FAIL/)){
 								$indent2 = 2;
@@ -6062,19 +6063,25 @@ sub print_data {
 								$indent3 = 2;
 							}
 							# 3 in with zfs; 2 in with mdraid
-							elsif (($start_holder eq 'RAID' && $key eq 'Components')){
+							elsif (($start_holder eq 'RAID' && $b_zfs_array && $key eq 'Components')){
 								$indent3 = 2;
 							}
 							else {
 								$indent2 = 0;
 								$b_if_id = 1 if ($start_holder eq 'Network' && $key =~ /^IF-ID-/);
+								if ($start_holder eq 'RAID'){
+									# Array will have tripped prior to Components for zfs
+									$b_zfs_array = 1 if ($key =~ /^Array-/);
+									# Reset every device
+									$b_zfs_array = 0 if ($key =~ /^Device-/);
+								}
 							}
 							$indent_use = $indent + $indent2  + $indent3 + $indent4;
 							if ( ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
 							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
 							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
 							 ($start_holder eq 'Network' && ($key eq 'IF' || ($b_if_id && $key =~ /^IP / ))) ||
-							 ($start_holder eq 'RAID' && $key =~ /^(Array|Info$)/)){
+							 ($start_holder eq 'RAID' && $key =~ /^(Array|Info$|Recovering$)/)){
 								$indent3 = 2;
 							}
 							elsif (($start_holder eq 'Network' && $key =~ /^IP /) ||
@@ -13842,7 +13849,7 @@ sub mdraid_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
-	# $mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
+	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
 	my (@data,@mdraid,@temp,$b_found,$system,$unused);
@@ -16934,7 +16941,7 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my $num = 0;
+	my ($j,$num) = (0,0);
 	my (@data,@location,@rows,$value,%weather,);
 	my ($conditions) = ('NA');
 	if ($show{'weather-location'}){
@@ -16976,82 +16983,95 @@ sub create_output {
 	}
 	$conditions = "$weather{'weather'}";
 	my $temp = unit_output($weather{'temp'},$weather{'temp-c'},'C',$weather{'temp-f'},'F');
+	$j = scalar @rows;
 	@data = ({
-	main::key($num++,'Temperature') => $temp,
-	main::key($num++,'Conditions') => $conditions,
+	main::key($num++,'Report') => '',
+	main::key($num++,'temperature') => $temp,
+	main::key($num++,'conditions') => $conditions,
 	},);
 	@rows = (@rows,@data);
 	if ($extra > 0){
 		my $pressure = unit_output($weather{'pressure'},$weather{'pressure-mb'},'mb',$weather{'pressure-in'},'in');
 		my $wind = wind_output($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
 		$weather{'wind-gust-mph'},$weather{'wind-gust-ms'});
-		$rows[0]{main::key($num++,'Wind')} = $wind;
+		$rows[$j]{main::key($num++,'wind')} = $wind;
 		if ($extra > 1){
 			if (defined $weather{'cloud-cover'}){
-				$rows[0]{main::key($num++,'Cloud Cover')} = $weather{'cloud-cover'} . '%';
+				$rows[$j]{main::key($num++,'cloud cover')} = $weather{'cloud-cover'} . '%';
 			}
 			if ($weather{'precip-1h-mm'} && defined $weather{'precip-1h-in'} ){
 				$value = unit_output('',$weather{'precip-1h-mm'},'mm',$weather{'precip-1h-in'},'in');
-				$rows[0]{main::key($num++,'Precipitation')} = $value;
+				$rows[$j]{main::key($num++,'precipitation')} = $value;
 			}
 			if ($weather{'rain-1h-mm'} && defined $weather{'rain-1h-in'} ){
 				$value = unit_output('',$weather{'rain-1h-mm'},'mm',$weather{'rain-1h-in'},'in');
-				$rows[0]{main::key($num++,'Rain')} = $value;
+				$rows[$j]{main::key($num++,'rain')} = $value;
 			}
 			if ($weather{'snow-1h-mm'} && defined $weather{'snow-1h-in'} ){
 				$value = unit_output('',$weather{'snow-1h-mm'},'mm',$weather{'snow-1h-in'},'in');
-				$rows[0]{main::key($num++,'Snow')} = $value;
+				$rows[$j]{main::key($num++,'snow')} = $value;
 			}
 		}
-		$rows[0]{main::key($num++,'Humidity')} = $weather{'humidity'} . '%';
+		$rows[$j]{main::key($num++,'humidity')} = $weather{'humidity'} . '%';
 		if ($extra > 1){
 			if ($weather{'dewpoint'} || (defined $weather{'dewpoint-c'} && defined $weather{'dewpoint-f'})){
 				$value = unit_output($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
-				$rows[0]{main::key($num++,'Dew Point')} = $value;
+				$rows[$j]{main::key($num++,'dew point')} = $value;
 			}
 		}
-		$rows[0]{main::key($num++,'Pressure')} = $pressure;
+		$rows[$j]{main::key($num++,'pressure')} = $pressure;
 	}
 	if ($extra > 1){
 		if ($weather{'heat-index'} || (defined $weather{'heat-index-c'} && defined $weather{'heat-index-f'})){
 			$value = unit_output($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
-			$rows[0]{main::key($num++,'Heat Index')} = $value;
+			$rows[$j]{main::key($num++,'heat index')} = $value;
 		}
 		if ($weather{'windchill'} || (defined $weather{'windchill-c'} && defined $weather{'windchill-f'})){
 			$value = unit_output($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
-			$rows[0]{main::key($num++,'Wind Chill')} = $value;
+			$rows[$j]{main::key($num++,'wind chill')} = $value;
+		}
+		if ($extra > 2){
+			if ($weather{'forecast'}){
+				$j = scalar @rows;
+				@data = ({
+				main::key($num++,'Forecast') => $weather{'forecast'},
+				},);
+				@rows = (@rows,@data);
+			}
 		}
 	}
 	if ($extra > 2){
 		if (!$use{'filter'}){
-			$rows[0]{main::key($num++,'Location')} = complete_location($location[1],$weather{'city'},$weather{'state'},$weather{'country'});
+			$rows[$j]{main::key($num++,'Location')} = complete_location($location[1],$weather{'city'},$weather{'state'},$weather{'country'});
 			if ($weather{'elevation-m'} || $weather{'elevation-ft'}){
-				$rows[0]{main::key($num++,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
+				$rows[$j]{main::key($num++,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
 			}
 		}
 	}
-	$rows[0]{main::key($num++,'Current Time')} = $weather{'date-time'};
+	$j = scalar @rows;
+	@data = ({
+	main::key($num++,'Info') => '',
+	main::key($num++,'current time') => $weather{'date-time'},
+	},);
+	@rows = (@rows,@data);
 	if ($extra > 2){
 		$weather{'observation-time-local'} = 'N/A' if !$weather{'observation-time-local'};
-		$rows[0]{main::key($num++,'Observation Time')} = $weather{'observation-time-local'};
+		$rows[$j]{main::key($num++,'observation time')} = $weather{'observation-time-local'};
 		if ($weather{'sunrise'}){
-			$rows[0]{main::key($num++,'Sunrise')} = $weather{'sunrise'};
+			$rows[$j]{main::key($num++,'sunrise')} = $weather{'sunrise'};
 		}
 		if ($weather{'sunset'}){
-			$rows[0]{main::key($num++,'Sunset')} = $weather{'sunset'};
+			$rows[$j]{main::key($num++,'sunset')} = $weather{'sunset'};
 		}
 		if ($weather{'moonphase'}){
 			$value = $weather{'moonphase'} . '%';
 			$value .= ($weather{'moonphase-graphic'}) ? ' ' . $weather{'moonphase-graphic'} :'';
-			$rows[0]{main::key($num++,'Moonphase')} = $value;
+			$rows[$j]{main::key($num++,'moonphase')} = $value;
 		}
-		if ($weather{'forecast'}){
-			$rows[0]{main::key($num++,'Forecast')} = $weather{'forecast'};
-		}
+		
 	}
-	
 	if ($weather{'api-source'}){
-		$rows[0]{main::key($num++,'Source')} = $weather{'api-source'};
+		$rows[$j]{main::key($num++,'Source')} = $weather{'api-source'};
 	}
 	eval $end if $b_log;
 	return @rows;
