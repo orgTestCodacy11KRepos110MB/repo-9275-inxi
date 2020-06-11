@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.01';
-my $self_date='2020-06-10';
-my $self_patch='24';
+my $self_date='2020-06-12';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5858,19 +5858,51 @@ sub print_basic {
 sub print_data {
 	my (%data) = @_;
 	my ($array,$counter,$hash,$id_holder,$screen_holder,$split_count) = (0,0,0,0,0,0);
-	my $array_holder = 1;
 	my ($holder,$start,$start2,$start_holder) = ('','','','');
 	my $indent = $size{'indent'};
 	my ($indent_use,$indent2,$indent3,$indent4,$length) = (0,0,0,0,0);
-	my ($b_if_id,$b_zfs_array);
-	my (@temp,@working,@values,%ids,%row);
-	my ($holder2,$key,$line,$val2,$val3);
+	my ($if_id,$zfs_array);
+	my (@temp,@working,@values,%row);
+	my ($holder2,$key,$key_raw,$line,$val2,$val3);
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
+	my (@indent2_pre,@indent3_post,@indent3a_pre,@indent3b_pre,@indent4_post);
 	# $size{'max'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
 	if ($size{'max'} < $size{'indent-min'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
+	# test cases for grep concatenated strings: $start_holder~[|T]~$key_holder
+	# Pseudobooleans test values as indicated above each array
+	if ($b_single){
+		# RAID~[!$zfs_array]~Components; Network~T[$if_id]~IP;
+		@indent2_pre = ('CPU~~(L[1-4]|Type)','Drives~~(Features|SMART)',
+		'Graphics~~(Screen|FAILED)','Memory~~(EC|Device)','Network~(~IF|T~IP v[46])',
+		'RAID~~((Array|Info|FAILED|Recovering)|Components)','USB~~Device');
+		@indent3a_pre = ('Drives~~(Pre-Fail|Old-Age)','Graphics~~Monitor','Network~~IP v[46]');
+		@indent3b_pre = ('~~');
+		# 'Network~T[$if_id]~IP
+		@indent3_post = ('CPU~~Type','Drives~~(Features|SMART)','Graphics~~Screen',
+		'Processes~~[0-9]+','Network~(~IF|T~IP v[46])','RAID~~(Array|Info|Recovering)',
+		'USB~~Device');
+		# 'Network~[!$if_id]~IP
+		@indent4_post = ('Drives~~(Pre-Fail|Old-Age)','Graphics~~Monitor',
+		'Memory~~Device','Network~~IP v[46]','RAID~~Components');
+	}
+	# Line starters that will be -x incremented always
+	my %ids = (
+	'Array' => 1, # RAM or RAID
+	'Battery' => 1,
+	'Card' => 1,
+	'Device' => 1,
+	'Floppy' => 1,
+	'Hardware' => 1, # hardware raid report
+	'ID' => 1,
+	'IF-ID' => 1,
+	'Monitor' => 1,
+	'Optical' => 1,
+	'Screen' => 1,
+	'variant' => 1, # arm > 1 cpu type
+	);
 	#foreach my $key1 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %data) {
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %data) {
 	#foreach my $key1 (sort { $a cmp $b } keys %data) {
@@ -5890,21 +5922,8 @@ sub print_data {
 		}
 		if (ref($data{$key1}) eq 'ARRAY'){
 			# @working = @{$data{$key1}};
-			%ids = (
-			'Array' => 1, # RAM or RAID
-			'Battery' => 1,
-			'Card' => 1,
-			'Device' => 1,
-			'Floppy' => 1,
-			'Hardware' => 1, # hardware raid report
-			'ID' => 1,
-			'IF-ID' => 1,
-			'Monitor' => 1,
-			'Optical' => 1,
-			'Screen' => 1,
-			'variant' => 1, # arm > 1 cpu type
-			);
-			$array_holder = 1;
+			for (keys %ids){$ids{$_} = 1}
+			($if_id,$zfs_array) = ('','') if $b_single;
 			foreach my $val1 (@{$data{$key1}}){
 				$indent_use = $length = $indent;
 				if (ref($val1) eq 'HASH'){
@@ -5915,24 +5934,18 @@ sub print_data {
 					#foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
 					foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
 					#foreach my $key2 (sort { $a cmp $b } keys %$val1){
-						$key = (split/#/, $key2)[1];
-						# for ram with > 1 system array, we want to reset device count to 1 
-						# for each new array
-						if ($start_holder eq 'Memory' && 
-						 $key eq 'Array' && $array_holder != $ids{$key} ){
-							$array_holder = $ids{$key};
-							$ids{'Device'} = 1 if ($ids{'Device'} > 1);
+						$key_raw = $key = (split/#/, $key2)[1];
+						if ($start_holder eq 'Graphics' && $key_raw eq 'Screen'){
+							$ids{'Monitor'} = 1;
 						}
-						elsif ($start_holder eq 'RAID' && 
-						 $key eq 'Device' && $ids{'Array'} > 1 && $id_holder != $ids{$key} ){
-							$id_holder = $ids{$key};
-							$ids{'Array'} = 1 if ($ids{'Array'} > 1);
+						elsif ($start_holder eq 'Memory' && $key_raw eq 'Array'){
+							$ids{'Device'} = 1;
 						}
-						# new Screen
-						elsif ($start_holder eq 'Graphics' && 
-						 $key eq 'Screen' && $screen_holder != $ids{$key} ){
-							$screen_holder = $ids{$key};
-							$ids{'Monitor'} = 1 if ($ids{'Monitor'} > 1);
+						elsif ($start_holder eq 'RAID' && $key_raw eq 'Device'){
+							$ids{'Array'} = 1;
+						}
+						elsif ($start_holder eq 'USB' && $key_raw eq 'Hub'){
+							$ids{'Device'} = 1;
 						}
 						if ($counter == 0 && defined $ids{$key}){
 							$key .= '-' . $ids{$key}++;
@@ -5947,15 +5960,16 @@ sub print_data {
 						@temp = split/\s+/, $val2;
 						$split_count = scalar @temp;
 						if ( !$b_single && ( length( "$key$sep{'s2'} $val2" ) + $length ) < $size{'max'} ) {
+							#print "one\n";
 							$length += length("$key$sep{'s2'} $val2");
 							$holder .= "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
-							#print "one\n";
 						}
 						# handle case where the opening key/value pair is > max, and where 
 						# there are a lot of terms, like cpu flags, raid types supported. Raid
 						# can have the last row have a lot of devices, or many raid types
 						elsif ( !$b_single && ( length( "$key$sep{'s2'} $val2" ) + $indent ) > $size{'max'} && 
 								   !defined $ids{$key} && $split_count > 2 ) {
+							#print "two\n";
 							@values = split/\s+/, $val2;
 							$val3 = shift @values;
 							# $length += length("$key$sep{'s2'} $val3 ") + $indent;
@@ -5967,6 +5981,7 @@ sub print_data {
 								# my $l =  (length("$_ ") + $length);
 								#print "$l\n";
 								if ( (length("$_ ") + $length) < $size{'max'} ){
+									#print "three.1\n";
 									#print "a\n";
  									if ($start2){
 										$holder2 .= "$start2$_ ";
@@ -5980,7 +5995,7 @@ sub print_data {
 									$length += length("$_ ");
 								}
 								else {
-									#print "three\n";
+									#print "three.2\n";
 									if ($start2){
 										$holder2 = "$start2$holder2";
 									}
@@ -6031,59 +6046,40 @@ sub print_data {
 							$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 						}
 						$counter++;
+						# see dev/code-snippets.pl for non grep version if needed
 						if ($b_single){
-							if ( $show{'short'} || ($start_holder eq 'Info' && $key eq $self_name) ||
-							 ($start_holder eq 'CPU') && $show{'cpu-basic'} && $key =~ /^.*[\s-]Core$/ ){
+							if ( $show{'short'} || ($start_holder eq 'Info' && $key_raw eq $self_name) ||
+							 ($start_holder eq 'CPU') && $show{'cpu-basic'} && $key_raw =~ /^.*[\s-]Core$/ ){
 								$indent2 = 0;
 							}
-							elsif ($key !~ /^([A-Z])/ ||
-							 ($start_holder eq 'CPU' && ($key =~ /^L[1-4]/ || $key eq 'Type' )) || 
-							 ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) ) ||
-							 ($start_holder eq 'Graphics' && ($key =~ /^Screen-/ || $key =~ /^FAIL/ )) || 
-							 ($start_holder eq 'Memory' && ($key eq 'EC' || $key =~ /^Device-/)) ||
-							 ($start_holder eq 'Network' && ($key eq 'IF' || ($b_if_id && $key =~ /^IP / ))) ||
-							 ($start_holder eq 'RAID' && 
-							  ($key =~ /^(Array|Info$|FAIL|Recovering$)/ || ( !$b_zfs_array && $key eq 'Components'))) ||
-							 ($start_holder eq 'USB' && $key =~ /^Device-/)){
+							elsif ( $key_raw !~ /^([A-Z])/ || 
+							 (grep { "$start_holder~$if_id$zfs_array~$key_raw" =~ /^${_}$/ } @indent2_pre) ){
 								$indent2 = 2;
 							}
-							elsif (
-							 ($start_holder eq 'Drives' && ($key eq 'Pre-Fail' || $key eq 'Old-Age' ) ) ||
-							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/) ||
-							 ($start_holder eq 'Network' && (!$b_if_id && $key =~ /^IP /))){
+							elsif ( grep { "$start_holder~$if_id~$key_raw" =~ /^${_}$/ } @indent3a_pre ){
 								$indent2 = 2;
 								$indent3 = 2;
 								$indent4 = 0;
 							}
-							# 3 in with zfs; 2 in with mdraid
-							elsif (($start_holder eq 'RAID' && $b_zfs_array && $key eq 'Components')){
+							# 3 in with raid with Device-y/Array-x; 2 in with no Arrays
+							elsif (($start_holder eq 'RAID' && $zfs_array && $key_raw eq 'Components')){
 								$indent3 = 2;
 							}
 							else {
 								$indent2 = 0;
-								$b_if_id = 1 if ($start_holder eq 'Network' && $key =~ /^IF-ID-/);
+								$if_id = 'T' if ($start_holder eq 'Network' && $key_raw eq 'IF-ID');
 								if ($start_holder eq 'RAID'){
 									# Reset every device
-									if ($key =~ /^Device-/){$b_zfs_array = 0;}
+									if ($key_raw eq 'Device'){$zfs_array = '';}
 									# Array will have tripped prior to Components for zfs
-									elsif ($key =~ /^Array-/){$b_zfs_array = 1;}
+									elsif ($key_raw eq 'Array'){$zfs_array = 'T';}
 								}
 							}
-							$indent_use = $indent + $indent2  + $indent3 + $indent4;
-							if ( ($start_holder eq 'CPU' && $key eq 'Type') ||
-							 ($start_holder eq 'Drives' && ($key eq 'Features' || $key eq 'SMART' ) )||
-							 ($start_holder eq 'Graphics' && $key =~ /^Screen-/) || 
-							 ($start_holder eq 'Processes' && $key =~ /^[0-9]+$/) || 
-							 ($start_holder eq 'Network' && ($key eq 'IF' || ($b_if_id && $key =~ /^IP / ))) ||
-							 ($start_holder eq 'RAID' && $key =~ /^(Array|Info$|Recovering$)/) ||
-							 ($start_holder eq 'USB' && $key =~ /^Device-/)){
+							$indent_use = $indent + $indent2 + $indent3 + $indent4;
+							if (grep {"$start_holder~$if_id~$key_raw" =~ /^${_}$/ } @indent3_post){
 								$indent3 = 2;
 							}
-							elsif ( ($start_holder eq 'Drives' && ($key eq 'Pre-Fail' || $key eq 'Old-Age' ) ) ||
-							 ($start_holder eq 'Graphics' && $key =~ /^Monitor-/) || 
-							 ($start_holder eq 'Memory' && $key =~ /^Device-/) || 
-							 ($start_holder eq 'Network' && $key =~ /^IP /) ||
-							 ($start_holder eq 'RAID' && $key eq 'Components')){
+							elsif ( grep { "$start_holder~~$key_raw" =~ /^${_}$/ } @indent4_post ){
 								$indent4 = 2;
 							}
 						}
