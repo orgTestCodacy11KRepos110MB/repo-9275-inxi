@@ -5857,36 +5857,43 @@ sub print_basic {
 # hash key to force sorts. 
 sub print_data {
 	my (%data) = @_;
-	my ($array,$counter,$hash,$id_holder,$screen_holder,$split_count) = (0,0,0,0,0,0);
+	my ($array,$counter,$hash,$length,$split_count) = (0,0,0,0,0);
 	my ($holder,$start,$start2,$start_holder) = ('','','','');
 	my $indent = $size{'indent'};
-	my ($indent_use,$indent2,$indent3,$indent4,$length) = (0,0,0,0,0);
-	my ($if_id,$zfs_array);
 	my (@temp,@working,@values,%row);
 	my ($holder2,$key,$key_raw,$line,$val2,$val3);
+	# these 4 sets are single logic items
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
-	my (@indent2_pre,@indent3_post,@indent3a_pre,@indent3b_pre,@indent4_post);
+	my (%in2_pre,%in3_post,%in3a_pre,%in3b_pre,%in4_post);
+	my ($if_id,$raid_arrays);
+	my ($indent_use,$indent2,$indent3,$indent4) = (0,0,0,0);
 	# $size{'max'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
 	if ($size{'max'} < $size{'indent-min'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
-	# test cases for grep concatenated strings: $start_holder~[|T]~$key_holder
+	# test cases for grep concatenated strings: [|T]~$key_holder
 	# Pseudobooleans test values as indicated above each array
 	if ($b_single){
-		# RAID~[!$zfs_array]~Components; Network~T[$if_id]~IP;
-		@indent2_pre = ('CPU~~(L[1-4]|Type)','Drives~~(Features|SMART)',
-		'Graphics~~(Screen|FAILED)','Memory~~(EC|Device)','Network~(~IF|T~IP v[46])',
-		'RAID~~((Array|Info|FAILED|Recovering)|Components)','USB~~Device');
-		@indent3a_pre = ('Drives~~(Pre-Fail|Old-Age)','Graphics~~Monitor','Network~~IP v[46]');
-		@indent3b_pre = ('~~');
-		# 'Network~T[$if_id]~IP
-		@indent3_post = ('CPU~~Type','Drives~~(Features|SMART)','Graphics~~Screen',
-		'Processes~~[0-9]+','Network~(~IF|T~IP v[46])','RAID~~(Array|Info|Recovering)',
-		'USB~~Device');
-		# 'Network~[!$if_id]~IP
-		@indent4_post = ('Drives~~(Pre-Fail|Old-Age)','Graphics~~Monitor',
-		'Memory~~Device','Network~~IP v[46]','RAID~~Components');
+		# RAID: [!$raid_arrays]~Components; Network: T[$if_id]~IP;
+		%in2_pre = ('CPU' => '~(L[1-4] cache|Type)',
+		'Drives' => '~(Features|SMART)','Graphics' => '~(Screen|FAILED)',
+		'Memory' => '~(EC|Device)','Network' => '(~IF|T~IP v[46])',
+		'RAID' => '~((Array|Info|FAILED|Recovering)|Components)',
+		'USB' => '~Device');
+		%in3a_pre = ('Drives' => '~(Pre-Fail|Old-Age)',
+		'Graphics' => '~Monitor','Network' => '~IP v[46]');
+		# RAID: T[$raid_arrays]~Components
+		%in3b_pre = ('RAID' => 'T~Components');
+		# 'Network: T[$if_id]~IP
+		%in3_post = ('CPU' => '~Type','Drives' => '~(Features|SMART)',
+		'Graphics' => '~Screen','Processes' => '~[0-9]+',
+		'Network' => '(~IF|T~IP v[46])','RAID' => '~(Array|Info|Recovering)',
+		'USB' => '~Device');
+		# 'Network: [!$if_id]~IP
+		%in4_post = ('Drives' => '~(Pre-Fail|Old-Age)',
+		'Graphics' => '~Monitor','Memory' => '~Device',
+		'Network' => '~IP v[46]','RAID' => '~Components');
 	}
 	# Line starters that will be -x incremented always
 	my %ids = (
@@ -5923,7 +5930,7 @@ sub print_data {
 		if (ref($data{$key1}) eq 'ARRAY'){
 			# @working = @{$data{$key1}};
 			for (keys %ids){$ids{$_} = 1}
-			($if_id,$zfs_array) = ('','') if $b_single;
+			($if_id,$raid_arrays) = ('','') if $b_single;
 			foreach my $val1 (@{$data{$key1}}){
 				$indent_use = $length = $indent;
 				if (ref($val1) eq 'HASH'){
@@ -6053,16 +6060,16 @@ sub print_data {
 								$indent2 = 0;
 							}
 							elsif ( $key_raw !~ /^([A-Z])/ || 
-							 (grep { "$start_holder~$if_id$zfs_array~$key_raw" =~ /^${_}$/ } @indent2_pre) ){
+							 ($in2_pre{$start_holder} && "$if_id$raid_arrays~$key_raw" =~ /^$in2_pre{$start_holder}$/) ){
 								$indent2 = 2;
 							}
-							elsif ( grep { "$start_holder~$if_id~$key_raw" =~ /^${_}$/ } @indent3a_pre ){
+							elsif ($in3a_pre{$start_holder} && "$if_id~$key_raw" =~ /^$in3a_pre{$start_holder}$/){
 								$indent2 = 2;
 								$indent3 = 2;
 								$indent4 = 0;
 							}
 							# 3 in with raid with Device-y/Array-x; 2 in with no Arrays
-							elsif (($start_holder eq 'RAID' && $zfs_array && $key_raw eq 'Components')){
+							elsif ($in3b_pre{$start_holder} && "$raid_arrays~$key_raw" =~ /^$in3b_pre{$start_holder}$/){
 								$indent3 = 2;
 							}
 							else {
@@ -6070,16 +6077,16 @@ sub print_data {
 								$if_id = 'T' if ($start_holder eq 'Network' && $key_raw eq 'IF-ID');
 								if ($start_holder eq 'RAID'){
 									# Reset every device
-									if ($key_raw eq 'Device'){$zfs_array = '';}
+									if ($key_raw eq 'Device'){$raid_arrays = '';}
 									# Array will have tripped prior to Components for zfs
-									elsif ($key_raw eq 'Array'){$zfs_array = 'T';}
+									elsif ($key_raw eq 'Array'){$raid_arrays = 'T';}
 								}
 							}
 							$indent_use = $indent + $indent2 + $indent3 + $indent4;
-							if (grep {"$start_holder~$if_id~$key_raw" =~ /^${_}$/ } @indent3_post){
+							if ($in3_post{$start_holder} && "$if_id~$key_raw" =~ /^$in3_post{$start_holder}$/){
 								$indent3 = 2;
 							}
-							elsif ( grep { "$start_holder~~$key_raw" =~ /^${_}$/ } @indent4_post ){
+							elsif ($in4_post{$start_holder} && "~$key_raw" =~ /^$in4_post{$start_holder}$/){
 								$indent4 = 2;
 							}
 						}
