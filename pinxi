@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.03';
-my $self_date='2020-06-12';
-my $self_patch='01';
+my $self_date='2020-06-15';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -148,7 +148,7 @@ sub main {
 	eval $start if $b_log;
 	initialize();
 	## Uncomment these two values for start client debugging
-	# $debug = 10; # 3 prints timers
+	# $debug = 3; # 3 prints timers / 10 prints to log file
 	# set_debugger(); # for debugging of konvi and other start client issues
 	## legacy method
 	#my $ob_start = StartClient->new();
@@ -3378,7 +3378,7 @@ sub program_values {
 	# i3 version 4.13 (2016-11-08) © 2009 Michael Stapelberg and contributors
 	'i3' => ['^i3',3,'--version','i3',0,1,0],
 	'icewm' => ['^icewm',2,'--version','IceWM',0,1,0],
-	'ion' => ['^ion',0,'0','Ion',0,1,0],
+	'ion' => ['^ion',0,'0','Ion',0,1,0],# note there is a shell called ion too
 	'kded' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded1' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
 	'kded2' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
@@ -3431,6 +3431,7 @@ sub program_values {
 	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','Scrotwm',0,1,1],
 	'sommelier' => ['^sommelier',0,'0','sommelier',0,1,0],
 	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','Spectrwm',0,1,1],
+	'stumpwm' => ['^stumpwm',0,'0','StumpWM',1,0,0],
 	'sway' => ['^sway',3,'-v','sway',0,1,0],
 	'swc' => ['^swc',0,'0','swc',0,1,0],
 	'tvtwm' => ['^tvtwm',0,'0','tvtwm',0,1,0],
@@ -3478,20 +3479,32 @@ sub program_values {
 	'wdm' => ['^wdm',0,'0','WINGs DM',0,1,0],
 	'xdm' => ['^xdm',0,'0','XDM',0,1,0],
 	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0],
-	## Shells
+	## Shells - not checked: ion, eshell
 	'ash' => ['^ash',0,'0','ash',1,0,0],
 	'bash' => ['^GNU[[:space:]]bash,[[:space:]]version',4,'--version','Bash',1,0,0],
 	'csh' => ['^tcsh',2,'--version','csh',1,0,0],
 	'dash' => ['dash',3,'--version','Dash',1,0,0], # no version, uses dpkg query, sigh
+	'elvish' => ['^',1,'--version','elvish',1,0,0],
+	'eshell' => ['^eshell',0,'0','eshell',1,0,0],
+	'fish' => ['^fish',3,'--version','fish',1,0,0],
+	'fizsh' => ['^fizsh',3,'--version','fizsh',1,0,0],
+	'ionsh' => ['^ion',0,'0','ion',1,0,0],
+	'ipython' => ['^ipython',0,'0','iPython',1,0,0], 
 	# ksh/lksh/mksh/pdksh can't be handled with version but we'll use the search string to 
 	# trigger version return and tests
 	'ksh' => ['ksh',5,'-v','ksh',1,0,0], 
 	'lksh' => ['ksh',5,'-v','lksh',1,0,0], 
 	'loksh' => ['ksh',5,'-v','lksh',1,0,0], 
 	'mksh' => ['ksh',5,'-v','mksh',1,0,0], 
+	'oh' => ['^oh',0,'0','Oh',1,0,0],
+	'ohsh' => ['^oh',0,'0','Oh',1,0,0],
 	'pdksh' => ['ksh',5,'-v','pdksh',1,0,0], 
+	'pyshell' => ['pyshell',0,'0','pyshell',1,0,0], 
+	'rc' => ['^rc',0,'0','rc',1,0,0],
+	'scsh' => ['^scsh',0,'0','scsh',1,0,0],
+	'sh' => ['^sh',0,'0','sh',1,0,0],
 	'tcsh' => ['^tcsh',2,'--version','tcsh',1,0,0],
-	'xonsh' => ['^xonsh',1,'--version','xonsh',1,0,0], 
+	'xonsh' => ['^xonsh',1,'--version','Xonsh',1,0,0], 
 	'zsh' => ['^zsh',2,'--version','zsh',1,0,0],
 	## Tools
 	'clang' => ['clang',3,'--version','Clang',1,0,0],
@@ -3513,7 +3526,7 @@ sub program_values {
 # 5 - [optional] exit first find 0/1; 6 - [optional] 0/1 stderr output
 sub program_version {
 	eval $start if $b_log;
-	my ($app, $search, $num,$version,$exit,$stderr) = @_;
+	my ($app, $search,$num,$version,$exit,$stderr) = @_;
 	my ($cmd,$line,$output);
 	my $version_nu = '';
 	my $count = 0;
@@ -3546,7 +3559,7 @@ sub program_version {
 			$app = $program;
 		}
 		else {
-			log_data('data',"$app not found in path.");
+			log_data('data',"$app not found in path.") if $b_log;
 			return 0;
 		}
 	}
@@ -3576,6 +3589,7 @@ sub program_version {
 	}
 	else {
 		$output = qx($cmd);
+		log_data('data',"output: $output") if $b_log;
 	}
 	# print "$cmd : $output\n";
 	# sample: dwm-5.8.2, ©.. etc, why no space? who knows. Also get rid of v in number string
@@ -5008,10 +5022,8 @@ sub show_version {
 # StartClient
 {
 package StartClient;
-
 # use warnings;
 # use strict;
-
 my $ppid = '';
 my $pppid = '';
 
@@ -5242,7 +5254,8 @@ sub perl_python_client {
 	# this is a hack to try to show konversation if inxi is running but started via /cmd
 	# OR via program shortcuts, both cases in fact now
 	# main::print_line("konvi: " . scalar grep { $_ =~ /konversation/ } @ps_cmd);
-	if ( $b_display && main::check_program('konversation') && ( grep { $_ =~ /konversation/ } @ps_cmd )){
+	if ( $b_display && main::check_program('konversation') && 
+	 ( grep { $_ =~ /konversation/ } @ps_cmd )){
 		@app = main::program_values('konversation');
 		$client{'version'} = main::program_version('konversation',$app[0],$app[1],$app[2],$app[5],$app[6]);
 		$client{'name'} = 'konversation';
@@ -5252,7 +5265,8 @@ sub perl_python_client {
 	## NOTE: supybot only appears in ps aux using 'SHELL' command; the 'CALL' command
 	## gives the user system irc priority, and you don't see supybot listed, so use SHELL
 	elsif ( !$b_display && 
-	 (main::check_program('supybot') || main::check_program('gribble') || main::check_program('limnoria')) &&
+	 (main::check_program('supybot') || 
+	 main::check_program('gribble') || main::check_program('limnoria')) &&
 	 ( grep { $_ =~ /supybot/ } @ps_cmd ) ){
 		@app = main::program_values('supybot');
 		$client{'version'} = main::program_version('supybot',$app[0],$app[1],$app[2],$app[5],$app[6]);
@@ -19281,30 +19295,45 @@ sub get_shell_data {
 		my $working = $ENV{'SHELL'};
 		$working =~ s/^.*\///; 
 		# NOTE: su -c "inxi -F" results in shell being su
+		# Note: parent when fizsh shows as zsh so shell reports as zsh
 		if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && $shell ne $working){
 			$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
 			$shell = $working;
 		}
-		#print "shell post: $shell\n";
-		# sh because -v/--version doesn't work on it
-		if ( $shell ne 'sh' ) {
-			@app = main::program_values(lc($shell));
-			if ($app[0]){
+		# print "shell post: $shell working: $working\n";
+		# note: not all programs have -v/--version feature
+		@app = main::program_values(lc($shell));
+		if ($app[0]){
+			if ($app[1]){
 				$client{'version'} = main::program_version($shell,$app[0],$app[1],$app[2],$app[5],$app[6]);
 			}
-			# guess that it's two and --version
-			else {
-				# we're just guessing at the search phrase and position
-				if ($shell){
-					$client{'version'} = main::program_version($shell,$shell,2,'');
-				}
-				else {
-					$client{'version'} = row_defaults('unknown-shell');
+		}
+		else {
+			# NOTE: we used to guess here with position 2 --version but this cuold lead
+			# to infinite loops when inxi called from a script 'infos' that is in PATH and 
+			# script does not have any start arg handlers or bad arg handlers: 
+			# eg: shell -> infos -> inxi -> sh -> infos --version -> infos -> inxi...
+			# Basically here we are hoping that the grandparent is a shell, or at least
+			# recognized as a known possible program
+			#print "shell is not app: $shell\n";
+			if ($shell){
+				#print 'shell: ' . $shell .' Start client version type: ', get_shell_parent(get_start_parent(getppid())), "\n";
+				if (my $parent = get_shell_parent(get_start_parent(getppid())) ){
+					@app = main::program_values(lc($parent));
+					$shell = $parent;
+					if ($app[0] && $app[1]){
+						$client{'version'} = main::program_version($shell,$app[0],$app[1],$app[2],$app[5],$app[6]);
+					}
+					#$client{'version'} = main::program_version($shell,$shell,2,'ps-check');
 				}
 			}
-			$client{'version'} ||= '';
-			$client{'version'} =~ s/(\(.*|-release|-version)//;
+			else {
+				$client{'version'} = row_defaults('unknown-shell');
+			}
+			#print "shell not app version: $client{'version'}\n";
 		}
+		$client{'version'} ||= '';
+		$client{'version'} =~ s/(\(.*|-release|-version)//;
 		$client{'name'} = lc($shell);
 		$client{'name-print'} = $shell;
 	}
@@ -19339,7 +19368,7 @@ sub get_shell_source {
 		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
 		for my $i (2..4){
 			if ( $shell_parent && 
-		     $shell_parent =~ /^(ash|bash|csh|dash|ksh|lksh|loksh|mksh|pdksh|perl|sh|su|sudo|tcsh|zsh)$/ ){
+		     $shell_parent =~ /^(ash|bash|csh|dash|elvish|fish|fizsh|ion(sh)?|ksh|lksh|loksh|mksh||oh(sh)?|oil-?sh(ell)?|pdksh|perl|rc|scsh|sh|su|sudo|tcsh|zsh)$/ ){
 				# no idea why have to do script_parent action twice in su case, but you do.
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
@@ -19371,6 +19400,7 @@ sub get_shell_source {
 sub get_start_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
+	return 0 if !$parent;
 	# ps -j -fp : bsds ps do not have -f for PPID, so we can't get the ppid
 	my $cmd = "ps -j -fp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
@@ -19385,6 +19415,7 @@ sub get_start_parent {
 sub get_shell_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
+	return '' if !$parent;
 	my $cmd = "ps -j -p $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd,'','strip');
@@ -21207,25 +21238,6 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	if (!$b_irc && $extra > 1 ){
-		# bsds don't support -f option to get PPID
-		if (($b_display && !$b_force_display) && !$bsd_type){
-			$parent = get_shell_source();
-		}
-		else {
-			$parent = get_tty_number();
-			$parent = "tty $parent" if $parent ne '';
-		}
-		if ($parent eq 'login'){
-			$client{'su-start'} = $parent if !$client{'su-start'};
-			$parent = undef;
-		}
-		# can be tty 0 so test for defined
-		$running_in = $parent if defined $parent;
-		if ($extra > 2 && $running_in && get_ssh_status() ){
-			$running_in .= ' (SSH)';
-		}
-	}
 	my %data = (
 	$data_name => [{
 	main::key($num++,0,1,'Processes') => scalar @ps_aux, 
@@ -21301,10 +21313,30 @@ sub generate_info_data {
 	if ($extra > 2 && $client{'su-start'}){
 		$client .= " ($client{'su-start'})";
 	}
+	if (!$b_irc && $extra > 1 ){
+		# bsds don't support -f option to get PPID
+		if (($b_display && !$b_force_display) && !$bsd_type){
+			$parent = get_shell_source();
+		}
+		else {
+			$parent = get_tty_number();
+			$parent = "tty $parent" if $parent ne '';
+		}
+		if ($parent eq 'login'){
+			$client{'su-start'} = $parent if !$client{'su-start'};
+			$parent = undef;
+		}
+		# can be tty 0 so test for defined
+		$running_in = $parent if defined $parent;
+		if ($extra > 2 && $running_in && get_ssh_status() ){
+			$running_in .= ' (SSH)';
+		}
+	}
 	$data{$data_name}[$index]{main::key($num++,1,1,$client_shell)} =  $client;
 	if ($extra > 0 && $client{'version'}){
 		$data{$data_name}[$index]{main::key($num++,0,2,'v')} = $client{'version'};
 	}
+	
 	if ( $running_in ){
 		$data{$data_name}[$index]{main::key($num++,0,2,'running in')} = $running_in;
 	}
