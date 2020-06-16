@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-15';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -19302,11 +19302,10 @@ sub get_shell_data {
 		}
 		# print "shell post: $shell working: $working\n";
 		# note: not all programs have -v/--version feature
-		@app = main::program_values(lc($shell));
+		@app = main::program_data(lc($shell));
 		if ($app[0]){
-			if ($app[1]){
-				$client{'version'} = main::program_version($shell,$app[0],$app[1],$app[2],$app[5],$app[6]);
-			}
+			$shell = $app[0];
+			$client{'version'} = $app[1] if $app[1];
 		}
 		else {
 			# NOTE: we used to guess here with position 2 --version but this cuold lead
@@ -19315,16 +19314,16 @@ sub get_shell_data {
 			# eg: shell -> infos -> inxi -> sh -> infos --version -> infos -> inxi...
 			# Basically here we are hoping that the grandparent is a shell, or at least
 			# recognized as a known possible program
-			#print "shell is not app: $shell\n";
+			#print "app not shell?: $shell\n";
 			if ($shell){
-				#print 'shell: ' . $shell .' Start client version type: ', get_shell_parent(get_start_parent(getppid())), "\n";
+				# print 'shell: ' . $shell .' Start client version type: ', get_shell_parent(get_start_parent(getppid())), "\n";
 				if (my $parent = get_shell_parent(get_start_parent(getppid())) ){
-					@app = main::program_values(lc($parent));
-					$shell = $parent;
-					if ($app[0] && $app[1]){
-						$client{'version'} = main::program_version($shell,$app[0],$app[1],$app[2],$app[5],$app[6]);
+					@app = main::program_data(lc($parent));
+					if ($app[0]){
+						$shell = $app[0];
+						$client{'version'} = $app[1] if $app[1];
 					}
-					#$client{'version'} = main::program_version($shell,$shell,2,'ps-check');
+					#print "shell3: $shell version: $client{'version'}\n";
 				}
 			}
 			else {
@@ -19333,7 +19332,7 @@ sub get_shell_data {
 			#print "shell not app version: $client{'version'}\n";
 		}
 		$client{'version'} ||= '';
-		$client{'version'} =~ s/(\(.*|-release|-version)//;
+		$client{'version'} =~ s/(\(.*|-release|-version)// if $client{'version'};
 		$client{'name'} = lc($shell);
 		$client{'name-print'} = $shell;
 	}
@@ -19355,7 +19354,7 @@ sub get_shell_source {
 		$msg = ($ppid) ? "self parent: $self_parent ppid: $ppid": "self parent: undefined";
 		log_data('data',$msg);
 	}
-	#print "self parent: $self_parent ppid: $ppid\n";
+	print "self parent: $self_parent ppid: $ppid\n";
 	if ($self_parent){
 		$shell_parent = get_shell_parent($self_parent);
 		$client{'su-start'} = $shell_parent if ($shell_parent eq 'su' && !$client{'su-start'});
@@ -19366,13 +19365,16 @@ sub get_shell_source {
 		}
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
+		my $shells = 'ash|bash|csh|dash|elvish|fish|fizsh|';
+		$shells .= 'ion(sh)?|ksh|lksh|loksh|mksh||oh(sh)?|oil-?sh(ell)?|';
+		$shells .= 'pdksh|perl|rc|scsh|sh|su|sudo|tcsh|zsh';
 		for my $i (2..4){
 			if ( $shell_parent && 
-		     $shell_parent =~ /^(ash|bash|csh|dash|elvish|fish|fizsh|ion(sh)?|ksh|lksh|loksh|mksh||oh(sh)?|oil-?sh(ell)?|pdksh|perl|rc|scsh|sh|su|sudo|tcsh|zsh)$/ ){
+		     $shell_parent =~ /^($shells)$/ ){
 				# no idea why have to do script_parent action twice in su case, but you do.
 				$self_parent = get_start_parent($self_parent);
 				$shell_parent = get_shell_parent($self_parent);
-				#print "shell parent 2: $shell_parent\n";
+				#print "self::shell parent 2-${i}: $self_parent :: $shell_parent\n";
 				if ($b_log){
 					$msg = ($shell_parent) ? "shell parent $i: $shell_parent": "shell parent $i: undefined";
 					log_data('data',$msg);
