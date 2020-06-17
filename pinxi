@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-17';
-my $self_patch='11';
+my $self_patch='12';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10257,7 +10257,7 @@ sub display_data(){
 	}
 	if ( $b_display){
 		x_display_data();
-		# currently a stub, wayland needs a lot more work
+		# currently barebones, wayland needs a lot more work
 		if ($protocol && $protocol eq 'wayland' && !$graphics{'screens'}){
 			wayland_display_data();
 			# it worked! we got screen data
@@ -10349,14 +10349,15 @@ sub display_data(){
 			}
 		}
 		if ($b_admin ){
-			if ($graphics{'x-display-id'}){
-				$row[0]{main::key($num++,0,2,'display ID')} = $graphics{'x-display-id'};
+			if (defined $graphics{'display-id'}){
+				$row[0]{main::key($num++,0,2,'display ID')} = $graphics{'display-id'};
 			}
-			if (defined $graphics{'x-screens'}){
-				$row[0]{main::key($num++,0,2,'screens')} = $graphics{'x-screens'};
+			if (defined $graphics{'display-screens'}){
+				$row[0]{main::key($num++,0,2,'screens')} = $graphics{'display-screens'};
 			}
-			if (defined $graphics{'x-default-screen'} && $graphics{'x-screens'} && $graphics{'x-screens'} > 1){
-				$row[0]{main::key($num++,0,2,'default screen')} = $graphics{'x-default-screen'};
+			if (defined $graphics{'display-default-screen'} && 
+			 $graphics{'display-screens'} && $graphics{'display-screens'} > 1){
+				$row[0]{main::key($num++,0,2,'default screen')} = $graphics{'display-default-screen'};
 			}
 		}
 		if ($graphics{'no-xdpyinfo'}){
@@ -10494,7 +10495,7 @@ sub x_display_data {
 				$graphics{'x-vendor'} = $working[1];
 			}
 			elsif ($working[0] eq 'name of display'){
-				$graphics{'x-display-id'} = $working[1];
+				$graphics{'display-id'} = $working[1];
 			}
 			elsif ($working[0] eq 'version number'){
 				$graphics{'x-version-id'} = $working[1];
@@ -10507,10 +10508,10 @@ sub x_display_data {
 				$graphics{'xorg-version'} = $working[1];
 			}
 			elsif ($working[0] eq 'default screen number'){
-				$graphics{'x-default-screen'} = $working[1];
+				$graphics{'display-default-screen'} = $working[1];
 			}
 			elsif ($working[0] eq 'number of screens'){
-				$graphics{'x-screens'} = $working[1];
+				$graphics{'display-screens'} = $working[1];
 			}
 			elsif  ($working[0] =~ /^screen #([0-9]+):/){
 				$screen_id = $1;
@@ -10644,8 +10645,13 @@ sub x_display_data {
 }
 sub wayland_display_data {
 	eval $start if $b_log;
-	
-	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'};
+	if ($ENV{'WAYLAND_DISPLAY'}){
+		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
+		# return as wayland-0 or 0?
+		$graphics{'display-id'} =~ s/wayland-?//i;
+	}
+	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $test[17];
+	#main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
 sub set_compositor {
@@ -10666,6 +10672,8 @@ sub get_protocol {
 	my ($protocol) = ('');
 	$protocol = $ENV{'XDG_SESSION_TYPE'} if $ENV{'XDG_SESSION_TYPE'};
 	$protocol = $ENV{'WAYLAND_DISPLAY'} if (!$protocol && $ENV{'WAYLAND_DISPLAY'});
+	# can show as wayland-0
+	$protocol = 'wayland' if $protocol && $protocol =~ /wayland/i;
 	# yes, I've seen this in 2019 distros, sigh
 	$protocol = '' if $protocol eq 'tty';
 	# need to confirm that there's a point to this test, I believe no, fails out of x
