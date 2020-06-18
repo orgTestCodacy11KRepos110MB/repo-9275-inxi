@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.03';
-my $self_date='2020-06-17';
-my $self_patch='17';
+my $self_date='2020-06-18';
+my $self_patch='18';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -53,7 +53,7 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my (%alerts,%client,%colors,%debugger,%dl,%files,%rows,%system_files);
+my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -3309,17 +3309,8 @@ sub program_data {
 	return @program_data;
 }
 
-# returns array of:
-# 0 - match string; 1 - search number; 2 - version string [alt: file]; 
-# 3 - Print name; 4 - console 0/1; 
-# 5 - 0/1 exit version loop at 1 [alt: if version=file replace value with \s]; 
-# 6 - 0/1 write to stderr [alt: if version=file, path for file]
-# arg: 1 - program lower case name
-sub program_values {
-	my ($app) = @_;
-	my (@program_data);
-	# note: setting index 1 and 2 to 0 will trip flags to not do version
-	my %data = (
+sub set_program_values {
+	%program_values = (
 	## Clients
 	'bitchx' => ['bitchx',2,'','BitchX',1,0,0],# special
 	'finch' => ['finch',2,'-v','Finch',1,1,0],
@@ -3539,9 +3530,23 @@ sub program_values {
 	'gcc-apple' => ['Apple[[:space:]]LLVM',2,'--version','LLVM',1,0,0],
 	'sudo' => ['^Sudo',3,'-V','Sudo',1,1,0], # sudo pre 1.7 does not have --version
 	);
-	if ( defined $data{$app} ){
-		my $ref = $data{$app};
-		@program_data = @$ref;
+}
+
+# returns array of:
+# 0 - match string; 1 - search number; 2 - version string [alt: file]; 
+# 3 - Print name; 4 - console 0/1; 
+# 5 - 0/1 exit version loop at 1 [alt: if version=file replace value with \s]; 
+# 6 - 0/1 write to stderr [alt: if version=file, path for file]
+# note: setting index 1 or 2 to 0 will trip flags to not do version
+# arg: 1 - program lower case name
+sub program_values {
+	my ($app) = @_;
+	my (@program_data);
+	set_program_values() if !%program_values;
+	if ( defined $program_values{$app} ){
+# 		my $ref = $program_values{$app};
+# 		@program_data = @$ref;
+		@program_data = @{$program_values{$app}};
 	}
 	#my $debug = main::Dumper \@program_data;
 	main::log_data('dump',"Program Data",\@program_data) if $b_log;
@@ -8454,7 +8459,7 @@ sub hex_and_decimal {
 package DiskData;
 my ($b_hddtemp,$b_nvme,$smartctl_missing);
 my ($hddtemp,$nvme) = ('','');
-my (@by_id,@by_path);
+my (@by_id,@by_path,@vendors);
 my ($debugger_dir);
 # main::writer("$debugger_dir/system-repo-data-urpmq.txt",@data2) if $debugger_dir;
 sub get {
@@ -9638,18 +9643,10 @@ sub disk_data_by_id {
 	eval $end if $b_log;
 	return @disk_data;
 }
-# receives space separated string that may or may not contain vendor data
-sub device_vendor {
+# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
+sub set_vendors {
 	eval $start if $b_log;
-	my ($model,$serial) = @_;
-	my ($vendor) = ('');
-	my (@data);
-	return if !$model;
-	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
-	# Data URLs: inxi-resources.txt Section: DiskData device_vendor()
-	# $model = 'MEDIAMAX ';
-	# $model = 'Patriot Memory';
-	my @vendors = (
+	@vendors = (
 	## These go first because they are the most likely and common ##
 	['(Crucial|^(FC)?CT|-CT|^M4\b|Gizmo!)','Crucial','Crucial',''],
 	['^(INTEL|SSD(PAM|SA2))','^INTEL','Intel',''],
@@ -9933,6 +9930,21 @@ sub device_vendor {
 	['^ZTC','^ZTC','ZTC',''],
 	['^(ASMT|2115)','^ASMT','ASMT (case)',''],
 	);
+	eval $end if $b_log;
+}
+
+# receives space separated string that may or may not contain vendor data
+sub device_vendor {
+	eval $start if $b_log;
+	my ($model,$serial) = @_;
+	my ($vendor) = ('');
+	my (@data);
+	return if !$model;
+	set_vendors() if !@vendors;
+	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
+	# Data URLs: inxi-resources.txt Section: DiskData device_vendor()
+	# $model = 'MEDIAMAX ';
+	# $model = 'Patriot Memory';
 	foreach my $row (@vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
@@ -11016,7 +11028,7 @@ sub display_compositor {
 	eval $start if $b_log;
 	my ($protocol) = @_; 
 	my ($compositor) = ('');
-	main::set_ps_gui() if ! $b_ps_gui;
+	main::set_ps_gui() if !$b_ps_gui;
 	if (@ps_gui){
 		# 1 check program; 2 search; 3 unused version; 4 print
 		my @compositors = (
@@ -20450,11 +20462,12 @@ sub set_ps_aux {
 	print Dumper \@ps_cmd if $test[5];
 	eval $end if $b_log;
 }
+
 sub set_ps_gui {
 	eval $start if $b_log;
 	$b_ps_gui = 1;
 	my ($working,@match,@temp);
-	# desktops / wm
+	# desktops / wm (some wm also compositors)
 	if ($show{'system'}){
 		@temp=qw(razor-desktop razor-session lxsession lxqt-session 
 		tdelauncher tdeinit_phase1);
@@ -20496,8 +20509,9 @@ sub set_ps_gui {
 		xfce4-panel xfce5-panel xmobar yabar);
 		@match = (@match,@temp);
 	}
-	# compositors (for wayland these are also the server, note 
-	if ($show{'graphic'} && $extra > 1){
+	# compositors (for wayland these are also the server, note.
+	# for wayland always show, so always load these
+	if ($show{'graphic'} && $extra > 0){
 		@temp=qw(3dwm asc budgie-wm compiz compton deepin-wm dwc dcompmgr 
 		enlightenment fireplace gnome-shell grefson kmscon kwin_wayland kwin_x11
 		liri marco metisse mir moblin motorcar muffin mutter
@@ -20519,6 +20533,7 @@ sub set_ps_gui {
 	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
 	eval $end if $b_log;
 }
+
 
 sub set_sysctl_data {
 	eval $start if $b_log;
