@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-18';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5903,11 +5903,11 @@ sub print_basic {
 # hash key to force sorts. 
 sub print_data {
 	my (%data) = @_;
-	my ($array,$counter,$hash,$length,$split_count) = (0,0,0,0,0);
+	my ($array,$counter,$length,$split_count) = (0,0,0,0);
 	my ($hash_id,$holder,$start,$start2,$start_holder) = ('','','','','');
 	my $indent = $size{'indent'};
-	my (@temp,@working,@values,%row);
-	my ($holder2,$key,$key_raw,$line,$val2,$val3);
+	my (@temp,@working,@values,%ids,%row);
+	my ($holder2,$key,$line,$val2,$val3);
 	# these 2 sets are single logic items
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
 	my ($b_container,$indent_use,$indentx) = (0,0,0);
@@ -5916,21 +5916,6 @@ sub print_data {
 	if ($size{'max'} < $size{'indent-min'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
-	# Line starters that will be -x incremented always
-	my %ids = (
-	'Array' => 1, # RAM or RAID
-	'Battery' => 1,
-	'Card' => 1,
-	'Device' => 1,
-	'Floppy' => 1,
-	'Hardware' => 1, # hardware raid report
-	'ID' => 1,
-	'IF-ID' => 1,
-	'Monitor' => 1,
-	'Optical' => 1,
-	'Screen' => 1,
-	'variant' => 1, # arm > 1 cpu type
-	);
 	#foreach my $key1 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %data) {
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %data) {
 	#foreach my $key1 (sort { $a cmp $b } keys %data) {
@@ -5950,28 +5935,41 @@ sub print_data {
 		}
 		if (ref($data{$key1}) eq 'ARRAY'){
 			# @working = @{$data{$key1}};
-			for (keys %ids){$ids{$_} = 1}
+			# Line starters that will be -x incremented always
+			# It's a tiny bit faster manually resetting rather than using for loop
+			%ids = (
+			'Array' => 1, # RAM or RAID
+			'Battery' => 1,
+			'Card' => 1,
+			'Device' => 1,
+			'Floppy' => 1,
+			'Hardware' => 1, # hardware raid report
+			'ID' => 1,
+			'IF-ID' => 1,
+			'Monitor' => 1,
+			'Optical' => 1,
+			'Screen' => 1,
+			'variant' => 1, # arm > 1 cpu type
+			);
 			foreach my $val1 (@{$data{$key1}}){
 				$indent_use = $length = $indent;
 				if (ref($val1) eq 'HASH'){
 					#%row = %$val1;
 					($counter,$split_count) = (0,0);
-					$hash = scalar %$val1;
 					#foreach my $key2 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$val1){
 					foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
 					#foreach my $key2 (sort { $a cmp $b } keys %$val1){
 						($hash_id,$b_container,$indentx,$key) = (split/#/, $key2);
-						$key_raw = $key;
-						if ($start_holder eq 'Graphics' && $key_raw eq 'Screen'){
+						if ($start_holder eq 'Graphics' && $key eq 'Screen'){
 							$ids{'Monitor'} = 1;
 						}
-						elsif ($start_holder eq 'Memory' && $key_raw eq 'Array'){
+						elsif ($start_holder eq 'Memory' && $key eq 'Array'){
 							$ids{'Device'} = 1;
 						}
-						elsif ($start_holder eq 'RAID' && $key_raw eq 'Device'){
+						elsif ($start_holder eq 'RAID' && $key eq 'Device'){
 							$ids{'Array'} = 1;
 						}
-						elsif ($start_holder eq 'USB' && $key_raw eq 'Hub'){
+						elsif ($start_holder eq 'USB' && $key eq 'Hub'){
 							$ids{'Device'} = 1;
 						}
 						if ($counter == 0 && defined $ids{$key}){
@@ -6057,7 +6055,7 @@ sub print_data {
 						}
 						# NOTE: only these and the last fallback are used for b_single output
 						else {
-							#print "H: $counter $hash $indent3 $indent2\n";
+							#print "H: $counter " . scalar %$val1 . " $indent3 $indent2\n";
 							if ($holder){
 								#print "five\n";
 								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$holder");
