@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-19';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3496,10 +3496,10 @@ sub set_program_values {
 	'xdm' => ['^xdm',0,'0','XDM',0,1,0],
 	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0],
 	## Shells - not checked: ion, eshell
-	'ash' => ['^ash',0,'0','ash',1,0,0], # alt for dash, no version
+	'ash' => ['\bash\b',3,'package','ash',1,0,0], # alt for dash, dpkg query
 	'bash' => ['^GNU[[:space:]]bash,[[:space:]]version',4,'--version','Bash',1,0,0],
-	'csh' => ['^tcsh',2,'--version','csh',1,0,0],
-	'dash' => ['dash',3,'--version','Dash',1,0,0], # no version, uses dpkg query, sigh
+	'csh' => ['^csh',0,'0','csh',1,0,0], # no version
+	'dash' => ['\bdash\b',3,'package','Dash',1,0,0], # no version, dpkg query
 	'elvish' => ['^\S',1,'--version','elvish',1,0,0],
 	'eshell' => ['^eshell',0,'0','eshell',1,0,0], # unverified
 	'fish' => ['^fish',3,'--version','fish',1,0,0],
@@ -3507,23 +3507,24 @@ sub set_program_values {
 	'ion' => ['^ion',0,'0','ion',1,0,0], # unverified; also legacy wm ion3
 	#'ipython2' => ['^\S',1,'--version','iPython2',1,1,0], 
 	#'ipython' => ['^\S',1,'--version','iPython',1,1,0], 
-	# ksh/lksh/loksh/mksh/pdksh can't be handled with version but we'll use the search string to 
-	# trigger version return and tests
-	'ksh' => ['ksh',5,'-v','ksh',1,0,0], # special
-	'lksh' => ['ksh',5,'-v','lksh',1,0,0], # special
-	'loksh' => ['ksh',5,'-v','loksh',1,0,0], # special
-	'mksh' => ['ksh',5,'-v','mksh',1,0,0], # special
+	# ksh/lksh/loksh/mksh/posh//pdksh need to print their own $VERSION info
+	'ksh' => ['^Version\s*',1,'var','ksh',1,0,0], # special
+	'lksh' => ['^.*KSH\s*',1,'var','lksh',1,0,0], # special
+	'loksh' => ['^.*KSH\s*',1,'var','loksh',1,0,0], # special
+	'mksh' => ['^.*KSH\s*',1,'var','mksh',1,0,0], # special
 	'oh' => ['^oh',0,'0','Oh',1,0,0], # no version yet
 	'oil' => ['^Oil',3,'--version','Oil',1,1,0],
+	'osh' => ['^osh',3,'--version','OSH',1,1,0], # precursor of oil
 	'nash' => ['^nash',0,'0','nash',1,0,0], # unverified
-	'pdksh' => ['ksh',5,'-v','pdksh',1,0,0], 
-	'posh' => ['posh',0,'0','posh',1,0,0], # no version
+	'pdksh' => ['^.*KSH\s*',5,'var','pdksh',1,0,0], # special, in  ksh family
+	'posh' => ['',1,'var','posh',1,0,0], # special, in ksh family
 	'pyshell' => ['pyshell',0,'0','pyshell',1,0,0], 
 	'rc' => ['^rc',0,'0','rc',1,0,0], # no version
-	'scsh' => ['^scsh',0,'0','scsh',1,0,0], # no version
+	#'scsh' => ['^scsh',0,'0','scsh',1,0,0], # no version, not a real shell
 	'sh' => ['^sh',0,'0','sh',1,0,0], # no version
-	'tcsh' => ['^tcsh',2,'--version','tcsh',1,1,0],
+	'tcsh' => ['^tcsh',2,'--version','tcsh',1,1,0], # enhanced csh
 	'xonsh' => ['^xonsh',1,'--version','Xonsh',1,0,0], 
+	'yash' => ['^Y',5,'--version','yash',1,0,0], 
 	'zsh' => ['^zsh',2,'--version','zsh',1,0,0],
 	## Tools ##
 	'clang' => ['clang',3,'--version','Clang',1,0,0],
@@ -3566,20 +3567,24 @@ sub program_version {
 	$version ||= '--version';
 	# adjust to array index, not human readable
 	$num-- if (defined $num && $num > 0);
-	# ksh: Version JM 93t+ 2010--03-05
-	# mksh: @(#)MIRBSD KSH R56 2018/03/09
-	# loksh: @(#)PD KSH v5.2.14 99/07/13.2
-	# --version opens a new ksh, sigh... This so far does not work
-	# because the ENV/Shell variable is not visible in subshells
-	if ($search eq 'ksh'){
-		my $ksh = system('echo -n $KSH_VERSION');
-		if ( $ksh ){
-			my @temp = split /\s+/, $ksh;
-			if ($temp[2]){
-				$temp[2] =~ s/^v//i; # trim off leading v
-				log_data('data',"Program *ksh array: @temp version: $temp[2]") if $b_log;
-				return $temp[2];
+	# ksh: Version JM 93t+ 2010-03-05 [OR] Version A 2020.0.0
+	# mksh: @(#)MIRBSD KSH R56 2018/03/09; lksh/pdksh: @(#)LEGACY KSH R56 2018/03/09
+	# loksh: @(#)PD KSH v5.2.14 99/07/13.2; posh: 0.13.2
+	if ($version eq 'var'){
+		if ($app =~ /^(|l|lo|m|pd)ksh$/){$cmd = 'printf %s "$KSH_VERSION" 2>/dev/null'}
+		elsif ($app eq 'posh'){$cmd = 'printf %s "$POSH_VERSION" 2>/dev/null'}
+		#print "$cmd\n";
+		if ($cmd){
+			$version_nu = (qx($app -c '$cmd'))[0];
+			log_data('data',"Program $app: data: $version_nu s/r: $search") if $b_log;
+			if ($version_nu){
+				$version_nu =~ s/$search//;;
+				$version_nu =~ s/^v([0-9])/$1/i; 
 			}
+			return $version_nu;
+		}
+		else {
+			log_data('data',"Program var handler: $app ~ not handled!") if $b_log;
 		}
 		return 0;
 	}
@@ -3594,17 +3599,19 @@ sub program_version {
 			return 0;
 		}
 	}
-	# note, some wm/apps send version info to stderr instead of stdout
-	if ( $stderr && $stderr ne 'file' ) {
-		$cmd = "$app $version 2>&1";
-	}
-# 	elsif ( $app eq 'csh' ){
-# 		$app = 'tcsh';
-# 	}
 	# quick debian/buntu hack until I find a universal way to get version for these
-	elsif ( $app =~ /dash$/ ){
-		$app =~ s/^.*\///;
-		$cmd = "dpkg -l $app 2>/dev/null";
+	if ($version eq 'package'){
+		if ( $app =~ /^(|.*\/)d?ash$/){
+			$app =~ s/^.*\///;
+			if (my $program = check_program('dpkg') ){
+				$cmd = "$program -l $app 2>/dev/null";
+			}
+		}
+		return 0 if !$cmd;
+	}
+	# note, some wm/apps send version info to stderr instead of stdout
+	elsif ( $stderr && $stderr ne 'file' ) {
+		$cmd = "$app $version 2>&1";
 	}
 	else {
 		$cmd = "$app $version 2>/dev/null";
@@ -19439,10 +19446,11 @@ sub get_shell_source {
 		}
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
-		# ipython2|ipython| not a shell. oh, nash, elvish: go shells
+		# ipython2|ipython|scsh not a shell. oh, nash: go shells
 		my $shells = 'ash|bash|csh|dash|elvish|eshell|fish|fizsh|';
-		$shells .= 'ion(sh)?|ksh|lksh|loksh|mksh||oh|oil|';
-		$shells .= 'nash|pdksh|perl|posh|pysh(ell)?|rc|scsh|sh|su|sudo|tcsh|xonsh|zsh';
+		$shells .= 'ion(sh)?|ksh|lksh|loksh|mksh||oh|oil|osh|';
+		$shells .= 'nash|pdksh|perl|posh|pysh(ell)?|rc|sh|su|sudo|';
+		$shells .= 'tcsh|xonsh|yash|zsh';
 		for my $i (2..4){
 			if ( $shell_parent && 
 		     $shell_parent =~ /^($shells)$/ ){
