@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-20';
-my $self_patch='33';
+my $self_patch='34';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3355,7 +3355,7 @@ sub set_program_values {
 	'compton' => ['^\d',1,'--version','Compton',0,1,0],
 	'cwm' => ['^cwm',0,'0','CWM',0,1,0], # no version
 	'dcompmgr' => ['^dcompmgr',0,'0','dcompmgr',0,1,0], # unverified
-	'deepin' => ['^Version',2,'file','Deepin',0,'=','/etc/deepin-version'],
+	'deepin' => ['^Version',2,'file','Deepin',0,'=','/etc/deepin-version'], # special
 	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0],
 	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0],
 	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0], # no version
@@ -3496,10 +3496,10 @@ sub set_program_values {
 	'xdm' => ['^xdm',0,'0','XDM',0,1,0],
 	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0],
 	## Shells - not checked: ion, eshell
-	'ash' => ['',3,'package','ash',1,0,0], # alt for dash, dpkg query
-	'bash' => ['^GNU[[:space:]]bash,[[:space:]]version',4,'--version','Bash',1,0,0],
+	'ash' => ['',3,'package','ash',1,0,0], # alt for dash, pkg query
+	'bash' => ['^GNU[[:space:]]bash',4,'--version','Bash',1,1,0],
 	'csh' => ['^csh',0,'0','csh',1,0,0], # no version
-	'dash' => ['',3,'package','Dash',1,0,0], # no version, dpkg query
+	'dash' => ['',3,'package','Dash',1,0,0], # no version, pkg query
 	'elvish' => ['^\S',1,'--version','elvish',1,0,0],
 	'eshell' => ['^eshell',0,'0','eshell',1,0,0], # unverified
 	'fish' => ['^fish',3,'--version','fish',1,0,0],
@@ -19387,11 +19387,17 @@ sub get_shell_data {
 		my $working = $ENV{'SHELL'};
 		$working =~ s/^.*\/// if $working; 
 		# NOTE: su -c "inxi -F" results in shell being su
-		# Note: parent when fizsh shows as zsh so shell reports as zsh
-		if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && 
-		 $working && $shell ne $working){
-			$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
-			$shell = $working;
+		
+		if ($workinig){
+			if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && $shell ne $working){
+				$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
+				$shell = $working;
+			}
+			# a few manual changes for known 
+			# Note: parent when fizsh shows as zsh but SHELL is fizsh
+			elsif ($shell eq 'zsh' && $working eq 'fizsh' ){
+				$shell = $working;
+			}
 		}
 		# print "shell post: $shell working: $working\n";
 		# note: not all programs have -v/--version feature
