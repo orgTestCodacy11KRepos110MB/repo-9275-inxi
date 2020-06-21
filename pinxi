@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-20';
-my $self_patch='38';
+my $self_patch='39';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -19392,16 +19392,20 @@ sub get_shell_data {
 		$shell =~ s/^.*\///; 
 		my $working = $ENV{'SHELL'};
 		# NOTE: su -c "inxi -F" results in shell being su
+		if ($shell eq 'sudo' || $shell eq 'su' ){
+			$client{'su-start'} = $shell;
+			$shell = get_shell_parent(get_start_parent(getppid()));
+		}
 		if ($working){
 			$working =~ s/^.*\///;
-			if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && $shell ne $working){
-				$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
-				$shell = $working;
-			}
+# 			if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && $shell ne $working){
+# 				$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
+# 				$shell = $working;
+# 			}
 			# a few manual changes for known 
 			# Note: parent when fizsh shows as zsh but SHELL is fizsh, but other times
 			# SHELL is default shell, but in zsh, SHELL is default shell, not zfs
-			elsif ($shell eq 'zsh' && $working eq 'fizsh' ){
+			if ($shell eq 'zsh' && $working eq 'fizsh' ){
 				$shell = $working;
 			}
 		}
@@ -19448,6 +19452,15 @@ sub get_shell_data {
 		$client{'version'} =~ s/(\(.*|-release|-version)// if $client{'version'};
 		$client{'name'} = lc($shell);
 		$client{'name-print'} = $shell;
+		if ($working && lc($shell) ne lc($working)){
+			if (@app = main::program_data(lc($working))){
+				$client{'default-shell'} = $app[0];
+				$client{'default-shell-v'} = $app[1];
+			}
+			else {
+				$client{'default-shell'} = $working;
+			}
+		}
 	}
 	else {
 		$client{'name'} = 'shell';
@@ -21444,9 +21457,6 @@ sub generate_info_data {
 			$data{$data_name}[$index]{main::key($num++,0,2,'clang')} = $clang_version;
 		}
 	}
-	if ($extra > 2 && $client{'su-start'}){
-		$client .= " ($client{'su-start'})";
-	}
 	if (!$b_irc && $extra > 1 ){
 		# bsds don't support -f option to get PPID
 		if (($b_display && !$b_force_display) && !$bsd_type){
@@ -21466,9 +21476,16 @@ sub generate_info_data {
 			$running_in .= ' (SSH)';
 		}
 	}
+	if ($extra > 2 && $client{'su-start'}){
+		$client .= " ($client{'su-start'})";
+	}
 	$data{$data_name}[$index]{main::key($num++,1,1,$client_shell)} =  $client;
 	if ($extra > 0 && $client{'version'}){
 		$data{$data_name}[$index]{main::key($num++,0,2,'v')} = $client{'version'};
+	}
+	if ($extra > 2 && $client{'default-shell'}){
+		$data{$data_name}[$index]{main::key($num++,1,2,'default')} = $client{'default-shell'};
+		$data{$data_name}[$index]{main::key($num++,0,3,'v')} = $client{'default-shell-v'} if $client{'default-shell-v'};
 	}
 	if ( $running_in ){
 		$data{$data_name}[$index]{main::key($num++,0,2,'running in')} = $running_in;
