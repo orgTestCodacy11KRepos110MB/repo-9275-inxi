@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-23';
-my $self_patch='42';
+my $self_patch='43';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -493,12 +493,12 @@ sub set_sep {
 	}
 }
 
+# Important: -n makes it non interactive, no prompt for password
+# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
+# for some reason sudo -n with < 1.7 in Perl does not print to stderr
+# sudo will just error out which is the safest course here for now,
+# otherwise that interactive sudo password thing is too annoying
 sub set_sudo {
-	# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
-	# for some reason sudo -n with < 1.7 in Perl does not print to stderr
-	# sudo will just error out which is the safest course here for now,
-	# otherwise that interactive sudo password thing is too annoying
-	# important: -n makes it non interactive, no prompt for password
 	if (!$b_root && !$b_no_sudo && (my $path = main::check_program('sudo') )) {
 		my @data = program_values('sudo');
 		my $version = program_version($path,$data[0],$data[1],$data[2],$data[5]);
@@ -3634,7 +3634,7 @@ sub program_version {
 			if ( $_ =~ /$search/i ) {
 				$_ = trimmer($_);
 				# print "loop: $_ :: $num\n";
-				$_ =~ s/$replace// if $replace;
+				$_ =~ s/$replace//i if $replace;
 				$_ =~ s/\s/_/g if $b_no_space; # needed for some items with version > 1 word
 				my @data = split /\s+/, $_;
 				$version_nu = $data[$num];
@@ -19476,6 +19476,7 @@ sub get_shell_data {
 			if (@app = main::program_data(lc($working))){
 				$client{'default-shell'} = $app[0];
 				$client{'default-shell-v'} = $app[1];
+				$client{'default-shell-v'} =~ s/(\(.*|-release|-version)// if $client{'default-shell-v'};
 			}
 			else {
 				$client{'default-shell'} = $working;
