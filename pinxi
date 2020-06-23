@@ -499,12 +499,11 @@ sub set_sep {
 # sudo will just error out which is the safest course here for now,
 # otherwise that interactive sudo password thing is too annoying
 sub set_sudo {
-	if (!$b_root && !$b_no_sudo && (my $path = main::check_program('sudo') )) {
-		my @data = program_values('sudo');
-		my $version = program_version($path,$data[0],$data[1],$data[2],$data[5]);
-		$version =~ s/^([0-9]+\.[0-9]+).*/$1/;
-		#print "sudo v: $version\n";
-		$sudo = "$path -n " if is_numeric($version) && $version >= 1.7;
+	if (!$b_root && !$b_no_sudo && (my $path = main::check_program('sudo'))) {
+		my @data = program_data('sudo');
+		$data[1] =~ s/^([0-9]+\.[0-9]+).*/$1/;
+		#print "sudo v: $data[1]\n";
+		$sudo = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
 	}
 }
 
@@ -3289,10 +3288,8 @@ sub joiner {
 
 # returns array of: 0: program print name 1: program version
 # args: 1: program values id  2: program version string
-# 3: extra level. Note that StartClient runs BEFORE -x levels are set!
+# 3: $extra level. Note that StartClient runs BEFORE -x levels are set!
 # Only use this function when you only need the name/version data returned
-# Important: all tests that use this must explicitly have program_values 
-# set for each item tested for!!
 sub program_data {
 	eval $start if $b_log;
 	my ($values_id,$version_id,$level) = @_;
@@ -3300,12 +3297,12 @@ sub program_data {
 	$level = 0 if ! $level;
 	#print "val_id: $values_id ver_id:$version_id lev:$level ex:$extra\n";
 	$version_id = $values_id if ! $version_id;
-	@data = main::program_values($values_id);
+	@data = program_values($values_id);
 	if ($data[3]){
 		$program_data[0] = $data[3];
 		# programs that have no version method return 0 0 for index 1 and 2
 		if ( $extra >= $level && $data[1] && $data[2]){
-			$program_data[1] = main::program_version($version_id,$data[0],
+			$program_data[1] = program_version($version_id,$data[0],
 			$data[1],$data[2],$data[5],$data[6],$data[7],$data[8]);
 		}
 	}
@@ -3519,12 +3516,12 @@ sub set_program_values {
 	# ksh/lksh/loksh/mksh/posh//pdksh need to print their own $VERSION info
 	'ksh' => ['^\S',1,'cmd','ksh',1,0,0,'^(Version|.*KSH)\s*',''], # special
 	'ksh93' => ['^\S',1,'cmd','ksh93',1,0,0,'^(Version|.*KSH)\s*',''], # special
-	'lksh' => ['^\S',1,'cmdr','lksh',1,0,0,'^.*KSH\s*',''], # special
+	'lksh' => ['^\S',1,'cmd','lksh',1,0,0,'^.*KSH\s*',''], # special
 	'loksh' => ['^\S',1,'cmd','loksh',1,0,0,'^.*KSH\s*',''], # special
 	'mksh' => ['^\S',1,'cmd','mksh',1,0,0,'^.*KSH\s*',''], # special
 	'nash' => ['^nash',0,'0','Nash',1,0,0,'',''], # unverified; rc based [no version]
 	'oh' => ['^oh',0,'0','Oh',1,0,0,'',''], # no version yet
-	'oil' => ['^Oil',3,'--version','Oil',1,1,0,'',''],
+	'oil' => ['^Oil',3,'--version','Oil',1,1,0,'',''], # could use cmd $OIL_SHELL
 	'osh' => ['^osh',3,'--version','OSH',1,1,0,'',''], # precursor of oil
 	'pdksh' => ['^\S',1,'cmd','pdksh',1,0,0,'^.*KSH\s*',''], # special, in  ksh family
 	'posh' => ['^\S',1,'cmd','posh',1,0,0,'',''], # special, in ksh family
@@ -3591,15 +3588,12 @@ sub program_version {
 	if ($version eq 'file'){
 		# don't do anything, we do it below
 	}
-	# ksh: Version JM 93t+ 2010-03-05 [OR] Version A 2020.0.0
-	# mksh: @(#)MIRBSD KSH R56 2018/03/09; lksh/pdksh: @(#)LEGACY KSH R56 2018/03/09
-	# loksh: @(#)PD KSH v5.2.14 99/07/13.2; posh: 0.13.2
 	# These will mostly be shells that require running the shell command -c to get info data
 	elsif ($version eq 'cmd'){
 		($cmd,$b_no_space) = program_version_cmd($app,$app_name,$extra);
 		return 0 if !$cmd;
 	}
-	# quick hack until find a universal way to get version for these
+	# slow: use pkg manager to get version, avoid unless you really want version
 	elsif ($version eq 'pkg'){
 		($cmd,$search) = program_version_pkg($app_name);
 		return 0 if !$cmd;
@@ -3660,6 +3654,9 @@ sub program_version {
 # print program_version('bash', 'bash', 4) . "\n";
 
 # returns ($cmdd, $b_no_space)
+# ksh: Version JM 93t+ 2010-03-05 [OR] Version A 2020.0.0
+# mksh: @(#)MIRBSD KSH R56 2018/03/09; lksh/pdksh: @(#)LEGACY KSH R56 2018/03/09
+# loksh: @(#)PD KSH v5.2.14 99/07/13.2; posh: 0.13.2
 sub program_version_cmd {
 	eval $start if $b_log;
 	my ($app,$app_name,$extra) = @_;
