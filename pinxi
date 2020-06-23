@@ -3358,7 +3358,7 @@ sub set_program_values {
 	'compton' => ['^\d',1,'--version','Compton',0,1,0,'',''],
 	'cwm' => ['^cwm',0,'0','CWM',0,1,0,'',''], # no version
 	'dcompmgr' => ['^dcompmgr',0,'0','dcompmgr',0,1,0,'',''], # unverified
-	'deepin' => ['^Version',2,'file','Deepin',0,'=',100,'','/etc/deepin-version'], # special
+	'deepin' => ['^Version',2,'file','Deepin',0,100,'=','','/etc/deepin-version'], # special
 	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0,'',''],
 	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0,'',''],
 	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0,'',''], # no version
@@ -3586,7 +3586,10 @@ sub program_version {
 		}
 	}
 	if ($version eq 'file'){
-		# don't do anything, we do it below
+		return 0 unless $extra && -r $extra;
+		my @data = reader($extra,'strip');
+		@data = map {s/$stderr/ /;$_} @data if $stderr; # $stderr is the splitter
+		$output = join "\n",@data;
 	}
 	# These will mostly be shells that require running the shell command -c to get info data
 	elsif ($version eq 'cmd'){
@@ -3607,13 +3610,7 @@ sub program_version {
 	}
 	log_data('data',"version: $version num: $num search: $search command: $cmd") if $b_log;
 	# special case, in rare instances version comes from file
-	if ($version eq 'file'){
-		return 0 unless $extra && -r $extra;
-		my @data = reader($extra,'strip');
-		@data = map {s/$exit/ /;$_} @data if $exit;
-		$output = join "\n",@data;
-	}
-	else {
+	if ($version ne 'file'){
 		$output = qx($cmd);
 		log_data('data',"output: $output") if $b_log;
 	}
