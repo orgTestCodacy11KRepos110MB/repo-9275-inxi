@@ -33,8 +33,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.03';
-my $self_date='2020-06-22';
-my $self_patch='41';
+my $self_date='2020-06-23';
+my $self_patch='42';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -75,7 +75,7 @@ $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_ppc,$b_proc_partitions,$b_ps_gui,
 $b_root,$b_running_in_display,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
-$b_sudo,$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
+$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
 $b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
@@ -327,17 +327,7 @@ sub check_tools {
 		%alerts = (%alerts, %hash);
 	}
 	# print Dumper \%alerts;
-	# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
-	# for some reason sudo -n with < 1.7 in Perl does not print to stderr
-	# sudo will just error out which is the safest course here for now,
-	# otherwise that interactive sudo password thing is too annoying
-	# important: -n makes it non interactive, no prompt for password
-	if (!$b_root && $b_sudo && !$b_no_sudo && (my $path = main::check_program('sudo') )) {
-		my @data = program_values('sudo');
-		my $version = program_version($path,$data[0],$data[1],$data[2],$data[5]);
-		$version =~ s/^([0-9]+\.[0-9]+).*/$1/;
-		$sudo = "$path -n " if is_numeric($version) && $version >= 1.7;
-	}
+	
 	set_fake_tools() if $b_fake_bsd;
 }
 # args: 1 - desktop/app command for --version; 2 - search string; 
@@ -500,6 +490,21 @@ sub set_sep {
 	else {
 		$sep{'s1'} = $sep{'s1-console'};
 		$sep{'s2'} = $sep{'s2-console'};
+	}
+}
+
+sub set_sudo {
+	# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
+	# for some reason sudo -n with < 1.7 in Perl does not print to stderr
+	# sudo will just error out which is the safest course here for now,
+	# otherwise that interactive sudo password thing is too annoying
+	# important: -n makes it non interactive, no prompt for password
+	if (!$b_root && !$b_no_sudo && (my $path = main::check_program('sudo') )) {
+		my @data = program_values('sudo');
+		my $version = program_version($path,$data[0],$data[1],$data[2],$data[5]);
+		$version =~ s/^([0-9]+\.[0-9]+).*/$1/;
+		#print "sudo v: $version\n";
+		$sudo = "$path -n " if is_numeric($version) && $version >= 1.7;
 	}
 }
 
@@ -3300,7 +3305,8 @@ sub program_data {
 		$program_data[0] = $data[3];
 		# programs that have no version method return 0 0 for index 1 and 2
 		if ( $extra >= $level && $data[1] && $data[2]){
-			$program_data[1] = main::program_version($version_id,$data[0],$data[1],$data[2],$data[5],$data[6]);
+			$program_data[1] = main::program_version($version_id,$data[0],
+			$data[1],$data[2],$data[5],$data[6],$data[7],$data[8]);
 		}
 	}
 	$program_data[0] ||= '';
@@ -3312,223 +3318,225 @@ sub program_data {
 sub set_program_values {
 	%program_values = (
 	## Clients ##
-	'bitchx' => ['bitchx',2,'','BitchX',1,0,0],# special
-	'finch' => ['finch',2,'-v','Finch',1,1,0],
-	'gaim' => ['[0-9.]+',2,'-v','Gaim',0,1,0],
-	'ircii' => ['[0-9.]+',3,'-v','ircII',1,1,0],
-	'irssi' => ['irssi',2,'-v','Irssi',1,1,0],
-	'irssi-text' => ['irssi',2,'-v','Irssi',1,1,0],
-	'konversation' => ['konversation',2,'-v','Konversation',0,0,0],
-	'kopete' => ['Kopete',2,'-v','Kopete',0,0,0],
-	'kvirc' => ['[0-9.]+',2,'-v','KVIrc',0,0,1], # special
-	'pidgin' => ['[0-9.]+',2,'-v','Pidgin',0,1,0],
-	'quassel' => ['',1,'-v','Quassel [M]',0,0,0], # special
-	'quasselclient' => ['',1,'-v','Quassel',0,0,0],# special
-	'quasselcore' => ['',1,'-v','Quassel (core)',0,0,0],# special
-	'gribble' => ['^Supybot',2,'--version','Gribble',1,0,0],# special
-	'limnoria' => ['^Supybot',2,'--version','Limnoria',1,0,0],# special
-	'supybot' => ['^Supybot',2,'--version','Supybot',1,0,0],# special
-	'weechat' => ['[0-9.]+',1,'-v','WeeChat',1,0,0],
-	'weechat-curses' => ['[0-9.]+',1,'-v','WeeChat',1,0,0],
-	'xchat-gnome' => ['[0-9.]+',2,'-v','X-Chat-Gnome',1,1,0],
-	'xchat' => ['[0-9.]+',2,'-v','X-Chat',1,1,0],
+	'bitchx' => ['bitchx',2,'','BitchX',1,0,0,'',''],# special
+	'finch' => ['finch',2,'-v','Finch',1,1,0,'',''],
+	'gaim' => ['[0-9.]+',2,'-v','Gaim',0,1,0,'',''],
+	'ircii' => ['[0-9.]+',3,'-v','ircII',1,1,0,'',''],
+	'irssi' => ['irssi',2,'-v','Irssi',1,1,0,'',''],
+	'irssi-text' => ['irssi',2,'-v','Irssi',1,1,0,'',''],
+	'konversation' => ['konversation',2,'-v','Konversation',0,0,0,'',''],
+	'kopete' => ['Kopete',2,'-v','Kopete',0,0,0,'',''],
+	'kvirc' => ['[0-9.]+',2,'-v','KVIrc',0,0,1,'',''], # special
+	'pidgin' => ['[0-9.]+',2,'-v','Pidgin',0,1,0,'',''],
+	'quassel' => ['',1,'-v','Quassel [M]',0,0,0,'',''], # special
+	'quasselclient' => ['',1,'-v','Quassel',0,0,0,'',''],# special
+	'quasselcore' => ['',1,'-v','Quassel (core)',0,0,0,'',''],# special
+	'gribble' => ['^Supybot',2,'--version','Gribble',1,0,0,'',''],# special
+	'limnoria' => ['^Supybot',2,'--version','Limnoria',1,0,0,'',''],# special
+	'supybot' => ['^Supybot',2,'--version','Supybot',1,0,0,'',''],# special
+	'weechat' => ['[0-9.]+',1,'-v','WeeChat',1,0,0,'',''],
+	'weechat-curses' => ['[0-9.]+',1,'-v','WeeChat',1,0,0,'',''],
+	'xchat-gnome' => ['[0-9.]+',2,'-v','X-Chat-Gnome',1,1,0,'',''],
+	'xchat' => ['[0-9.]+',2,'-v','X-Chat',1,1,0,'',''],
 	## Desktops / wm / compositors ##
-	'3dwm' => ['^3dwm',0,'0','3Dwm',0,1,0], # unverified
-	'9wm' => ['^9wm',3,'-version','9wm',0,1,0],
-	'aewm' => ['^aewm',3,'--version','aewm',0,1,0],
-	'aewm++' => ['^Version:',2,'-version','aewm++',0,1,0],
-	'afterstep' => ['^afterstep',3,'--version','AfterStep',0,1,0],
-	'amiwm' => ['^amiwm',0,'0','AmiWM',0,1,0], # no version
-	'antiwm' => ['^antiwm',0,'0','AntiWM',0,1,0], # no version known
-	'asc' => ['^asc',0,'0','asc',0,1,0],
-	'awesome' => ['^awesome',2,'--version','awesome',0,1,0],
-	'beryl' => ['^beryl',0,'0','Beryl',0,1,0], # unverified; legacy
-	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0],
-	'bspwm' => ['^\S',1,'-v','bspwm',0,1,0],
-	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0],
-	'budgie-wm' => ['^budgie',0,'0','budgie-wm',0,1,0],
-	'cagebreak' => ['^Cagebreak',3,'-v','Cagebreak',0,1,0],
-	'calmwm' => ['^calmwm',0,'0','CalmWM',0,1,0], # unverified
-	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0],
-	'clfswm' => ['^clsfwm',0,'0','clfswm',0,1,0], # no version
-	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0],
-	'compton' => ['^\d',1,'--version','Compton',0,1,0],
-	'cwm' => ['^cwm',0,'0','CWM',0,1,0], # no version
-	'dcompmgr' => ['^dcompmgr',0,'0','dcompmgr',0,1,0], # unverified
-	'deepin' => ['^Version',2,'file','Deepin',0,'=','/etc/deepin-version'], # special
-	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0],
-	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0],
-	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0], # no version
-	'dwc' => ['^dwc',0,'0','dwc',0,1,0], # unverified
-	'dwm' => ['^dwm',1,'-v','dwm',0,1,1],
-	'echinus' => ['^echinus',1,'-v','echinus',0,1,1], # echinus-0.4.9 (c)...
+	'3dwm' => ['^3dwm',0,'0','3Dwm',0,1,0,'',''], # unverified
+	'9wm' => ['^9wm',3,'-version','9wm',0,1,0,'',''],
+	'aewm' => ['^aewm',3,'--version','aewm',0,1,0,'',''],
+	'aewm++' => ['^Version:',2,'-version','aewm++',0,1,0,'',''],
+	'afterstep' => ['^afterstep',3,'--version','AfterStep',0,1,0,'',''],
+	'amiwm' => ['^amiwm',0,'0','AmiWM',0,1,0,'',''], # no version
+	'antiwm' => ['^antiwm',0,'0','AntiWM',0,1,0,'',''], # no version known
+	'asc' => ['^asc',0,'0','asc',0,1,0,'',''],
+	'awesome' => ['^awesome',2,'--version','awesome',0,1,0,'',''],
+	'beryl' => ['^beryl',0,'0','Beryl',0,1,0,'',''], # unverified; legacy
+	'blackbox' => ['^Blackbox',2,'--version','Blackbox',0,1,0,'',''],
+	'bspwm' => ['^\S',1,'-v','bspwm',0,1,0,'',''],
+	'budgie' => ['^budgie-desktop',2,'--version','Budgie',0,1,0,'',''],
+	'budgie-wm' => ['^budgie',0,'0','budgie-wm',0,1,0,'',''],
+	'cagebreak' => ['^Cagebreak',3,'-v','Cagebreak',0,1,0,'',''],
+	'calmwm' => ['^calmwm',0,'0','CalmWM',0,1,0,'',''], # unverified
+	'cinnamon' => ['^cinnamon',2,'--version','Cinnamon',0,1,0,'',''],
+	'clfswm' => ['^clsfwm',0,'0','clfswm',0,1,0,'',''], # no version
+	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0,'',''],
+	'compton' => ['^\d',1,'--version','Compton',0,1,0,'',''],
+	'cwm' => ['^cwm',0,'0','CWM',0,1,0,'',''], # no version
+	'dcompmgr' => ['^dcompmgr',0,'0','dcompmgr',0,1,0,'',''], # unverified
+	'deepin' => ['^Version',2,'file','Deepin',0,'=',100,'','/etc/deepin-version'], # special
+	'deepin-metacity' => ['^metacity',2,'--version','Deepin-Metacity',0,1,0,'',''],
+	'deepin-mutter' => ['^mutter',2,'--version','Deepin-Mutter',0,1,0,'',''],
+	'deepin-wm' => ['^gala',0,'0','DeepinWM',0,1,0,'',''], # no version
+	'dwc' => ['^dwc',0,'0','dwc',0,1,0,'',''], # unverified
+	'dwm' => ['^dwm',1,'-v','dwm',0,1,1,'^dwm-',''],
+	'echinus' => ['^echinus',1,'-v','echinus',0,1,1,'',''], # echinus-0.4.9 (c)...
 	# only listed here for compositor values, version data comes from xprop
-	'enlightenment' => ['^enlightenment',0,'0','enlightenment',0,1,0], # no version, yet?
-	'evilwm' => ['evilwm',3,'-V','evilwm',0,1,0],# might use full path in match
-	'fireplace' => ['^fireplace',0,'0','fireplace',0,1,0], # unverified
-	'fluxbox' => ['^fluxbox',2,'-v','Fluxbox',0,1,0],
-	'flwm' => ['^flwm',0,'0','FLWM',0,0,1], # no version
-	'fvwm' => ['^fvwm',2,'--version','FVWM',0,1,0],
-	'fvwm1' => ['^Fvwm',3,'-version','FVWM1',0,1,1],
-	'fvwm2' => ['^fvwm',2,'--version','fVWM2',0,1,0],
-	'fvwm3' => ['^fvwm',2,'--version','fVWM3',0,1,0],
-	'fvwm95' => ['^fvwm',2,'--version','FVWM95',0,1,1],
+	'enlightenment' => ['^enlightenment',0,'0','enlightenment',0,1,0,'',''], # no version, yet?
+	'evilwm' => ['evilwm',3,'-V','evilwm',0,1,0,'',''],# might use full path in match
+	'fireplace' => ['^fireplace',0,'0','fireplace',0,1,0,'',''], # unverified
+	'fluxbox' => ['^fluxbox',2,'-v','Fluxbox',0,1,0,'',''],
+	'flwm' => ['^flwm',0,'0','FLWM',0,0,1,'',''], # no version
+	'fvwm' => ['^fvwm',2,'--version','FVWM',0,1,0,'',''],
+	'fvwm1' => ['^Fvwm',3,'-version','FVWM1',0,1,1,'',''],
+	'fvwm2' => ['^fvwm',2,'--version','fVWM2',0,1,0,'',''],
+	'fvwm3' => ['^fvwm',2,'--version','fVWM3',0,1,0,'',''],
+	'fvwm95' => ['^fvwm',2,'--version','FVWM95',0,1,1,'',''],
 	# command: fvwm
-	'fvwm-crystal' => ['^fvwm',2,'--version','FVWM-Crystal',0,0,0], 
-	'gala' => ['^gala',0,'0','gala',0,1,0], # pantheon wm: super slow result, 2, '--version' works?
-	'glass' => ['^glass',3,'-v','Glass',0,1,0], 
-	'gnome-about' => ['gnome',3,'--version','Gnome',0,1,0],
-	'gnome-shell' => ['gnome',3,'--version','Gnome',0,1,0],
-	'grefson' => ['^grefson',0,'0','grefson',0,1,0], # unverified
-	'hackedbox' => ['^hackedbox',2,'-version','HackedBox',0,1,0], # unverified, assume blackbox
+	'fvwm-crystal' => ['^fvwm',2,'--version','FVWM-Crystal',0,0,0,'',''], 
+	'gala' => ['^gala',0,'0','gala',0,1,0,'',''], # pantheon wm: super slow result, 2, '--version' works?
+	'glass' => ['^glass',3,'-v','Glass',0,1,0,'',''], 
+	'gnome-about' => ['gnome',3,'--version','Gnome',0,1,0,'',''],
+	'gnome-shell' => ['gnome',3,'--version','Gnome',0,1,0,'',''],
+	'grefson' => ['^grefson',0,'0','grefson',0,1,0,'',''], # unverified
+	'hackedbox' => ['^hackedbox',2,'-version','HackedBox',0,1,0,'',''], # unverified, assume blackbox
 	# note, herbstluftwm when launched with full path returns full path in version string
-	'herbstluftwm' => ['herbstluftwm',2,'--version','herbstluftwm',0,1,0],
-	'i3' => ['^i3',3,'--version','i3',0,1,0],
-	'icewm' => ['^icewm',2,'--version','IceWM',0,1,0],
-	'ion3' => ['^ion3',0,'--version','Ion3',0,1,0], # unverified; also shell called ion
-	'jbwm' => ['jbwm',3,'-v','JBWM',0,1,0], # might use full path in match
-	'jwm' => ['^jwm',2,'--version','JWM',0,1,0],
-	'kded' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
-	'kded1' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
-	'kded2' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
-	'kded3' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
-	'kded4' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0],
-	'ksmcon' => ['^ksmcon',0,'0','ksmcon',0,1,0],# no version
-	'kwin' => ['^kwin',0,'0','kwin',0,1,0],# no version
-	'kwin_wayland' => ['^kwin_wayland',0,'0','kwin_wayland',0,1,0],# no version
-	'kwin_x11' => ['^kwin_x11',0,'0','kwin_x11',0,1,0],# no version
-	'larswm' => ['^larswm',2,'-v','larswm',0,1,1],
-	'liri' => ['^liri',0,'0','liri',0,1,0],
-	'lumina' => ['^\S',1,'--version','Lumina',0,1,1],
-	'lwm' => ['^lwm',0,'0','lwm',0,1,0], # no version
-	'lxde' => ['^lxpanel',2,'--version','LXDE',0,1,0],
+	'herbstluftwm' => ['herbstluftwm',2,'--version','herbstluftwm',0,1,0,'',''],
+	'i3' => ['^i3',3,'--version','i3',0,1,0,'',''],
+	'icewm' => ['^icewm',2,'--version','IceWM',0,1,0,'',''],
+	'instantwm' => ['^instantwm',1,'-v','instantWM',0,1,1,'^instantwm-instantos-?',''],
+	'ion3' => ['^ion3',0,'--version','Ion3',0,1,0,'',''], # unverified; also shell called ion
+	'jbwm' => ['jbwm',3,'-v','JBWM',0,1,0,'',''], # might use full path in match
+	'jwm' => ['^jwm',2,'--version','JWM',0,1,0,'',''],
+	'kded' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0,'',''],
+	'kded1' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0,'',''],
+	'kded2' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0,'',''],
+	'kded3' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0,'',''],
+	'kded4' => ['^KDE Development Platform:',4,'--version','KDE',0,1,0,'',''],
+	'ksmcon' => ['^ksmcon',0,'0','ksmcon',0,1,0,'',''],# no version
+	'kwin' => ['^kwin',0,'0','kwin',0,1,0,'',''],# no version
+	'kwin_wayland' => ['^kwin_wayland',0,'0','kwin_wayland',0,1,0,'',''],# no version
+	'kwin_x11' => ['^kwin_x11',0,'0','kwin_x11',0,1,0,'',''],# no version
+	'larswm' => ['^larswm',2,'-v','larswm',0,1,1,'',''],
+	'liri' => ['^liri',0,'0','liri',0,1,0,'',''],
+	'lumina' => ['^\S',1,'--version','Lumina',0,1,1,'',''],
+	'lwm' => ['^lwm',0,'0','lwm',0,1,0,'',''], # no version
+	'lxde' => ['^lxpanel',2,'--version','LXDE',0,1,0,'',''],
 	# command: lxqt-panel
-	'lxqt' => ['^lxqt-panel',2,'--version','LXQt',0,1,0],
-	'lxqt-variant' => ['^lxqt-panel',0,'0','LXQt-Variant',0,1,0],
-	'lxsession' => ['^lxsession',0,'0','lxsession',0,1,0],
-	'manokwari' => ['^manokwari',0,'0','Manokwari',0,1,0],
-	'marco' => ['^marco',2,'--version','marco',0,1,0],
-	'matchbox' => ['^matchbox',0,'0','Matchbox',0,1,0],
-	'matchbox-window-manager' => ['^matchbox',2,'--help','Matchbox',0,0,0],
-	'mate-about' => ['^MATE[[:space:]]DESKTOP',-1,'--version','MATE',0,1,0],
+	'lxqt' => ['^lxqt-panel',2,'--version','LXQt',0,1,0,'',''],
+	'lxqt-variant' => ['^lxqt-panel',0,'0','LXQt-Variant',0,1,0,'',''],
+	'lxsession' => ['^lxsession',0,'0','lxsession',0,1,0,'',''],
+	'manokwari' => ['^manokwari',0,'0','Manokwari',0,1,0,'',''],
+	'marco' => ['^marco',2,'--version','marco',0,1,0,'',''],
+	'matchbox' => ['^matchbox',0,'0','Matchbox',0,1,0,'',''],
+	'matchbox-window-manager' => ['^matchbox',2,'--help','Matchbox',0,0,0,'',''],
+	'mate-about' => ['^MATE[[:space:]]DESKTOP',-1,'--version','MATE',0,1,0,'',''],
 	# note, mate-session when launched with full path returns full path in version string
-	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0], 
-	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0],
-	'metisse' => ['^metisse',0,'0','metisse',0,1,0],
-	'mini' => ['^Mini',5,'--version','Mini',0,1,0],
-	'mir' => ['^mir',0,'0','mir',0,1,0],# unverified
-	'moblin' => ['^moblin',0,'0','moblin',0,1,0],# unverified
-	'motorcar' => ['^motorcar',0,'0','motorcar',0,1,0],# unverified
-	'muffin' => ['^muffin',2,'--version','Muffin',0,1,0],
-	'musca' => ['^musca',0,'-v','Musca',0,1,0], # unverified
-	'mutter' => ['^mutter',2,'--version','Mutter',0,1,0],
-	'mwm' => ['^mwm',0,'0','MWM',0,1,0],# no version
-	'nawm' => ['^nawm',0,'0','nawm',0,1,0],# unverified
-	'notion' => ['^.',1,'--version','Notion',0,1,0],
-	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0],
-	'orbital' => ['^orbital',0,'0','orbital',0,1,0],# unverified
-	'pantheon' => ['^pantheon',0,'0','Pantheon',0,1,0],# no version
-	'papyros' => ['^papyros',0,'0','papyros',0,1,0],# no version
-	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0],
-	'perceptia' => ['^perceptia',0,'0','perceptia',0,1,0],
-	'picom' => ['^\d',1,'--version','Picom',0,1,0],
-	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0],
-	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0],
-	'qtile' => ['^',1,'--version','Qtile',0,1,0],
-	'qvwm' => ['^qvwm',0,'0','qvwm',0,1,0], # unverified
-	'razor' => ['^razor',0,'0','Razor-Qt',0,1,0],
-	'ratpoison' => ['^ratpoison',2,'--version','Ratpoison',0,1,0],
-	'rustland' => ['^rustland',0,'0','rustland',0,1,0], # unverified
-	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0],
-	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','scrotwm',0,1,1],
-	'sommelier' => ['^sommelier',0,'0','sommelier',0,1,0], # unverified
-	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','spectrwm',0,1,1],
+	'mate-session' => ['mate-session',-1,'--version','MATE',0,1,0,'',''], 
+	'metacity' => ['^metacity',2,'--version','Metacity',0,1,0,'',''],
+	'metisse' => ['^metisse',0,'0','metisse',0,1,0,'',''],
+	'mini' => ['^Mini',5,'--version','Mini',0,1,0,'',''],
+	'mir' => ['^mir',0,'0','mir',0,1,0,'',''],# unverified
+	'moblin' => ['^moblin',0,'0','moblin',0,1,0,'',''],# unverified
+	'motorcar' => ['^motorcar',0,'0','motorcar',0,1,0,'',''],# unverified
+	'muffin' => ['^muffin',2,'--version','Muffin',0,1,0,'',''],
+	'musca' => ['^musca',0,'-v','Musca',0,1,0,'',''], # unverified
+	'mutter' => ['^mutter',2,'--version','Mutter',0,1,0,'',''],
+	'mwm' => ['^mwm',0,'0','MWM',0,1,0,'',''],# no version
+	'nawm' => ['^nawm',0,'0','nawm',0,1,0,'',''],# unverified
+	'notion' => ['^.',1,'--version','Notion',0,1,0,'',''],
+	'openbox' => ['^openbox',2,'--version','Openbox',0,1,0,'',''],
+	'orbital' => ['^orbital',0,'0','orbital',0,1,0,'',''],# unverified
+	'pantheon' => ['^pantheon',0,'0','Pantheon',0,1,0,'',''],# no version
+	'papyros' => ['^papyros',0,'0','papyros',0,1,0,'',''],# no version
+	'pekwm' => ['^pekwm',3,'--version','PekWM',0,1,0,'',''],
+	'perceptia' => ['^perceptia',0,'0','perceptia',0,1,0,'',''],
+	'picom' => ['^\d',1,'--version','Picom',0,1,0,'',''],
+	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0,'',''],
+	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0,'',''],
+	'qtile' => ['^',1,'--version','Qtile',0,1,0,'',''],
+	'qvwm' => ['^qvwm',0,'0','qvwm',0,1,0,'',''], # unverified
+	'razor' => ['^razor',0,'0','Razor-Qt',0,1,0,'',''],
+	'ratpoison' => ['^ratpoison',2,'--version','Ratpoison',0,1,0,'',''],
+	'rustland' => ['^rustland',0,'0','rustland',0,1,0,'',''], # unverified
+	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0,'',''],
+	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','scrotwm',0,1,1,'',''],
+	'sommelier' => ['^sommelier',0,'0','sommelier',0,1,0,'',''], # unverified
+	'spectrwm' => ['^spectrwm.*welcome.*wm',5,'-v','spectrwm',0,1,1,'',''],
 	# out of stump, 2 --version, but in tries to start new wm instance endless hang
-	'stumpwm' => ['^SBCL',0,'--version','StumpWM',0,1,0], # hangs when run in wm
-	'sway' => ['^sway',3,'-v','sway',0,1,0],
-	'swc' => ['^swc',0,'0','swc',0,1,0], # unverified
-	'tinywm' => ['^tinywm',0,'0','TinyWM',0,1,0], # no version
-	'tvtwm' => ['^tvtwm',0,'0','tvtwm',0,1,0], # unverified
-	'twin' => ['^Twin:',2,'--version','Twin',0,0,0],
-	'twm' => ['^twm',0,'0','TWM',0,1,0], # no version
-	'ukui' => ['^ukui-session',2,'--version','UKUI',0,1,0],
-	'ukwm' => ['^ukwm',2,'--version','ukwm',0,1,0],
-	'unagi' => ['^\S',1,'--version','unagi',0,1,0],
-	'unity' => ['^unity',2,'--version','Unity',0,1,0],
-	'unity-system-compositor' => ['^unity-system-compositor',2,'--version','unity-system-compositor (mir)',0,0,0],
-	'wavy' => ['^wavy',0,'0','wavy',0,1,0], # unverified
-	'waycooler' => ['^way',3,'--version','way-cooler',0,1,0],
-	'way-cooler' => ['^way',3,'--version','way-cooler',0,1,0],
-	'wayfire' => ['^way',0,'0','wayfire',0,1,0], # unverified
-	'wayhouse' => ['^wayhouse',0,'0','wayhouse',0,1,0], # unverified
-	'westford' => ['^westford',0,'0','westford',0,1,0], # unverified
-	'weston' => ['^weston',0,'0','weston',0,1,0], # unverified
-	'windowlab' => ['^windowlab',2,'-about','WindowLab',0,1,0],
-	'wm2' => ['^wm2',0,'0','wm2',0,1,0], # no version
-	'wmaker' => ['^Window[[:space:]]*Maker',-1,'--version','WindowMaker',0,1,0],
-	'wmii' => ['^wmii',1,'-v','wmii',0,1,0], # wmii is wmii3
-	'wmii2' => ['^wmii2',1,'--version','wmii2',0,1,0],
-	'wmx' => ['^wmx',0,'0','wmx',0,1,0], # no version
-	'xcompmgr' => ['^xcompmgr',0,'0','xcompmgr',0,1,0], # no version
-	'xfce4-panel' => ['^xfce4-panel',2,'--version','Xfce',0,1,0],
-	'xfce5-panel' => ['^xfce5-panel',2,'--version','Xfce',0,1,0],
-	'xfdesktop' => ['xfdesktop[[:space:]]version',5,'--version','Xfce',0,1,0],
+	'stumpwm' => ['^SBCL',0,'--version','StumpWM',0,1,0,'',''], # hangs when run in wm
+	'sway' => ['^sway',3,'-v','sway',0,1,0,'',''],
+	'swc' => ['^swc',0,'0','swc',0,1,0,'',''], # unverified
+	'tinywm' => ['^tinywm',0,'0','TinyWM',0,1,0,'',''], # no version
+	'tvtwm' => ['^tvtwm',0,'0','tvtwm',0,1,0,'',''], # unverified
+	'twin' => ['^Twin:',2,'--version','Twin',0,0,0,'',''],
+	'twm' => ['^twm',0,'0','TWM',0,1,0,'',''], # no version
+	'ukui' => ['^ukui-session',2,'--version','UKUI',0,1,0,'',''],
+	'ukwm' => ['^ukwm',2,'--version','ukwm',0,1,0,'',''],
+	'unagi' => ['^\S',1,'--version','unagi',0,1,0,'',''],
+	'unity' => ['^unity',2,'--version','Unity',0,1,0,'',''],
+	'unity-system-compositor' => ['^unity-system-compositor',2,'--version',
+	 'unity-system-compositor (mir)',0,0,0,'',''],
+	'wavy' => ['^wavy',0,'0','wavy',0,1,0,'',''], # unverified
+	'waycooler' => ['^way',3,'--version','way-cooler',0,1,0,'',''],
+	'way-cooler' => ['^way',3,'--version','way-cooler',0,1,0,'',''],
+	'wayfire' => ['^way',0,'0','wayfire',0,1,0,'',''], # unverified
+	'wayhouse' => ['^wayhouse',0,'0','wayhouse',0,1,0,'',''], # unverified
+	'westford' => ['^westford',0,'0','westford',0,1,0,'',''], # unverified
+	'weston' => ['^weston',0,'0','weston',0,1,0,'',''], # unverified
+	'windowlab' => ['^windowlab',2,'-about','WindowLab',0,1,0,'',''],
+	'wm2' => ['^wm2',0,'0','wm2',0,1,0,'',''], # no version
+	'wmaker' => ['^Window[[:space:]]*Maker',-1,'--version','WindowMaker',0,1,0,'',''],
+	'wmii' => ['^wmii',1,'-v','wmii',0,1,0,'^wmii[234]?-',''], # wmii is wmii3
+	'wmii2' => ['^wmii2',1,'--version','wmii2',0,1,0,'^wmii[234]?-',''],
+	'wmx' => ['^wmx',0,'0','wmx',0,1,0,'',''], # no version
+	'xcompmgr' => ['^xcompmgr',0,'0','xcompmgr',0,1,0,'',''], # no version
+	'xfce4-panel' => ['^xfce4-panel',2,'--version','Xfce',0,1,0,'',''],
+	'xfce5-panel' => ['^xfce5-panel',2,'--version','Xfce',0,1,0,'',''],
+	'xfdesktop' => ['xfdesktop[[:space:]]version',5,'--version','Xfce',0,1,0,'',''],
 	# command: xfdesktop
-	'xfdesktop-toolkit' => ['Built[[:space:]]with[[:space:]]GTK',4,'--version','Gtk',0,1,0],
-	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0],
-	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0], # unverified
+	'xfdesktop-toolkit' => ['Built[[:space:]]with[[:space:]]GTK',4,'--version','Gtk',0,1,0,'',''],
+	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
+	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
 	## Display Managers (dm) ##
-	'cdm' => ['^cdm',0,'0','CDM',0,1,0],
-	'entrance' => ['^entrance',0,'0','Entrance',0,1,0],
-	'gdm' => ['^gdm',2,'--version','GDM',0,1,0],
-	'gdm3' => ['^gdm',2,'--version','GDM3',0,1,0],
-	'kdm' => ['^kdm',0,'0','KDM',0,1,0],
-	'ldm' => ['^ldm',0,'0','LDM',0,1,0],
-	'lightdm' => ['^lightdm',2,'--version','LightDM',0,1,1],
-	'lxdm' => ['^lxdm',0,'0','LXDM',0,1,0],
-	'ly' => ['^ly',3,'--version','Ly',0,1,0],
-	'mdm' => ['^mdm',0,'0','MDM',0,1,0],
-	'nodm' => ['^nodm',0,'0','nodm',0,1,0],
-	'pcdm' => ['^pcdm',0,'0','PCDM',0,1,0],
-	'sddm' => ['^sddm',0,'0','SDDM',0,1,0],
-	'slim' => ['slim version',3,'-v','SLiM',0,1,0],
-	'tdm' => ['^tdm',0,'0','TDM',0,1,0],
-	'udm' => ['^udm',0,'0','udm',0,1,0],
-	'wdm' => ['^wdm',0,'0','WINGs DM',0,1,0],
-	'xdm' => ['^xdm',0,'0','XDM',0,1,0],
-	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0],
+	'cdm' => ['^cdm',0,'0','CDM',0,1,0,'',''],
+	'entrance' => ['^entrance',0,'0','Entrance',0,1,0,'',''],
+	'gdm' => ['^gdm',2,'--version','GDM',0,1,0,'',''],
+	'gdm3' => ['^gdm',2,'--version','GDM3',0,1,0,'',''],
+	'kdm' => ['^kdm',0,'0','KDM',0,1,0,'',''],
+	'ldm' => ['^ldm',0,'0','LDM',0,1,0,'',''],
+	'lightdm' => ['^lightdm',2,'--version','LightDM',0,1,1,'',''],
+	'lxdm' => ['^lxdm',0,'0','LXDM',0,1,0,'',''],
+	'ly' => ['^ly',3,'--version','Ly',0,1,0,'',''],
+	'mdm' => ['^mdm',0,'0','MDM',0,1,0,'',''],
+	'nodm' => ['^nodm',0,'0','nodm',0,1,0,'',''],
+	'pcdm' => ['^pcdm',0,'0','PCDM',0,1,0,'',''],
+	'sddm' => ['^sddm',0,'0','SDDM',0,1,0,'',''],
+	'slim' => ['slim version',3,'-v','SLiM',0,1,0,'',''],
+	'tdm' => ['^tdm',0,'0','TDM',0,1,0,'',''],
+	'udm' => ['^udm',0,'0','udm',0,1,0,'',''],
+	'wdm' => ['^wdm',0,'0','WINGs DM',0,1,0,'',''],
+	'xdm' => ['^xdm',0,'0','XDM',0,1,0,'',''],
+	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0,'',''],
 	## Shells - not checked: ion, eshell ##
 	## See test_shell() for unhandled but known shells
-	'ash' => ['',3,'package','ash',1,0,0], # special; dash precursor
-	'bash' => ['^GNU[[:space:]]bash',4,'--version','Bash',1,1,0],
-	'busybox' => ['^busybox',0,'0','BusyBox',1,0,0], # unverified, hush/ash likely
-	'cicada' => ['^\s*version',2,'cmd','cicada',1,1,'cinfo'], # special
-	'csh' => ['^tcsh',2,'--version','csh',1,1,0], # mapped to tcsh often
-	'dash' => ['',3,'package','DASH',1,0,0], # no version, pkg query
-	'elvish' => ['^\S',1,'--version','Elvish',1,0,0],
-	'fish' => ['^fish',3,'--version','fish',1,0,0],
-	'fizsh' => ['^fizsh',3,'--version','FIZSH',1,0,0],
+	'ash' => ['',3,'pkg','ash',1,0,0,'',''], # special; dash precursor
+	'bash' => ['^GNU[[:space:]]bash',4,'--version','Bash',1,1,0,'',''],
+	'busybox' => ['^busybox',0,'0','BusyBox',1,0,0,'',''], # unverified, hush/ash likely
+	'cicada' => ['^\s*version',2,'cmd','cicada',1,1,0,'',''], # special
+	'csh' => ['^tcsh',2,'--version','csh',1,1,0,'',''], # mapped to tcsh often
+	'dash' => ['',3,'pkg','DASH',1,0,0,'',''], # no version, pkg query
+	'elvish' => ['^\S',1,'--version','Elvish',1,0,0,'',''],
+	'fish' => ['^fish',3,'--version','fish',1,0,0,'',''],
+	'fizsh' => ['^fizsh',3,'--version','FIZSH',1,0,0,'',''],
 	# ksh/lksh/loksh/mksh/posh//pdksh need to print their own $VERSION info
-	'ksh' => ['^(Version|.*KSH)\s*',1,'var','ksh',1,0,0], # special
-	'ksh93' => ['^(Version|.*KSH)\s*',1,'var','ksh93',1,0,0], # special
-	'lksh' => ['^.*KSH\s*',1,'var','lksh',1,0,0], # special
-	'loksh' => ['^.*KSH\s*',1,'var','loksh',1,0,0], # special
-	'mksh' => ['^.*KSH\s*',1,'var','mksh',1,0,0], # special
-	'nash' => ['^nash',0,'0','Nash',1,0,0], # unverified; rc based [no version]
-	'oh' => ['^oh',0,'0','Oh',1,0,0], # no version yet
-	'oil' => ['^Oil',3,'--version','Oil',1,1,0],
-	'osh' => ['^osh',3,'--version','OSH',1,1,0], # precursor of oil
-	'pdksh' => ['^.*KSH\s*',5,'var','pdksh',1,0,0], # special, in  ksh family
-	'posh' => ['',1,'var','posh',1,0,0], # special, in ksh family
-	'tcsh' => ['^tcsh',2,'--version','tcsh',1,1,0], # enhanced csh
-	'xonsh' => ['^xonsh',1,'--version','xonsh',1,0,0], 
-	'yash' => ['^Y',5,'--version','yash',1,0,0], 
-	'zsh' => ['^zsh',2,'--version','Zsh',1,0,0],
+	'ksh' => ['^\S',1,'cmd','ksh',1,0,0,'^(Version|.*KSH)\s*',''], # special
+	'ksh93' => ['^\S',1,'cmd','ksh93',1,0,0,'^(Version|.*KSH)\s*',''], # special
+	'lksh' => ['^\S',1,'cmdr','lksh',1,0,0,'^.*KSH\s*',''], # special
+	'loksh' => ['^\S',1,'cmd','loksh',1,0,0,'^.*KSH\s*',''], # special
+	'mksh' => ['^\S',1,'cmd','mksh',1,0,0,'^.*KSH\s*',''], # special
+	'nash' => ['^nash',0,'0','Nash',1,0,0,'',''], # unverified; rc based [no version]
+	'oh' => ['^oh',0,'0','Oh',1,0,0,'',''], # no version yet
+	'oil' => ['^Oil',3,'--version','Oil',1,1,0,'',''],
+	'osh' => ['^osh',3,'--version','OSH',1,1,0,'',''], # precursor of oil
+	'pdksh' => ['^\S',1,'cmd','pdksh',1,0,0,'^.*KSH\s*',''], # special, in  ksh family
+	'posh' => ['^\S',1,'cmd','posh',1,0,0,'',''], # special, in ksh family
+	'tcsh' => ['^tcsh',2,'--version','tcsh',1,1,0,'',''], # enhanced csh
+	'xonsh' => ['^xonsh',1,'--version','xonsh',1,0,0,'^xonsh[\/-]',''], 
+	'yash' => ['^Y',5,'--version','yash',1,0,0,'',''], 
+	'zsh' => ['^zsh',2,'--version','Zsh',1,0,0,'',''],
 	## Tools ##
-	'clang' => ['clang',3,'--version','Clang',1,0,0],
-	'gcc' => ['^gcc',3,'--version','GCC',1,0,0],
-	'gcc-apple' => ['Apple[[:space:]]LLVM',2,'--version','LLVM',1,0,0],
-	'sudo' => ['^Sudo',3,'-V','Sudo',1,1,0], # sudo pre 1.7 does not have --version
+	'clang' => ['clang',3,'--version','Clang',1,0,0,'',''],
+	'gcc' => ['^gcc',3,'--version','GCC',1,0,0,'',''],
+	'gcc-apple' => ['Apple[[:space:]]LLVM',2,'--version','LLVM',1,0,0,'',''],
+	'sudo' => ['^Sudo',3,'-V','Sudo',1,1,0,'',''], # sudo pre 1.7 does not have --version
 	);
 }
 
@@ -3537,6 +3545,7 @@ sub set_program_values {
 # 3 - Print name; 4 - console 0/1; 
 # 5 - 0/1 exit version loop at 1 [alt: if version=file replace value with \s]; 
 # 6 - 0/1 write to stderr [alt: if version=file, path for file]
+# 7 - replace regex for further cleanup; 8 - extra data
 # note: setting index 1 or 2 to 0 will trip flags to not do version
 # arg: 1 - program lower case name
 sub program_values {
@@ -3554,39 +3563,20 @@ sub program_values {
 # args: 1 - desktop/app command for --version; 2 - search string; 
 # 3 - space print number; 4 - [optional] version arg: -v, version, etc
 # 5 - [optional] exit first find 0/1; 6 - [optional] 0/1 stderr output
+# 7 - replace regex; 8 - extra data
 sub program_version {
 	eval $start if $b_log;
-	my ($app, $search,$num,$version,$exit,$stderr) = @_;
-	my ($cmd,$line,$output,$program);
+	my ($app,$search,$num,$version,$exit,$stderr,$replace,$extra) = @_;
+	my ($b_no_space,$cmd,$line,$output,$program);
 	my $version_nu = '';
 	my $count = 0;
-	#print "app:$app\n";
+	my $app_name = $app;
+	$app_name =~ s%^.*/%%;
+	#rint "app: $app :: appname: $app_name\n";
 	$exit ||= 100; # basically don't exit ever
 	$version ||= '--version';
 	# adjust to array index, not human readable
 	$num-- if (defined $num && $num > 0);
-	# ksh: Version JM 93t+ 2010-03-05 [OR] Version A 2020.0.0
-	# mksh: @(#)MIRBSD KSH R56 2018/03/09; lksh/pdksh: @(#)LEGACY KSH R56 2018/03/09
-	# loksh: @(#)PD KSH v5.2.14 99/07/13.2; posh: 0.13.2
-	if ($version eq 'var'){
-		if ($app =~ /^(|l|lo|m|pd)ksh(93)?$/){$cmd = 'printf %s "$KSH_VERSION" 2>/dev/null'}
-		elsif ($app eq 'posh'){$cmd = 'printf %s "$POSH_VERSION" 2>/dev/null'}
-		#print "$cmd\n";
-		if ($cmd){
-			$version_nu = (qx($app -c '$cmd'))[0];
-			log_data('data',"Program $app: data: $version_nu s/r: $search") if $b_log;
-			if ($version_nu){
-				$version_nu =~ s/$search//;;
-				$version_nu =~ s/^v([0-9])/$1/i; 
-			}
-			return $version_nu;
-		}
-		else {
-			log_data('data',"Program var handler: $app ~ not handled!") if $b_log;
-		}
-		return 0;
-	}
-	
 	# konvi in particular doesn't like using $ENV{'PATH'} as set, so we need
 	# to always assign the full path if it hasn't already been done
 	if ( $app !~ /^\// ){
@@ -3598,36 +3588,24 @@ sub program_version {
 			return 0;
 		}
 	}
-	# quick hack until find a universal way to get version for these
-	if ($version eq 'package'){
-		$app =~ s/^.*\///;
-		# note: version $num is 3 in dpkg/pacman/rpm, which is convenient
-		if ($program = check_program('dpkg') ){
-			$cmd = "$program -l $app 2>/dev/null";
-			$search = "\\b$app\\b";
-		}
-		elsif ($program = check_program('pacman') ){
-			$cmd = "$program -Q --info $app 2>/dev/null";
-			$search = '^Version';
-		}
-		elsif ($program = check_program('rpm') ){
-			$cmd = "$program -qi $app 2>/dev/null";
-			$search = '^Version';
-		}
-		# print "$cmd\n";
-		$program = '';
-		return 0 if !$cmd;
-	}
-	elsif ($version eq 'file'){
+	if ($version eq 'file'){
 		# don't do anything, we do it below
 	}
-	# this command must be run in shell to work
+	# ksh: Version JM 93t+ 2010-03-05 [OR] Version A 2020.0.0
+	# mksh: @(#)MIRBSD KSH R56 2018/03/09; lksh/pdksh: @(#)LEGACY KSH R56 2018/03/09
+	# loksh: @(#)PD KSH v5.2.14 99/07/13.2; posh: 0.13.2
+	# These will mostly be shells that require running the shell command -c to get info data
 	elsif ($version eq 'cmd'){
-		if ($app =~ /cicada$/) {$cmd = $app . ' -c "' . $stderr . '" 2>/dev/null';}
+		($cmd,$b_no_space) = program_version_cmd($app,$app_name,$extra);
+		return 0 if !$cmd;
+	}
+	# quick hack until find a universal way to get version for these
+	elsif ($version eq 'pkg'){
+		($cmd,$search) = program_version_pkg($app_name);
 		return 0 if !$cmd;
 	}
 	# note, some wm/apps send version info to stderr instead of stdout
-	elsif ( $stderr ) {
+	elsif ($stderr) {
 		$cmd = "$app $version 2>&1";
 	}
 	else {
@@ -3636,11 +3614,10 @@ sub program_version {
 	log_data('data',"version: $version num: $num search: $search command: $cmd") if $b_log;
 	# special case, in rare instances version comes from file
 	if ($version eq 'file'){
-		return 0 unless $stderr && -r $stderr;
-		my @data = reader($stderr,'strip');
+		return 0 unless $extra && -r $extra;
+		my @data = reader($extra,'strip');
 		@data = map {s/$exit/ /;$_} @data if $exit;
 		$output = join "\n",@data;
-		$exit = 100;
 	}
 	else {
 		$output = qx($cmd);
@@ -3657,6 +3634,8 @@ sub program_version {
 			if ( $_ =~ /$search/i ) {
 				$_ = trimmer($_);
 				# print "loop: $_ :: $num\n";
+				$_ =~ s/$replace// if $replace;
+				$_ =~ s/\s/_/g if $b_no_space; # needed for some items with version > 1 word
 				my @data = split /\s+/, $_;
 				$version_nu = $data[$num];
 				last if ! defined $version_nu;
@@ -3664,7 +3643,7 @@ sub program_version {
 				# breaks version detection. A quick fix attempt is to just add 1 to $num 
 				# to get the next value.
 				$version_nu = $data[$num+1] if $data[$num+1] && $version_nu =~ /version/i;
-				$version_nu =~ s/(\([^)]+\)|,|"|dwm-|xonsh\/|wmii2-|wmii-|\||\(|\))//g if $version_nu;
+				$version_nu =~ s/(\([^)]+\)|,|"|\||\(|\))//g if $version_nu;
 				# trim off leading v but only when followed by a number
 				$version_nu =~ s/^v([0-9])/$1/i if $version_nu; 
 				# print "$version_nu\n";
@@ -3679,6 +3658,45 @@ sub program_version {
 	return $version_nu;
 }
 # print program_version('bash', 'bash', 4) . "\n";
+
+# returns ($cmdd, $b_no_space)
+sub program_version_cmd {
+	eval $start if $b_log;
+	my ($app,$app_name,$extra) = @_;
+	my @data = ('',0);
+	if ($app_name eq 'cicada') {
+		$data[0] = $app . ' -c "' . $extra . '" 2>/dev/null';}
+	elsif ($app_name =~ /^(|l|lo|m|pd)ksh(93)?$/){
+		$data[0] = $app . ' -c \'printf %s "$KSH_VERSION\' 2>/dev/null';
+		$data[1] = 1;}
+	elsif ($app_name eq 'posh'){
+		$data[0] =  $app . ' -c \'printf %s "$POSH_VERSION\' 2>/dev/null'}
+	# print "$data[0] :: $data[1]\n";
+	eval $end if $b_log;
+	return @data;
+}
+# returns $cmd, $search
+sub program_version_pkg  {
+	eval $start if $b_log;
+	my ($app) = @_;
+	my ($program,@data);
+	# note: version $num is 3 in dpkg/pacman/rpm, which is convenient
+	if ($program = check_program('dpkg') ){
+		$data[0] = "$program -l $app 2>/dev/null";
+		$data[1] = "\\b$app\\b";
+	}
+	elsif ($program = check_program('pacman') ){
+		$data[0] = "$program -Q --info $app 2>/dev/null";
+		$data[1] = '^Version';
+	}
+	elsif ($program = check_program('rpm') ){
+		$data[0] = "$program -qi $app 2>/dev/null";
+		$data[1] = '^Version';
+	}
+	# print "$data[0] :: $data[1]\n";
+	eval $end if $b_log;
+	return @data;
+}
 
 # arg: 1 - full file path, returns array of file lines.
 # 2 - optionsl, strip and clean data
@@ -4565,7 +4583,7 @@ sub get_options{
 	}
 	$show{'graphic-basic'} = 0 if $b_admin;
 	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
-	$b_sudo = 1 if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
+	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
 	$use{'filter'} = 0 if $use{'filter-override'};
 	# override for things like -b or -v2 to -v3
@@ -18025,6 +18043,7 @@ sub get_ps_de_data {
 		['fvwm','fvwm','fvwm','fvwm'],
 		['glass','glass','glass','glass'],
 		['hackedbox','hackedbox','hackedbox','hackedbox'],
+		['instantwm','instantwm','instantwm','instantwm'],
 		['ion3','ion3','ion3','ion3'],
 		['jbwm','jbwm','jbwm','jbwm'],
 		['jwm','jwm','jwm','jwm'],
@@ -18153,11 +18172,11 @@ sub get_wm_main {
 		main::set_ps_gui() if ! $b_ps_gui;
 		# order matters, see above logic
 		# due to lisp/python starters, clfswm/stumpwm/qtile will not detect here
-		$wms = '9wm|aewm\+\+|aewm|afterstep|amiwm|antiwm|awesome|bspwm|budgie-wm|';
-		$wms .= 'cagebreak|calmwm|clfswm|compiz|(openbsd-)?cwm|fluxbox|blackbox|';
+		$wms = '9wm|aewm\+\+|aewm|afterstep|amiwm|antiwm|awesome|blackbox|bspwm|budgie-wm|';
+		$wms .= 'cagebreak|calmwm|clfswm|compiz|(openbsd-)?cwm|fluxbox|';
 		$wms .= 'deepin-wm|dwm|echinus|evilwm|';
 		$wms .= 'fireplace|flwm|fvwm-crystal|fvwm1|fvwm2|fvwm3|fvwm95|fvwm|';
-		$wms .= 'gala|glass|gnome-shell|hackedbox|i3|ion3|jbwm|jwm|';
+		$wms .= 'gala|glass|gnome-shell|hackedbox|i3|instantwm|ion3|jbwm|jwm|';
 		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|larswm|lwm|';
 		$wms .= 'matchbox-window-manager|marco|mini|muffin|';
 		$wms .= 'musca|deepin-mutter|mutter|deepin-metacity|metacity|mvwm|mwm|';
@@ -19416,7 +19435,7 @@ sub get_shell_data {
 			# do nothing, just leave $shell as is
 		}
 		# note: not all programs return version data. This may miss unhandled shells!
-		elsif ((@app = main::program_data(lc($shell),lc($shell),0)) && $app[0]){
+		elsif ((@app = main::program_data(lc($shell),lc($shell),1)) && $app[0]){
 			$shell = $app[0];
 			$client{'version'} = $app[1] if $app[1]; 
 			#print "app test $shell v: $client{'version'}\n";
@@ -20536,7 +20555,7 @@ sub set_ps_gui {
 		blackbox bspwm 
 		cagebreak calmwm (sh|c?lisp).*clfswm (openbsd-)?cwm dwm evilwm 
 		fluxbox flwm flwm_topside fvwm.*-crystal fvwm1 fvwm2 fvwm3 fvwm95 fvwm 
-		i3 ion3 jbwm jwm larswm lwm 
+		i3 instantwm ion3 jbwm jwm larswm lwm 
 		matchbox-window-manager mini musca mwm nawm notion 
 		openbox orbital pekwm perceptia python.*qtile qtile qvwm ratpoison 
 		sawfish scrotwm spectrwm (sh|c?lisp).*stumpwm sway 
