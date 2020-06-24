@@ -3577,7 +3577,7 @@ sub program_version {
 	$num-- if (defined $num && $num > 0);
 	# konvi in particular doesn't like using $ENV{'PATH'} as set, so we need
 	# to always assign the full path if it hasn't already been done
-	if ( $app !~ /^\// ){
+	if ( $version ne 'file' && $app !~ /^\// ){
 		if (my $program = check_program($app) ){
 			$app = $program;
 		}
@@ -17847,8 +17847,8 @@ sub get_env_de_data {
 			   (!$item->[0] && ($xdg_desktop =~ /$item->[1]/ || $desktop_session  =~ /$item->[1]/ )) ) ||
 			   ($item->[5] && @ps_gui && (grep {/$item->[5]/} @ps_gui) ) ){
 				($desktop[0],$desktop[1]) = main::program_data($item->[2]);
-				$b_gtk = $item->[4];
-				$b_qt = $item->[5];
+				$b_gtk = $item->[3];
+				$b_qt = $item->[4];
 				last;
 			}
 		}
@@ -17867,9 +17867,7 @@ sub get_env_xprop_de_data {
 	# NOTE: was checking for 'muffin' but that's not part of cinnamon
 	if ( (main::check_program('muffin') || main::check_program('cinnamon-session') ) && 
 	     ($b_xprop && main::awk(\@xprop,'_muffin') )){
-		@data = main::program_data('cinnamon','cinnamon',0);
-		$desktop[0] = $data[0];
-		$desktop[1] = $data[1];
+		($desktop[0],$desktop[1]) = main::program_data('cinnamon','cinnamon',0);
 		# $b_gtk = 1;
 		$desktop[0] ||= 'Cinnamon';
 	}
@@ -17895,15 +17893,13 @@ sub get_env_xprop_de_data {
 	elsif ($xdg_desktop eq 'gnome' || $ENV{'GNOME_DESKTOP_SESSION_ID'} || 
 	      (main::check_program('gnome-shell') && $b_xprop && main::awk(\@xprop,'^_gnome') ) ){
 		if ($program = main::check_program('gnome-about') ) {
-			@data = main::program_values('gnome-about');
-			$desktop[1] = main::program_version('gnome-about',$data[0],$data[1],$data[2],$data[5],$data[6]);
+			($desktop[0],$desktop[1]) = main::program_data('gnome-about');
 		}
 		elsif ($program = main::check_program('gnome-shell') ) {
-			@data = main::program_values('gnome-shell');
-			$desktop[1] = main::program_version('gnome-shell',$data[0],$data[1],$data[2],$data[5],$data[6]);
+			($desktop[0],$desktop[1]) = main::program_values('gnome-shell');
 		}
 		# $b_gtk = 1;
-		$desktop[0] = ( $data[3] ) ? $data[3] : 'Gnome';
+		$desktop[0] ||= 'Gnome';
 	}
 	eval $end if $b_log;
 }
@@ -17989,9 +17985,7 @@ sub get_xprop_de_data {
 		foreach my $item (@desktops){
 			if (main::check_program($item->[0]) && main::awk(\@xprop,$item->[1]) && 
 			    (!$item->[4] || (@ps_gui && (grep {/$item->[4]/} @ps_gui ))) ){
-				@data =  main::program_data($item->[2],$item->[3],0);
-				$desktop[0] = $data[0];
-				$desktop[1] = $data[1];
+				($desktop[0],$desktop[1]) =  main::program_data($item->[2],$item->[3],0);
 				last;
 			}
 		}
@@ -18080,13 +18074,9 @@ sub get_ps_de_data {
 			# no need to use check program with short list of ps_gui
 			# if ( main::check_program($item[0]) && (grep {/^$item[1]$/} @ps_gui)){
 			if (grep {/^$item->[1]$/} @ps_gui){
-				@data =  main::program_data($item->[2],$item->[3],0);
-				$desktop[0] = $data[0];
-				$desktop[1] = $data[1];
+				($desktop[0],$desktop[1]) =  main::program_data($item->[2],$item->[3],0);
 				if ($extra > 1 && $item->[0] eq 'xfdesktop'){
-					@version_data =  main::program_data('xfdesktop-toolkit',$item->[0],1);
-					$desktop[2] = $version_data[0] if $version_data[0];
-					$desktop[3] = $version_data[1] if $version_data[1];
+					($desktop[2],$desktop[3]) =  main::program_data('xfdesktop-toolkit',$item->[0],1);
 				}
 				last;
 			}
