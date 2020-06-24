@@ -3377,12 +3377,12 @@ sub set_program_values {
 	'fvwm2' => ['^fvwm',2,'--version','fVWM2',0,1,0,'',''],
 	'fvwm3' => ['^fvwm',2,'--version','fVWM3',0,1,0,'',''],
 	'fvwm95' => ['^fvwm',2,'--version','FVWM95',0,1,1,'',''],
-	# command: fvwm
-	'fvwm-crystal' => ['^fvwm',2,'--version','FVWM-Crystal',0,0,0,'',''], 
+	'fvwm-crystal' => ['^fvwm',0,'0','FVWM-Crystal',0,0,0,'',''], # no version, print name
 	'gala' => ['^gala',0,'0','gala',0,1,0,'',''], # pantheon wm: super slow result, 2, '--version' works?
 	'glass' => ['^glass',3,'-v','Glass',0,1,0,'',''], 
-	'gnome-about' => ['gnome',3,'--version','Gnome',0,1,0,'',''],
-	'gnome-shell' => ['gnome',3,'--version','Gnome',0,1,0,'',''],
+	'gnome' => ['^gnome',0,'0','GNOME',0,1,0,'',''], # no version, print name
+	'gnome-about' => ['^gnome',3,'--version','GNOME',0,1,0,'',''],
+	'gnome-shell' => ['^gnome',3,'--version','gnome-shell',0,1,0,'',''],
 	'grefson' => ['^grefson',0,'0','grefson',0,1,0,'',''], # unverified
 	'hackedbox' => ['^hackedbox',2,'-version','HackedBox',0,1,0,'',''], # unverified, assume blackbox
 	# note, herbstluftwm when launched with full path returns full path in version string
@@ -3438,7 +3438,6 @@ sub set_program_values {
 	'perceptia' => ['^perceptia',0,'0','perceptia',0,1,0,'',''],
 	'picom' => ['^\S',1,'--version','Picom',0,1,0,'^v',''],
 	'plasmashell' => ['^plasmashell',2,'--version','KDE Plasma',0,1,0,'',''],
-	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0,'',''],
 	'qtile' => ['^',1,'--version','Qtile',0,1,0,'',''],
 	'qvwm' => ['^qvwm',0,'0','qvwm',0,1,0,'',''], # unverified
 	'razor-session' => ['^razor',0,'0','Razor-Qt',0,1,0,'',''],
@@ -3483,6 +3482,10 @@ sub set_program_values {
 	'xfdesktop-toolkit' => ['Built[[:space:]]with[[:space:]]GTK',4,'--version','Gtk',0,1,0,'',''],
 	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
 	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
+	## Toolkits ##
+	'gtk-launch' => ['^\S',1,'--version','GTK',0,1,0,'',''],
+	'qmake' => ['^^Using Qt version',4,'--version','Qt',0,100,0,'',''],
+	'qtdiag' => ['^qt',2,'--version','Qt',0,1,0,'',''],
 	## Display Managers (dm) ##
 	'cdm' => ['^cdm',0,'0','CDM',0,1,0,'',''],
 	'entrance' => ['^entrance',0,'0','Entrance',0,1,0,'',''],
@@ -3530,6 +3533,7 @@ sub set_program_values {
 	'xonsh' => ['^xonsh',1,'--version','xonsh',1,0,0,'^xonsh[\/-]',''], 
 	'yash' => ['^Y',5,'--version','yash',1,0,0,'',''], 
 	'zsh' => ['^zsh',2,'--version','Zsh',1,0,0,'',''],
+	
 	## Tools ##
 	'clang' => ['clang',3,'--version','Clang',1,0,0,'',''],
 	'gcc' => ['^gcc',3,'--version','GCC',1,0,0,'',''],
@@ -17722,7 +17726,7 @@ sub get {
 	if ($b_display && !$b_force_display && $extra > 1){
 		get_wm();
 	}
-	# set_gtk_data if $b_gtk && $extra > 1;
+	set_gtk_data() if $b_gtk && $extra > 1;
 	set_qt_data() if $b_qt && $extra > 1;
 	main::log_data('dump','@desktop', \@desktop) if $b_log;
 	# ($b_xprop,$kde_session_version,$xdg_desktop,@data,@xprop) = undef;
@@ -17790,14 +17794,13 @@ sub get_kde_trinity_data {
 				$desktop[3] = main::awk(\@version_data,'^Qt:', 2,'\s+');
 			}
 			# qmake can have variants, qt4-qmake, qt5-qmake, also qt5-default but not tested
-			if (!$desktop[3] && ($program = main::check_program("qmake"))){
+			if (!$desktop[3] && main::check_program("qmake")){
 				# note: this program has issues, it may appear to be in /usr/bin, but it 
 				# often fails to execute, so the below will have null output, but use as a 
 				# fall back test anyway.
-				@version_data = main::grabber("$program --version 2>/dev/null");
-				$desktop[3] = main::awk(\@version_data,'^Using Qt version',4) if @version_data;
+				($desktop[2],$desktop[3]) = main::program_data('qmake');
 			}
-			$desktop[2] = 'Qt';
+			$desktop[2] ||= 'Qt';
 		}
 	}
 	# KDE_FULL_SESSION property is only available since KDE 3.5.5.
@@ -17833,7 +17836,7 @@ sub get_env_de_data {
 		[0,'^(razor|lxqt)$','lxqt-variant',0,1,'^(razor-session|lxqt-session)$'],
 		# note, X-Cinnamon value strikes me as highly likely to change, so just 
 		# search for the last part
-		[0,'cinnamon','cinnamon',0,0],
+		[0,'cinnamon','cinnamon',1,0],
 		# these so far have no cli version data
 		[1,'deepin','deepin',0,1], # version comes from file read
 		[1,'pantheon','pantheon',0,0],
@@ -17868,7 +17871,7 @@ sub get_env_xprop_de_data {
 	if ( (main::check_program('muffin') || main::check_program('cinnamon-session') ) && 
 	     ($b_xprop && main::awk(\@xprop,'_muffin') )){
 		($desktop[0],$desktop[1]) = main::program_data('cinnamon','cinnamon',0);
-		# $b_gtk = 1;
+		$b_gtk = 1;
 		$desktop[0] ||= 'Cinnamon';
 	}
 	elsif ($xdg_desktop eq 'mate' || ( $b_xprop && main::awk(\@xprop,'_marco') )){
@@ -17892,14 +17895,14 @@ sub get_env_xprop_de_data {
 	# NOTE: manjaro is leaving XDG data null, which forces the manual check for gnome, sigh...
 	elsif ($xdg_desktop eq 'gnome' || $ENV{'GNOME_DESKTOP_SESSION_ID'} || 
 	      (main::check_program('gnome-shell') && $b_xprop && main::awk(\@xprop,'^_gnome') ) ){
-		if ($program = main::check_program('gnome-about') ) {
+		if (main::check_program('gnome-about') ) {
 			($desktop[0],$desktop[1]) = main::program_data('gnome-about');
 		}
-		elsif ($program = main::check_program('gnome-shell') ) {
-			($desktop[0],$desktop[1]) = main::program_values('gnome-shell');
+		elsif (main::check_program('gnome-shell') ) {
+			($desktop[0],$desktop[1]) = main::program_data('gnome','gnome-shell');
 		}
-		# $b_gtk = 1;
-		$desktop[0] ||= 'Gnome';
+		$b_gtk = 1;
+		$desktop[0] ||= 'GNOME';
 	}
 	eval $end if $b_log;
 }
@@ -18082,7 +18085,15 @@ sub get_ps_de_data {
 	}
 	eval $end if $b_log;
 }
-
+# NOTE: used to use a super slow method here, but gtk-launch returns
+# the gtk version I believe
+sub set_gtk_data {
+	eval $start if $b_log;
+	if (main::check_program('gtk-launch')){
+		($desktop[2],$desktop[2]) = main::program_data('gtk-launch','',1);
+	}
+	eval $end if $b_log;
+}
 sub set_qt_data {
 	eval $start if $b_log;
 	my ($program,@data,@version_data);
@@ -18096,15 +18107,11 @@ sub set_qt_data {
 	}
 	# alternate: qt4-default, qt4-qmake or qt5-default, qt5-qmake
 	# often this exists, is executable, but actually is nothing, shows error
-	if (!$desktop[3] && ($program = main::check_program("qmake"))){
-		@version_data = main::grabber("$program --version 2>/dev/null");
-		$desktop[2] = 'Qt';
-		$desktop[3] = main::awk(\@version_data,'^Using Qt version',4) if @version_data;
+	if (!$desktop[3] && main::check_program('qmake')){
+		($desktop[2],$desktop[3]) = main::program_data('qmake');
 	}
-	if (!$desktop[3] && ($program = main::check_program("qtdiag") )){
-		@data = main::program_values('qtdiag');
-		$desktop[3] = main::program_version($program,$data[0],$data[1],$data[2],$data[5],$data[6]);
-		$desktop[2] = $data[3];
+	if (!$desktop[3] && main::check_program('qtdiag')){
+		($desktop[2],$desktop[3]) = main::program_data('qtdiag');
 	}
 	if (!$desktop[3] && ($program = main::check_program("kf$kde_version-config") )){
 		@version_data = main::grabber("$program --version 2>/dev/null");
@@ -18216,9 +18223,7 @@ sub get_wm_version {
 	}
 	eval $end if $b_log;
 }
-# see: inxi-fragments.txt for legacy code
-# sub set_gtk_data {
-# }
+
 sub set_info_data {
 	eval $start if $b_log;
 	main::set_ps_gui() if ! $b_ps_gui;
