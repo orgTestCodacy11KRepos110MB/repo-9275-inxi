@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-23';
-my $self_patch='58';
+my $self_patch='59';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -19306,38 +19306,40 @@ sub get {
 }
 sub package_counts {
 	eval $start if $b_log;
-	my (@data);
-	my %pkg_managers = (
-	'alps:alps:p:0' => 'showinstalled',
-	'apk:apk:p:0' => 'info',
-	'apt:dpkg-query:p:0' => '-W -f=\'${binary:Package}\n\'',
-	'emerge:emerge:d:0' => '/var/db/pkg/*/*/',
-	'eopkg:eopkg:d:0' => '/var/lib/eopkg/package/*',
-	'pacman:pacman:p:0' => '-Qq --color never',
-	'pacman-g2:pacman-g2:p:0' => '-Q',
-	'pkg:pkg:d:0' => '/var/db/pkg/*', # p: list returns non programs
-	'pkgtool:pkgtool:d:0' => '/var/log/packages/*',
- 	'rpm:rpm:p:0' => '-qa',
- 	# note: slapt-get, spkg, and pkgtool all return the same count
- 	#'slapt-get:slapt-get:p:0' => '--installed',
- 	#'spkg:spkg:p:0' => '--installed',
- 	'tce:tce-status:p:0' => '-i',
- 	'xbps:xbps-query:p:1' => '-l',
- 	'zzz-flatpak:flatpak:p:0' => 'list',
+	my ($type) = @_;
+	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
+	# 5: lib slice; 6: lib splitter
+	my @pkg_managers = (
+	['alps','alps','p','showinstalled',1,0,''],
+	['apk','apk','p','info',1,0,''],
+	['apt','dpkg-query','p','-W -f=\'${binary:Package}\n\'',1,0,''],
+	['emerge','emerge','d','/var/db/pkg/*/*/',1,5,'\\/'],
+	['eopkg','eopkg','d','/var/lib/eopkg/package/*',1,5,'\\/'],
+	['pacman','pacman','p','-Qq --color never',1,0,''],
+	['pacman-g2','pacman-g2','p','-Q',1,0,''],
+	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # p',' list returns non programs
+	['pkgtool','pkgtool','d','/var/log/packages/*',1,4,'\\/'],
+	['rpm','rpm','p','-qa',1,0,''],
+	# note',' slapt-get, spkg, and pkgtool all return the same count
+	#['slapt-get','slapt-get','p','--installed',1,0,''],
+	#['spkg','spkg','p','--installed',1,0,''],
+	['tce','tce-status','p','-i',1,0,''],
+	['xbps','xbps-query','p','-l',1,1,''],
+	['zzz-flatpak','flatpak','p','list',0,0,''],
 	);
-	foreach (sort keys %pkg_managers){
-		@data = split /:/, $_;
-		if ($program = main::check_program($data[1])){
-			if ($data[2] eq 'p'){
-				@list = qx($program $pkg_managers{$_} 2>/dev/null);
+	foreach (@pkg_managers){
+		if ($program = main::check_program($_->[1])){
+			if ($_->[2] eq 'p'){
+				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
 			else {
-				@list = main::globber($pkg_managers{$_});
+				@list = main::globber($_->[3]);
 			}
 			$count = scalar @list;
-			$counts{$data[0]} = $count;
-			if ($b_admin && $count && $data[0] !~ /^zzz-/){
-				$counts{$data[0] . '-lib'} = count_libs(\@list,$data[3]);
+			#print Data::Dumper::Dumper \@list;
+			$counts{$_->[0]} = $count;
+			if ($b_admin && $count && $_->[4]){
+				$counts{$_->[0] . '-lib'} = count_libs(\@list,$_->[5],$_->[6]);
 			}
 			$counts{'total'} += $count;
 			#print Data::Dumper::Dumper \%counts;
@@ -19354,6 +19356,7 @@ sub check_snap {
 		$count = scalar @list;
 		$count-- if $count; # remove header
 		$counts{'zzz-snap'} = $count if $count;
+		$counts{'total'} += $count;
 	}
 }
 sub check_appimage {
@@ -19361,15 +19364,19 @@ sub check_appimage {
 		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
 		$count = scalar @list;
 		$counts{'zzz-appimage'} = $count if $count;
+		$counts{'total'} += $count;
 	}
 }
 sub count_libs {
-	my ($ref,$pos) = @_;
+	my ($ref,$pos,$split) = @_;
 	my (@data);
 	my $i = 0;
+	$split ||= '\\s+';
+	#print scalar @$ref, '::', $split, '::', $pos, "\n";
 	foreach (@$ref){
-		@data = split /\s+/, $_;
-		$i++ if $data[$pos] && $data[$pos] =~ m%^(|.*/)lib%;
+		@data = split /$split/, $_;
+		#print scalar @data, '::', $data[$pos], "\n";
+		$i++ if $data[$pos] && $data[$pos] =~ m%^lib%;
 	}
 	return $i;
 }
@@ -21549,11 +21556,13 @@ sub generate_info_data {
 		$total = ($packages{'total'}) ? $packages{'total'} : 'N/A';
 		if ($packages{'total'}){
 			delete $packages{'total'};
-			my $counts = 0;
+			my $b_mismatch;
 			foreach (keys %packages){
-				$counts += $packages{$_} if $_ !~ /-lib$/;
+				if ($_ !~ /-lib$/ && $packages{$_} && $packages{$_} != $total){
+					$b_mismatch = 1;
+				}
 			}
-			$total = '' if $extra > 1 && $counts == $total;
+			$total = '' if $extra > 1 && !$b_mismatch;
 		}
 		$data{$data_name}[$index]{main::key($num++,1,1,'Packages')} = $total;
 		if ($extra > 1 && %packages){
