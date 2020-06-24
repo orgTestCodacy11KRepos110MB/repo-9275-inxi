@@ -34,7 +34,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-23';
-my $self_patch='50';
+my $self_patch='51';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -21433,7 +21433,6 @@ sub generate_info_data {
 	}
 	$gcc ||= 'N/A';
 	get_shell_data($client{'ppid'}) if $client{'ppid'};
-	my %packages = PackageData::get();
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
 	my %data = (
@@ -21508,24 +21507,27 @@ sub generate_info_data {
 			$data{$data_name}[$index]{main::key($num++,0,2,'clang')} = $clang_version;
 		}
 	}
-	$total = ($packages{'total'}) ? $packages{'total'} : 'N/A';
-	if ($packages{'total'}){
-		delete $packages{'total'};
-		my $counts = 0;
-		foreach (keys %packages){
-			$counts += $packages{$_} if $_ !~ /-lib$/;
+	if ($extra > 0 ){
+		my %packages = PackageData::get();
+		$total = ($packages{'total'}) ? $packages{'total'} : 'N/A';
+		if ($packages{'total'}){
+			delete $packages{'total'};
+			my $counts = 0;
+			foreach (keys %packages){
+				$counts += $packages{$_} if $_ !~ /-lib$/;
+			}
+			$total = '' if $extra > 1 && $counts == $total;
 		}
-		$total = '' if $extra > 1 && $counts == $total;
-	}
-	$data{$data_name}[$index]{main::key($num++,1,1,'Packages')} = $total;
-	if ($extra > 1 && %packages){
-		foreach (sort keys %packages){
-			my ($b_lib,$cont,$ind) = (0,1,2);
-			($b_lib,$cont,$ind) = (1,0,3) if /-lib$/;
-			if (($packages{$_} && !$b_lib) || $b_admin){
-				my $key = $_;
-				$key =~ s/^x-//; # clear off sorters
-				$data{$data_name}[$index]{main::key($num++,$cont,$ind,$key)} = $packages{$_};
+		$data{$data_name}[$index]{main::key($num++,1,1,'Packages')} = $total;
+		if ($extra > 1 && %packages){
+			foreach (sort keys %packages){
+				my ($b_lib,$cont,$ind) = (0,1,2);
+				($b_lib,$cont,$ind) = (1,0,3) if /-lib$/;
+				if (($packages{$_} && !$b_lib) || $b_admin){
+					my $key = $_;
+					$key =~ s/^x-//; # clear off sorters
+					$data{$data_name}[$index]{main::key($num++,$cont,$ind,$key)} = $packages{$_};
+				}
 			}
 		}
 	}
