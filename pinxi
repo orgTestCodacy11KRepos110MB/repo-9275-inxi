@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.03';
 my $self_date='2020-06-27';
-my $self_patch='68';
+my $self_patch='69';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -19335,11 +19335,8 @@ sub get {
 	# $num passed by reference to maintain incrementing where requested
 	($type,$num) = @_; 
 	package_counts();
-	if (@ps_cmd){
-		check_snap();
-		check_appimage();
-	}
-	create_output() if %counts;
+	appimage_counts();
+	create_output();
 	eval $end if $b_log;
 	return %output;
 }
@@ -19386,7 +19383,7 @@ sub package_counts {
 	eval $start if $b_log;
 	my ($type) = @_;
 	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
-	# 5: lib slice; 6: lib splitter
+	# 5: lib slice; 6: lib splitter; 7 - optional eval test
 	# needed: cards [nutyx], urpmq [mageia]
 	my @pkg_managers = (
 	['alps','alps','p','showinstalled',1,0,''],
@@ -19394,7 +19391,8 @@ sub package_counts {
 	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
 	['apt','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,''],
 	# ['aptd','dpkg-query','d','/usr/lib/*',1,3,'\\/'],
-	['cards','pkginfo','p','-i',1,1,''], # mutyx, needs more data
+	# mutyx. do cards test because there is a very slow pkginfo python pkg mgr
+	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
 	['emerge','emerge','d','/var/db/pkg/*/*/',1,5,'\\/'],
 	['eopkg','eopkg','d','/var/lib/eopkg/package/*',1,5,'\\/'],
 	['pacman','pacman','p','-Qq --color never',1,0,''],
@@ -19412,10 +19410,12 @@ sub package_counts {
 	# ['urpmi','urpmq','p','??',1,0,''], 
 	['xbps','xbps-query','p','-l',1,1,''],
 	['zzz-flatpak','flatpak','p','list',0,0,''],
+	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
 	);
 	my $libs;
 	foreach (@pkg_managers){
 		if ($program = main::check_program($_->[1])){
+			next if $_->[7] && !eval $_->[7];
 			if ($_->[2] eq 'p'){
 				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
@@ -19437,18 +19437,8 @@ sub package_counts {
 	main::log_data('dump','Packaage managers: %counts',\%counts) if $b_log;
 	eval $end if $b_log;
 }
-sub check_snap {
-	# snapd must be running for this query to be  safe
-	if ((grep {/\bsnapd\b/} @ps_cmd) && ($program = main::check_program('snap'))){
-		@list = qx($program list 2>/dev/null);
-		$count = scalar @list;
-		$count-- if $count; # remove header
-		$counts{'zzz-snap'} = ([$count,undef]) if $count;
-		$counts{'total'} += $count;
-	}
-}
-sub check_appimage {
-	if (grep {/\bappimaged\b/} @ps_cmd){
+sub appimage_counts {
+	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
 		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
 		$count = scalar @list;
 		$counts{'zzz-appimage'} = ([$$count,undef]) if $count;
