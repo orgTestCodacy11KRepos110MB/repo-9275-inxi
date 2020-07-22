@@ -4882,19 +4882,20 @@ sub show_options {
 	@rows = (
 	['1', '-xxx', '--extra 3', "Show extra, extra, extra data (only works 
 	with verbose or line output, not short form):" ],
-	['2', '-A', '', "Serial number." ],
+	['2', '-A', '', "Serial number; non-driver kernel modules (if present)." ],
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
 	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present; 
 	CPU voltage, external clock speed (if root and dmidecode installed)." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
 	rotation speed (if detected)." ],
+	['2', '-G', '', "Non-driver kernel modules (if present)." ],
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session." ],
 	['2', '-J', '', "For Device: serial number (if present), interface count; USB speed." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
 	number." ],
-	['2', '-N', '', "Serial number." ],
+	['2', '-N', '', "Serial number; non-driver kernel modules (if present)." ],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
 	Hardware RAID rev, ports, specific vendor/product information." ],
@@ -6258,6 +6259,10 @@ sub card_data {
 				my $version = main::get_module_version($row[9]);
 				$rows[$j]{main::key($num++,0,3,'v')} = $version if $version;
 			}
+		}
+		if ($extra > 2 && $row[10]){
+			$row[10] = main::get_driver_modules($row[9],$row[10]);
+			$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
 		}
 		if ($extra > 0){
 			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
@@ -10268,6 +10273,10 @@ sub card_data {
 			$version ||= 'N/A';
 			$rows[$j]{main::key($num++,0,3,'v')} = $version;
 		}
+		if ($extra > 2 && $row[10]){
+			$row[10] = main::get_driver_modules($row[9],$row[10]);
+			$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
+		}
 		if ($extra > 0){
 			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
 		}
@@ -11883,6 +11892,10 @@ sub card_data {
 				my $version = main::get_module_version($row[9]);
 				$version ||= 'N/A';
 				$rows[$j]{main::key($num++,0,3,'v')} = $version;
+			}
+			if ($extra > 2 && $row[10]){
+				$row[10] = main::get_driver_modules($row[9],$row[10]);
+				$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
 			}
 			$row[8] ||= 'N/A';
 			# as far as I know, wifi has no port, but in case it does in future, use it
@@ -18932,7 +18945,23 @@ sub ubuntu_id {
 	return $id;
 }
 }
-
+# return all device modules not including driver
+sub get_driver_modules {
+	eval $start if $b_log;
+	my ($driver,$modules) = @_;
+	return if ! $modules;
+	my @mods = split /,\s+/, $modules;
+	if ($driver){
+		@mods = grep {!/^$driver$/} @mods;
+		$modules = join ',', @mods;
+	}
+	log_data('data','$modules',$modules) if $b_log;
+	eval $end if $b_log;
+	return $modules;
+}
+# 1: driver; 2: modules, comma separated, return only modules 
+# which do not equal the driver string itself. Sometimes the module
+# name is different from the driver name, even though it's the same thing.
 sub get_gcc_data {
 	eval $start if $b_log;
 	my ($gcc,@data,@gccs,@temp);
