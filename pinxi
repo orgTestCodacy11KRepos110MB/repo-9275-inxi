@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.04';
 my $self_date='2020-07-22';
-my $self_patch='03';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4660,6 +4660,8 @@ sub show_options {
 	['0', '', '', "Output Control Options:" ],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
 	verbose or line output, not short form), sets --extra=3:" ],
+	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
+	for device(s)." ],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
 	(dmidecode+root/sudo required); CPU vulnerabilities (bugs); 
 	family, model-id, stepping - format: hex (decimal) if greater 
@@ -4668,11 +4670,14 @@ sub show_options {
 	USB drive specifics; SMART report." ],
 	['2', '-G', '', "If available: Xorg Display ID, Screens total, default Screen,
 	current Screen; per X Screen: resolution, dpi, size, diagonal; per Monitor: 
-	resolution; hz; dpi; size; diagonal. See man for explanations." ],
+	resolution; hz; dpi; size; diagonal; list of alternate kernel modules/drivers
+	for device(s). See man for explanations." ],
 	['2', '-I', '', "As well as per package manager counts, also adds total
 	number of lib files found for each package manager if not -r." ],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not." ],
+	['2', '-n,-N', '', "If available: list of alternate kernel modules/drivers 
+	for device(s)." ],
 	['2', '-p,-P', '', "If available: raw size of ${partition_string}s, 
 	percent available for user, block size of file system (root required)." ],
 	['2', '-r', '', "Packages, see -Ia." ],
@@ -4882,20 +4887,19 @@ sub show_options {
 	@rows = (
 	['1', '-xxx', '--extra 3', "Show extra, extra, extra data (only works 
 	with verbose or line output, not short form):" ],
-	['2', '-A', '', "Serial number; non-driver kernel modules (if present)." ],
+	['2', '-A', '', "Serial number." ],
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
 	['2', '-C', '', "CPU boost (turbo) enabled/disabled, if present; 
 	CPU voltage, external clock speed (if root and dmidecode installed)." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
 	rotation speed (if detected)." ],
-	['2', '-G', '', "Non-driver kernel modules (if present)." ],
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session." ],
 	['2', '-J', '', "For Device: serial number (if present), interface count; USB speed." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
 	number." ],
-	['2', '-N', '', "Serial number; non-driver kernel modules (if present)." ],
+	['2', '-N', '', "Serial number." ],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
 	Hardware RAID rev, ports, specific vendor/product information." ],
@@ -6260,9 +6264,9 @@ sub card_data {
 				$rows[$j]{main::key($num++,0,3,'v')} = $version if $version;
 			}
 		}
-		if ($extra > 2 && $row[10]){
+		if ($b_admin && $row[10]){
 			$row[10] = main::get_driver_modules($row[9],$row[10]);
-			$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
+			$rows[$j]{main::key($num++,0,3,'alternate')} = $row[10] if $row[10];
 		}
 		if ($extra > 0){
 			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
@@ -9908,6 +9912,7 @@ sub set_vendors {
 	['^PALIT','PALIT','Palit',''], # ssd 
 	['^PERC\b','','Dell PowerEdge RAID Card',''], # ssd 
 	['^(PS[8F]|Patriot)','^Patriot([-\s]?Memory)?','Patriot',''],
+	['PHISON[\s-]?','PHISON[\s-]?','Phison',''],# E12-256G-PHISON-SSD-B3-BB1
 	['^Pioneer','Pioneer','Pioneer',''],
 	['^PIX[\s]?JR','^PIX[\s]?JR','Disney',''],
 	['^(PLEXTOR|PX-)','^PLEXTOR','Plextor',''],
@@ -10273,9 +10278,9 @@ sub card_data {
 			$version ||= 'N/A';
 			$rows[$j]{main::key($num++,0,3,'v')} = $version;
 		}
-		if ($extra > 2 && $row[10]){
+		if ($b_admin && $row[10]){
 			$row[10] = main::get_driver_modules($row[9],$row[10]);
-			$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
+			$rows[$j]{main::key($num++,0,3,'alternate')} = $row[10] if $row[10];
 		}
 		if ($extra > 0){
 			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
@@ -11893,9 +11898,9 @@ sub card_data {
 				$version ||= 'N/A';
 				$rows[$j]{main::key($num++,0,3,'v')} = $version;
 			}
-			if ($extra > 2 && $row[10]){
+			if ($b_admin && $row[10]){
 				$row[10] = main::get_driver_modules($row[9],$row[10]);
-				$rows[$j]{main::key($num++,0,2,'modules')} = $row[10] if $row[10];
+				$rows[$j]{main::key($num++,0,3,'modules')} = $row[10] if $row[10];
 			}
 			$row[8] ||= 'N/A';
 			# as far as I know, wifi has no port, but in case it does in future, use it
