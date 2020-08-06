@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.05';
-my $self_date='2020-08-05';
-my $self_patch='03';
+my $self_date='2020-08-06';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -66,7 +66,7 @@ my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,%system_f
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
 my (@app,@dmesg_boot,@devices_audio,@devices_graphics,@devices_network,
 @devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
-@paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensor_force,
+@paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
@@ -1144,7 +1144,8 @@ sub get_config_item {
 	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
-	elsif ($key eq 'SENSOR_FORCE') {@sensor_force = split /\s*,\s*/, $val if $val}
+	elsif ($key eq 'SENSORS_EXCLUDE') {@sensors_exclude = split /\s*,\s*/, $val if $val}
+	elsif ($key eq 'SENSORS_USE') {@sensors_use = split /\s*,\s*/, $val if $val}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') {
 		if (is_int($val)){
 			$show{'host'} = $val;
@@ -3978,7 +3979,7 @@ sub get_options{
 	eval $start if $b_log;
 	my (@args) = @_;
 	$show{'short'} = 1;
-	my ($b_downloader,$b_help,$b_no_man,$b_no_man_force,$b_no_sensor_force,
+	my ($b_downloader,$b_help,$b_no_man,$b_no_man_force,$b_sensors_default,
 	$b_recommends,$b_updater,$b_version,$b_use_man,$self_download, $download_id);
 	GetOptions (
 	'a|admin' => sub {
@@ -4488,8 +4489,6 @@ sub get_options{
 		$show{'no-host'} = 1},
 	'no-man' => sub {
 		$b_no_man_force = 0; },
-	'no-sensor-force' => sub {
-		$b_no_sensor_force = 1; },
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
 	'no-sudo' => sub {
@@ -4511,10 +4510,20 @@ sub get_options{
 		$b_ppc = 1 },
 	'recommends' => sub {
 		$b_recommends = 1; },
-	'sensor-force:s' => sub {
+	'sensors-default' => sub {
+		$b_sensors_default = 1; },
+	'sensors-exclude:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			@sensor_force = split /\s*,\s*/, $arg;
+			@sensors_exclude = split /\s*,\s*/, $arg;
+		}
+		else {
+			error_handler('bad-arg',$opt,$arg);
+		}},
+	'sensors-use:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg){
+			@sensors_use = split /\s*,\s*/, $arg;
 		}
 		else {
 			error_handler('bad-arg',$opt,$arg);
@@ -4597,7 +4606,10 @@ sub get_options{
 		}
 	}
 	$show{'graphic-basic'} = 0 if $b_admin;
-	@sensor_force = () if $b_no_sensor_force;
+	if ($b_sensors_default){
+		@sensors_exclude = ();
+		@sensors_use = ();
+	}
 	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
@@ -4999,8 +5011,6 @@ sub show_options {
 		push @data, @rows;
 	}
 	@rows = (
-	['1', '', '--no-sensor-force', "Removes configuration item SENSOR_FORCE. Same
-	as default behavior." ],
 	['1', '', '--no-ssl', "Skip SSL certificate checks for all downloader actions 
 	(Wget/Fetch/Curl/Perl-HTTP::Tiny)." ],
 	['1', '', '--no-sudo', "Skip internal program use of sudo features (not related 
@@ -5010,8 +5020,12 @@ sub show_options {
 	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output." ],
 	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
 	Change sort order of ${partition_string} output. See man page for specifics." ],
-	['1', '', '--sensor-force', "[sensor[s] name, comma separated] Force sensors to 
-	use specific sensor array[s] (lm-sensors, Linux only)." ],
+	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and SENSORS_EXCLUDE.
+	Same as default behavior." ],
+	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude supplied sensor 
+	array[s] for -s output (lm-sensors, Linux only)." ],
+	['1', '', '--sensors-use', "[sensor[s] name, comma separated] Use only supplied sensor 
+	array[s] for -s output (lm-sensors, Linux only)." ],
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
@@ -15964,7 +15978,7 @@ sub ipmi_data {
 sub lm_sensors_data {
 	eval $start if $b_log;
 	my (%sensors);
-	my ($b_valid,$sys_fan_nu)  = (0,0);
+	my ($sys_fan_nu)  = (0);
 	my ($adapter,$array_id,$fan_working,$temp_working,$working_unit)  = ('','','','','');
 	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
@@ -15977,28 +15991,22 @@ sub lm_sensors_data {
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
 	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
 	# print join ("\n", @sensors_data), "\n";
-	@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
-	@sensors_data = lm_sensors_processor(\@sensors_data) if @sensors_data;
-	foreach my $adapter (@sensors_data){
+	if (@sensors_data){
+		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
+		@sensors_data = lm_sensors_processor(\@sensors_data);
+	}
+	foreach $adapter (@sensors_data){
 		# we get this from gpu_data()
 		next if !$adapter->[0];
+		# not sure why hwmon is excluded, forgot to add info in comments
 		if ($adapter->[0] =~ /^(amdgpu|intel|nouveau|radeon|.*hwmon)-pci/ || 
-		 (@sensor_force && !(grep {/$adapter->[0]/} @sensor_force))){
-			#$b_valid = 0;
-			#$adapter = '';
+		 (@sensors_use && !(grep {/$adapter->[0]/} @sensors_use)) ||
+		 (@sensors_exclude && (grep {/$adapter->[0]/} @sensors_exclude))){
 			next;
 		}
-# 		if (/^(?:(?!amdgpu|intel|nouveau|radeon|.*hwmon).)*-(isa|pci|virtual)-/){
-# 			#$b_valid = 1;
-# 			#$adapter = $1;
-# 			next;
-# 		}
-		#next if !$b_valid;
 		foreach (@{$adapter->[1]}){
 			my @working = split /:/, $_;
-			#next if !$working[0];
-			#next if /^Adapter/;
-			
+			next if !$working[0];
 			#print "$working[0]:$working[1]\n";
 			# There are some guesses here, but with more sensors samples it will get closer.
 			# note: using arrays starting at 1 for all fan arrays to make it easier overall
@@ -16219,7 +16227,6 @@ sub sysctl_data {
 sub set_temp_unit {
 	my ($sensors,$working) = @_;
 	my $return_unit = '';
-	
 	if ( !$sensors && $working ){
 		$return_unit = $working;
 	}
