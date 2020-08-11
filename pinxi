@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.05';
-my $self_date='2020-08-09';
-my $self_patch='08';
+my $self_date='2020-08-11';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -60,7 +60,8 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,%system_files);
+my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,
+%sensors_disks,%sensors_gpu,%sensors_main,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -80,7 +81,7 @@ $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
 $b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,$b_ps_gui,
-$b_root,$b_running_in_display,$b_skip_dig,
+$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
 $b_wmctrl);
@@ -1829,6 +1830,8 @@ sub system_data {
 	['rc-status','-l'],
 	['rc-status','-r'],
 	['sensors',''],
+	['sensors','-j'],
+	['sensors','-u'],
 	# leaving this commented out to remind that some systems do not
 	# support strings --version, but will just simply hang at that command
 	# which you can duplicate by simply typing: strings then hitting enter.
@@ -15611,7 +15614,6 @@ sub file_path {
 ## SensorData
 {
 package SensorData;
-my (@sensors_data);
 my ($b_ipmi) = (0);
 sub get {
 	eval $start if $b_log;
@@ -15663,7 +15665,6 @@ sub get {
 		}
 		@rows = (@rows,@data);
 	}
-	undef @sensors_data;
 	eval $end if $b_log;
 	return @rows;
 }
@@ -15979,31 +15980,16 @@ sub lm_sensors_data {
 	eval $start if $b_log;
 	my (%sensors);
 	my ($sys_fan_nu)  = (0);
-	my ($adapter,$array_id,$fan_working,$temp_working,$working_unit)  = ('','','','','');
-	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
-	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
-	# print join ("\n", @sensors_data), "\n";
-	if (@sensors_data){
-		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
-		@sensors_data = lm_sensors_processor(\@sensors_data);
-	}
-	foreach $adapter (@sensors_data){
-		next if !$adapter->[0];
+	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','','');
+	lm_sensors_processor() if !$b_sensors;
+	foreach $adapter (keys %sensors_main){
+		next if !$adapter;
 		# not sure why hwmon is excluded, forgot to add info in comments
-		if ($adapter->[0] =~ /^(amdgpu|drivetemp|intel|nouveau|nvme|radeon|.*hwmon)-pci/ || 
-		 (@sensors_use && !(grep {/$adapter->[0]/} @sensors_use)) ||
-		 (@sensors_exclude && (grep {/$adapter->[0]/} @sensors_exclude))){
+		if ((@sensors_use && !(grep {/$adapter/} @sensors_use)) ||
+		 (@sensors_exclude && (grep {/$adapter/} @sensors_exclude))){
 			next;
 		}
-		foreach (@{$adapter->[1]}){
+		foreach (@{$sensors_main{$adapter}}){
 			my @working = split /:/, $_;
 			next if !$working[0];
 			#print "$working[0]:$working[1]\n";
@@ -16171,21 +16157,39 @@ sub lm_sensors_data {
 	eval $end if $b_log;
 	return %sensors;
 }
-# note, using array instead of hash here because it's possible there may be
-# times where the order of the sensor arrays may matter in terms of detections.
 sub lm_sensors_processor {
 	eval $start if $b_log;
-	my ($ref) = @_;
-	push @$ref, 'END';
-	#print Data::Dumper::Dumper \@$ref;
-	my (@data,@values);
-	my ($b_adapter);
+	my (@data,@sensors_data,@values);
 	my ($adapter,$holder) = ('','');
-	foreach (@$ref){
+	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
+	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
+	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
+	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
+	# print join ("\n", @sensors_data), "\n";
+	if (@sensors_data){
+		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
+		push @sensors_data, 'END';
+	}
+	#print Data::Dumper::Dumper \@sensors_data;
+	foreach (@sensors_data){
 		#print 'st:', $_, "\n";
 		next if /^\s*$/;
 		if (@values && $adapter && (/^Adapter/ || $_ eq 'END')){
-			push @data,[$adapter,[@values]];
+			if ($adapter =~ /^(disktemp|nvme)/){
+				$sensors_disks{$adapter} = [@values];
+			}
+			elsif ($adapter =~ /^(amdgpu|drivetemp|intel|nouveau|nvme|radeon|.*hwmon)-pci/){
+				$sensors_gpu{$adapter} = [@values];
+			}
+			else {
+				$sensors_main{$adapter} = [@values];
+			}
 			@values = ();
 			$adapter = '';
 		}
@@ -16199,6 +16203,7 @@ sub lm_sensors_processor {
 			$holder = $_;
 		}
 	}
+	$b_sensors = 1;
 	#print Data::Dumper::Dumper \@data;
 	main::log_data('dump','lm-sensors-process: @data',\@data) if $b_log;
 	eval $end if $b_log;
@@ -16570,30 +16575,25 @@ sub gpu_data {
 			}
 		}
 	}
-	if (@sensors_data){
+	if (%sensors_gpu){
 		#my ($b_found,$holder) = (0,'');
-		foreach my $adapter (@sensors_data){
-			if ($adapter->[0] =~ /^(amdgpu|intel|nouveau|radeon|.*hwmon)-pci/){
-				$j = scalar @gpudata;
-				$gpudata[$j]{'type'} = $1;
-				foreach (@{$adapter->[1]}){
-					if (/^[^:]*:([0-9]+).*\b(C|F)\s/i){
-						$gpudata[$j]{'temp'} = $1;
-						$gpudata[$j]{'unit'} = $2;
-						# print "$_\n";
-					}
-					# speeds can be in percents or rpms, so need the 'fan' in regex
-					if (/^.*fan.*:([0-9]+).*(RPM)?/i){
-						$gpudata[$j]{'fan-speed'} = $1;
-						# NOTE: we test for nvidia %, everything else stays with nothing
-						$gpudata[$j]{'speed-unit'} = '';
-					}
+		foreach my $adapter (%sensors_gpu){
+			$j = scalar @gpudata;
+			$gpudata[$j]{'type'} = $adapter;
+			foreach (@{$sensors_gpu{$adapter}}){
+				if (/^[^:]*:([0-9]+).*\b(C|F)\s/i){
+					$gpudata[$j]{'temp'} = $1;
+					$gpudata[$j]{'unit'} = $2;
+					# print "$_\n";
 				}
-				main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
+				# speeds can be in percents or rpms, so need the 'fan' in regex
+				if (/^.*fan.*:([0-9]+).*(RPM)?/i){
+					$gpudata[$j]{'fan-speed'} = $1;
+					# NOTE: we test for nvidia %, everything else stays with nothing
+					$gpudata[$j]{'speed-unit'} = '';
+				}
 			}
-			else {
-				next;
-			}
+			main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 		}
 	}
 	# we'll probably use this data elsewhere so make it a one time call
