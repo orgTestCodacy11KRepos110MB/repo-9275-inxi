@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.05';
 my $self_date='2020-08-09';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17786,16 +17786,20 @@ sub get_compiler_version_bsd {
 sub get_compiler_version_linux {
 	eval $start if $b_log;
 	my ($file) = @_;
-	my (@compiler,$type);
+	my (@compiler,$version);
 	my @data = reader($file);
 	my $result = $data[0] if @data;
 	if ($result){
-		$result =~ /(gcc|clang).*version\s([\S]+)/;
 		# $result = $result =~ /\*(gcc|clang)\*eval\*/;
-		if ($1){
-			$type = $2;
-			$type ||= 'N/A'; # we don't really know what linux clang looks like!
-			@compiler = ($1,$type);
+		if ($result =~ /(gcc|clang).*version\s([\S]+)/){
+			$version = $2;
+			$version ||= 'N/A'; # we don't really know what linux clang looks like!
+			@compiler = ($1,$version);
+		}
+		elsif ($result =~ /(gcc|clang)[^\(]*\([^\)]+\)\s+([0-9\.]+)\s,\s*GNU/){
+			$version = $2;
+			$version ||= 'N/A'; # we don't really know what linux clang looks like!
+			@compiler = ($1,$version);
 		}
 	}
 	log_data('dump','@compiler',\@compiler) if $b_log;
@@ -21596,6 +21600,7 @@ sub generate_short_data {
 	eval $start if $b_log;
 	my $num = 0;
 	my $kernel_os = ($bsd_type) ? 'OS' : 'Kernel';
+	get_shell_data($client{'ppid'}) if $client{'ppid'};
 	my $client = $client{'name-print'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	if ($client{'version'}){
