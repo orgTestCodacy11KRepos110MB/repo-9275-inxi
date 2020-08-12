@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.05';
-my $self_date='2020-08-11';
-my $self_patch='10';
+my $self_date='2020-08-12';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -16182,7 +16182,8 @@ sub lm_sensors_processor {
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
-	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
+	my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
+	 @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
 	# print join ("\n", @sensors_data), "\n";
 	if (@sensors_data){
 		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
@@ -16192,8 +16193,9 @@ sub lm_sensors_processor {
 	foreach (@sensors_data){
 		#print 'st:', $_, "\n";
 		next if /^\s*$/;
+		$_ = main::trimmer($_);
 		if (@values && $adapter && (/^Adapter/ || $_ eq 'END')){
-			if ($adapter =~ /^(disktemp|nvme)/){
+			if ($adapter =~ /^(drivetemp|nvme)/){
 				$sensors_disks{$adapter} = [@values];
 			}
 			elsif ($adapter =~ /^(amdgpu|drivetemp|intel|nouveau|nvme|radeon|.*hwmon)-pci/){
@@ -16216,8 +16218,16 @@ sub lm_sensors_processor {
 		}
 	}
 	$b_sensors = 1;
-	#print Data::Dumper::Dumper \@data;
-	main::log_data('dump','lm-sensors-process: @data',\@data) if $b_log;
+	if ($test[18]){
+		print 'sensors main: ' , Data::Dumper::Dumper \%sensors_main;
+		print 'sensors gpu: ' ,Data::Dumper::Dumper \%sensors_gpu;
+		print 'sensors disk: ' ,Data::Dumper::Dumper \%sensors_disks;
+	}
+	if ($b_log){
+		main::log_data('dump','lm-sensors data: %sensors_main',\%sensors_main);
+		main::log_data('dump','lm-sensors data: %sensors_gpu',\%sensors_gpu);
+		main::log_data('dump','lm-sensors data: %sensors_disks',\%sensors_disks);
+	}
 	eval $end if $b_log;
 	return @data;
 }
@@ -16589,18 +16599,20 @@ sub gpu_data {
 	}
 	if (%sensors_gpu){
 		#my ($b_found,$holder) = (0,'');
-		foreach my $adapter (%sensors_gpu){
+		foreach my $adapter (keys %sensors_gpu){
 			$j = scalar @gpudata;
 			$gpudata[$j]{'type'} = $adapter;
-			$gpudata[$j]{'type'} =~ s/^(amdgpu|drivetemp|intel|nouveau|nvme|radeon|.*hwmon)-pci/$1/;
+			$gpudata[$j]{'type'} =~ s/^(amdgpu|intel|nouveau|radeon|.*hwmon)-.*/$1/;
+			print "ad: $adapter\n";
 			foreach (@{$sensors_gpu{$adapter}}){
-				if (/^[^:]+:([0-9]+).*\b(C|F)\s/i){
+				print "val: $_\n";
+				if (/^[^:]+:([0-9\.]+).*\b(C|F)\b/i){
 					$gpudata[$j]{'temp'} = $1;
 					$gpudata[$j]{'unit'} = $2;
-					# print "$_\n";
+					 print "temp: $_\n";
 				}
 				# speeds can be in percents or rpms, so need the 'fan' in regex
-				elsif (/^.*fan.*:([0-9]+).*(RPM)?/i){
+				elsif (/^.*fan.*:([0-9\.]+).*(RPM)?/i){
 					$gpudata[$j]{'fan-speed'} = $1;
 					# NOTE: we test for nvidia %, everything else stays with nothing
 					$gpudata[$j]{'speed-unit'} = '';
@@ -16612,12 +16624,13 @@ sub gpu_data {
 					$gpudata[$j]{'mvolts'} = $1;
 				}
 			}
+			
 		}
 	}
 	main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 	# we'll probably use this data elsewhere so make it a one time call
 	$b_gpudata = 1;
-	# print Data::Dumper::Dumper \@gpudata;
+	print 'gpudata: ', Data::Dumper::Dumper \@gpudata if $test[18];
 	eval $end if $b_log;
 	return @gpudata;
 }
