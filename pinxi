@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.05';
 my $self_date='2020-08-11';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15717,6 +15717,7 @@ sub create_output {
 		my $gpu_unit = (defined $gpu[0]{'temp-unit'} && $gpu_temp ) ? " $gpu[0]{'temp-unit'}" : ' C';
 		$rows[$j]{main::key($num++,1,2,'gpu')} = $gpu_type;
 		$rows[$j]{main::key($num++,0,3,'temp')} = $gpu_temp . $gpu_unit;
+		
 	}
 	$j = scalar @rows;
 	my $ref_main = $sensors{'fan-main'};
@@ -15785,6 +15786,12 @@ sub create_output {
 			if (defined $gpu_fan){
 				$rows[$j]{main::key($num++,0,3,'fan')} = $gpu_fan;
 			}
+			if ($extra > 2 && $info{'watts'}){
+				$rows[$j]{main::key($num++,0,3,'watts')} = $info{'watts'};
+			}
+			if ($extra > 2 && $info{'mvolts'}){
+				$rows[$j]{main::key($num++,0,3,'mV')} = $info{'mvolts'};
+			}
 		}
 	}
 	if ($extra > 0 && ($source eq 'ipmi' || 
@@ -15794,7 +15801,7 @@ sub create_output {
 		$sensors{'volts-5'} ||= 'N/A';
 		$sensors{'volts-3.3'} ||= 'N/A';
 		$sensors{'volts-vbat'} ||= 'N/A';
-		$rows[$j]{main::key($num++,1,1,'Voltages')} = $data_source;
+		$rows[$j]{main::key($num++,1,1,'Power')} = $data_source;
 		$rows[$j]{main::key($num++,0,2,'12v')} = $sensors{'volts-12'};
 		$rows[$j]{main::key($num++,0,2,'5v')} = $sensors{'volts-5'};
 		$rows[$j]{main::key($num++,0,2,'3.3v')} = $sensors{'volts-3.3'};
@@ -15806,6 +15813,11 @@ sub create_output {
 			$rows[$j]{main::key($num++,0,2,'dimm-p2')} = $sensors{'volts-dimm-p2'} if $sensors{'volts-dimm-p2'};
 			$rows[$j]{main::key($num++,0,2,'soc-p1')} = $sensors{'volts-soc-p1'} if $sensors{'volts-soc-p1'};
 			$rows[$j]{main::key($num++,0,2,'soc-p2')} = $sensors{'volts-soc-p2'} if $sensors{'volts-soc-p2'};
+		}
+		if (scalar @gpu == 1 && $extra > 2 && ($gpu[0]{'watts'} || $gpu[0]{'mvolts'})){
+			$rows[$j]{main::key($num++,1,2,'gpu')} = $gpu[0]{'type'};
+			$rows[$j]{main::key($num++,0,3,'watts')} = $gpu[0]{'watts'} if $gpu[0]{'watts'}  ;
+			$rows[$j]{main::key($num++,0,3,'mV')} = $gpu[0]{'mvolts'} if $gpu[0]{'mvolts'};
 		}
 	}
 	eval $end if $b_log;
@@ -16580,22 +16592,29 @@ sub gpu_data {
 		foreach my $adapter (%sensors_gpu){
 			$j = scalar @gpudata;
 			$gpudata[$j]{'type'} = $adapter;
+			$gpudata[$j]{'type'} =~ s/^(amdgpu|drivetemp|intel|nouveau|nvme|radeon|.*hwmon)-pci/$1/;
 			foreach (@{$sensors_gpu{$adapter}}){
-				if (/^[^:]*:([0-9]+).*\b(C|F)\s/i){
+				if (/^[^:]+:([0-9]+).*\b(C|F)\s/i){
 					$gpudata[$j]{'temp'} = $1;
 					$gpudata[$j]{'unit'} = $2;
 					# print "$_\n";
 				}
 				# speeds can be in percents or rpms, so need the 'fan' in regex
-				if (/^.*fan.*:([0-9]+).*(RPM)?/i){
+				elsif (/^.*fan.*:([0-9]+).*(RPM)?/i){
 					$gpudata[$j]{'fan-speed'} = $1;
 					# NOTE: we test for nvidia %, everything else stays with nothing
 					$gpudata[$j]{'speed-unit'} = '';
 				}
+				elsif (/^[^:]+:([0-9\.]+)\s+W\s/i){
+					$gpudata[$j]{'watts'} = $1;
+				}
+				elsif (/^[^:]+:([0-9\.]+)\s+mV\s/i){
+					$gpudata[$j]{'mvolts'} = $1;
+				}
 			}
-			main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 		}
 	}
+	main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 	# we'll probably use this data elsewhere so make it a one time call
 	$b_gpudata = 1;
 	# print Data::Dumper::Dumper \@gpudata;
