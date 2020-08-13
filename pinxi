@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.05';
 my $self_date='2020-08-13';
-my $self_patch='14';
+my $self_patch='15';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -61,8 +61,7 @@ if (eval {require Time::HiRes}){
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
 my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,
-%sensors_disks,%sensors_gpu,%sensors_hwmon,%sensors_main,%sensors_network,
-%system_files);
+%sensors_raw,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -16002,14 +16001,15 @@ sub lm_sensors_data {
 	my ($sys_fan_nu)  = (0);
 	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','','');
 	lm_sensors_processor() if !$b_sensors;
-	foreach $adapter (keys %sensors_main){
+	foreach $adapter (keys %{$sensors_raw{'main'}}){
 		next if !$adapter;
+		print "ad: $adapter\n";
 		# not sure why hwmon is excluded, forgot to add info in comments
 		if ((@sensors_use && !(grep {/$adapter/} @sensors_use)) ||
 		 (@sensors_exclude && (grep {/$adapter/} @sensors_exclude))){
 			next;
 		}
-		foreach (@{$sensors_main{$adapter}}){
+		foreach (@{$sensors_raw{'main'}->{$adapter}}){
 			my @working = split /:/, $_;
 			next if !$working[0];
 			#print "$working[0]:$working[1]\n";
@@ -16180,7 +16180,7 @@ sub lm_sensors_data {
 sub lm_sensors_processor {
 	eval $start if $b_log;
 	my (@data,@sensors_data,@values);
-	my ($adapter,$holder) = ('','');
+	my ($adapter,$holder,$type) = ('','','');
 	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
@@ -16205,21 +16205,22 @@ sub lm_sensors_processor {
 		if (@values && $adapter && (/^Adapter/ || $_ eq 'END')){
 			# note: drivetemp: known, but many others could exist
 			if ($adapter =~ /^(drive|nvme)/){
-				$sensors_disks{$adapter} = [@values];
+				$type = 'disk';
 			}
 			elsif ($adapter =~ /^(amdgpu|intel|nouveau|radeon)-/){
-				$sensors_gpu{$adapter} = [@values];
+				$type = 'gpu';
 			}
-			# ath/iwl: wifi; enp/eth: lan nic
-			elsif ($adapter =~ /^(ath|iwl|enp|eth)[\S]+-/){
-				$sensors_network{$adapter} = [@values];
+			# ath/iwl: wifi; enp/eno/eth: lan nic
+			elsif ($adapter =~ /^(ath|iwl|en[op][0-9]|eth)[\S]+-/){
+				$type = 'network';
 			}
 			elsif ($adapter =~ /^(.*hwmon)-/){
-				$sensors_hwmon{$adapter} = [@values];
+				$type = 'hwmon';
 			}
 			else {
-				$sensors_main{$adapter} = [@values];
+				$type = 'main';
 			}
+			$sensors_raw{$type}->{$adapter} = [@values];
 			@values = ();
 			$adapter = '';
 		}
@@ -16235,18 +16236,10 @@ sub lm_sensors_processor {
 	}
 	$b_sensors = 1;
 	if ($test[18]){
-		print 'sensors main: ' , Data::Dumper::Dumper \%sensors_main;
-		print 'sensors gpu: ' ,Data::Dumper::Dumper \%sensors_gpu;
-		print 'sensors disk: ' ,Data::Dumper::Dumper \%sensors_disks;
-		print 'sensors network: ' ,Data::Dumper::Dumper \%sensors_network;
-		print 'sensors hwmon: ' ,Data::Dumper::Dumper \%sensors_hwmon;
+		print 'lm sensors: ' , Data::Dumper::Dumper \%sensors_raw;
 	}
 	if ($b_log){
-		main::log_data('dump','lm-sensors data: %sensors_main',\%sensors_main);
-		main::log_data('dump','lm-sensors data: %sensors_gpu',\%sensors_gpu);
-		main::log_data('dump','lm-sensors data: %sensors_disks',\%sensors_disks);
-		main::log_data('dump','lm-sensors data: %sensors_network',\%sensors_network);
-		main::log_data('dump','lm-sensors data: %sensors_hwmon',\%sensors_hwmon);
+		main::log_data('dump','lm-sensors data: %sensors_raw',\%sensors_raw);
 	}
 	eval $end if $b_log;
 	return @data;
@@ -16617,14 +16610,14 @@ sub gpu_data {
 			}
 		}
 	}
-	if (%sensors_gpu){
+	if ($sensors_raw{'gpu'}){
 		#my ($b_found,$holder) = (0,'');
-		foreach my $adapter (keys %sensors_gpu){
+		foreach my $adapter (keys %{$sensors_raw{'gpu'}}){
 			$j = scalar @gpudata;
 			$gpudata[$j]{'type'} = $adapter;
 			$gpudata[$j]{'type'} =~ s/^(amdgpu|intel|nouveau|radeon)-.*/$1/;
 			# print "ad: $adapter\n";
-			foreach (@{$sensors_gpu{$adapter}}){
+			foreach (@{$sensors_raw{'gpu'}->{$adapter}}){
 				# print "val: $_\n";
 				if (/^[^:]+:([0-9\.]+).*\b(C|F)\b/i){
 					$gpudata[$j]{'temp'} = $1;
@@ -16644,7 +16637,6 @@ sub gpu_data {
 					$gpudata[$j]{'mvolts'} = $1;
 				}
 			}
-			
 		}
 	}
 	main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
