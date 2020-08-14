@@ -15727,7 +15727,9 @@ sub create_output {
 		my $gpu_unit = (defined $gpu[0]{'temp-unit'} && $gpu_temp ) ? " $gpu[0]{'temp-unit'}" : ' C';
 		$rows[$j]{main::key($num++,1,2,'gpu')} = $gpu_type;
 		$rows[$j]{main::key($num++,0,3,'temp')} = $gpu_temp . $gpu_unit;
-		
+		if ($extra > 1 && $gpu[0]{'temp-mem'}){
+			$rows[$j]{main::key($num++,0,3,'mem')} = $gpu[0]{'temp-mem'} . $gpu_unit;
+		}
 	}
 	$j = scalar @rows;
 	my $ref_main = $sensors{'fan-main'};
@@ -15793,6 +15795,9 @@ sub create_output {
 				$rows[$j]{main::key($num++,0,3,'screen')} = $info{'screen'};
 			}
 			$rows[$j]{main::key($num++,0,3,'temp')} = $gpu_temp;
+			if ($extra > 1 && $info{'temp-mem'}){
+				$rows[$j]{main::key($num++,0,3,'mem')} = $info{'temp-mem'} . $gpu_unit;
+			}
 			if (defined $gpu_fan){
 				$rows[$j]{main::key($num++,0,3,'fan')} = $gpu_fan;
 			}
@@ -16193,6 +16198,7 @@ sub lm_sensors_processor {
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
+	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
 	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
 	# print join ("\n", @sensors_data), "\n";
 	if (@sensors_data){
@@ -16621,7 +16627,12 @@ sub gpu_data {
 			# print "ad: $adapter\n";
 			foreach (@{$sensors_raw{'gpu'}->{$adapter}}){
 				# print "val: $_\n";
-				if (/^[^:]+:([0-9\.]+).*\b(C|F)\b/i){
+				if (/^[^:]*mem[^:]*:([0-9\.]+).*\b(C|F)\b/i){
+					$gpudata[$j]{'temp-mem'} = $1;
+					$gpudata[$j]{'unit'} = $2;
+					 # print "temp: $_\n";
+				}
+				elsif (/^[^:]+:([0-9\.]+).*\b(C|F)\b/i){
 					$gpudata[$j]{'temp'} = $1;
 					$gpudata[$j]{'unit'} = $2;
 					 # print "temp: $_\n";
