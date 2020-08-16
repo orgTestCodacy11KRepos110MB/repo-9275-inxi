@@ -79,7 +79,7 @@ my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
-$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_mips,$b_no_sudo,
+$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_no_html_wan,$b_mips,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,$b_ps_gui,
 $b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
@@ -1141,6 +1141,7 @@ sub get_config_item {
 	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'NO_DIG') {$b_skip_dig = $val if is_int($val)}
+	elsif ($key eq 'NO_HTML_WAN') {$b_no_html_wan = $val if is_int($val)}
 	elsif ($key eq 'NO_SUDO') {$b_no_sudo = $val if is_int($val)}
 	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
@@ -4490,6 +4491,8 @@ sub get_options{
 	'no-host|no-hostname' => sub {
 		$show{'host'} = 0 ;
 		$show{'no-host'} = 1},
+	'no-html-wan' => sub {
+		$b_no_html_wan= 1;},
 	'no-man' => sub {
 		$b_no_man_force = 0; },
 	'no-ssl' => sub {
@@ -5005,6 +5008,8 @@ sub show_options {
 	@rows = (
 	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program." ],
 	['1', '', '--no-host', "Turn off hostname for -S. Useful if showing output from servers etc." ],
+	['1', '', '--no-html-wan', "Skip HTML IP sources for WAN IP checks, use dig only, 
+	or nothing if --no-dig." ],
 	);
 	push @data, @rows;
 	if ( $use{'update'} ){
@@ -12314,7 +12319,7 @@ sub if_ip {
 # dig +short +time=1 +tries=1 myip.opendns.com. A @208.67.222.222
 sub wan_ip {
 	eval $start if $b_log;
-	my (@data,$b_dig,$ip,$ua);
+	my (@data,$b_dig,$b_html,$ip,$ua);
 	my $num = 0;
 	# time: 0.06 - 0.07 seconds
 	# cisco opendns.com may be terminating supporting this one, sometimes works, sometimes not: 
@@ -12328,7 +12333,7 @@ sub wan_ip {
 		$ip = (main::grabber("$program +short +time=1 +tries=1 \@ns1-1.akamaitech.net ANY whoami.akamai.net 2>/dev/null"))[0];
 		$b_dig = 1;
 	}
-	else {
+	if (!$ip && !$b_no_html_wan) {
 		# note: tests: akamai: 0.055 - 0.065 icanhazip.com: 0.177 0.164
 		# smxi: 0.525, so almost 10x slower. Dig is fast too
 		# leaving smxi as last test because I know it will always be up.
@@ -12345,6 +12350,7 @@ sub wan_ip {
 				last;
 			}
 		}
+		$b_html = 1;
 	}
 	if ($ip && $use{'filter'}){
 		$ip = $filter_string;
