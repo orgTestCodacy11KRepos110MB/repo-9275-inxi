@@ -26,7 +26,7 @@ use 5.008;
 # no multidimensional;
 # no bareword::filehandle;
 
-use Cwd qw(abs_path); # qw(abs_path);#abs_path realpath getcwd
+use Cwd qw(abs_path getcwd); # #abs_path realpath getcwd
 use Data::Dumper qw(Dumper); # print_r
 use File::Find;
 use File::stat; # needed for Xorg.0.log file mtime comparisons
@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.06';
-my $self_date='2020-08-17';
-my $self_patch='01';
+my $self_date='2020-08-21';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1386,11 +1386,11 @@ sub new {
 
 sub run_debugger {
 	#require File::Find;
-	#import File::Find::Functions;
+	#File::Find::Functions->import;
 	require File::Copy;
-	import File::Copy;
+	File::Copy->import;
 	require File::Spec::Functions;
-	import File::Spec::Functions;
+	File::Spec::Functions->import;
 	
 	print "Starting $self_name debugging data collector...\n";
 	create_debug_directory();
@@ -2179,7 +2179,7 @@ sub wanted {
 # NOTE: must be in format: ftp.site.com/incoming
 sub upload_file {
 	require Net::FTP;
-	import Net::FTP;
+	Net::FTP->import;
 	my ($self, $ftp_url) = @_;
 	my ($ftp, $domain, $host, $user, $pass, $dir, $error);
 	$ftp_url ||= main::get_defaults('ftp-upload');
@@ -2350,8 +2350,8 @@ sub set_downloader {
 	# For some https connections so only use tiny as option if both present
 	if ($dl{'tiny'}){
 		if (check_module('HTTP::Tiny') && check_module('IO::Socket::SSL')){
-			import HTTP::Tiny;
-			import IO::Socket::SSL;
+			HTTP::Tiny->import;
+			IO::Socket::SSL->import;
 			$dl{'tiny'} = 1;
 		}
 		else {
@@ -5086,8 +5086,6 @@ sub show_options {
 }
 
 sub show_version {
-	require Cwd;
-	import Cwd;
 	# if not in PATH could be either . or directory name, no slash starting
 	my $working_path=$self_path;
 	my (@data, @row, @rows, $link, $self_string);
@@ -5853,11 +5851,11 @@ sub generate_json {
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper \%data if $b_debug;
 	if (check_module('Cpanel::JSON::XS')){
-		import Cpanel::JSON::XS;
+		Cpanel::JSON::XS->import;
 		$json = Cpanel::JSON::XS::encode_json(\%data);
 	}
 	elsif (check_module('JSON::XS')){
-		import JSON::XS;
+		JSON::XS->import;
 		$json = JSON::XS::encode_json(\%data);
 	}
 	else {
@@ -5891,7 +5889,7 @@ sub generate_xml {
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper \%data if $b_debug;
 	if (check_module('XML::Dumper')){
-		import XML::Dumper;
+		XML::Dumper->import;
 		$xml = XML::Dumper::pl2xml(\%data);
 		#$xml =~ s/"[0-9]+#/"/g;
 		if ($output_file eq 'print'){
@@ -12333,6 +12331,7 @@ sub wan_ip {
 	# dig +short @ns1-1.akamaitech.net ANY whoami.akamai.net
 	# this one can take forever, and sometimes requires explicit -4 or -6
 	# dig -4 TXT +short o-o.myaddr.l.google.com @ns1.google.com
+
 	if (!$b_skip_dig && (my $program = main::check_program('dig') )){
 		$ip = (main::grabber("$program +short +time=1 +tries=1 \@ns1-1.akamaitech.net ANY whoami.akamai.net 2>/dev/null"))[0];
 		$b_dig = 1;
@@ -12342,6 +12341,10 @@ sub wan_ip {
 		# smxi: 0.525, so almost 10x slower. Dig is fast too
 		# leaving smxi as last test because I know it will always be up.
 		# --wan-ip-url replaces values with user supplied arg
+		# 0.059s: http://whatismyip.akamai.com/
+		# 0.255s: https://get.geojs.io/v1/ip
+		# 0.371s: http://icanhazip.com/
+		# 0.430s: https://smxi.org/opt/ip.php
 		my @urls = (!$wan_url) ? qw( http://whatismyip.akamai.com/ 
 		 http://icanhazip.com/ https://smxi.org/opt/ip.php) : ($wan_url);
 		foreach (@urls){
@@ -19178,7 +19181,7 @@ sub get_hostname {
 	# puppy removed this from core modules, sigh
 	# this is faster than subshell of hostname
 	elsif (check_module('Sys::Hostname')){
-		import Sys::Hostname;
+		Sys::Hostname->import;
 		$hostname = Sys::Hostname::hostname();
 	}
 	elsif (my $program = check_program('hostname')) {
