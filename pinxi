@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.06';
 my $self_date='2020-09-02';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3218,6 +3218,9 @@ sub compare_versions {
 }
 
 # some things randomly use hex with 0x starter, return always integer
+# warning: perl will generate a 32 bit too big number warning if you pass it
+# random values that exceed 2^32 in hex, even if the base system is 64 bit. 
+# sample: convert_hex(0x000b0000000b);
 sub convert_hex {
 	return (defined $_[0] && $_[0] =~ /^0x/) ? hex($_[0]) : $_[0];
 }
@@ -3269,6 +3272,10 @@ sub globber {
 	my @files = <$_[0]>;
 	eval $end if $b_log;
 	return @files;
+}
+# arg MUST be quoted when inserted, otherwise perl takes it for a hex number
+sub is_hex {
+	return (defined $_[0] && $_[0] =~ /^0x/) ? 1 : 0;
 }
 
 ## NOTE: for perl pre 5.012 length(undef) returns warning
@@ -9456,9 +9463,10 @@ sub smartctl_data {
 				}
 				elsif ($split[$a] eq 'Media_Wearout_Indicator'){
 					# $data[$i]{'smart-media-wearout'} = $split[$r];
-					# seen case where for some stupid reason they used hex numbers, sigh
-					$split[$r] = main::convert_hex($split[$r]);
-					if ($b_attributes && $split[$r] > 0){
+					# seen case where they used hex numbers becaause values
+					# were in 47 billion range in hex. You can't hand perl an unquoted
+					# hex number that is > 2^32 without tripping a perl warning
+					if ($b_attributes && $split[$r] && (main::is_hex("$split[$r]") || $split[$r] > 0)){
 						$data[$i]{'smart-media-wearout-v'} = $split[$v];
 						$data[$i]{'smart-media-wearout-t'} = $split[$t];
 						$data[$i]{'smart-media-wearout-f'} = $split[$f] if $split[$f] ne '-';
