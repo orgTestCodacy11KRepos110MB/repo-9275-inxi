@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.07';
-my $self_date='2020-10-02';
-my $self_patch='02';
+my $self_date='2020-10-09';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17925,13 +17925,8 @@ package DesktopEnvironment;
 my ($b_gtk,$b_qt,$b_xprop,$desktop_session,$gdmsession,$kde_session_version,
 $xdg_desktop,@desktop,@data,@xprop);
 sub get {
-	# NOTE $XDG_CURRENT_DESKTOP envvar is not reliable, but it shows certain desktops better.
-	# most desktops are not using it as of 2014-01-13 (KDE, UNITY, LXDE. Not Gnome)
-	$desktop_session = ( $ENV{'DESKTOP_SESSION'} ) ? lc($ENV{'DESKTOP_SESSION'}) : '';
-	$xdg_desktop = ( $ENV{'XDG_CURRENT_DESKTOP'} ) ? lc($ENV{'XDG_CURRENT_DESKTOP'}) : '';
-	$kde_session_version = ($ENV{'KDE_SESSION_VERSION'}) ? $ENV{'KDE_SESSION_VERSION'} : '';
-	# for fallback to fallback protections re false gnome id
-	$gdmsession = ( $ENV{'GDMSESSION'} ) ? lc($ENV{'GDMSESSION'}) : '';
+	eval $start if $b_log;
+	set_desktop_values();
 	main::set_ps_gui() if ! $b_ps_gui;
 	get_kde_trinity_data();
 	if (!@desktop){
@@ -17956,7 +17951,25 @@ sub get {
 	set_qt_data() if $b_qt && $extra > 1;
 	main::log_data('dump','@desktop', \@desktop) if $b_log;
 	# ($b_xprop,$kde_session_version,$xdg_desktop,@data,@xprop) = undef;
+	eval $end if $b_log;
 	return @desktop;
+}
+sub set_desktop_values {
+	# NOTE $XDG_CURRENT_DESKTOP envvar is not reliable, but it shows certain desktops better.
+	# most desktops are not using it as of 2014-01-13 (KDE, UNITY, LXDE. Not Gnome)
+	$desktop_session = ( $ENV{'DESKTOP_SESSION'} ) ? prep_desktop_value($ENV{'DESKTOP_SESSION'}) : '';
+	$xdg_desktop = ( $ENV{'XDG_CURRENT_DESKTOP'} ) ? prep_desktop_value($ENV{'XDG_CURRENT_DESKTOP'}) : '';
+	$kde_session_version = ($ENV{'KDE_SESSION_VERSION'}) ? $ENV{'KDE_SESSION_VERSION'} : '';
+	# for fallback to fallback protections re false gnome id
+	$gdmsession = ( $ENV{'GDMSESSION'} ) ? prep_desktop_value($ENV{'GDMSESSION'}) : '';
+}
+# note: an ubuntu regresssion replaces or adds 'ubuntu' string to 
+# real value. Since ubuntu is the only distro I know that does this, 
+# will add more distro type filters as/if we come across them
+sub prep_desktop_value {
+	$_[0] = main::trimmer(lc($_[0]));
+	$_[0] =~ s/\b(arch|debian|fedora|manjaro|mint|opensuse|ubuntu):?\s*//i;
+	return $_[0];
 }
 sub get_kde_trinity_data {
 	eval $start if $b_log;
@@ -18144,9 +18157,6 @@ sub check_gnome {
 		$detection = 'xdg_current_desktop';
 		$b_gnome = 1;
 	}
-	elsif ($xdg_desktop && $xdg_desktop ne 'gnome'){
-		$detection = 'xdg_current_desktop';
-	}
 	# possible values: lightdm-xsession, only positive match tests will work
 	elsif ($gdmsession && $gdmsession eq 'gnome'){
 		$detection = 'gdmsession';
@@ -18170,7 +18180,12 @@ sub check_gnome {
 		$detection = 'xprop-root';
 		$b_gnome = 1;
 	}
-	main::log_data('data','$detection:$b_gnome',$detection . ":$b_gnome") if $b_log;
+	# not reliable since if distro makes it: ubuntu:gnome will fail unless 
+	# filtered explicitly in set_desktop_values
+	elsif ($xdg_desktop && $xdg_desktop ne 'gnome'){
+		$detection = 'xdg_current_desktop';
+	}
+	main::log_data('data','$detection:$b_gnome>>' . $detection . ":$b_gnome") if $b_log;
 	eval $end if $b_log;
 	return $b_gnome;
 }
