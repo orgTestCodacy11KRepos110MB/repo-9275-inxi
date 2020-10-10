@@ -17968,8 +17968,8 @@ sub set_desktop_values {
 # real value. Since ubuntu is the only distro I know that does this, 
 # will add more distro type filters as/if we come across them
 sub prep_desktop_value {
-	$_[0] = main::trimmer(lc($_[0]));
-	$_[0] =~ s/\b(arch|debian|fedora|manjaro|mint|opensuse|ubuntu):?\s*//i;
+	$_[0] = lc(main::trimmer($_[0]));
+	$_[0] =~ s/\b(arch|debian|fedora|manjaro|mint|opensuse|ubuntu):?\s*//;
 	return $_[0];
 }
 sub get_kde_trinity_data {
@@ -18154,9 +18154,14 @@ sub get_env_xprop_gnome_based_data {
 sub check_gnome {
 	eval $start if $b_log;
 	my ($b_gnome,$detection) = (0,'');
-	if ($xdg_desktop && $xdg_desktop eq 'gnome'){
+	if ($xdg_desktop && $xdg_desktop =~ /gnome/){
 		$detection = 'xdg_current_desktop';
 		$b_gnome = 1;
+	}
+	# should work as long as string contains gnome, eg: peppermint:gnome 
+	# filtered explicitly in set_desktop_values
+	elsif ($xdg_desktop && $xdg_desktop !~ /gnome/){
+		$detection = 'xdg_current_desktop';
 	}
 	# possible values: lightdm-xsession, only positive match tests will work
 	elsif ($gdmsession && $gdmsession eq 'gnome'){
@@ -18181,11 +18186,7 @@ sub check_gnome {
 		$detection = 'xprop-root';
 		$b_gnome = 1;
 	}
-	# not reliable since if distro makes it: ubuntu:gnome will fail unless 
-	# filtered explicitly in set_desktop_values
-	elsif ($xdg_desktop && $xdg_desktop ne 'gnome'){
-		$detection = 'xdg_current_desktop';
-	}
+	
 	main::log_data('data','$detection:$b_gnome>>' . $detection . ":$b_gnome") if $b_log;
 	eval $end if $b_log;
 	return $b_gnome;
