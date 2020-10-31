@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.08';
 my $self_date='2020-10-30';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -60,8 +60,8 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my (%alerts,%client,%colors,%debugger,%dl,%files,%program_values,%rows,
-%sensors_raw,%system_files);
+my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,%program_values,
+%rows,%sensors_raw,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -75,7 +75,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,
+my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
@@ -18941,6 +18941,21 @@ sub get_linux_distro {
 			$distro =~ s/Slackware/Salix/;
 		}
 	}
+	else {
+		# android fallback, will only work if rooted
+		if (-e '/system/build.prop') {
+			my %build_prop = main::set_build_prop();
+			$distro = 'Android';
+			$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
+			$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
+			if ($build_prop{'product-device'}){
+				$distro .= ' (' . $build_prop{'product-device'} . ')';
+			}
+			elsif ($build_prop{'product-name'}){
+				$distro .= ' (' . $build_prop{'product-name'} . ')';
+			}
+		}
+	}
 	## finally, if all else has failed, give up
 	$distro ||= 'unknown';
 	@distro_data = ($distro,$system_base);
@@ -20126,6 +20141,58 @@ sub get_wakeups {
 #### -------------------------------------------------------------------
 #### SET DATA VALUES
 #### -------------------------------------------------------------------
+
+# android only, for distro / OS id and machine data
+sub set_build_prop {
+	eval $start if $b_log;
+	my $path = '/system/build.prop';
+	return %build_prop if $b_build_prop || ! -r $path;
+	$b_build_prop = 1;
+	my @data = reader($path,'strip');
+	foreach (@data){
+		my @working = split /=/, $_;
+		next if $working[0] !~ /^ro\.(build|product)/;
+		if ($working[0] eq 'ro.build.date.utc'){
+			$build_prop{'build-date'} = strftime "%F", gmtime($working[1]);
+		}
+		# ldgacy, replaced by ro.product.device
+		elsif ($working[0] eq 'ro.build.product'){
+			$build_prop{'build-product'} = $working[1];
+		}
+		# this can be brand, company, android, it varies, but we don't want android value
+		elsif ($working[0] eq 'ro.build.user'){
+			$build_prop{'build-user'} = $working[1] if $working[1] !~ /android/i;
+		}
+		elsif ($working[0] eq 'ro.build.version.release'){
+			$build_prop{'build-version'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.board'){
+			$build_prop{'product-board'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.brand'){
+			$build_prop{'product-brand'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.device'){
+			$build_prop{'product-device'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.manufacturer'){
+			$build_prop{'product-manufacturer'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.model'){
+			$build_prop{'product-model'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.name'){
+			$build_prop{'product-name'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.screensize'){
+			$build_prop{'product-screensize'} = $working[1];
+		}
+	}
+	log_data('dump','%build_prop',\%build_prop) if $b_log;
+	print Dumper \%build_prop if $test[20];
+	eval $end if $b_log;
+	return %build_prop;
+}
 
 ## creates arrays: @devices_audio; @devices_graphics; @devices_hwraid; 
 ## @devices_network; @devices_timer plus @devices for logging/debugging
