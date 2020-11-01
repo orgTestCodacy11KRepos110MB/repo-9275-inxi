@@ -11559,6 +11559,15 @@ sub machine_data_soc {
 			}
 		}
 	}
+	if (!$soc_machine{'model'} && -r '/system/build.prop'){
+		my %build_prop = main::set_build_prop();
+		if ($build_prop{'product-device'} ){
+			$soc_machine{'model'} = $build_prop{'product-device'};
+		}
+		elsif ($build_prop{'product-name'} ){
+			$soc_machine{'model'} = $build_prop{'product-name'};
+		}
+	}
 	if (!$soc_machine{'model'} && -f '/proc/device-tree/model'){
 		my $model  = (main::reader('/proc/device-tree/model'))[0];
 		main::log_data('data',"device-tree-model: $model") if $b_log;
@@ -11578,6 +11587,7 @@ sub machine_data_soc {
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
 		$soc_machine{'serial'} = $serial if $serial;
 	}
+	
 	#print Data::Dumper::Dumper \%soc_machine;
 	eval $end if $b_log;
 	return %soc_machine;
@@ -18949,11 +18959,13 @@ sub get_linux_distro {
 			$distro = 'Android';
 			$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
 			$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
-			if ($build_prop{'product-device'}){
-				$distro .= ' (' . $build_prop{'product-device'} . ')';
-			}
-			elsif ($build_prop{'product-name'}){
-				$distro .= ' (' . $build_prop{'product-name'} . ')';
+			if (!$show{'machine'}){
+				if ($build_prop{'product-device'}){
+					$distro .= ' (' . $build_prop{'product-device'} . ')';
+				}
+				elsif ($build_prop{'product-name'}){
+					$distro .= ' (' . $build_prop{'product-name'} . ')';
+				}
 			}
 		}
 	}
