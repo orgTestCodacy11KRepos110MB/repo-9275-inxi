@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.08';
 my $self_date='2020-11-02';
-my $self_patch='14';
+my $self_patch='15';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -17015,7 +17015,7 @@ sub unmounted_data {
 	eval $start if $b_log;
 	my ($file) = @_;
 	my ($fs,$label,$size,$uuid,@data,%part,@unmounted);
-	my @mounted = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
+	my @filters = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
 	'dvd[0-9]*','dvdrw[0-9]*','fd[0-9]','ram[0-9]*');
 	my @mounts = main::reader($file,'strip');
 	my $num = 0;
@@ -17024,7 +17024,8 @@ sub unmounted_data {
 	PartitionData::partition_data() if !$b_partitions;
 	PartitionData::set_label_uuid() if !$b_label_uuid;
 	RaidData::raid_data() if !$b_raid;
-	@mounted = get_mounted(@mounted);
+	my @mounted = get_mounted(@filters);
+	#print join("\n",@mounted),"\n";
 	foreach (@mounts){
 		my @working = split /\s+/, $_;
 		($fs,$label,$uuid,$size) = ('','','','');
@@ -17035,10 +17036,11 @@ sub unmounted_data {
 		# note: $working[2] != 1 is wrong, it's not related
 		# note: for zfs using /dev/sda no partitions, this will also remove those from 
 		# the unmounted report because sdb is found in sdb1, this is acceptable
-		# in arm/android seen /dev/block/mmcblk but m
+		# in arm/android seen /dev/block/mmcblk0p12
 		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
 		     $working[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && $working[-1] !~ /loop/ && 
-		     !(grep {$working[-1] =~ /$_/} @mounted)){
+		     !(grep {$working[-1] =~ /$_/} @mounted) && 
+		     !(grep {$_ =~ /(block\/)?$working[-1]/} @mounted)){
 			%part = PartitionData::check_lsblk($working[-1],0) if (@lsblk && $working[-1]);
 			if (%part){
 				$fs = $part{'fs'};
@@ -17067,7 +17069,9 @@ sub unmounted_data {
 }
 sub get_mounted {
 	eval $start if $b_log;
-	my (@mounted) = @_;
+	# note: filters aren't used, not sure why they are here
+	my (@filters) = @_;
+	my (@mounted);
 	foreach my $ref (@partitions){
 		my %row = %$ref;
 		push @mounted, $row{'dev-base'} if $row{'dev-base'};
