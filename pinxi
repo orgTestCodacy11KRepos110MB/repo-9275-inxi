@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.08';
-my $self_date='2020-10-30';
-my $self_patch='09';
+my $self_date='2020-11-02';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1900,7 +1900,7 @@ sub run_self {
 	print "Creating $self_name output file now. This can take a few seconds...\n";
 	print "Starting $self_name from: $self_path\n";
 	my $i = ($option eq 'main-full')? ' -i' : '';
-	my $z = ($debugger{'z'}) ? ' -z' : '';
+	my $z = ($debugger{'filter'}) ? ' -z' : '';
 	my $iz = "$i$z";
 	$iz =~ s/[\s-]//g;
 	my $cmd = "$self_path/$self_name -FRfJrploudmaxxx$i$z --slots --debug 10 -y 120 > $data_dir/$self_name-FRfJrploudmaxxx$iz-slots-y120.txt 2>&1";
@@ -4405,6 +4405,8 @@ sub get_options{
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
+	'debug-filter|debug-z' => sub {
+		$debugger{'filter'} = 1 },
 	'debug-no-eps' => sub {
 		$debugger{'no-exit'} = 1;
 		$debugger{'no-proc'} = 1;
@@ -4424,8 +4426,6 @@ sub get_options{
 		$debugger{'sys-print'} = 1; },
 	'debug-test-1' => sub {
 		$debugger{'test-1'} = 1; },
-	'debug-z' => sub {
-		$debugger{'z'} = 1 },
 	'dig' => sub {
 		$b_skip_dig = 0; },
 	'display:s' => sub { 
@@ -5088,6 +5088,7 @@ sub show_options {
 	automatically, removes debugger data directory, leaves tar.gz debugger file." ],
 	['2', '22', '', "Upload debugger dataset to $self_name debugger server 
 	automatically, removes debugger data directory and debugger tar.gz file." ],
+	# ['1', '', '--debug-filter', "Add -z flag to debugger $self_name optiions." ],
 	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/root." ],
 	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on." ],
 	['1', '', '--debug-no-exit', "Skip exit on error to allow completion." ],
@@ -6713,7 +6714,8 @@ sub battery_data_sys {
 		$battery{$id} = ({});
 		foreach $file (@items){
 			$path = "$item/$file";
-			$value = (-f $path) ? (main::reader($path))[0]: '';
+			# android shows some files only root readable
+			$value = (-r $path) ? (main::reader($path))[0]: '';
 			# mains, plus in psu
 			if ($file eq 'type' && $value && lc($value) ne 'battery' ){
 				$battery{$id}{'purpose'} = 'mains';
@@ -8281,6 +8283,7 @@ sub system_cpu_name {
 	my (%cpus,$compat,@working);
 	if (@working = main::globber('/sys/firmware/devicetree/base/cpus/cpu@*/compatible')){
 		foreach my $file (@working){
+			next if $file =~ /timer/; # seen on android
 			$compat = (main::reader($file))[0];
 			# these can have non printing ascii... why? As long as we only have the 
 			# splits for: null 00/start header 01/start text 02/end text 03
@@ -13201,7 +13204,7 @@ sub swap_data {
 		($dev_base,$dev_type,$label,$mount,$priority,
 		$swap_type,$uuid) = ('','','','',undef,'partition','');
 		@data = split /\s+/, $_;
-		if (/^\/dev\/(compcache|ramzwap|zram)/i){
+		if (/^\/dev\/(block\/)?(compcache|ramzwap|zram)/i){
 			$swap_type = 'zram';
 			$dev_type = 'dev';
 		}
@@ -14979,6 +14982,8 @@ sub get_repos_linux {
 	my ($key,$path);
 	my $apk = '/etc/apk/repositories';
 	my $apt = '/etc/apt/sources.list';
+	my $apt_termux = '/data/data/com.termux/files/user' . $apt;
+	$apt = $apt_termux if -e $apt_termux; # for android termux
 	my $cards = '/etc/cards.conf';
 	my $eopkg_dir = '/var/lib/eopkg/';
 	my $pacman = '/etc/pacman.conf';
@@ -19425,7 +19430,8 @@ sub get_kernel_parameters {
 sub get_kernel_parameters_linux {
 	eval $start if $b_log;
 	my ($file) = @_;
-	my $line = (reader($file))[0];
+	# unrooted android may have file only root readable
+	my $line = (reader($file))[0] if -r $file;
 	eval $end if $b_log;
 	return $line;
 }
