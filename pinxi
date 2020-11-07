@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.08';
-my $self_date='2020-11-03';
-my $self_patch='26';
+my $self_date='2020-11-07';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5624,22 +5624,6 @@ sub dmi_cleaner {
 	return $string;
 }
 
-sub remove_duplicates {
-	my ($string) = @_;
-	return if ! $string;
-	my $holder = '';
-	my (@temp);
-	my @data = split /\s+/, $string;
-	foreach (@data){
-		if ($holder ne $_){
-			push @temp, $_;
-		}
-		$holder = $_;
-	}
-	$string = join ' ', @temp;
-	return $string;
-}
-
 # args: $1 - size in KB, return KB, MB, GB, TB, PB, EB
 sub get_size {
 	my ($size,$b_int) = @_;
@@ -5691,10 +5675,11 @@ sub increment_starters {
 sub pci_cleaner {
 	my ($string,$type) = @_;
 	#print "st1 $type:$string\n";
-	my $filter = 'compatible\scontroller|\b(device|controller|connection|multimedia)\b|\([^)]+\)';
+	my $filter = 'and\ssubsidiaries|compatible\scontroller|';
+	$filter .= '\b(device|controller|connection|multimedia)\b|\([^)]+\)';
 	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
 	$filter = '\[[^\]]+\]$|' . $filter if $type eq 'pci';
-	$string =~ s/$filter//ig;
+	$string =~ s/($filter)//ig;
 	$string =~ s/\s\s+/ /g;
 	$string =~ s/^\s+|\s+$//g;
 	#print "st2 $type:$string\n";
@@ -5704,10 +5689,10 @@ sub pci_cleaner {
 sub pci_cleaner_subsystem {
 	my ($string) = @_;
 	# we only need filters for features that might use vendor, -AGN
-	my $filter = 'adapter|(hd\s)?audio|definition|desktop|ethernet|gigabit|graphics|';
-	$filter .= 'hdmi(\/[\S]+)?|high|integrated|motherboard|network|onboard|';
+	my $filter = 'and\ssubsidiaries|adapter|(hd\s)?audio|definition|desktop|ethernet|';
+	$filter .= 'gigabit|graphics|hdmi(\/[\S]+)?|high|integrated|motherboard|network|onboard|';
 	$filter .= 'raid|pci\s?express';
-	$string =~ s/\b($filter)\b//gi;
+	$string =~ s/\b($filter)\b//ig;
 	$string =~ s/\s\s+/ /g;
 	$string =~ s/^\s+|\s+$//g;
 	return $string;
@@ -5731,6 +5716,22 @@ sub regex_cleaner {
 	$string =~ s/(\{|\}|\(|\)|\[|\]|\|)/ /g;
 	$string =~ s/\s\s+/ /g;
 	$string =~ s/^\s+|\s+$//g;
+	return $string;
+}
+
+sub remove_duplicates {
+	my ($string) = @_;
+	return if ! $string;
+	my $holder = '';
+	my (@temp);
+	my @data = split /\s+/, $string;
+	foreach (@data){
+		if ($holder ne $_){
+			push @temp, $_;
+		}
+		$holder = $_;
+	}
+	$string = join ' ', @temp;
 	return $string;
 }
 
