@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-11';
-my $self_patch='01';
+my $self_date='2020-11-14';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14441,7 +14441,10 @@ sub create_output {
 				$rows[$j]{main::key($num++,0,3,'note')} = $ref{'cap-qualifier'};
 			}
 			$rows[$j]{main::key($num++,0,2,'use')} = $ref{'use'} if $b_non_system;
-			$rows[$j]{main::key($num++,0,2,'slots')} = $ref{'slots'};
+			$rows[$j]{main::key($num++,1,2,'slots')} = $ref{'slots'};
+			if ($ref{'slots-qualifier'}){
+				$rows[$j]{main::key($num++,0,3,'note')} = $ref{'slots-qualifier'};
+			}
 			$ref{'eec'} ||= 'N/A';
 			$rows[$j]{main::key($num++,0,2,'EC')} = $ref{'eec'};
 			if ($extra > 0 && (!$b_non_system || 
@@ -14450,6 +14453,9 @@ sub create_output {
 				if ($ref{'mod-qualifier'}){
 					$rows[$j]{main::key($num++,0,3,'note')} = $ref{'mod-qualifier'};
 				}
+			}
+			if ($extra > 2 && $ref{'voltage'}){
+				$rows[$j]{main::key($num++,0,2,'voltage')} = $ref{'voltage'};
 			}
 		}
 		else {
@@ -14482,6 +14488,7 @@ sub create_output {
 				if ($extra > 1 && $mod{'type'} ){
 					$rows[$j]{main::key($num++,0,3,'info')} = $mod{'type'};
 				}
+				$mod{'speed'} ||= 'N/A'; # rare instances, dmi type 6, no speed
 				$rows[$j]{main::key($num++,0,3,'speed')} = $mod{'speed'};
 				if ($extra > 0 ){
 					$mod{'device-type'} ||= 'N/A';
@@ -14555,6 +14562,10 @@ sub dmidecode_data {
 				elsif ($temp[0] eq 'Associated Memory Slots'){
 					$ram[$k]{'slots-5'} = $temp[1];
 				}
+				elsif ($temp[0] eq 'Error Detecting Method'){
+					$temp[1] ||= 'None';
+					$ram[$k]{'eec'} = $temp[1];
+				}
 			}
 			$ram[$k]{'modules'} = ([],);
 			#print Data::Dumper::Dumper \@ram;
@@ -14562,24 +14573,52 @@ sub dmidecode_data {
 		}
 		elsif ($ref[0] == 6){
 			my ($size,$speed,$type) = (0,0,0);
+			my ($bank_locator,$device_type,$locator,$main_locator) = ('','','','');
 			foreach my $item (@ref){
 				@temp = split /:\s*/, $item;
 				next if ! $temp[1];
 				if ($temp[0] eq 'Installed Size'){
 					# get module size
 					$size = calculate_size($temp[1],0);
+					# using this causes issues, really only works for 16
+# 					if ($size =~ /^[0-9][0-9]+$/) {
+# 						$ram[$k]{'device-count-found'}++;
+# 						$ram[$k]{'used-capacity'} += $size;
+# 					}
 					# get data after module size
 					$temp[1] =~ s/ Connection\)?//;
 					$temp[1] =~ s/^[0-9]+\s*[KkMGTP]B\s*\(?//;
 					$type = lc($temp[1]);
+					
 				}
 				elsif ($temp[0] eq 'Current Speed'){
 					$speed = $temp[1];
 				}
+				elsif ($temp[0] eq 'Locator' || $temp[0] eq 'Socket Designation' ){
+					$temp[1] =~ s/D?RAM slot #?/Slot/i; # can be with or without #
+					$locator = $temp[1];
+				}
+				elsif ($temp[0] eq 'Bank Locator'){
+					$bank_locator = $temp[1];
+				}
+				elsif ($temp[0] eq 'Type'){
+					$device_type = $temp[1];
+				}
+			}
+			# because of the wide range of bank/slot type data, we will just use
+			# the one that seems most likely to be right. Some have: Bank: SO DIMM 0 slot: J6A
+			# so we dump the useless data and use the one most likely to be visibly correct
+			if ( $bank_locator =~ /DIMM/ ) {
+				$main_locator = $bank_locator;
+			}
+			else {
+				$main_locator = $locator;
 			}
 			$ram[$k]{'modules'}[$j] = ({
+			'device-type' => $device_type,
+			'locator' => $main_locator,
 			'size' => $size,
-			'speed-ns' => $speed,
+			'speed' => $speed,
 			'type' => $type,
 			});
 			#print Data::Dumper::Dumper \@ram;
@@ -14652,7 +14691,7 @@ sub dmidecode_data {
 					}
 				}
 				elsif ($temp[0] eq 'Locator'){
-					$temp[1] =~ s/RAM slot #/Slot/;
+					$temp[1] =~ s/D?RAM slot #?/Slot/i;
 					$locator = $temp[1];
 				}
 				elsif ($temp[0] eq 'Bank Locator'){
@@ -14746,19 +14785,20 @@ sub data_processor {
 	my (@ram) = @_;
 	my $b_debug = 0;
 	my (@return,@temp);
-	my $est = 'est.';
+	my ($check,$est) = ('check','est.');
 	foreach (@ram){
 		# because we use the actual array handle as the index, 
 		# there will be many undefined keys
 		next if ! defined $_;
 		my %ref = %$_;
 		my ($max_cap,$max_mod_size) = (0,0);
-		my ($alt_cap,$est_cap,$est_mod,$unit) = (0,'','','');
+		my ($alt_cap,$est_cap,$est_mod,$est_slots,$unit) = (0,'','','','');
 		$max_cap = $ref{'max-capacity-16'};
 		$max_cap ||= 0;
 		# make sure they are integers not string if empty
 		$ref{'slots-5'} ||= 0; 
 		$ref{'slots-16'} ||= 0; 
+		$ref{'device-count-found'} ||= 0;
 		$ref{'max-capacity-5'} ||= 0;
 		$ref{'max-module-size'} ||= 0;
 		$ref{'used-capacity'} ||= 0;
@@ -14783,6 +14823,7 @@ sub data_processor {
 		if ($b_debug){
 			print "3: dcf: $ref{'device-count-found'} :dms: $ref{'derived-module-size'} :mc: $max_cap :uc: $ref{'used-capacity'}\n";
 		}
+		
 		# note: some cases memory capacity == max module size, so one stick will fill it
 		# but I think only with cases of 2 slots does this happen, so if > 2, use the count of slots.
 		if ($max_cap && ($ref{'device-count-found'} || $ref{'slots-16'}) ){
@@ -14847,12 +14888,11 @@ sub data_processor {
 			if ($b_debug){
 				print "5: dms: $ref{'derived-module-size'} :s16: $ref{'slots-16'} :mc: $max_cap\n";
 			}
-			
 			# now prep for rebuilding the ram array data 
 			if (!$ref{'max-module-size'}){
 				# ie: 2x4gB
 				if (!$est_cap && $ref{'derived-module-size'} > 0 && $max_cap > ($ref{'derived-module-size'} * $ref{'slots-16'} * 4) ){
-					$est_cap = 'check';
+					$est_cap = $check;
 					print "G\n" if $b_debug;
 				}
 				if ($max_cap && ($ref{'slots-16'} || $ref{'slots-5'})){
@@ -14880,11 +14920,19 @@ sub data_processor {
 			else {
 				if (!$est_cap && $ref{'max-module-size'} > 0){
 					if ($max_cap > ( $ref{'max-module-size'} * $ref{'slots-16'})){
-						$est_cap = 'check';
+						$est_cap = $check;
 						print "K\n" if $b_debug;
 					}
 				}
 			}
+		}
+		# no slots found due to legacy dmi probably. Note, too many logic errors
+		# happen if we just set a general slots above, so safest to do it here
+		$ref{'slots-16'} = $ref{'slots-5'} if $ref{'slots-5'} && !$ref{'slots-16'};
+		if (!$ref{'slots-16'} && $ref{'modules'} && ref $ref{'modules'} eq 'ARRAY'){
+			$est_slots = $check;
+			$ref{'slots-16'} = scalar @{$ref{'modules'}};
+			print "L\n" if $b_debug;
 		}
 		@temp = ({
 		'capacity' => $max_cap,
@@ -14895,6 +14943,7 @@ sub data_processor {
 		'mod-qualifier' => $est_mod,
 		'modules' => $ref{'modules'},
 		'slots' => $ref{'slots-16'},
+		'slots-qualifier' => $est_slots,
 		'use' => $ref{'use'},
 		'voltage' => $ref{'voltage'},
 		});
@@ -20871,6 +20920,7 @@ sub set_dmidecode_data {
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
 		#open my $fh, '<', $file or die "can't open $file: $!";
 		#chomp(@data = <$fh>);
 	}
