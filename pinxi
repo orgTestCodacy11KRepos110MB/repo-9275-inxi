@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-14';
-my $self_patch='04';
+my $self_date='2020-11-16';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5772,6 +5772,8 @@ sub row_defaults {
 	'machine-data-dmidecode' => 'No Machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-force-dmidecode' => 'No Machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
 	'mips-pci' => 'No MIPS data found for this feature.',
+	'note-check' => 'check',
+	'note-est' => 'est.',
 	'optical-data' => 'No Optical or Floppy data was found.',
 	'optical-data-bsd' => 'No Optical or Floppy data found for this BSD system.',
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
@@ -6987,7 +6989,7 @@ sub create_output_full {
 	if ($b_admin && $properties{'socket'}){
 		if ($properties{'upgrade'}){
 			$rows[$j]{main::key($num++,1,2,'socket')} = $properties{'socket'} . ' (' . $properties{'upgrade'} . ')';
-			$rows[$j]{main::key($num++,0,3,'note')} = 'check';
+			$rows[$j]{main::key($num++,0,3,'note')} = main::row_defaults('note-check');
 		}
 		else {
 			$rows[$j]{main::key($num++,0,2,'socket')} = $properties{'socket'};
@@ -7000,7 +7002,10 @@ sub create_output_full {
 	}
 	if ($extra > 0){
 		$cpu{'arch'} ||= 'N/A';
-		$rows[$j]{main::key($num++,0,2,'arch')} = $cpu{'arch'};
+		$rows[$j]{main::key($num++,1,2,'arch')} = $cpu{'arch'};
+		if ($cpu{'arch-note'}){
+			$rows[$j]{main::key($num++,0,3,'note')} = $cpu{'arch-note'};
+		}
 		if ( !$b_admin && $cpu{'arch'} ne 'N/A' && $cpu{'rev'} ){
 			$rows[$j]{main::key($num++,0,2,'rev')} = $cpu{'rev'};
 		}
@@ -7151,7 +7156,10 @@ sub create_output_short {
 	#main::key($num++,0,2,'type') => $cpu[2],
 	},);
 	if ($extra > 0){
-		$data[0]{main::key($num++,0,2,'arch')} = $cpu[7];
+		$data[0]{main::key($num++,1,2,'arch')} = $cpu[7];
+		if ($cpu[8]){
+			$data[0]{main::key($num++,0,3,'note')} = $cpu[8];
+		}
 	}
 	$data[0]{main::key($num++,0,2,$cpu[3])} = $cpu[4];
 	if ($cpu[6]){
@@ -7226,6 +7234,7 @@ sub prep_short_data {
  	if ($extra > 0){
 		$cpu{'arch'} ||= 'N/A';
 		$result[7] = $cpu{'arch'};
+		$result[8] = $cpu{'arch-note'};
  	}
 	eval $end if $b_log;
 	return @result;
@@ -7234,7 +7243,7 @@ sub prep_short_data {
 sub data_cpuinfo {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
-	my ($arch,@ids,@line,$b_first,$b_proc_int,$starter);
+	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter);
 	# use --arm flag when testing arm cpus
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
@@ -7496,7 +7505,7 @@ sub data_cpuinfo {
 	}
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
-		$cpu{'arch'} = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'rev'});
+		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'rev'});
 		# cpu_arch comes from set_os()
 		$cpu{'arch'} = $cpu_arch if (!$cpu{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc));
 		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
@@ -8324,9 +8333,10 @@ sub cpu_arch {
 	eval $start if $b_log;
 	my ($type,$family,$model,$stepping) = @_;
 	$stepping = 0 if !main::is_numeric($stepping);
-	my $arch = '';
+	my ($arch,$note) = ('','');
+	my $check = main::row_defaults('note-check');
 	# See: docs/inxi-resources.txt 
-	# print "$type;$family;$model\n";
+	# print "type:$type fam:$family model:$model step:$stepping\n";
 	if ( $type eq 'amd'){
 		if ($family eq '4'){
 			if ( $model =~ /^(3|7|8|9|A)$/ ) {$arch = 'Am486'}
@@ -8395,7 +8405,7 @@ sub cpu_arch {
 		}
 		elsif ($family eq '18'){
 			# model #s not known yet
-			$arch = 'Hygon Dhyana';
+			$arch = 'Zen (Hygon Dhyana)';
 		}
 		elsif ($family eq '19'){
 			# unconfirmed: model: 0 20 40 50
@@ -8494,17 +8504,26 @@ sub cpu_arch {
 			elsif ( $model =~ /^(86)$/ ) {$arch = 'Tremont'}
 			elsif ( $model =~ /^(8C)$/ ) {$arch = 'Tiger Lake'}
 			elsif ( $model =~ /^(8E|9E)$/ ) {
-				if ($model eq '9E' && ($stepping == 10 || $stepping == 11 || $stepping == 12  || $stepping == 13)){$arch = 'Coffee Lake'}
-				elsif ($model eq '8E' && $stepping == 10){$arch = 'Coffee Lake'}
-				elsif ($model eq '8E' && ($stepping == 11 || $stepping == 12)){$arch = 'Whiskey Lake'}
-				elsif ($model eq '8E' && $stepping == 9){$arch = 'Amber Lake'}
-				elsif ($stepping > 13){$arch = 'Comet Lake'} # guess, have not seen docs yet
+				if ($model eq '9E' && ($stepping == 10 || $stepping == 11 || $stepping == 12  || $stepping == 13)){
+					$arch = 'Coffee Lake'}
+				elsif ($model eq '8E' && $stepping == 10){
+					$arch = 'Coffee Lake'}
+				elsif ($model eq '8E' && ($stepping == 11 || $stepping == 12)){
+					$arch = 'Whiskey Lake'}
+				elsif ($model eq '8E' && $stepping == 9){
+					$arch = 'Amber Lake';
+					$note = $check;}
+				elsif ($stepping > 13){
+					$arch = 'Comet Lake'} # guess, have not seen docs yet
 				# elsif ($stepping > 9 && $stepping < 14){$arch = 'Coffee Lake'}
 				# NOTE: kaby lake is 8E 9 but so is Amber Lake
-				else {$arch = 'Kaby Lake'} }
+				else {
+					$arch = 'Kaby Lake';
+					$note = $check;} 
+			}
 			#elsif ( $model =~ /^(9E)$/ ) {$arch = 'Coffee Lake'}
 			# More info: comet: shares family/model, need to find stepping numbers
-			# Coming: meteor lake; alder lake; cooper lake; granite rapids; meteor lake; saphire rapids; 
+			# Coming: meteor lake; alder lake; cooper lake; granite rapids; rocket lake; saphire rapids; 
 		}
 		# itanium 1 family 7 all recalled
 		elsif ($family eq 'B'){
@@ -8521,7 +8540,7 @@ sub cpu_arch {
 		}
 	}
 	eval $end if $b_log;
-	return $arch;
+	return ($arch,$note);
 }
 
 sub count_alpha {
@@ -14788,7 +14807,8 @@ sub data_processor {
 	my (@ram) = @_;
 	my $b_debug = 0;
 	my (@return,@temp);
-	my ($check,$est) = ('check','est.');
+	my $check = main::row_defaults('note-check');
+	my $est = main::row_defaults('note-est');
 	foreach (@ram){
 		# because we use the actual array handle as the index, 
 		# there will be many undefined keys
