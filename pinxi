@@ -17166,7 +17166,8 @@ sub unmounted_data {
 		# NOTE: nvme needs special treatment because the main device is: nvme0n1
 		# note: $working[2] != 1 is wrong, it's not related
 		# note: for zfs using /dev/sda no partitions, this will also remove those from 
-		# the unmounted report because sdb is found in sdb1, this is acceptable
+		# the unmounted report because sdb is found in sdb1, but match of eg sdb1 and sdb12
+		# makes this a problem
 		# in arm/android seen /dev/block/mmcblk0p12
 		#print "mount: $working[-1] row: $_ \n";
 		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
@@ -17183,6 +17184,7 @@ sub unmounted_data {
 			}
 			$size ||= $working[2];
 		   $fs = unmounted_filesystem($working[-1]) if !$fs;
+		   next if $fs and $fs eq 'zfs_member';
 		   $label = PartitionData::get_label("/dev/$working[-1]") if !$label;
 			$uuid = PartitionData::get_uuid("/dev/$working[-1]") if !$uuid;
 			@data = ({
