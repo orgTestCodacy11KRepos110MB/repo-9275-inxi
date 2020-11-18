@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-17';
-my $self_patch='07';
+my $self_date='2020-11-18';
+my $self_patch='08';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7006,14 +7006,15 @@ sub create_output_full {
 		if ($cpu{'arch-note'}){
 			$rows[$j]{main::key($num++,0,3,'note')} = $cpu{'arch-note'};
 		}
-		if ( !$b_admin && $cpu{'arch'} ne 'N/A' && $cpu{'rev'} ){
-			$rows[$j]{main::key($num++,0,2,'rev')} = $cpu{'rev'};
+		# ntoe: had if arch, but stepping can be defined where arch failed, stepping can be 0
+		if ( !$b_admin && defined $cpu{'stepping'} ){
+			$rows[$j]{main::key($num++,0,2,'rev')} = $cpu{'stepping'};
 		}
 	}
 	if ($b_admin){
 		$rows[$j]{main::key($num++,0,2,'family')} = hex_and_decimal($cpu{'family'});
 		$rows[$j]{main::key($num++,0,2,'model-id')} = hex_and_decimal($cpu{'model_id'});
-		$rows[$j]{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu{'rev'});
+		$rows[$j]{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu{'stepping'});
 		$cpu{'microcode'} ||= 'N/A';
 		$rows[$j]{main::key($num++,0,2,'microcode')} = $cpu{'microcode'};
 	}
@@ -7304,7 +7305,7 @@ sub data_cpuinfo {
 			# Processor : Feroceon 88FR131 rev 1 (v5l)
 			if ($cpu{'model_name'} && $cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
 				$cpu{'model_name'} = $1;
-				$cpu{'rev'} = $2;
+				$cpu{'stepping'} = $2;
 				if ($4){
 					$cpu{'arch'} = $4;
 					$cpu{'model_name'} .= ' ' . $cpu{'arch'} if $cpu{'model_name'} !~ /$cpu{'arch'}/i; 
@@ -7355,12 +7356,12 @@ sub data_cpuinfo {
 				$cpu{'arch'} = $line[1];
 			}
 		}
-		elsif (!$cpu{'rev'} && ($line[0] eq 'stepping' || $line[0] eq 'cpu revision')){
-			$cpu{'rev'} = uc(sprintf("%x", $line[1]));
+		elsif (!defined $cpu{'stepping'} && ($line[0] eq 'stepping' || $line[0] eq 'cpu revision')){
+			$cpu{'stepping'} = uc(sprintf("%x", $line[1]));
 		}
 		# ppc
-		elsif (!$cpu{'rev'} && $line[0] eq 'revision'){
-			$cpu{'rev'} = $line[1];
+		elsif (!defined $cpu{'stepping'} && $line[0] eq 'revision'){
+			$cpu{'stepping'} = $line[1];
 		}
 		# this is hex so uc for cpu arch id. raspi 4 has Model rather than Hard
 		elsif (!$cpu{'model_id'} && (!$b_ppc && !$b_arm && $line[0] eq 'model') ){
@@ -7379,7 +7380,7 @@ sub data_cpuinfo {
 				$cpu{'type'} = 'arm';
 				if ($cpu{'model_name'} && $cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
 					$cpu{'model_name'} = $1;
-					$cpu{'rev'} = $2;
+					$cpu{'stepping'} = $2;
 					if ($4){
 						$cpu{'arch'} = $4;
 						$cpu{'model_name'} .= ' ' . $cpu{'arch'} if $cpu{'model_name'} !~ /$cpu{'arch'}/i;
@@ -7505,7 +7506,7 @@ sub data_cpuinfo {
 	}
 	$cpu{'ids'} = (\@ids);
 	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
-		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'rev'});
+		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'stepping'});
 		# cpu_arch comes from set_os()
 		$cpu{'arch'} = $cpu_arch if (!$cpu{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc));
 		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
@@ -8562,6 +8563,8 @@ sub cpu_arch {
 		# this is not going to e accurate, WhiskyL or Kaby L can ID as Skylake
 		# but if it's a new cpu microarch not handled yet, it may give better 
 		# than nothing result. This is intel only
+		# This is probably the gcc/clang -march/-mtune value, which is not 
+		# necessarily the same as actual microarch, and varies between gcc/clang versions
 		if (!$model){
 			my $file = '/sys/devices/cpu/caps/pmu_name';
 			$model = (main::reader($file,'strip'))[0] if -r $file;
