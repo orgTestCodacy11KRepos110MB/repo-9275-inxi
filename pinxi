@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-18';
-my $self_patch='08';
+my $self_date='2020-11-19';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -75,7 +75,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
+my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
@@ -434,7 +434,7 @@ sub set_os {
 	@uname = uname();
 	$os = lc($uname[0]);
 	$cpu_arch = lc($uname[-1]);
-	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1}
+	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1;}
 	elsif ($cpu_arch =~ /mips/) {$b_mips = 1}
 	elsif ($cpu_arch =~ /power|ppc/) {$b_ppc = 1}
 	elsif ($cpu_arch =~ /sparc/) {$b_sparc = 1}
@@ -445,6 +445,7 @@ sub set_os {
 	elsif ($cpu_arch =~ /(alpha|64|e2k)/){
 		$bits_sys = 64;
 	}
+	$b_android = 1 if -e '/system/build.prop';
 	if ( $os =~ /(aix|bsd|cosix|dragonfly|darwin|hp-?ux|indiana|irix|sunos|solaris|ultrix|unix)/ ){
 		if ( $os =~ /openbsd/ ){
 			$os = 'openbsd';
@@ -13142,13 +13143,16 @@ sub partition_data {
 			$dev_type = 'raid';
 		}
 		# this handles yet another fredforfaen special case where a mounted drive
-		# has the search string in its name
-		if ($row[-1] =~ /^\/$|^\/boot$|^\/var$|^\/var\/tmp$|^\/var\/log$|^\/home$|^\/opt$|^\/tmp$|^\/usr$|^\/usr\/home$/){
+		# has the search string in its name, includes / (|
+		if ($row[-1] =~ m%^/(|boot|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% ||
+		 ($b_android && $row[-1] =~ /^\/(cache|data|firmware|system)$/)){
 			$b_load = 1;
 			# note, older df in bsd do not have file system column
 			$type = 'main';
 		}
-		elsif ($row[$cols] !~ /^\/$|^\/boot$|^\/var$|^\/var\/tmp$|^\/var\/log$|^\/home$|^\/opt$|^\/tmp$|^\/usr$|^\/usr\/home$|^filesystem/){
+		elsif ($row[$cols] !~ m%^\/(|boot|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% &&
+		 $row[$cols] !~ /^filesystem/ && 
+		 ($b_android && $row[-1] !~ /^\/(cache|data|firmware|system)$/)){
 			$b_load = 1;
 			$type = 'secondary';
 		}
@@ -17165,9 +17169,9 @@ sub unmounted_data {
 		# need to exclude loop type file systems, squashfs for example
 		# NOTE: nvme needs special treatment because the main device is: nvme0n1
 		# note: $working[2] != 1 is wrong, it's not related
-		# note: for zfs using /dev/sda no partitions, this will also remove those from 
-		# the unmounted report because sdb is found in sdb1, but match of eg sdb1 and sdb12
-		# makes this a problem
+		# note: for zfs using /dev/sda no partitions, previous rule would have removed
+		# the unmounted report because sdb was found in sdb1, but match of eg sdb1 and sdb12
+		# makes this a problem, so usinig zfs_member test instead to filter out zfs members.
 		# in arm/android seen /dev/block/mmcblk0p12
 		#print "mount: $working[-1] row: $_ \n";
 		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
@@ -19112,7 +19116,7 @@ sub get_linux_distro {
 	}
 	else {
 		# android fallback, sometimes requires root, sometimes doesn't
-		if (-e '/system/build.prop') {
+		if ($b_android) {
 			main::set_build_prop() if !$b_build_prop;;
 			$distro = 'Android';
 			$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
