@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-19';
-my $self_patch='13';
+my $self_patch='14';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13144,14 +13144,14 @@ sub partition_data {
 		}
 		# this handles yet another fredforfaen special case where a mounted drive
 		# has the search string in its name, includes / (|
-		if ($row[-1] =~ m%^/(|boot|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% ||
+		if ($row[-1] =~ m%^/(|boot|boot/efi|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% ||
 		 ($b_android && $row[-1] =~ /^\/(cache|data|firmware|system)$/)){
 			$b_load = 1;
 			# note, older df in bsd do not have file system column
 			$type = 'main';
 		}
-		elsif ($row[$cols] !~ m%^\/(|boot|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% &&
-		 $row[$cols] !~ /^filesystem/ && 
+		elsif ($row[-1] !~ m%^\/(|boot|boot/efi|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% &&
+		 $row[-1] !~ /^filesystem/ && 
 		 ($b_android && $row[-1] !~ /^\/(cache|data|firmware|system)$/)){
 			$b_load = 1;
 			$type = 'secondary';
@@ -13222,18 +13222,18 @@ sub partition_data {
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size && main::is_numeric($size) );
 			@data = ({
 			'block-size' => $block_size,
-			'id' => $id,
 			'dev-base' => $dev_base,
 			'dev-type' => $dev_type,
 			'fs' => $fs,
+			'id' => $id,
 			'label' => $label,
-			'raw-size' => $raw_size,
+			'percent-used' => $percent_used,
 			'raw-available' => $size_available,
+			'raw-size' => $raw_size,
 			'size' => $size,
 			'type' => $type,
 			'used' => $used,
 			'uuid' => $uuid,
-			'percent-used' => $percent_used,
 			});
 			@partitions = (@partitions,@data);
 		}
@@ -13342,6 +13342,7 @@ sub swap_data {
 		'id' => "swap-$s",
 		'label' => $label,
 		'mount' => $mount,
+		'percent-used' => $percent_used,
 		'priority' => $priority,
 		'size' => $size,
 		'swappiness' => $swappiness,
@@ -13349,7 +13350,6 @@ sub swap_data {
 		'swap-type' => $swap_type,
 		'used' => $used,
 		'uuid' => $uuid,
-		'percent-used' => $percent_used,
 		});
 		@swaps = (@swaps,@data);
 		$s++;
@@ -13504,7 +13504,7 @@ sub check_lsblk {
 sub check_partition_data {
 	eval $start if $b_log;
 	my ($b_found,@data,@temp);
-	# NOTE: these filters must match the fs filters in the main partition data sub!!
+	# NOTE: these filters must match the fs filters in sub partitiion_data!!
 	my $fs_filters = 'aufs|cgmfs|configfs|devfs|devtmpfs|';
 	$fs_filters .= 'fdescfs|linprocfs|procfs|squashfs|swap|';
 	$fs_filters .= 'sysfs|tmpfs|unionfs';
@@ -13525,6 +13525,7 @@ sub check_partition_data {
 				$b_found = 1;
 				last;
 			}
+			#print "m:$row{'mount'} id:$row2{'id'}\n";
 		}
 		if (!$b_found){
 			#print "found: $row{'name'} $row{'mount'}\n";
@@ -13534,12 +13535,12 @@ sub check_partition_data {
 			'id' => $row{'mount'},
 			'hidden' => 1,
 			'label' => $row{'label'},
+			'percent-used' => 0,
 			'raw-size' => $row{'size'},
 			'size' => 0,
 			'type' => 'secondary',
 			'used' => 0,
 			'uuid' => $row{'uuid'},
-			'percent-used' => 0,
 			});
 			@partitions = (@partitions,@temp);
 			main::log_data('dump','lsblk check: @temp',\@temp) if $b_log;
