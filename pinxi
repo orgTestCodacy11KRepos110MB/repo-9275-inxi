@@ -20731,9 +20731,7 @@ sub soc_devices {
 		}
 		# it's worthless, we can't use it
 		next if ! defined $type;
-		next if $type =~ /codec/;# audio / video codecs can creep in
 		$type_id = $type;
-		$type = 'display' if $type =~ /mali/i;
 		$chip_id = '' if ! defined $chip_id;
 		$vendor_id = '' if ! defined $vendor_id;
 		$driver = '' if ! defined $driver;
@@ -20760,10 +20758,8 @@ sub soc_devicetree {
 				$file =~ m%soc/([^@]+)@([^/]+)/compatible$%;
 				$type = $1;
 				next if !$type || !$content;
-				next if $type =~ /codec/;# audio / video codecs can creep in
 				$handle = $2 if $2;
 				$type_id = $type;
-				$type = 'display' if $type =~ /mali/i;
 				if ($content){
 					@temp3 = split /,/, $content;
 					$vendor_id = $temp3[0];
@@ -20849,26 +20845,29 @@ sub soc_type {
 	my ($type,$info,$driver) = @_;
 	# I2S or i2s. I2C is i2 controller |[iI]2[Ss]. note: odroid hdmi item is sound only
 	# snd_soc_dummy. simple-audio-amplifier driver: speaker_amp
-	if ($type =~ /^(daudio|.*hifi.*|.*sound[_-]card|.*dac[0-9]?)$/ ||
-	 ($info && $info !~ /amp|codec|dummy/ && $info =~ /(sound|audio)/) || 
-	 ($driver && $driver !~ /(codec|dummy)/ && $driver =~ /(audio|snd|sound)/) ){
+	if ($type =~ /codec/){
+		$type = 'codec';
+	}
+	elsif ($type =~ /^(daudio|.*hifi.*|.*sound[_-]card|.*dac[0-9]?)$/i ||
+	 ($info && $info !~ /amp|codec|dummy/i && $info =~ /(sound|audio)/i) || 
+	 ($driver && $driver !~ /(codec|dummy)/i && $driver =~ /(audio|snd|sound)/i) ){
 		$type = 'audio';
 	}
-	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|mali)$/){
+	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|.*mali)$/i){
 		$type = 'display';
 	}
 	# includes ethernet-phy, meson-eth
-	elsif ($type =~ /^(([^\s]+-)?eth|ethernet(-[^\s]+)?|lan|l-lan)$/){
+	elsif ($type =~ /^(([^\s]+-)?eth|ethernet(-[^\s]+)?|lan|l-lan)$/i){
 		$type = 'ethernet';
 	}
-	elsif ($type =~ /^(.*wlan.*|.*wifi.*)$/){
+	elsif ($type =~ /^(.*wlan.*|.*wifi.*)$/i){
 		$type = 'wifi';
 	}
 	# needs to catch variants like hdmi-tx but not hdmi-connector
-	elsif ( (!$driver || $driver !~ /(codec|dummy)/) && $type =~ /^(.*hdmi(-?tx)?)$/){
+	elsif ( (!$driver || $driver !~ /(codec|dummy)/i) && $type =~ /^(.*hdmi(-?tx)?)$/i){
 		$type = 'hdmi';
 	}
-	elsif ($type =~ /^timer$/){
+	elsif ($type =~ /^timer$/i){
 		$type = 'timer';
 	}
 	return $type;
