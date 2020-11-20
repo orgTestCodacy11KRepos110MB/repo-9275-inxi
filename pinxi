@@ -13515,7 +13515,7 @@ sub check_lsblk {
 # handle cases of hidden file systems
 sub check_partition_data {
 	eval $start if $b_log;
-	my ($b_found,@data,@temp);
+	my ($b_found,$dev_mapped,@data,@temp);
 	# NOTE: these filters must match the fs filters in sub partitiion_data!!
 	my $fs_filters = 'aufs|cgmfs|configfs|devfs|devtmpfs|';
 	$fs_filters .= 'fdescfs|linprocfs|procfs|squashfs|swap|';
@@ -13523,6 +13523,7 @@ sub check_partition_data {
 	foreach my $ref (@lsblk){
 		my %row = %$ref;
 		$b_found = 0;
+		$dev_mapped = '';
 		if (!$row{'name'} || !$row{'mount'} || !$row{'type'} || 
 		 ($row{'fs'} && $row{'fs'} =~ /^($fs_filters)$/) ||
 		 ($row{'type'} =~ /^(disk|loop|rom)$/)){
@@ -13535,6 +13536,10 @@ sub check_partition_data {
 			next if !$row2{'id'};
 			if ($row{'mount'} eq $row2{'id'}){
 				$b_found = 1;
+				if (%mapper && $mapper{$row{'name'}}){
+					$dev_mapped = $row{'name'};
+					$row{'name'} = $mapper{$row{'name'}};
+				}
 				last;
 			}
 			#print "m:$row{'mount'} id:$row2{'id'}\n";
@@ -13543,6 +13548,7 @@ sub check_partition_data {
 			#print "found: $row{'name'} $row{'mount'}\n";
 			@temp = ({
 			'dev-base' => $row{'name'},
+			'dev-mapped' => $dev_mapped,
 			'fs' => $row{'fs'},
 			'id' => $row{'mount'},
 			'hidden' => 1,
@@ -17055,6 +17061,9 @@ sub create_output {
 		}
 		$row{'mount'} =~ s|/home/[^/]+/(.*)|/home/$filter_string/$1| if $row{'mount'} && $use{'filter'};
 		$rows[$j]{main::key($num++,0,2,$dev)} = ($row{'mount'}) ? $row{'mount'} : 'N/A';
+		if ($extra > 0 && $row{'dev-mapped'}){
+			$rows[$j]{main::key($num++,0,2,'mapped')} = $row{'dev-mapped'};
+		}
 		if ($show{'label'} && ($row{'label'} || $row{'swap-type'} eq 'partition') ){
 			$row{'label'} = main::apply_partition_filter('part', $row{'label'}, '') if $use{'filter-label'};
 			$rows[$j]{main::key($num++,0,2,'label')} = ($row{'label'}) ? $row{'label'}: 'N/A';
