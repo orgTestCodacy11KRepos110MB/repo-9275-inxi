@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-19';
-my $self_patch='18';
+my $self_date='2020-11-20';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -60,8 +60,8 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,%program_values,
-%rows,%sensors_raw,%system_files);
+my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,%mapper,
+%program_values,%rows,%sensors_raw,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -79,8 +79,8 @@ my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
 $b_fake_usbdevs,$b_force_display,$b_gpudata,$b_irc,
-$b_log,$b_log_colors,$b_log_full,$b_man,$b_mem,$b_no_html_wan,$b_mips,$b_no_sudo,
-$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,$b_ps_gui,
+$b_log,$b_log_colors,$b_log_full,$b_man,$b_mapper,$b_mem,$b_no_html_wan,$b_mips,
+$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,$b_ps_gui,
 $b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
@@ -4889,7 +4889,7 @@ sub show_options {
 	['2', '-m,--memory-modules', '', "Max memory module size (if available), device type." ],
 	['2', '-N', '', "Specific vendor/product information (if relevant); 
 	PCI Bus ID/USB ID number of card; Version/port(s)/driver version (if available)." ],
-	['2', '-p,-P', '', "Add mapped: name if partition mapped." ],
+	['2', '-o,-p,-P', '', "Add mapped: name if partition mapped." ],
 	['2', '-r', '', "Packages, see -Ix." ],
 	['2', '-R', '', "md-raid: second RAID Info line with extra data: 
 	blocks, chunk size, bitmap (if present). Resync line, shows blocks 
@@ -13032,7 +13032,7 @@ sub create_output {
 sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
-	my (@data,@rows,@mapper,@mount,@partitions_working,%part,@working);
+	my (@data,@rows,@mount,@partitions_working,%part,@working);
 	my ($b_fake_map,$b_fs,$b_load,$b_space,$cols,$roots) = (0,1,0,0,6,0);
 	my ($back_size,$back_used) = (4,3);
 	my ($block_size,$blockdev,$dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
@@ -13052,9 +13052,7 @@ sub partition_data {
 	# android 7 no -T support
 	if (!$bsd_type){
 		@partitions_working = main::grabber("df -P -T -k 2>/dev/null");
-		if (-d '/dev/mapper'){
-			@mapper = main::globber('/dev/mapper/*');
-		}
+		main::set_mapper() if !$b_mapper;
 	}
 	else {
 		# this is missing the file system data
@@ -13132,10 +13130,10 @@ sub partition_data {
 			if ($row[0] =~ /by-label|by-uuid/){
 				$row[0] = Cwd::abs_path($row[0]);
 			}
-			elsif ($row[0] =~ /mapper\// && @mapper){
+			elsif ($row[0] =~ /mapper\// && %mapper){
 				$dev_mapped = $row[0];
 				$dev_mapped =~ s/^\/dev\/mapper\///;
-				$row[0] = get_mapper($row[0],@mapper);
+				$row[0] = ($mapper{$row[0]}) ? $mapper{$row[0]}: $row[0];
 			}
 			$dev_base = $row[0];
 			$dev_base =~ s/^\/dev\///;
@@ -13265,8 +13263,8 @@ sub swap_data {
 	return @swaps if $b_swaps;
 	$b_swaps = 1;
 	my (@data,@working);
-	my ($cache_pressure,$dev_base,$dev_type,$label,$mount,$path,
-	$pattern1,$pattern2,$percent_used,$priority,$size,$swap_type,
+	my ($cache_pressure,$dev_base,$dev_mapped,$dev_type,$label,$mount,
+ 	$path,$pattern1,$pattern2,$percent_used,$priority,$size,$swap_type,
 	$swappiness,$used,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
@@ -13302,8 +13300,8 @@ sub swap_data {
 	foreach (@working){
 		#next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
 		next if /^(Device|Filename)/;
-		($dev_base,$dev_type,$label,$mount,$priority,
-		$swap_type,$uuid) = ('','','','',undef,'partition','');
+		($dev_base,$dev_mapped,$dev_type,$label,$mount,$priority,
+		$swap_type,$uuid) = ('','','','','',undef,'partition','');
 		@data = split /\s+/, $_;
 		if (/^\/dev\/(block\/)?(compcache|ramzwap|zram)/i){
 			$swap_type = 'zram';
@@ -13315,6 +13313,9 @@ sub swap_data {
 		elsif (m|^/dev|){
 			$swap_type = 'partition';
 			$dev_base = $data[0];
+			if (!$bsd_type && $dev_base =~ m|^\/dev\/dm-| && %mapper ){
+				$dev_mapped = main::get_mapped($dev_base);
+			}
 			$dev_base =~ s|^/dev/||;
 			if ($show{'label'} && @labels){
 				$label = get_label($data[0]);
@@ -13347,6 +13348,7 @@ sub swap_data {
 		@data = ({
 		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
+		'dev-mapped' => $dev_mapped,
 		'dev-type' => $dev_type,
 		'fs' => 'swap',
 		'id' => "swap-$s",
@@ -13603,24 +13605,6 @@ sub get_label {
 	$label ||= 'N/A';
 	eval $end if $b_log;
 	return $label;
-}
-# args: $1 - dev item $2 - @mapper
-# check for mapper, then get actual dev item if mapped
-# /dev/mapper/ will usually be a symbolic link to the real /dev id
-sub get_mapper {
-	eval $start if $b_log;
-	my ($item,@mapper) = @_;
-	my $mapped = '';
-	foreach (@mapper){
-		if ($item eq $_){
-			my $temp = Cwd::abs_path($_);
-			$mapped = $temp if $temp;
-			last;
-		}
-	}
-	$mapped ||= $item;
-	eval $end if $b_log;
-	return $mapped;
 }
 sub get_root {
 	eval $start if $b_log;
@@ -17124,7 +17108,7 @@ sub create_output {
 	eval $start if $b_log;
 	my (@unmounted) = @_;
 	my (@data,@rows,$fs);
-	my $num = 0;
+	my ($j,$num) = (0,0);
 	@unmounted = sort { $a->{'dev-base'} cmp $b->{'dev-base'} } @unmounted;
 	foreach my $ref (@unmounted){
 		my %row = %$ref;
@@ -17144,14 +17128,18 @@ sub create_output {
 		}
 		$row{'label'} = main::apply_partition_filter('part', $row{'label'}, '') if $use{'filter-label'};
 		$row{'uuid'} = main::apply_partition_filter('part', $row{'uuid'}, '') if $use{'filter-uuid'};
+		$j = scalar @rows;
 		@data = ({
 		main::key($num++,1,1,'ID') => "/dev/$row{'dev-base'}",
-		main::key($num++,0,2,'size') => $size,
-		main::key($num++,0,2,'fs') => $fs,
-		main::key($num++,0,2,'label') => $row{'label'},
-		main::key($num++,0,2,'uuid') => $row{'uuid'},
 		});
 		@rows = (@rows,@data);
+		if ($extra > 0 && $row{'dev-mapped'}){
+			$rows[$j]{main::key($num++,0,2,'mapped')} = $row{'dev-mapped'};
+		}
+		$rows[$j]{main::key($num++,0,2,'size')} = $size;
+		$rows[$j]{main::key($num++,0,2,'fs')} = $fs;
+		$rows[$j]{main::key($num++,0,2,'label')} = $row{'label'};
+		$rows[$j]{main::key($num++,0,2,'uuid')} = $row{'uuid'};
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -17159,7 +17147,7 @@ sub create_output {
 sub unmounted_data {
 	eval $start if $b_log;
 	my ($file) = @_;
-	my ($fs,$label,$size,$uuid,@data,%part,@unmounted);
+	my ($dev_mapped,$fs,$label,$size,$uuid,@data,%part,@unmounted);
 	# last filters to make sure these are dumped
 	my @filters = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
 	'dvd[0-9]*','dvdrw[0-9]*','fd[0-9]','ram[0-9]*');
@@ -17174,7 +17162,7 @@ sub unmounted_data {
 	#print join("\n",(@filters,@mounted)),"\n";
 	foreach (@mounts){
 		my @working = split /\s+/, $_;
-		($fs,$label,$uuid,$size) = ('','','','');
+		($dev_mapped,$fs,$label,$uuid,$size) = ('','','','','');
 		# note that size 1 means it is a logical extended partition container
 		# lvm might have dm-1 type syntax
 		# need to exclude loop type file systems, squashfs for example
@@ -17200,10 +17188,12 @@ sub unmounted_data {
 			$size ||= $working[2];
 		   $fs = unmounted_filesystem($working[-1]) if !$fs;
 		   next if $fs && $fs eq 'zfs_member';
+		   $dev_mapped = main::get_mapped($working[-1]) if $working[-1] =~ /^dm-/;
 		   $label = PartitionData::get_label("/dev/$working[-1]") if !$label;
 			$uuid = PartitionData::get_uuid("/dev/$working[-1]") if !$uuid;
 			@data = ({
 			'dev-base' => $working[-1],
+			'dev-mapped' => $dev_mapped,
 			'fs' => $fs,
 			'label' => $label,
 			'size' => $size,
@@ -19604,6 +19594,20 @@ sub get_kernel_parameters_bsd {
 	return $parameters;
 }
 
+sub get_mapped {
+	eval $start if $b_log;
+	my $item = $_[0];
+	return if ! %mapper || ! $item;;
+	my $mapped;
+	foreach (keys %mapper){
+		if ($item eq $mapper{$_}){
+			$mapped = $_;
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return $mapped;
+}
 sub get_memory_data_full {
 	eval $start if $b_log;
 	my ($source) = @_;
@@ -21227,6 +21231,15 @@ sub set_ifconfig {
 	eval $end if $b_log;
 }
 
+sub set_mapper {
+	eval $start if $b_log;
+	$b_mapper = 1;
+	return if ! -d '/dev/mapper';
+	foreach ((globber('/dev/mapper'))){
+		$mapper{$_} = Cwd::abs_path("$_");
+	}
+	eval $end if $b_log;
+}
 sub set_ps_aux {
 	eval $start if $b_log;
 	my ($header,@temp);
