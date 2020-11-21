@@ -40,8 +40,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-20';
-my $self_patch='25';
+my $self_date='2020-11-21';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -77,11 +77,11 @@ my @test = (0,0,0,0,0);
 ## Booleans
 my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
-$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_pciconf,$b_fake_sysctl,
-$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_hddtemp_force,$b_irc,
-$b_log,$b_log_colors,$b_log_full,$b_man,$b_mapper,$b_mem,$b_no_html_wan,$b_mips,
-$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,$b_ps_gui,
-$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
+$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_lvm,$b_fake_pciconf,
+$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_hddtemp_force,
+$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_man,$b_mapper,$b_mem,$b_mips,
+$b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
+$b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
 $b_wmctrl);
@@ -241,10 +241,17 @@ sub check_tools {
 	}
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
-	if ($b_pci || $b_sysctl){
+	if ($b_lvm || $b_pci || $b_sysctl){
 		if (!$bsd_type){
 			if ($b_pci ){
 				%hash = ('lspci' => '-n',);
+				%commands = (%commands,%hash);
+			}
+			if ($b_lvm){
+				%hash = (
+				'pvdisplay' => '-m',
+				#'lvdisplay' => '-m',
+				);
 				%commands = (%commands,%hash);
 			}
 		}
@@ -307,6 +314,7 @@ sub check_tools {
 		);
 		%commands = (%commands,%hash);
 	}
+	
 	if ($b_smartctl){
 		%hash = (
 		'smartctl' => 'all',
@@ -1585,6 +1593,11 @@ sub disk_data {
 	['lsblk', '-Pb --output NAME,PKNAME,TYPE,RM,FSTYPE,SIZE'],
 	['lsblk', '-Pb --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS'],
 	['lvdisplay', '-m'],
+	['lvdisplay', '-ma'],
+	['lvs', ''],
+	['lvs', '-v'],
+	['lvs', '-v -P'],
+	['lvs', '-v --separator ='],
 	['lvs', '-o +devices'],
 	['lvs', '-o --segments'],
 	# LSI raid https://hwraid.le-vert.net/wiki/LSIMegaRAIDSAS
@@ -1597,11 +1610,20 @@ sub disk_data {
 	['mount', ''],
 	['nvme', 'present'],
 	['pvdisplay', '-m'],
+	['pvs', ''],
+	['pvs', '-a'],
+	['pvs', '-a -v'],
+	['pvs', '-v'],
+	['pvs', '-v -P'],
+	['pvs', '-v --separator ='],
 	['pvs', '--segments  -o pv_name,pv_size,seg_size,vg_name,lv_name,lv_size,seg_pe_ranges'],
 	['readlink', '/dev/root'],
 	['swapon', '-s'],
 	# 3ware-raid
 	['tw-cli', 'info'],
+	['vgdisplay', '-v'],
+	['vgs', '-v'],
+	['vgs', '-o +pv_name'],
 	['zfs', 'list'],
 	['zpool', 'list'],
 	['zpool', 'list -v'],
@@ -2899,7 +2921,7 @@ sub item_data {
 	'rpm' => 'bluez-utils',
 	}),
 	'hddtemp' => ({
-	'info' => '-Dx show hdd temp',
+	'info' => '-Dx show hdd temp, if no /sys drive temp',
 	'info-bsd' => '-Dx show hdd temp',
 	'apt' => 'hddtemp',
 	'pacman' => 'hddtemp',
@@ -4010,7 +4032,7 @@ sub set_version_data {
 #### OPTIONS HANDLER / VERSION
 ########################################################################
 
-sub get_options{
+sub get_options {
 	eval $start if $b_log;
 	my (@args) = @_;
 	$show{'short'} = 1;
@@ -4113,6 +4135,9 @@ sub get_options{
 		else {
 			error_handler('bad-arg',$opt,$arg);
 		} },
+	'L|lvm' => sub {
+		$show{'short'} = 0;
+		$show{'lvm'} = 1; },
 	'm|memory' => sub {
 		$show{'short'} = 0;
 		$show{'ram'} = 1; },
@@ -4478,6 +4503,8 @@ sub get_options{
 		} },
 	'fake-dmi' => sub {
 		$b_fake_dmidecode = 1 },
+	'fake-lvm' => sub {
+		$b_fake_lvm = 1 },
 	'ftp:s'  => sub { 
 		my ($opt,$arg) = @_;
 		# pattern: ftp.x.x/x
@@ -4687,6 +4714,10 @@ sub get_options{
 	}
 	if ($b_admin && $show{'disk'}){
 		$b_smartctl = 1;
+	}
+	# triggers may extend to -D, -pP
+	if ($show{'lvm'}){
+		$b_lvm = 1;
 	}
 } 
 
@@ -5779,6 +5810,8 @@ sub row_defaults {
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
 	'IP-no-dig' => "No $id found. Connected to web? SSL issues? Try enabling dig",
+	'lvm-data' => 'No LVM data was found.',
+	'lvm-data-bsd' => 'No BSD support (currently) for LVM data.',
 	'machine-data' => 'No Machine data: try newer kernel.',
 	'machine-data-bsd' => 'No Machine data: Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-dmidecode' => 'No Machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
@@ -11396,6 +11429,73 @@ sub display_compositor {
 	main::log_data('data',"compositor: $compositor") if $b_log;
 	eval $end if $b_log;
 	return $compositor;
+}
+}
+
+## LvmData
+{
+package LvmData;
+
+sub get {
+	eval $start if $b_log;
+	my (@data,@rows,$key1,$val1);
+	my $num = 0;
+	if ($bsd_type){
+		$key1 = 'Message';
+		$val1 = main::row_defaults('lvm-data-bsd');
+		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+	}
+ 	else {
+		if ($b_fake_lvm || ( $alerts{'pvdisplay'}->{'action'} eq 'use' )){
+			@data = lvm_data();
+			if (!@data){
+				my $key = 'Message';
+				@data = ({
+				main::key($num++,0,1,$key) => main::row_defaults('lvm-data',''),
+				},);
+				@rows = (@rows,@data);
+			}
+			else {
+				@rows = create_output(@data);
+			}
+		}
+		elsif ( $alerts{'pvdisplay'}->{'action'} ne 'use'){
+			$key1 = $alerts{'pvdisplay'}->{'action'};
+			$val1 = $alerts{'pvdisplay'}->{$key1};
+			$key1 = ucfirst($key1);
+			@rows = ({main::key($num++,0,1,$key1) => $val1,});
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub create_output {
+	eval $start if $b_log;
+	my (@lvm_data) = @_;
+	my (@rows);
+	my ($num) = (0);
+	
+	eval $end if $b_log;
+	return @rows;
+}
+sub lvm_data {
+	eval $start if $b_log;
+	my (@data,@lvm_data);
+	my $num = 0;
+	if ($b_fake_lvm){
+		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvdisplay-m-server-a.txt";
+		@data = main::reader($file);
+	}
+	else {
+		@data = main::grabber(main::check_program('pvdisplay') . ' -m 2>/dev/null');
+	}
+	foreach (@data){
+	
+	}
+	main::log_data('dump','lvm @data', \@data);
+	print Data::Dumper::Dumper \@data if $test[22];
+	eval $end if $b_log;
+	return @lvm_data;
 }
 }
 
@@ -22023,6 +22123,10 @@ sub generate_lines {
 			%row = line_handler('Drives','disk');
 			assign_data(%row);
 		}
+		if ( $show{'lvm'} ){
+			%row = line_handler('LVM','lvm');
+			assign_data(%row);
+		}
 		if ( $show{'raid'} ){
 			DeviceData::set() if !$b_pci_check; 
 			%row = line_handler('RAID','raid');
@@ -22081,6 +22185,7 @@ sub line_handler {
 	'cpu' => \&CpuData::get,
 	'disk' => \&DiskData::get,
 	'graphic' => \&GraphicData::get,
+	'lvm' => \&LvmData::get,
 	'machine' => \&MachineData::get,
 	'network' => \&NetworkData::get,
 	'partition' => \&PartitionData::get,
