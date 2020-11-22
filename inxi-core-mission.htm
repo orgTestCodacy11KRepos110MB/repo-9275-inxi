@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>inxi :: core mission</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" href="smxi-docs.css" type="text/css">
+<link rel="shortcut icon" href="/inc/favicon.ico">
+</head>
+<body>
+<div id="maincontainer">
+<<div id="topnav">
+<ul>
+<li><a href="/">home</a> :: </li><li><a href="/site/faqs.htm">faqs</a> :: </li><li><a href="/docs/">docs</a> :: </li><li><a href="http://techpatterns.com/forums/forum-33.html">forums</a> :: </li><li><a href="/docs/source-repos.htm">source repos</a> :: </li><li><a href="/site/donations.htm">donations</a></li><li>:: <a href="/site/contact.php">contact</a></li>
+</ul>
+<ul>
+<li><a href="/docs/inxi.htm">inxi docs home</a> :: </li><li><a href="/docs/inxi-installation.htm">inxi install</a> :: </li><li><a href="/docs/inxi-man.htm">inxi man</a> :: </li><li><a href="/docs/inxi-options.htm">inxi options</a> ::  </li><li><a href="/docs/inxi-faqs.htm">inxi faqs</a> :: </li><li><a href="/docs/inxi-tech.htm">inxi tech info</a></li>
+</ul>
+</div>
+
+<h1>inxi :: core mission</h1>
+<pre>
+Page Version: 1.0
+Page Updated: 2020-11-21
+</pre>
+
+<p>If you would like to submit patches for inxi, read and understand these core requirements for inxi. Patches not following these rules will be ignored. </p>
+
+<h2>Core Philosophy</h2>
+
+<p>Just so it's clear, as these may not be obvious to all. inxi has some core requirements that will never be changed, and failure to achieve is always a critical show stopper bug. These have determined many things along inxi's path, for example, the Perl version featureset to limit inxi to (Perl 5.008), the use of Perl 5 in the firsst place, how features are developedd, tested, and optimized, how fallback cases are handled, how legacy methods are maintained in cascade testing, really, it's not possible to understand why things are the way they are in inxi without understading the following:</p>
+
+<ol>
+
+<li>
+<p>inxi must run on really old systems, using Perl version, 5.008. 5.008 Perl was picked because it's the first 'modern' Perl that is basically feature complete, and very little is required to make the code run on all Perls since 5.008 in terms of awareness of certain features that can't be used. The determination on the which Perl version to use was basically which Perl Redhat shipped with in 2008, give or take. 5.008 was a very good break point I've found, it's quite easy to write all code to work on that, and newer Perls. Any failure of code to run on 5.008 Perl is a critical bug and will be corrected immediately.</p>
+
+<p>A corollary of this is that all new Perl 5 variants, including Perl 7. must work as well. Initial tests on Perl 5.032 with 7 test modules show inxi works fine on Perl 7.</p>
+</li>
+
+<li>
+<p>No modules that are not in standard core modules are used for standard features, that is, inxi will never require any Perl module that is not in all the core modules since 5.008. Note that Redhat split out some modules from core modules, and that is handled where relevant by internal tests for the module, but it should in general not impact much for regular users.</p>
+</li>
+
+<li>
+<p>Modules are only used if that is the absolute only way to achieve the result in a meaningful way. Modules are almost never required, that is, you can see from the top load / use section that very few are required. A few modules for special features regular users won't use, like export to json or xml, are loaded after the fact, and tested for, etc, if that feature is requested. But even there, the most basic module is used that will achieve the functionality.</p>
+</li>
+
+<li>
+<p>Use of programs in subshells, like lm-sensors, lsblk, smartclt, hddtemp, etc, are always handled by testing for the tool, then showing appropriate alert messages if it's missing, or if it requires root to run.</p>
+
+<p>As a subset of this rule, that means that it's actually fine to have new features that use tools that old operating systems didn't have, or that different platforms like BSDs, don't have, as long as the tools are tested for, handled, and error output where appropriate, is put in place if the feature can't work without the tool.</p>
+</li>
+
+<li>
+<p>inxi always is installable, and upgradeable, as a single file, plus the man page once -U is used as root. This will never change, it's impossible to develop inxi without that core feature. This makes code-folding your friend!! While certain libraries might be added in the future for features that do not exist today, they would never be required to actually run inxi, for example, language support for non english. This feature appears increasingly unlikely to ever happen however.</p>
+</li>
+
+<li>
+<p>Since the codebase and logic for inxi are quite old,and handle legacy situations as well as modern ones, in general, old methods are preserved, and a cascade of  tests are used to determine which method to use. In other words, something that was required to get data in 2008 remains in place, and newer methods are simply integrated into the flow, via testing. This way the old stuff keeps working as expected, and new methods and solutions are used when available.</p>
+</li>
+
+<li>
+<p>In keeping with requirement 1 is a further requirement that code that can be optimized in terms of execution speed should be optimized. If any technique or method can be demonstrated clearly to be faster than something else that produces the same reesult, that faster technique should be used. Now and then I revisit certain features that have expanded and expanded over time and test them, and have more than once sped up the feature by 100s of times, literally, by simply refactoring it. Differences that are only a few percent are unlikely to worth the time because they won't result in much improvement and could be CPU / system dependent, but loop tests of methods and syntaxes generally reveal real optimizations readily. Devel::NYTProf Perl optimizer is used now and then to catch glaring bottlenecks.</p>
+
+<p>A last part of this is that once you run Devel::NTYProf you quickly realize that loading modules and running subshells is at least 90% of the execution time of inxi, so in particular, anything that can get rid of a subshell command and give the same or better results is good. That's particularly relevant with RAM files like /proc/ or /sys, which are super fast to read.</p>
+
+<p>Once all this is clear, go back, and run inxi on a 100 mghz machine with a few 100 MB ram, and you'll quickly see why these things matter. inxi is actually tested on an ancient 200mghz mmx laptop, and runs quite well on it, relatively speaking. </p>
+</li>
+
+</ol>
+
+<p>I think that's it for the actual true core requirements of inxi/pinxi. Some of these might not be obvious as core requirements when all you've seen is distro packaged inxis, but once you start running inxi on very old hardware and operating systems, the reason for the requirement grows very obvious very quickly.</p>
+
+<p><a href="#top">top</a></p>
+
+
+</div>
+</body>
+</html>
