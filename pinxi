@@ -16417,7 +16417,7 @@ sub lm_sensors_data {
 			# note that because of charset issues, no "°" degree sign used, but it is required 
 			# in testing regex to avoid error. It might be because I got that data from a forum post,
 			# note directly via debugger.
-			if ($_ =~ /^(AMBIENT|M\/B|MB|Motherboard|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
+			if ($_ =~ /^T?(AMBIENT|M\/B|MB|Motherboard|SIO|SYS).*:([0-9\.]+)[\s°]*(C|F)/i) {
 				# avoid SYSTIN: 118 C
 				if (main::is_numeric($2) && $2 < 90 ){
 					$sensors{'mobo-temp'} = $2;
@@ -16433,7 +16433,7 @@ sub lm_sensors_data {
 			# NOTE: I've seen an inexplicable case where: CPU:52.0°C fails to match with [\s°] but 
 			# does match with: [\s°]*. I can't account for this, but that's why the * is there
 			# Tdie is a new k10temp-pci syntax for cpu die temp
-			elsif ($_ =~ /^(CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i) {
+			elsif ($_ =~ /^(T?CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i) {
 				$temp_working = $2;
 				$working_unit = $3;
 				if ( !$sensors{'cpu-temp'} || 
@@ -16447,12 +16447,12 @@ sub lm_sensors_data {
 				$working_unit = $2;
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 			}
-			elsif ($_ =~ /^(P\/S|Power).*:([0-9\.]+)[\s°]*(C|F)/i) {
+			elsif ($_ =~ /^T?(P\/S|Power).*:([0-9\.]+)[\s°]*(C|F)/i) {
 				$sensors{'psu-temp'} = $2;
 				$working_unit = $3;
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 			}
-			elsif ($_ =~ /^SODIMM.*:([0-9\.]+)[\s°]*(C|F)/i) {
+			elsif ($_ =~ /^T?(SODIMM.*|mem):([0-9\.]+)[\s°]*(C|F)/i) {
 				$sensors{'sodimm-temp'} = $1;
 				$working_unit = $2;
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -16488,7 +16488,7 @@ sub lm_sensors_data {
 			}
 			# final fallback if all else fails, funtoo user showed sensors putting
 			# temp on wrapped second line, not handled
-			elsif ($_ =~ /^(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
+			elsif ($_ =~ /^T?(core0|core 0|Physical id 0)(.*):([0-9\.]+)[\s°]*(C|F)/i) {
 				$temp_working = $3;
 				$working_unit = $4;
 				if ( !$sensors{'core-0-temp'} || 
@@ -16498,26 +16498,26 @@ sub lm_sensors_data {
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 			}
 			# note: can be cpu fan:, cpu fan speed:, etc.
-			elsif (!$sensors{'fan-main'}[1] && $_ =~ /^(CPU|Processor).*:([0-9]+)[\s]RPM/i) {
+			elsif (!$sensors{'fan-main'}[1] && $_ =~ /^F?(CPU|Processor).*:([0-9]+)[\s]RPM/i) {
 				$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 				$sensors{'fan-main'}[1] = $2;
 			}
-			elsif (!$sensors{'fan-main'}[2] && $_ =~ /^(M\/B|MB|SYS|Motherboard).*:([0-9]+)[\s]RPM/i) {
+			elsif (!$sensors{'fan-main'}[2] && $_ =~ /^F?(M\/B|MB|SYS|Motherboard).*:([0-9]+)[\s]RPM/i) {
 				$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 				$sensors{'fan-main'}[2] = $2;
 			}
-			elsif (!$sensors{'fan-main'}[3] && $_ =~ /(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i) {
+			elsif (!$sensors{'fan-main'}[3] && $_ =~ /F?(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i) {
 				$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 				$sensors{'fan-main'}[3] = $2;
 			}
-			elsif (!$sensors{'fan-main'}[4] && $_ =~ /(SODIMM).*:([0-9]+)[\s]RPM/i) {
+			elsif (!$sensors{'fan-main'}[4] && $_ =~ /F?(SODIMM|mem).*:([0-9]+)[\s]RPM/i) {
 				$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 				$sensors{'fan-main'}[4] = $2;
 			}
 			# note that the counters are dynamically set for fan numbers here
 			# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 			# note: cpu/mobo/ps/sodimm are 1/2/3/4
-			elsif ($_ =~ /^(AUX|CASE|CHASSIS).*:([0-9]+)[\s]RPM/i) {
+			elsif ($_ =~ /^F?(AUX|CASE|CHASSIS).*:([0-9]+)[\s]RPM/i) {
 				$temp_working = $2;
 				$sensors{'fan-main'} = () if !$sensors{'fan-main'};
 				for ( my $i = 5; $i < 30; $i++ ){
@@ -16550,14 +16550,14 @@ sub lm_sensors_data {
 				}
 			}
 			if ($extra > 0){
-				if ($_ =~ /^[+]?(12 Volt|12V).*:([0-9\.]+)\sV/i) {
+				if ($_ =~ /^[+]?(12 Volt|12V|V\+?12).*:([0-9\.]+)\sV/i) {
 					$sensors{'volts-12'} = $2;
 				}
 				# note: 5VSB is a field name
-				elsif ($_ =~ /^[+]?(5 Volt|5V):([0-9\.]+)\sV/i) {
+				elsif ($_ =~ /^[+]?(5 Volt|5V|V\+?5):([0-9\.]+)\sV/i) {
 					$sensors{'volts-5'} = $2;
 				}
-				elsif ($_ =~ /^[+]?(3\.3 Volt|3\.3V).*:([0-9\.]+)\sV/i) {
+				elsif ($_ =~ /^[+]?(3\.3 Volt|3\.3V|V\+?3.3).*:([0-9\.]+)\sV/i) {
 					$sensors{'volts-3.3'} = $2;
 				}
 				elsif ($_ =~ /^(Vbat).*:([0-9\.]+)\sV/i) {
