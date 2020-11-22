@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-21';
-my $self_patch='26';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -249,7 +249,7 @@ sub check_tools {
 			}
 			if ($b_lvm){
 				%hash = (
-				'pvdisplay' => '-m',
+				'pvs' => '',
 				#'lvdisplay' => '-m',
 				);
 				%commands = (%commands,%hash);
@@ -1620,7 +1620,7 @@ sub disk_data {
 	['pvs', '--separator : --segments'],
 	['pvs', '-a --separator : --segments'],
 	['pvs', '-av --separator : --segments'],
-	['pvs', '-aPv --separator : --segments'],
+	['pvs', '-aPv --separator : --segments -0 +pv_major,+pv_minor'],
 	['pvs', '-v --separator : --segments'],
 	['pvs', '-Pv --separator : --segments'],
 	['pvs', '--segments  -o pv_name,pv_size,seg_size,vg_name,lv_name,lv_size,seg_pe_ranges'],
@@ -9062,6 +9062,8 @@ sub proc_data {
 			@data = ({
 			'firmware' => '',
 			'id' => $row[-1],
+			'major' => $row[0],
+			'minor' => $row[1],
 			'model' => '',
 			'serial' => '',
 			'size' => $drive_size,
@@ -11457,7 +11459,7 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
  	else {
-		if ($b_fake_lvm || ( $alerts{'pvdisplay'}->{'action'} eq 'use' )){
+		if ($b_fake_lvm || ( $alerts{'pvs'}->{'action'} eq 'use' )){
 			@data = lvm_data();
 			if (!@data){
 				my $key = 'Message';
@@ -11470,9 +11472,9 @@ sub get {
 				@rows = create_output(@data);
 			}
 		}
-		elsif ( $alerts{'pvdisplay'}->{'action'} ne 'use'){
-			$key1 = $alerts{'pvdisplay'}->{'action'};
-			$val1 = $alerts{'pvdisplay'}->{$key1};
+		elsif ( $alerts{'pvs'}->{'action'} ne 'use'){
+			$key1 = $alerts{'pvs'}->{'action'};
+			$val1 = $alerts{'pvs'}->{$key1};
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
@@ -11494,11 +11496,11 @@ sub lvm_data {
 	my (@data,@lvm_data);
 	my $num = 0;
 	if ($b_fake_lvm){
-		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvdisplay-m-server-a.txt";
+		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvs.txt";
 		@data = main::reader($file);
 	}
 	else {
-		@data = main::grabber(main::check_program('pvdisplay') . ' -m 2>/dev/null');
+		@data = main::grabber(main::check_program('pvs') . '-aPv --separator : --segments -0 +pv_major,+pv_minor  2>/dev/null');
 	}
 	foreach (@data){
 	
