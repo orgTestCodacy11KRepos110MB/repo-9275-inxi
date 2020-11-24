@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-22';
-my $self_patch='28';
+my $self_patch='29';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -78,8 +78,9 @@ my @test = (0,0,0,0,0);
 my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_lvm,$b_fake_pciconf,
-$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,$b_hddtemp_force,
-$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_man,$b_mapper,$b_mem,$b_mips,
+$b_fake_sensors,$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,$b_gpudata,
+$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,
+$b_man,$b_mapper,$b_mem,$b_mips,
 $b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
@@ -1027,7 +1028,7 @@ sub process_selection {
 	}
 }
 sub delete_all_colors {
-	my @file_lines = main::reader( $user_config_file );
+	my @file_lines = main::reader($user_config_file);
 	open( $w_fh, '>', $user_config_file ) or main::error_handler('open', $user_config_file, $!);
 	foreach ( @file_lines ) { 
 		if ( $_ !~ /^(CONSOLE_COLOR_SCHEME|GLOBAL_COLOR_SCHEME|IRC_COLOR_SCHEME|IRC_CONS_COLOR_SCHEME|IRC_X_TERM_COLOR_SCHEME|VIRT_TERM_COLOR_SCHEME)/){
@@ -1037,7 +1038,7 @@ sub delete_all_colors {
 	close $w_fh;
 }
 sub delete_global_color {
-	my @file_lines = main::reader( $user_config_file );
+	my @file_lines = main::reader($user_config_file);
 	open( $w_fh, '>', $user_config_file ) or main::error_handler('open', $user_config_file, $!);
 	foreach ( @file_lines ) { 
 		if ( $_ !~ /^GLOBAL_COLOR_SCHEME/){
@@ -1048,7 +1049,7 @@ sub delete_global_color {
 }
 sub set_config_color_scheme {
 	my $value = shift;
-	my @file_lines = main::reader( $user_config_file );
+	my @file_lines = main::reader($user_config_file);
 	my $b_found = 0;
 	open( $w_fh, '>', $user_config_file ) or main::error_handler('open', $user_config_file, $!);
 	foreach ( @file_lines ) { 
@@ -3775,19 +3776,28 @@ sub program_version_pkg  {
 
 # arg: 1 - full file path, returns array of file lines.
 # 2 - optionsl, strip and clean data
+# 3 - optional, return specific index, if it exists
 # note: chomp has to chomp the entire action, not just <$fh>
 sub reader {
 	eval $start if $b_log;
-	my ($file,$strip) = @_;
+	my ($file,$strip,$index) = @_;
 	return if ! $file;
 	open( my $fh, '<', $file ) or error_handler('open', $file, $!);
 	chomp(my @rows = <$fh>);
-	if ($strip && @rows){
+	if ($fh){
+		close $fh or error_handler('close', $file, $!);
+	}
+	if (@rows && $strip){
 		@rows = grep {/^\s*[^#]/} @rows;
 		@rows = map {s/^\s+|\s+$//g; $_} @rows if @rows;
 	}
 	eval $end if $b_log;
-	return @rows;
+	if (defined $index){
+		return (defined $rows[$index]) ? $rows[$index] : '';
+	}
+	else {
+		return @rows;
+	}
 }
 
 # args: 1 - the file to create if not exists
@@ -4525,6 +4535,8 @@ sub get_options {
 		$b_fake_dmidecode = 1 },
 	'fake-lvm' => sub {
 		$b_fake_lvm = 1 },
+	'fake-sensors' => sub {
+		$b_fake_sensors = 1 },
 	'ftp:s'  => sub { 
 		my ($opt,$arg) = @_;
 		# pattern: ftp.x.x/x
@@ -6476,7 +6488,7 @@ sub usb_data {
 		# inxi tested for -L in the /proc/asound files, and used only those.
 		my @files = main::globber('/proc/asound/*/usbid');
 		foreach (@files){
-			my $id = (main::reader($_))[0];
+			my $id = main::reader($_,'',0);
 			push @ids, $id if ($id && ! grep {/$id/} @ids);
 		}
 		# lsusb is a very expensive operation
@@ -6530,7 +6542,7 @@ sub sound_server_data {
 	my (@data,$server,$version);
 	my $num = 0;
 	if (my $file = main::system_files('asound-version') ){
-		my $content = (main::reader($file))[0];
+		my $content = main::reader($file,'',0);
 		# some alsa strings have the build date in (...)
 		# remove trailing . and remove possible second line if compiled by user
 # 		foreach (@content){
@@ -6794,7 +6806,7 @@ sub battery_data_sys {
 		foreach $file (@items){
 			$path = "$item/$file";
 			# android shows some files only root readable
-			$value = (-r $path) ? (main::reader($path))[0]: '';
+			$value = (-r $path) ? main::reader($path,'',0): '';
 			# mains, plus in psu
 			if ($file eq 'type' && $value && lc($value) ne 'battery' ){
 				$battery{$id}{'purpose'} = 'mains';
@@ -8136,7 +8148,7 @@ sub cpu_bugs_sys {
 	my @items = main::globber('/sys/devices/system/cpu/vulnerabilities/*');
 	if (@items){
 		foreach (@items){
-			$value = ( -r $_) ? (main::reader($_))[0] : main::row_defaults('root-required');
+			$value = ( -r $_) ? main::reader($_,'',0) : main::row_defaults('root-required');
 			$type = ($value =~ /^Mitigation:/) ? 'mitigation': 'status';
 			$_ =~ s/.*\/([^\/]+)$/$1/;
 			$value =~ s/Mitigation: //;
@@ -8155,7 +8167,7 @@ sub cpu_speeds {
 	my (@speeds);
 	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq');
 	foreach (@files){
-		my $speed = (main::reader($_))[0];
+		my $speed = main::reader($_,'',0);
 		if ($speed || $speed eq '0'){
 			$speed = sprintf "%.0f", $speed/1000;
 			push @speeds, $speed;
@@ -8186,15 +8198,15 @@ sub set_cpu_speeds_sys {
 	if (-d $sys){
 		# corner cases, android, will have the files but they may be unreadable
 		if (-r "$sys/$cur"){
-			$speeds{'cur-freq'} = (main::reader("$sys/$cur"))[0] ;
+			$speeds{'cur-freq'} = main::reader("$sys/$cur",'',0);
 			$speeds{'cur-freq'} = speed_cleaner($speeds{'cur-freq'},'khz');
 		}
 		if (-r "$sys/$min"){
-			$speeds{'min-freq'} = (main::reader("$sys/$min"))[0];
+			$speeds{'min-freq'} = main::reader("$sys/$min",'',0);
 			$speeds{'min-freq'} = speed_cleaner($speeds{'min-freq'},'khz');
 		}
 		if (-r "$sys/$max"){
-			$speeds{'max-freq'} = (main::reader("$sys/$max"))[0];
+			$speeds{'max-freq'} = main::reader("$sys/$max",'',0);
 			$speeds{'max-freq'} = speed_cleaner($speeds{'max-freq'},'khz');
 		}
 		if ($b_arm || $b_mips){
@@ -8207,19 +8219,19 @@ sub set_cpu_speeds_sys {
 				my ($current,$cur_temp,$max,$max_temp,$min,$min_temp) = (0,0,0,0,0,0);
 				foreach (@policies){
 					$_ =~ s/\/$//; # strip off last slash in case globs have them
-					$max_temp = (-r "$_/cpuinfo_max_freq") ? (main::reader("$_/cpuinfo_max_freq"))[0] : 0;
+					$max_temp = (-r "$_/cpuinfo_max_freq") ? main::reader("$_/cpuinfo_max_freq",'',0) : 0;
 					if ($max_temp){
 						$max_temp = speed_cleaner($max_temp,'khz');
 						push @max_freq, $max_temp;
 					}
 					$max = $max_temp if ($max_temp > $max);
-					$min_temp = (-r "$_/cpuinfo_min_freq") ? (main::reader("$_/cpuinfo_min_freq"))[0] : 0;
+					$min_temp = (-r "$_/cpuinfo_min_freq") ? main::reader("$_/cpuinfo_min_freq",'',0) : 0;
 					if ($min_temp){
 						$min_temp = speed_cleaner($min_temp,'khz');
 						push @min_freq, $min_temp;
 					}
 					$min = $min_temp if ($min_temp < $min || $min == 0);
-					$cur_temp = (-r "$_/scaling_cur_freq") ? (main::reader("$_/scaling_cur_freq"))[0] : 0;
+					$cur_temp = (-r "$_/scaling_cur_freq") ? main::reader("$_/scaling_cur_freq",'',0) : 0;
 					$cur_temp = speed_cleaner($cur_temp,'khz') if $cur_temp;
 					if ($cur_temp > $current){
 						$current = $cur_temp;
@@ -8257,7 +8269,7 @@ sub cpu_dies_sys {
 	my @data = main::globber('/sys/devices/system/cpu/cpu*/topology/core_siblings_list');
 	my (@dies);
 	foreach (@data){
-		my $siblings = (main::reader($_))[0];
+		my $siblings = main::reader($_,'',0);
 		if (! grep {/$siblings/} @dies){
 			push @dies, $siblings;
 		}
@@ -8357,7 +8369,7 @@ sub get_boost_status {
 	my ($boost);
 	my $path = '/sys/devices/system/cpu/cpufreq/boost';
 	if (-f $path){
-		$boost = (main::reader($path))[0];
+		$boost = main::reader($path,'',0);
 		if (defined $boost && $boost =~/^[01]$/){
 			$boost = ($boost) ? 'enabled' : 'disabled';
 		}
@@ -8370,7 +8382,7 @@ sub system_cpu_name {
 	my (%cpus,$compat,@working);
 	if (@working = main::globber('/sys/firmware/devicetree/base/cpus/cpu@*/compatible')){
 		foreach my $file (@working){
-			$compat = (main::reader($file))[0];
+			$compat = main::reader($file,'',0);
 			next if $compat =~ /timer/; # seen on android
 			# these can have non printing ascii... why? As long as we only have the 
 			# splits for: null 00/start header 01/start text 02/end text 03
@@ -8632,7 +8644,7 @@ sub cpu_arch {
 		# necessarily the same as actual microarch, and varies between gcc/clang versions
 		if (!$model){
 			my $file = '/sys/devices/cpu/caps/pmu_name';
-			$model = (main::reader($file,'strip'))[0] if -r $file;
+			$model = main::reader($file,'strip',0) if -r $file;
 			$note = $check if $model;
 		}
 	}
@@ -9151,7 +9163,7 @@ sub proc_data_advanced {
 		for ($i = 1; $i < scalar @drives; $i++){
 			$file = "/proc/ide/$drives[$i]{'id'}/model";
 			if ( $drives[$i]{'id'} =~ /^hd[a-z]/ && -e $file){
-				$model = (main::reader($file,'strip'))[0];
+				$model = main::reader($file,'strip',0);
 				$drives[$i]{'model'} = $model;
 			}
 		}
@@ -9222,14 +9234,14 @@ sub proc_data_advanced {
 			# NOTE: while path ${working_path}vendor exists, it contains junk value, like: ATA
 			$path = "${working_path}model";
 			if ( -e $path){
-				$model = (main::reader($path,'strip'))[0];
+				$model = main::reader($path,'strip',0);
 				if ($model){
 					$drives[$i]{'model'} = $model;
 				}
 			}
 			elsif ($block_type eq 'mmc' && -e "${working_path}name"){
 				$path = "${working_path}name";
-				$model = (main::reader($path,'strip'))[0];
+				$model = main::reader($path,'strip',0);
 				if ($model){
 					$drives[$i]{'model'} = $model;
 				}
@@ -9248,7 +9260,7 @@ sub proc_data_advanced {
 		}
 		if ($working_path){
 			$path = "${working_path}removable";
-			$drives[$i]{'type'} = 'Removable' if -e $path && (main::reader($path,'strip'))[0]; # 0/1 value
+			$drives[$i]{'type'} = 'Removable' if -e $path && main::reader($path,'strip',0); # 0/1 value
 		}
 		my $peripheral = peripheral_data($drives[$i]{'id'});
 		# note: we only want to update type if we found a peripheral, otherwise preserve value
@@ -9266,7 +9278,7 @@ sub proc_data_advanced {
 				else {
 					$path = "${working_path}serial";
 					if ( -e $path){
-						$serial = (main::reader($path,'strip'))[0];
+						$serial = main::reader($path,'strip',0);
 						$drives[$i]{'serial'} = $serial if $serial;
 					}
 				}
@@ -9275,7 +9287,7 @@ sub proc_data_advanced {
 					foreach my $firmware (@fm){
 						$path = "${working_path}$firmware";
 						if ( -e $path){
-							$drives[$i]{'firmware'} = (main::reader($path,'strip'))[0];
+							$drives[$i]{'firmware'} = main::reader($path,'strip',0);
 							last;
 						}
 					}
@@ -10331,7 +10343,7 @@ sub hdd_temp_sys {
 	#print "device: $device\n";
 	foreach (sort @data){
 		#print "file: $_\n";
-		#print((main::reader($_))[0],"\n");
+		#print(main::reader($_,'',0),"\n");
 		$path = $_;
 		# cleanup everything in front of temp, the path
 		$path =~ s/^.*\///;
@@ -10339,7 +10351,7 @@ sub hdd_temp_sys {
 		if ($holder ne $working[0]){
 			$holder = $working[0];
 		}
-		$sensors{$holder}->{$working[1]} = (main::reader($_,'strip'))[0];
+		$sensors{$holder}->{$working[1]} = main::reader($_,'strip',0);
 	}
 	return if !%sensors;
 	if (keys %sensors == 1){
@@ -10383,8 +10395,8 @@ sub block_data {
 		$path_phy_block = "/sys/block/$id/queue/hw_sector_size";
 	}
 	if ( -r $path_log_block || -r $path_phy_block ){
-		$block_log = (main::reader($path_log_block))[0] if  -r $path_log_block;
-		$block_size = (main::reader($path_phy_block))[0] if -r $path_phy_block;
+		$block_log = main::reader($path_log_block,'',0) if  -r $path_log_block;
+		$block_size = main::reader($path_phy_block,'',0) if -r $path_phy_block;
 	}
 	# print "l-b: $block_log p-b: $block_size raw: $size_raw\n";
 	@blocks = ($block_log,$block_size); 
@@ -10423,7 +10435,7 @@ sub device_speed {
 		if (defined $id){
 			if ($b_nvme){
 				$working = "/sys/class/nvme/$id/device/max_link_speed";
-				$speed = (main::reader($working))[0] if -f $working;
+				$speed = main::reader($working,'',0) if -f $working;
 				if ($speed =~ /([0-9\.]+)\sGT\/s/){
 					$speed = $1;
 					# pcie1: 2.5 GT/s; pcie2: 5.0 GT/s; pci3: 8 GT/s
@@ -10432,7 +10444,7 @@ sub device_speed {
 					$speed = ($speed <= 5 ) ? $speed * .8 : $speed * 128/130; 
 					$speed = sprintf("%.1f",$speed) if $speed;
 					$working = "/sys/class/nvme/$id/device/max_link_width";
-					$lanes = (main::reader($working))[0] if -f $working;
+					$lanes = main::reader($working,'',0) if -f $working;
 					$lanes = 1 if !$lanes;
 					# https://www.edn.com/electronics-news/4380071/What-does-GT-s-mean-anyway-
 					# https://www.anandtech.com/show/2412/2
@@ -10444,7 +10456,7 @@ sub device_speed {
 			}
 			else {
 				$working = "/sys/class/ata_link/link$id/sata_spd";
-				$speed = (main::reader($working))[0] if -f $working;
+				$speed = main::reader($working,'',0) if -f $working;
 				$speed = main::disk_cleaner($speed) if $speed;
 				$speed =~ s/Gbps/Gb\/s/ if $speed;
 			}
@@ -11787,7 +11799,7 @@ sub machine_data_sys {
 	foreach (@sys_files){
 		$path = "$sys_dir$_";
 		if (-r $path){
-			$data{$_} = (main::reader($path))[0];
+			$data{$_} = main::reader($path,'',0);
 			$data{$_} = ($data{$_}) ? main::dmi_cleaner($data{$_}) : '';
 		}
 		elsif (!$b_root && -e $path && !-r $path ){
@@ -11865,7 +11877,7 @@ sub machine_data_soc {
 		}
 	}
 	if (!$soc_machine{'model'} && -f '/proc/device-tree/model'){
-		my $model  = (main::reader('/proc/device-tree/model'))[0];
+		my $model  = main::reader('/proc/device-tree/model','',0);
 		main::log_data('data',"device-tree-model: $model") if $b_log;
 		if ( $model ){
 			$model = main::dmi_cleaner($model);
@@ -11878,7 +11890,7 @@ sub machine_data_soc {
 		}
 	}
 	if (!$soc_machine{'serial'} && -f '/proc/device-tree/serial-number'){
-		my $serial  = (main::reader('/proc/device-tree/serial-number'))[0];
+		my $serial  = main::reader('/proc/device-tree/serial-number','',0);
 		$serial = (split /\x01|\x02|\x03|\x00/, $serial)[0] if $serial;
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
 		$soc_machine{'serial'} = $serial if $serial;
@@ -12420,10 +12432,10 @@ sub advanced_data_sys {
 		if (!$b_usb){
 			if (( !$b_arm && !$b_ppc) || $b_pci_tool ){
 				$path = "$_/device/vendor";
-				$data1 = (main::reader($path))[0] if -e $path;
+				$data1 = main::reader($path,'',0) if -e $path;
 				$data1 =~ s/^0x// if $data1;
 				$path = "$_/device/device";
-				$data2 = (main::reader($path))[0] if -e $path;
+				$data2 = main::reader($path,'',0) if -e $path;
 				$data2 =~ s/^0x// if $data2;
 				# this is a fix for a redhat bug in virtio 
 				$data2 = (defined $data2 && $data2 eq '0001' && defined $chip && $chip eq '1000') ? '1000' : $data2;
@@ -12446,16 +12458,16 @@ sub advanced_data_sys {
 			# print "top: if: $if ifs: @ifs_found\n";
 			next if ($b_check && grep {/$if/} @ifs_found);
 			$path = "$_/duplex";
-			$duplex = (main::reader($path))[0] if -e $path;
+			$duplex = main::reader($path,'',0) if -e $path;
 			$duplex ||= 'N/A';
 			$path = "$_/address";
-			$mac = (main::reader($path))[0] if -e $path;
+			$mac = main::reader($path,'',0) if -e $path;
 			$mac = main::apply_filter($mac);
 			$path = "$_/speed";
-			$speed = (main::reader($path))[0] if -e $path;
+			$speed = main::reader($path,'',0) if -e $path;
 			$speed ||= 'N/A';
 			$path = "$_/operstate";
-			$state = (main::reader($path))[0] if -e $path;
+			$state = main::reader($path,'',0) if -e $path;
 			$state ||= 'N/A';
 			#print "$speed \n";
 			@row = ({
@@ -13053,16 +13065,16 @@ sub optical_data_linux {
 		my $device = "/sys/block/$key/device";
 		if ( -d $device){
 			if (-e "$device/vendor"){
-				$devices{$key}{'vendor'} = (main::reader("$device/vendor"))[0];
+				$devices{$key}{'vendor'} = main::reader("$device/vendor",'',0);
 				$devices{$key}{'vendor'} = main::cleaner($devices{$key}{'vendor'});
-				$devices{$key}{'state'} = (main::reader("$device/state"))[0];
-				$devices{$key}{'model'} = (main::reader("$device/model"))[0];
+				$devices{$key}{'state'} = main::reader("$device/state",'',0);
+				$devices{$key}{'model'} = main::reader("$device/model",'',0);
 				$devices{$key}{'model'} = main::cleaner($devices{$key}{'model'});
-				$devices{$key}{'rev'} = (main::reader("$device/rev"))[0];
+				$devices{$key}{'rev'} = main::reader("$device/rev",'',0);
 			}
 		}
 		elsif ( -e "/proc/ide/$key/model"){
-			$devices{$key}{'vendor'} = (main::reader("/proc/ide/$key/model"))[0];
+			$devices{$key}{'vendor'} = main::reader("/proc/ide/$key/model",'',0);
 			$devices{$key}{'vendor'} = main::cleaner($devices{$key}{'vendor'});
 		}
 		if ($show{'optical'} && @info){
@@ -13573,13 +13585,13 @@ sub swap_advanced_data {
 	eval $start if $b_log;
 	my ($swappiness,$cache_pressure) = (undef,undef);
 	if (-r "/proc/sys/vm/swappiness"){
-		$swappiness = (main::reader("/proc/sys/vm/swappiness"))[0];
+		$swappiness = main::reader("/proc/sys/vm/swappiness",'',0);
 		if (defined $swappiness){
 			$swappiness .= ($swappiness == 60) ? ' (default)' : ' (default 60)' ;
 		}
 	}
 	if (-r "/proc/sys/vm/vfs_cache_pressure"){
-		$cache_pressure = (main::reader("/proc/sys/vm/vfs_cache_pressure"))[0];
+		$cache_pressure = main::reader("/proc/sys/vm/vfs_cache_pressure",'',0);
 		if (defined $cache_pressure){
 			$cache_pressure .= ($cache_pressure == 100) ? ' (default)' : ' (default 100)' ;
 		}
@@ -16611,18 +16623,23 @@ sub lm_sensors_processor {
 	eval $start if $b_log;
 	my (@data,@sensors_data,@values);
 	my ($adapter,$holder,$type) = ('','','');
-	@sensors_data = main::grabber(main::check_program('sensors') . " 2>/dev/null");
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
-	# @sensors_data = main::reader($file);		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
+	if ($b_fake_sensors){
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
+		#@sensors_data = main::reader($file);
+	}
+	else {
+		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
+		@sensors_data = main::grabber(main::check_program('sensors') . ' 2>/dev/null');
+	}
 	# print join ("\n", @sensors_data), "\n";
 	if (@sensors_data){
 		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
@@ -19091,7 +19108,7 @@ sub get_linux_distro {
 	$b_issue = 1 if -f $issue;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
 	# and then made that resulting file 700 permissions, which is obviously a mistake
-	$etc_issue = (main::reader($issue))[0] if -r $issue;
+	$etc_issue = main::reader($issue,'',0) if -r $issue;
 	$etc_issue = main::clean_characters($etc_issue);
 	my $os_release = '/etc/os-release';
 	@osr = main::reader($os_release) if -r $os_release;
@@ -19188,7 +19205,7 @@ sub get_linux_distro {
 			$distro =~ s/"//g if $distro;
 		}
 		else {
-			$distro = (main::reader($distro_file))[0];
+			$distro = main::reader($distro_file,'',0);
 			# only contains version number. Why? who knows.
 			if ($distro_file eq '/etc/q4os_version' && $distro !~ /q4os/i){
 				$distro = "Q4OS $distro" ;
@@ -19495,7 +19512,7 @@ sub debian_id {
 	eval $start if $b_log;
 	my ($codename) = @_;
 	my ($debian_version,$id);
-	$debian_version = (main::reader('/etc/debian_version','strip'))[0] if -r '/etc/debian_version';
+	$debian_version = main::reader('/etc/debian_version','strip',0) if -r '/etc/debian_version';
 	$id = 'Debian';
 	return if !$debian_version && !$codename;
 	# note, 3.0, woody, 3.1, sarge, but after it's integer per version
@@ -19639,7 +19656,7 @@ sub get_hostname {
 		$hostname = $ENV{'HOSTNAME'};
 	}
 	elsif ( !$bsd_type && -f "/proc/sys/kernel/hostname" ){
-		$hostname = (reader('/proc/sys/kernel/hostname'))[0];
+		$hostname = reader('/proc/sys/kernel/hostname','',0);
 	}
 	# puppy removed this from core modules, sigh
 	# this is faster than subshell of hostname
@@ -19660,7 +19677,7 @@ sub get_init_data {
 	my $runlevel = get_runlevel_data();
 	my $default = ($extra > 1) ? get_runlevel_default() : '';
 	my ($init,$init_version,$rc,$rc_version,$program) = ('','','','','');
-	my $comm = ( -e '/proc/1/comm' ) ? (reader('/proc/1/comm'))[0] : '';
+	my $comm = ( -e '/proc/1/comm' ) ? reader('/proc/1/comm','',0) : '';
 	my (@data);
 	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
 	# otherwise that is 'init', which covers the rest of the init systems.
@@ -19723,10 +19740,10 @@ sub get_init_data {
 			$rc_version = program_version($program, '^rc', '3','--version');
 		}
 		if ( -e '/run/openrc/softlevel' ){
-			$runlevel = (reader('/run/openrc/softlevel'))[0];
+			$runlevel = reader('/run/openrc/softlevel','',0);
 		}
 		elsif ( -e '/var/run/openrc/softlevel'){
-			$runlevel = (reader('/var/run/openrc/softlevel'))[0];
+			$runlevel = reader('/var/run/openrc/softlevel','',0);
 		}
 		elsif ( $program = check_program('rc-status')){
 			$runlevel = (grabber("$program -r 2>/dev/null"))[0];
@@ -19797,7 +19814,7 @@ sub get_kernel_parameters_linux {
 	eval $start if $b_log;
 	my ($file) = @_;
 	# unrooted android may have file only root readable
-	my $line = (reader($file))[0] if -r $file;
+	my $line = reader($file,'',0) if -r $file;
 	eval $end if $b_log;
 	return $line;
 }
@@ -20022,7 +20039,7 @@ sub get_module_version {
 	my ($version);
 	my $path = "/sys/module/$module/version";
 	if (-f $path){
-		$version = (reader($path))[0];
+		$version = reader($path,'',0);
 	}
 	elsif (-f "/sys/module/$module/uevent"){
 		$version = 'kernel';
@@ -20547,7 +20564,7 @@ sub get_wakeups {
 	return if $b_arm || $b_mips || $b_ppc;
 	my ($wakeups);
 	my $path = '/sys/power/wakeup_count';
-	$wakeups = (reader($path,'strip'))[0] if -r $path;
+	$wakeups = reader($path,'strip',0) if -r $path;
 	eval $end if $b_log;
 	return $wakeups;
 }
@@ -20983,7 +21000,7 @@ sub soc_devicetree {
 		foreach $file (@files){
 			if ( $file !~ m%$test%){
 				($handle,$content,$device,$type,$type_id,$vendor_id) = ('','','','','','');
-				$content = (main::reader($file, 'strip'))[0] if -r $file;
+				$content = main::reader($file, 'strip',0) if -r $file;
 				$file =~ m%soc/([^@]+)@([^/]+)/compatible$%;
 				$type = $1;
 				next if !$type || !$content;
@@ -21992,7 +22009,7 @@ sub uevent_data {
 sub sys_item {
 	my ($path) = @_;
 	my ($item);
-	$item = (main::reader($path))[0] if -r $path;
+	$item = main::reader($path,'',0) if -r $path;
 	$item = '' if ! defined $item;
 	$item = main::trimmer($item) if $item;
 	return $item;
