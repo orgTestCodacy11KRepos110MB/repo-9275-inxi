@@ -6590,7 +6590,7 @@ sub get {
 				}
 			}
 			else {
-				@rows = create_output(%battery);
+				@rows = create_output(\%battery);
 			}
 		}
 	}
@@ -6641,34 +6641,34 @@ sub get {
 # 17 location
 sub create_output {
 	eval $start if $b_log;
-	my (%battery) = @_;
+	my ($battery) = @_;
 	my ($key,@data,@rows);
 	my $num = 0;
 	my $j = 0;
-	# print Data::Dumper::Dumper \%battery;
-	foreach $key (sort keys %battery){
+	# print Data::Dumper::Dumper $battery;
+	foreach $key (sort keys %$battery){
 		$num = 0;
 		my ($charge,$condition,$model,$serial,$status,$volts) = ('','','','','','');
 		my ($chemistry,$cycles,$location) = ('','','');
-		next if !$battery{$key}{'purpose'} || $battery{$key}{'purpose'} ne 'primary';
-		# $battery{$key}{''};
+		next if !$$battery{$key}{'purpose'} || $$battery{$key}{'purpose'} ne 'primary';
+		# $$battery{$key}{''};
 		# we need to handle cases where charge or energy full is 0
-		if (defined $battery{$key}{'energy_now'} && $battery{$key}{'energy_now'} ne ''){
-			$charge = "$battery{$key}{'energy_now'} Wh";
+		if (defined $$battery{$key}{'energy_now'} && $$battery{$key}{'energy_now'} ne ''){
+			$charge = "$$battery{$key}{'energy_now'} Wh";
 		}
 		# better than nothing, shows the charged percent
-		elsif (defined $battery{$key}{'capacity'} && $battery{$key}{'capacity'} ne ''){
-			$charge = $battery{$key}{'capacity'} . '%'
+		elsif (defined $$battery{$key}{'capacity'} && $$battery{$key}{'capacity'} ne ''){
+			$charge = $$battery{$key}{'capacity'} . '%'
 		}
 		else {
 			$charge = 'N/A';
 		}
-		if ($battery{$key}{'energy_full'} || $battery{$key}{'energy_full_design'}){
-			$battery{$key}{'energy_full_design'} ||= 'N/A';
-			$battery{$key}{'energy_full'}= (defined $battery{$key}{'energy_full'} && $battery{$key}{'energy_full'} ne '') ? $battery{$key}{'energy_full'} : 'N/A';
-			$condition = "$battery{$key}{'energy_full'}/$battery{$key}{'energy_full_design'} Wh";
-			if ($battery{$key}{'of_orig'}){
-				$condition .= " ($battery{$key}{'of_orig'}%)"; 
+		if ($$battery{$key}{'energy_full'} || $$battery{$key}{'energy_full_design'}){
+			$$battery{$key}{'energy_full_design'} ||= 'N/A';
+			$$battery{$key}{'energy_full'}= (defined $$battery{$key}{'energy_full'} && $$battery{$key}{'energy_full'} ne '') ? $$battery{$key}{'energy_full'} : 'N/A';
+			$condition = "$$battery{$key}{'energy_full'}/$$battery{$key}{'energy_full_design'} Wh";
+			if ($$battery{$key}{'of_orig'}){
+				$condition .= " ($$battery{$key}{'of_orig'}%)"; 
 			}
 		}
 		$condition ||= 'N/A';
@@ -6681,23 +6681,23 @@ sub create_output {
 		@rows = (@rows,@data);
 		if ($extra > 0){
 			if ($extra > 1){
-				if ($battery{$key}{'voltage_min_design'} || $battery{$key}{'voltage_now'}){
-					$battery{$key}{'voltage_min_design'} ||= 'N/A';
-					$battery{$key}{'voltage_now'} ||= 'N/A';
-					$volts = "$battery{$key}{'voltage_now'}/$battery{$key}{'voltage_min_design'}";
+				if ($$battery{$key}{'voltage_min_design'} || $$battery{$key}{'voltage_now'}){
+					$$battery{$key}{'voltage_min_design'} ||= 'N/A';
+					$$battery{$key}{'voltage_now'} ||= 'N/A';
+					$volts = "$$battery{$key}{'voltage_now'}/$$battery{$key}{'voltage_min_design'}";
 				}
 				$volts ||= 'N/A';
 				$rows[$j]{main::key($num++,0,2,'volts')} = $volts;
 			}
-			if ($battery{$key}{'manufacturer'} || $battery{$key}{'model_name'}) {
-				if ($battery{$key}{'manufacturer'} && $battery{$key}{'model_name'}){
-					$model = "$battery{$key}{'manufacturer'} $battery{$key}{'model_name'}";
+			if ($$battery{$key}{'manufacturer'} || $$battery{$key}{'model_name'}) {
+				if ($$battery{$key}{'manufacturer'} && $$battery{$key}{'model_name'}){
+					$model = "$$battery{$key}{'manufacturer'} $$battery{$key}{'model_name'}";
 				}
-				elsif ($battery{$key}{'manufacturer'}){
-					$model = $battery{$key}{'manufacturer'};
+				elsif ($$battery{$key}{'manufacturer'}){
+					$model = $$battery{$key}{'manufacturer'};
 				}
-				elsif ($battery{$key}{'model_name'}){
-					$model = $battery{$key}{'model_name'};
+				elsif ($$battery{$key}{'model_name'}){
+					$model = $$battery{$key}{'model_name'};
 				}
 			}
 			else {
@@ -6705,33 +6705,33 @@ sub create_output {
 			}
 			$rows[$j]{main::key($num++,0,2,'model')} = $model;
 			if ($extra > 2){
-				$chemistry = ( $battery{$key}{'technology'} ) ? $battery{$key}{'technology'}: 'N/A';
+				$chemistry = ( $$battery{$key}{'technology'} ) ? $$battery{$key}{'technology'}: 'N/A';
 				$rows[$j]{main::key($num++,0,2,'type')} = $chemistry;
 			}
 			if ($extra > 1){
-				$serial = main::apply_filter($battery{$key}{'serial_number'});
+				$serial = main::apply_filter($$battery{$key}{'serial_number'});
 				$rows[$j]{main::key($num++,0,2,'serial')} = $serial;
 			}
-			$status = ($battery{$key}{'status'}) ? $battery{$key}{'status'}: 'N/A';
+			$status = ($$battery{$key}{'status'}) ? $$battery{$key}{'status'}: 'N/A';
 			$rows[$j]{main::key($num++,0,2,'status')} = $status;
 			if ($extra > 2){
-				if ($battery{$key}{'cycle_count'}){
-					$rows[$j]{main::key($num++,0,2,'cycles')} = $battery{$key}{'cycle_count'};
+				if ($$battery{$key}{'cycle_count'}){
+					$rows[$j]{main::key($num++,0,2,'cycles')} = $$battery{$key}{'cycle_count'};
 				}
-				if ($battery{$key}{'location'}){
-					$rows[$j]{main::key($num++,0,2,'location')} = $battery{$key}{'location'};
+				if ($$battery{$key}{'location'}){
+					$rows[$j]{main::key($num++,0,2,'location')} = $$battery{$key}{'location'};
 				}
 			}
 		}
-		$battery{$key} = undef;
+		$$battery{$key} = undef;
 	}
-	# print Data::Dumper::Dumper \%battery;
+	# print Data::Dumper::Dumper \%$battery;
 	# now if there are any devices left, print them out, excluding Mains
 	if ($extra > 0){
 		$upower = main::check_program('upower');
-		foreach $key (sort keys %battery){
+		foreach $key (sort keys %$battery){
 			$num = 0;
-			next if !defined $battery{$key} || $battery{$key}{'purpose'} eq 'mains';
+			next if !defined $$battery{$key} || $$battery{$key}{'purpose'} eq 'mains';
 			my ($charge,$model,$serial,$percent,$status,$vendor) = ('','','','','','');
 			my (%upower_data);
 			$j = scalar @rows;
@@ -6739,15 +6739,15 @@ sub create_output {
 			if ($upower_data{'percent'}){
 				$charge = $upower_data{'percent'};
 			}
-			elsif ($battery{$key}{'capacity_level'} && lc($battery{$key}{'capacity_level'}) ne 'unknown'){
-				$charge = $battery{$key}{'capacity_level'};
+			elsif ($$battery{$key}{'capacity_level'} && lc($$battery{$key}{'capacity_level'}) ne 'unknown'){
+				$charge = $$battery{$key}{'capacity_level'};
 			}
 			else {
 				$charge = 'N/A';
 			}
-			$model = $battery{$key}{'model_name'} if $battery{$key}{'model_name'};
-			$status = ($battery{$key}{'status'} && lc($battery{$key}{'status'}) ne 'unknown') ? $battery{$key}{'status'}: 'N/A' ;
-			$vendor = $battery{$key}{'manufacturer'} if $battery{$key}{'manufacturer'};
+			$model = $$battery{$key}{'model_name'} if $$battery{$key}{'model_name'};
+			$status = ($$battery{$key}{'status'} && lc($$battery{$key}{'status'}) ne 'unknown') ? $$battery{$key}{'status'}: 'N/A' ;
+			$vendor = $$battery{$key}{'manufacturer'} if $$battery{$key}{'manufacturer'};
 			if ($vendor || $model){
 				if ($vendor && $model){
 					$model = "$vendor $model";
@@ -6765,7 +6765,7 @@ sub create_output {
 			},);
 			@rows = (@rows,@data);
 			if ($extra > 1){
-				$serial = main::apply_filter($battery{$key}{'serial_number'});
+				$serial = main::apply_filter($$battery{$key}{'serial_number'});
 				$rows[$j]{main::key($num++,0,2,'serial')} = $serial;
 			}
 			$rows[$j]{main::key($num++,0,2,'charge')} = $charge;
