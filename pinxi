@@ -8733,7 +8733,7 @@ sub get {
 	# NOTE: 
 	if (@data){
 		if ($type eq 'standard'){
-			@data = create_output(@data);
+			@data = create_output(\@data);
 			@rows = (@rows,@data);
 			if ( $bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
@@ -8779,8 +8779,8 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my (@disks) = @_;
-	#print Data::Dumper::Dumper \@disks;
+	my ($disks) = @_;
+	#print Data::Dumper::Dumper \@$disks;
 	my ($b_oldage,$b_prefail,$b_smart,$b_smart_permissions,@data,@rows);
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size,$used,$percent,$size_holder,
@@ -8859,8 +8859,8 @@ sub create_output {
 	['smart-unknown-4-t','threshold'],
 	['smart-unknown-4-f','alert'],
 	);
-	my @sizing = main::get_size($disks[0]{'size'}) if $disks[0]{'size'};
-	#print Data::Dumper::Dumper \@disks;
+	my @sizing = main::get_size($$disks[0]{'size'}) if $$disks[0]{'size'};
+	#print Data::Dumper::Dumper \@$disks;
 	if (@sizing){
 		$size = $sizing[0];
 		# note: if a string is returned there will be no Size unit so just use string.
@@ -8870,14 +8870,14 @@ sub create_output {
 	}
 	$size ||= 'N/A';
 	@sizing = ();
-	@sizing = main::get_size($disks[0]{'used'}) if defined $disks[0]{'used'};
+	@sizing = main::get_size($$disks[0]{'used'}) if defined $$disks[0]{'used'};
 	if (@sizing){
 		$used = $sizing[0];
 		if (defined $sizing[0] && $sizing[1]){
 			$used .= ' ' . $sizing[1];
-			if (( $disks[0]{'size'} && $disks[0]{'size'} =~ /^[0-9]/ ) && 
-			    ( $disks[0]{'used'} =~ /^[0-9]/ ) ){
-				$used = $used . ' (' . sprintf("%0.1f", $disks[0]{'used'}/$disks[0]{'size'}*100) . '%)';
+			if (( $$disks[0]{'size'} && $$disks[0]{'size'} =~ /^[0-9]/ ) && 
+			    ( $$disks[0]{'used'} =~ /^[0-9]/ ) ){
+				$used = $used . ' (' . sprintf("%0.1f", $$disks[0]{'used'}/$$disks[0]{'size'}*100) . '%)';
 			}
 		}
 	}
@@ -8888,21 +8888,21 @@ sub create_output {
 	main::key($num++,0,2,'used') => $used,
 	});
 	@rows = (@rows,@data);
-	shift @disks;
+	shift @$disks;
 	if ($smartctl_missing){
 		$j = scalar @rows;
 		$rows[$j]{main::key($num++,0,1,'SMART Message')} = $smartctl_missing;
 	}
-	if ( $show{'disk'} && @disks){
-		@disks = sort { $a->{'id'} cmp $b->{'id'} } @disks;
-		foreach my $ref (@disks){
+	if ( $show{'disk'} && @$disks){
+		@$disks = sort { $a->{'id'} cmp $b->{'id'} } @$disks;
+		foreach my $ref (@$disks){
 			($b_oldage,$b_prefail,$b_smart,$id,$model,$size) = (0,0,0,'','','');
 			my %row = %$ref;
 			$num = 1;
 			$model = ($row{'model'}) ? $row{'model'}: 'N/A';
 			$id =  ($row{'id'}) ? "/dev/$row{'id'}":'N/A';
 			my @sizing = main::get_size($row{'size'});
-			#print Data::Dumper::Dumper \@disks;
+			#print Data::Dumper::Dumper \@$disks;
 			if (@sizing){
 				$size = $sizing[0];
 				# note: if a string is returned there will be no Size unit so just use string.
