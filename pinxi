@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-22';
-my $self_patch='30';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14589,7 +14589,7 @@ sub zfs_status {
 		my $ref2 = $row{'arrays'};
 		@arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
 		#print "$row{'id'} rs:$row{'status'}\n";
-		$status = ($row{'status'} && $row{'status'} eq 'no-status') ? check_status($row{'id'},@pool_status): $row{'status'};
+		$status = ($row{'status'} && $row{'status'} eq 'no-status') ? check_status($row{'id'},\@pool_status): $row{'status'};
 		$$zfs[$j]{'status'} = $status if $status;
 		#@arrays = grep {defined $_} @arrays;
 		#print "$row{id} $#arrays\n";
@@ -14603,12 +14603,12 @@ sub zfs_status {
 			$l = 0;
 			# zpool status: mirror-0  ONLINE       2     0     0
 			$raid = ($row2{'raid'}) ? "$row2{'raid'}-$i": $row2{'raid'};
-			$status = ($raid) ? check_status($raid,@pool_status): '';
+			$status = ($raid) ? check_status($raid,\@pool_status): '';
 			$$zfs[$j]{'arrays'}[$k]{'status'} = $status;
 			#print "$raid i:$i j:$j k:$k $status\n";
 			foreach my $component (@components){
 				my @temp = split /~/, $component;
-				$status = ($temp[0]) ? check_status($temp[0],@pool_status): '';
+				$status = ($temp[0]) ? check_status($temp[0],\@pool_status): '';
 				$$zfs[$j]{'arrays'}[$k]{'components'}[$l] .= $status if $status;
 				$l++;
 			}
@@ -14623,9 +14623,9 @@ sub zfs_status {
 }
 sub check_status {
 	eval $start if $b_log;
-	my ($item,@pool_status) = @_;
+	my ($item,$pool_status) = @_;
 	my ($status) = ('');
-	foreach (@pool_status){
+	foreach (@$pool_status){
 		my @temp = split /\s+/, $_;
 		if ($temp[0] eq $item){
 			last if !$temp[1]; 
