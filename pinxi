@@ -9117,7 +9117,7 @@ sub proc_data {
 	if ( $show{'disk'} ){
 		@drives = (@data,@drives);
 		# print 'drives:', Data::Dumper::Dumper \@drives;
-		@data = proc_data_advanced($b_hdx,@drives);
+		@data = proc_data_advanced($b_hdx,\@drives);
 	}
 	main::log_data('dump','@data',\@data) if $b_log;
 	# print Data::Dumper::Dumper \@data;
@@ -9135,7 +9135,7 @@ sub set_proc_partitions {
 }
 sub proc_data_advanced {
 	eval $start if $b_log;
-	my ($b_hdx,@drives) = @_;
+	my ($b_hdx,$drives) = @_;
 	my ($i) = (0);
 	my (@data,@disk_data,@rows,@scsi,@temp,@working);
 	my ($pt_cmd) = ('unset');
@@ -9154,11 +9154,11 @@ sub proc_data_advanced {
 	## this is now being updated for new /sys type paths, this may handle that ok too
 	## skip the first rows in the loops since that's the basic size/used data
 	if ($b_hdx){
-		for ($i = 1; $i < scalar @drives; $i++){
-			$file = "/proc/ide/$drives[$i]{'id'}/model";
-			if ( $drives[$i]{'id'} =~ /^hd[a-z]/ && -e $file){
+		for ($i = 1; $i < scalar @$drives; $i++){
+			$file = "/proc/ide/$$drives[$i]{'id'}/model";
+			if ( $$drives[$i]{'id'} =~ /^hd[a-z]/ && -e $file){
 				$model = main::reader($file,'strip',0);
-				$drives[$i]{'model'} = $model;
+				$$drives[$i]{'model'} = $model;
 			}
 		}
 	}
@@ -9166,41 +9166,41 @@ sub proc_data_advanced {
 	if ($file = main::system_files('scsi')){
 		@scsi = scsi_data($file);
 	}
-	# print 'drives:', Data::Dumper::Dumper \@drives;
-	for ($i = 1; $i < scalar @drives; $i++){
-		#next if $drives[$i]{'id'} =~ /^hd[a-z]/;
+	# print 'drives:', Data::Dumper::Dumper \@$drives;
+	for ($i = 1; $i < scalar @$drives; $i++){
+		#next if $$drives[$i]{'id'} =~ /^hd[a-z]/;
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
 		if ($extra > 2){
-			@data = advanced_disk_data($pt_cmd,$drives[$i]{'id'});
+			@data = advanced_disk_data($pt_cmd,$$drives[$i]{'id'});
 			$pt_cmd = $data[0];
-			$drives[$i]{'partition-table'} = uc($data[1]) if $data[1];
-			$drives[$i]{'rotation'} = "$data[2] rpm" if $data[2];
+			$$drives[$i]{'partition-table'} = uc($data[1]) if $data[1];
+			$$drives[$i]{'rotation'} = "$data[2] rpm" if $data[2];
 		}
-		#print "$drives[$i]{'id'}\n";
-		@disk_data = disk_data_by_id("/dev/$drives[$i]{'id'}");
+		#print "$$drives[$i]{'id'}\n";
+		@disk_data = disk_data_by_id("/dev/$$drives[$i]{'id'}");
 		main::log_data('dump','@disk_data', \@disk_data) if $b_log;
-		if ($drives[$i]{'id'} =~ /[sv]d[a-z]/){
+		if ($$drives[$i]{'id'} =~ /[sv]d[a-z]/){
 			$block_type = 'sdx';
-			$working_path = "/sys/block/$drives[$i]{'id'}/device/";
+			$working_path = "/sys/block/$$drives[$i]{'id'}/device/";
 		}
-		elsif ($drives[$i]{'id'} =~ /mmcblk/){
+		elsif ($$drives[$i]{'id'} =~ /mmcblk/){
 			$block_type = 'mmc';
-			$working_path = "/sys/block/$drives[$i]{'id'}/device/";
+			$working_path = "/sys/block/$$drives[$i]{'id'}/device/";
 		}
-		elsif ($drives[$i]{'id'} =~ /nvme/){
+		elsif ($$drives[$i]{'id'} =~ /nvme/){
 			$block_type = 'nvme';
 			# this results in:
 			# /sys/devices/pci0000:00/0000:00:03.2/0000:06:00.0/nvme/nvme0/nvme0n1
 			# but we want to go one level down so slice off trailing nvme0n1
-			$working_path = Cwd::abs_path("/sys/block/$drives[$i]{'id'}");
+			$working_path = Cwd::abs_path("/sys/block/$$drives[$i]{'id'}");
 			$working_path =~ s/nvme[^\/]*$//;
 		}
 		main::log_data('data',"working path: $working_path") if $b_log;
 		if ($b_admin && -e "/sys/block/"){
-			my @working = block_data($drives[$i]{'id'});
-			$drives[$i]{'block-logical'} = $working[0];
-			$drives[$i]{'block-physical'} = $working[1];
+			my @working = block_data($$drives[$i]{'id'});
+			$$drives[$i]{'block-logical'} = $working[0];
+			$$drives[$i]{'block-physical'} = $working[1];
 		}
 		if ($block_type && @scsi && @by_id && ! -e "${working_path}model" && ! -e "${working_path}name"){
 			## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
@@ -9212,10 +9212,10 @@ sub proc_data_advanced {
 				if ($row{'model'}){
 					$row{'model'} = (split /\s*-\s*/,$row{'model'})[0];
 					foreach my $id (@by_id){
-						if ($id =~ /$row{'model'}/ && "/dev/$drives[$i]{'id'}" eq Cwd::abs_path($id)){
-							$drives[$i]{'firmware'} = $row{'firmware'};
-							$drives[$i]{'model'} = $row{'model'};
-							$drives[$i]{'vendor'} = $row{'vendor'};
+						if ($id =~ /$row{'model'}/ && "/dev/$$drives[$i]{'id'}" eq Cwd::abs_path($id)){
+							$$drives[$i]{'firmware'} = $row{'firmware'};
+							$$drives[$i]{'model'} = $row{'model'};
+							$$drives[$i]{'vendor'} = $row{'vendor'};
 							last SCSI;
 						}
 					}
@@ -9229,55 +9229,55 @@ sub proc_data_advanced {
 			$path = "${working_path}model";
 			if ( -r $path){
 				$model = main::reader($path,'strip',0);
-				$drives[$i]{'model'} = $model if $model;
+				$$drives[$i]{'model'} = $model if $model;
 			}
 			elsif ($block_type eq 'mmc' && -r "${working_path}name"){
 				$path = "${working_path}name";
 				$model = main::reader($path,'strip',0);
-				$drives[$i]{'model'} = $model if $model;
+				$$drives[$i]{'model'} = $model if $model;
 			}
 		}
-		if (!$drives[$i]{'model'} && @disk_data){
-			$drives[$i]{'model'} = $disk_data[0] if $disk_data[0];
-			$drives[$i]{'vendor'} = $disk_data[1] if $disk_data[1];
+		if (!$$drives[$i]{'model'} && @disk_data){
+			$$drives[$i]{'model'} = $disk_data[0] if $disk_data[0];
+			$$drives[$i]{'vendor'} = $disk_data[1] if $disk_data[1];
 		}
 		# maybe rework logic if find good scsi data example, but for now use this
-		elsif ($drives[$i]{'model'} && !$drives[$i]{'vendor'}) {
-			$drives[$i]{'model'} = main::disk_cleaner($drives[$i]{'model'});
-			my @device_data = device_vendor($drives[$i]{'model'},'');
-			$drives[$i]{'model'} = $device_data[1] if $device_data[1];
-			$drives[$i]{'vendor'} = $device_data[0] if $device_data[0];
+		elsif ($$drives[$i]{'model'} && !$$drives[$i]{'vendor'}) {
+			$$drives[$i]{'model'} = main::disk_cleaner($$drives[$i]{'model'});
+			my @device_data = device_vendor($$drives[$i]{'model'},'');
+			$$drives[$i]{'model'} = $device_data[1] if $device_data[1];
+			$$drives[$i]{'vendor'} = $device_data[0] if $device_data[0];
 		}
 		if ($working_path){
 			$path = "${working_path}removable";
-			$drives[$i]{'type'} = 'Removable' if -r $path && main::reader($path,'strip',0); # 0/1 value
+			$$drives[$i]{'type'} = 'Removable' if -r $path && main::reader($path,'strip',0); # 0/1 value
 		}
-		my $peripheral = peripheral_data($drives[$i]{'id'});
+		my $peripheral = peripheral_data($$drives[$i]{'id'});
 		# note: we only want to update type if we found a peripheral, otherwise preserve value
-		$drives[$i]{'type'} = $peripheral if $peripheral;
-		# print "type:$drives[$i]{'type'}\n";
+		$$drives[$i]{'type'} = $peripheral if $peripheral;
+		# print "type:$$drives[$i]{'type'}\n";
 		if ($extra > 0){
-			$drives[$i]{'temp'} = hdd_temp("$drives[$i]{'id'}");
+			$$drives[$i]{'temp'} = hdd_temp("$$drives[$i]{'id'}");
 			if ($extra > 1){
-				my @speed_data = device_speed($drives[$i]{'id'});
-				$drives[$i]{'speed'} = $speed_data[0] if $speed_data[0];
-				$drives[$i]{'lanes'} = $speed_data[1] if $speed_data[1];
+				my @speed_data = device_speed($$drives[$i]{'id'});
+				$$drives[$i]{'speed'} = $speed_data[0] if $speed_data[0];
+				$$drives[$i]{'lanes'} = $speed_data[1] if $speed_data[1];
 				if (@disk_data && $disk_data[2]){
-					$drives[$i]{'serial'} = $disk_data[2];
+					$$drives[$i]{'serial'} = $disk_data[2];
 				}
 				else {
 					$path = "${working_path}serial";
 					if ( -r $path){
 						$serial = main::reader($path,'strip',0);
-						$drives[$i]{'serial'} = $serial if $serial;
+						$$drives[$i]{'serial'} = $serial if $serial;
 					}
 				}
-				if ($extra > 2 && !$drives[$i]{'firmware'} ){
+				if ($extra > 2 && !$$drives[$i]{'firmware'} ){
 					my @fm = ('rev','fmrev','firmware_rev'); # 0 ~ default; 1 ~ mmc; 2 ~ nvme
 					foreach my $firmware (@fm){
 						$path = "${working_path}$firmware";
 						if ( -r $path){
-							$drives[$i]{'firmware'} = main::reader($path,'strip',0);
+							$$drives[$i]{'firmware'} = main::reader($path,'strip',0);
 							last;
 						}
 					}
@@ -9285,9 +9285,9 @@ sub proc_data_advanced {
 			}
 		}
 	}
-	# print Data::Dumper::Dumper \@drives;
+	# print Data::Dumper::Dumper \@$drives;
 	eval $end if $b_log;
-	return @drives;
+	return @$drives;
 }
 # camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
 # smartcl -i <device> |grep ^Serial
