@@ -13364,7 +13364,7 @@ sub partition_data {
 					$fs = (%part && $part{'fs'}) ? $part{'fs'} : $row[1];
 				}
 				else {
-					$fs = get_mounts_fs($row[0],@mount);
+					$fs = get_mounts_fs($row[0],\@mount);
 				}
 				if ($show{'label'}) {
 					if (%part && $part{'label'}) {
@@ -13384,7 +13384,7 @@ sub partition_data {
 				}
 			}
 			else {
-				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],@mount);
+				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
 				if (@gpart && ($show{'label'} || $show{'uuid'} ) ){
 					my @extra = get_bsd_label_uuid("$dev_base");
 					if (@extra){
@@ -13589,14 +13589,14 @@ sub swap_advanced_data {
 }
 sub get_mounts_fs {
 	eval $start if $b_log;
-	my ($item,@mount) = @_;
+	my ($item,$mount) = @_;
 	$item =~ s/map:\/(\S+)/map $1/ if $bsd_type && $bsd_type eq 'darwin';
-	return 'N/A' if ! @mount;
+	return 'N/A' if ! @$mount;
 	my ($fs) = ('');
 	# linux: /dev/sdb6 on /var/www/m type ext4 (rw,relatime,data=ordered)
 	# /dev/sda3 on /root.dev/ugw type ext3 (rw,relatime,errors=continue,user_xattr,acl,barrier=1,data=journal)
 	# bsd: /dev/ada0s1a on / (ufs, local, soft-updates)
-	foreach (@mount){
+	foreach (@$mount){
 		if ($bsd_type && $_ =~ /^$item\son.*\(([^,\s\)]+)[,\s]*.*\)/){
 			$fs = $1;
 			last;
@@ -14565,17 +14565,17 @@ sub zfs_data {
 		$zfs[$j]{'arrays'} = \@arrays;
 		$j++;
 	}
-	@zfs = zfs_status($zpool,@zfs);
+	@zfs = zfs_status($zpool,\@zfs);
 	# print Data::Dumper::Dumper \@zfs;
 	eval $end if $b_log;
 	return @zfs;
 }
 sub zfs_status {
 	eval $start if $b_log;
-	my ($zpool,@zfs) = @_;
+	my ($zpool,$zfs) = @_;
 	my ($cmd,$status,$file,$raid,@arrays,@pool_status,@temp);
 	my ($i,$j,$k,$l) = (0,0,0,0);
-	foreach my $ref (@zfs){
+	foreach my $ref (@$zfs){
 		my %row = %$ref;
 		$i = 0;
 		$k = 0;
@@ -14590,7 +14590,7 @@ sub zfs_status {
 		@arrays = (ref $ref2 eq 'ARRAY' ) ? @$ref2 : ();
 		#print "$row{'id'} rs:$row{'status'}\n";
 		$status = ($row{'status'} && $row{'status'} eq 'no-status') ? check_status($row{'id'},@pool_status): $row{'status'};
-		$zfs[$j]{'status'} = $status if $status;
+		$$zfs[$j]{'status'} = $status if $status;
 		#@arrays = grep {defined $_} @arrays;
 		#print "$row{id} $#arrays\n";
 		#print Data::Dumper::Dumper \@arrays;
@@ -14604,12 +14604,12 @@ sub zfs_status {
 			# zpool status: mirror-0  ONLINE       2     0     0
 			$raid = ($row2{'raid'}) ? "$row2{'raid'}-$i": $row2{'raid'};
 			$status = ($raid) ? check_status($raid,@pool_status): '';
-			$zfs[$j]{'arrays'}[$k]{'status'} = $status;
+			$$zfs[$j]{'arrays'}[$k]{'status'} = $status;
 			#print "$raid i:$i j:$j k:$k $status\n";
 			foreach my $component (@components){
 				my @temp = split /~/, $component;
 				$status = ($temp[0]) ? check_status($temp[0],@pool_status): '';
-				$zfs[$j]{'arrays'}[$k]{'components'}[$l] .= $status if $status;
+				$$zfs[$j]{'arrays'}[$k]{'components'}[$l] .= $status if $status;
 				$l++;
 			}
 			$k++;
@@ -14619,7 +14619,7 @@ sub zfs_status {
 		$j++;
 	}
 	eval $end if $b_log;
-	return @zfs;
+	return @$zfs;
 }
 sub check_status {
 	eval $start if $b_log;
