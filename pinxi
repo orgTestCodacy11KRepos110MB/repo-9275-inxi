@@ -17644,7 +17644,7 @@ sub create_output {
 			});
 		}
 	}
-	%weather = get_weather(@location);
+	%weather = get_weather(\@location);
 	if ($weather{'error'}) {
 		return @rows = ({
 		main::key($num++,0,1,'Message') => main::row_defaults('weather-error',$weather{'error'}),
@@ -17859,10 +17859,10 @@ sub wind_output {
 }
 sub get_weather {
 	eval $start if $b_log;
-	my (@location) = @_;
+	my ($location) = @_;
 	my $now = POSIX::strftime "%Y%m%d%H%M", localtime;
 	my ($date_time,$freshness,$tz,@weather_data,%weather);
-	my $loc_name = lc($location[0]);
+	my $loc_name = lc($$location[0]);
 	$loc_name =~ s/-\/|\s|,/-/g;
 	$loc_name =~ s/--/-/g;
 	my $file_cached = "$user_data_dir/weather-$loc_name-$weather_source.txt";
@@ -17872,7 +17872,7 @@ sub get_weather {
 		#print "$now:$freshness\n";
 	}
 	if (!$freshness || $freshness < ($now - 60) ) {
-		@weather_data = download_weather($now,$file_cached,@location);
+		@weather_data = download_weather($now,$file_cached,$location);
 	}
 	#print join "\n", @weather_data, "\n";
 	# NOTE: because temps can be 0, we can't do if value tests
@@ -18094,7 +18094,7 @@ sub get_weather {
 	else {
 		$date_time = POSIX::strftime "%c", localtime();
 		$date_time = test_locale_date($date_time,'','');
-		$tz = ( $location[2] ) ? " ($location[2])" : ''; 
+		$tz = ( $$location[2] ) ? " ($$location[2])" : ''; 
 		$weather{'date-time'} = $date_time . $tz;
 	}
 	# we get the wrong time using epoch for remote -W location
@@ -18108,9 +18108,9 @@ sub get_weather {
 }
 sub download_weather {
 	eval $start if $b_log;
-	my ($now,$file_cached,@location) = @_;
+	my ($now,$file_cached,$location) = @_;
 	my (@weather,$temp,$ua,$url);
-	$url = "https://smxi.org/opt/xr2.php?loc=$location[0]&src=$weather_source";
+	$url = "https://smxi.org/opt/xr2.php?loc=$$location[0]&src=$weather_source";
 	$ua = 'weather';
 # 		{
 # 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
