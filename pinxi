@@ -8171,7 +8171,7 @@ sub cpu_speeds {
 	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq');
 	foreach (@files){
 		my $speed = main::reader($_,'',0);
-		if ($speed || $speed eq '0'){
+		if (defined $speed){
 			$speed = sprintf "%.0f", $speed/1000;
 			push @speeds, $speed;
 		}
@@ -8371,9 +8371,9 @@ sub get_boost_status {
 	eval $start if $b_log;
 	my ($boost);
 	my $path = '/sys/devices/system/cpu/cpufreq/boost';
-	if (-f $path){
+	if (-r $path){
 		$boost = main::reader($path,'',0);
-		if (defined $boost && $boost =~/^[01]$/){
+		if (defined $boost && $boost =~ /^[01]$/){
 			$boost = ($boost) ? 'enabled' : 'disabled';
 		}
 	}
@@ -9236,11 +9236,11 @@ sub proc_data_advanced {
 		elsif ( (!@disk_data || !$disk_data[0] ) && $block_type){
 			# NOTE: while path ${working_path}vendor exists, it contains junk value, like: ATA
 			$path = "${working_path}model";
-			if ( -e $path){
+			if ( -r $path){
 				$model = main::reader($path,'strip',0);
 				$drives[$i]{'model'} = $model if $model;
 			}
-			elsif ($block_type eq 'mmc' && -e "${working_path}name"){
+			elsif ($block_type eq 'mmc' && -r "${working_path}name"){
 				$path = "${working_path}name";
 				$model = main::reader($path,'strip',0);
 				$drives[$i]{'model'} = $model if $model;
@@ -9259,7 +9259,7 @@ sub proc_data_advanced {
 		}
 		if ($working_path){
 			$path = "${working_path}removable";
-			$drives[$i]{'type'} = 'Removable' if -e $path && main::reader($path,'strip',0); # 0/1 value
+			$drives[$i]{'type'} = 'Removable' if -r $path && main::reader($path,'strip',0); # 0/1 value
 		}
 		my $peripheral = peripheral_data($drives[$i]{'id'});
 		# note: we only want to update type if we found a peripheral, otherwise preserve value
@@ -9276,7 +9276,7 @@ sub proc_data_advanced {
 				}
 				else {
 					$path = "${working_path}serial";
-					if ( -e $path){
+					if ( -r $path){
 						$serial = main::reader($path,'strip',0);
 						$drives[$i]{'serial'} = $serial if $serial;
 					}
@@ -9285,7 +9285,7 @@ sub proc_data_advanced {
 					my @fm = ('rev','fmrev','firmware_rev'); # 0 ~ default; 1 ~ mmc; 2 ~ nvme
 					foreach my $firmware (@fm){
 						$path = "${working_path}$firmware";
-						if ( -e $path){
+						if ( -r $path){
 							$drives[$i]{'firmware'} = main::reader($path,'strip',0);
 							last;
 						}
@@ -10390,13 +10390,11 @@ sub block_data {
 	my $path_log_block = "/sys/block/$id/queue/logical_block_size";
 	my $path_phy_block = "/sys/block/$id/queue/physical_block_size";
 	# legacy system path
-	if (! -e $path_phy_block && -r "/sys/block/$id/queue/hw_sector_size" ){
+	if (! -e $path_phy_block && -e "/sys/block/$id/queue/hw_sector_size" ){
 		$path_phy_block = "/sys/block/$id/queue/hw_sector_size";
 	}
-	if ( -r $path_log_block || -r $path_phy_block ){
-		$block_log = main::reader($path_log_block,'',0) if  -r $path_log_block;
-		$block_size = main::reader($path_phy_block,'',0) if -r $path_phy_block;
-	}
+	$block_log = main::reader($path_log_block,'',0) if  -r $path_log_block;
+	$block_size = main::reader($path_phy_block,'',0) if -r $path_phy_block;
 	# print "l-b: $block_log p-b: $block_size raw: $size_raw\n";
 	@blocks = ($block_log,$block_size); 
 	main::log_data('dump','@blocks',\@blocks) if $b_log;
@@ -10434,8 +10432,8 @@ sub device_speed {
 		if (defined $id){
 			if ($b_nvme){
 				$working = "/sys/class/nvme/$id/device/max_link_speed";
-				$speed = main::reader($working,'',0) if -f $working;
-				if ($speed =~ /([0-9\.]+)\sGT\/s/){
+				$speed = main::reader($working,'',0) if -r $working;
+				if (defined $speed && $speed =~ /([0-9\.]+)\sGT\/s/){
 					$speed = $1;
 					# pcie1: 2.5 GT/s; pcie2: 5.0 GT/s; pci3: 8 GT/s
 					# NOTE: PCIe 3 stopped using the 8b/10b encoding but a sample pcie3 nvme has 
@@ -10444,7 +10442,7 @@ sub device_speed {
 					$speed = sprintf("%.1f",$speed) if $speed;
 					$working = "/sys/class/nvme/$id/device/max_link_width";
 					$lanes = main::reader($working,'',0) if -r $working;
-					$lanes = 1 if !$lanes;
+					$lanes ||= 1;
 					# https://www.edn.com/electronics-news/4380071/What-does-GT-s-mean-anyway-
 					# https://www.anandtech.com/show/2412/2
 					# http://www.tested.com/tech/457440-theoretical-vs-actual-bandwidth-pci-express-and-thunderbolt/
@@ -11858,7 +11856,7 @@ sub machine_data_soc {
 			}
 		}
 	}
-	if (!$soc_machine{'model'} && -r '/system/build.prop'){
+	if (!$soc_machine{'model'} && -e '/system/build.prop'){
 		main::set_build_prop() if !$b_build_prop;
 		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
 			my $brand = '';
@@ -11875,10 +11873,10 @@ sub machine_data_soc {
 			$soc_machine{'model'} = $build_prop{'product-name'};
 		}
 	}
-	if (!$soc_machine{'model'} && -f '/proc/device-tree/model'){
+	if (!$soc_machine{'model'} && -r '/proc/device-tree/model'){
 		my $model  = main::reader('/proc/device-tree/model','',0);
 		main::log_data('data',"device-tree-model: $model") if $b_log;
-		if ( $model ){
+		if ($model){
 			$model = main::dmi_cleaner($model);
 			$model = (split /\x01|\x02|\x03|\x00/, $model)[0] if $model;
 			my $device_temp = main::regex_cleaner($soc_machine{'device'});
@@ -12431,10 +12429,10 @@ sub advanced_data_sys {
 		if (!$b_usb){
 			if (( !$b_arm && !$b_ppc) || $b_pci_tool ){
 				$path = "$_/device/vendor";
-				$data1 = main::reader($path,'',0) if -e $path;
+				$data1 = main::reader($path,'',0) if -r $path;
 				$data1 =~ s/^0x// if $data1;
 				$path = "$_/device/device";
-				$data2 = main::reader($path,'',0) if -e $path;
+				$data2 = main::reader($path,'',0) if -r $path;
 				$data2 =~ s/^0x// if $data2;
 				# this is a fix for a redhat bug in virtio 
 				$data2 = (defined $data2 && $data2 eq '0001' && defined $chip && $chip eq '1000') ? '1000' : $data2;
@@ -12457,16 +12455,16 @@ sub advanced_data_sys {
 			# print "top: if: $if ifs: @ifs_found\n";
 			next if ($b_check && grep {/$if/} @ifs_found);
 			$path = "$_/duplex";
-			$duplex = main::reader($path,'',0) if -e $path;
+			$duplex = main::reader($path,'',0) if -r $path;
 			$duplex ||= 'N/A';
 			$path = "$_/address";
-			$mac = main::reader($path,'',0) if -e $path;
+			$mac = main::reader($path,'',0) if -r $path;
 			$mac = main::apply_filter($mac);
 			$path = "$_/speed";
-			$speed = main::reader($path,'',0) if -e $path;
+			$speed = main::reader($path,'',0) if -r $path;
 			$speed ||= 'N/A';
 			$path = "$_/operstate";
-			$state = main::reader($path,'',0) if -e $path;
+			$state = main::reader($path,'',0) if -r $path;
 			$state ||= 'N/A';
 			#print "$speed \n";
 			@row = ({
@@ -13063,7 +13061,7 @@ sub optical_data_linux {
 		next if $devices{$key}{'type'} eq 'floppy';
 		my $device = "/sys/block/$key/device";
 		if ( -d $device){
-			if (-e "$device/vendor"){
+			if (-r "$device/vendor"){
 				$devices{$key}{'vendor'} = main::reader("$device/vendor",'',0);
 				$devices{$key}{'vendor'} = main::cleaner($devices{$key}{'vendor'});
 				$devices{$key}{'state'} = main::reader("$device/state",'',0);
@@ -13072,7 +13070,7 @@ sub optical_data_linux {
 				$devices{$key}{'rev'} = main::reader("$device/rev",'',0);
 			}
 		}
-		elsif ( -e "/proc/ide/$key/model"){
+		elsif ( -r "/proc/ide/$key/model"){
 			$devices{$key}{'vendor'} = main::reader("/proc/ide/$key/model",'',0);
 			$devices{$key}{'vendor'} = main::cleaner($devices{$key}{'vendor'});
 		}
@@ -17877,7 +17875,7 @@ sub get_weather {
 	$loc_name =~ s/-\/|\s|,/-/g;
 	$loc_name =~ s/--/-/g;
 	my $file_cached = "$user_data_dir/weather-$loc_name-$weather_source.txt";
-	if (-f $file_cached){
+	if (-r $file_cached){
 		@weather_data = main::reader($file_cached);
 		$freshness = (split /\^\^/, $weather_data[0])[1];
 		#print "$now:$freshness\n";
@@ -18162,7 +18160,7 @@ sub get_location {
 	my ($city,$country,$freshness,%loc,$loc_arg,$loc_string,@loc_data,$state);
 	my $now = POSIX::strftime "%Y%m%d%H%M", localtime;
 	my $file_cached = "$user_data_dir/location-main.txt";
-	if (-f $file_cached){
+	if (-r $file_cached){
 		@loc_data = main::reader($file_cached);
 		$freshness = (split /\^\^/, $loc_data[0])[1];
 	}
@@ -19169,7 +19167,7 @@ sub get_linux_distro {
 	}
 	main::log_data('data',"distro_file-2: $distro_file") if $b_log;
 	# first test for the legacy antiX distro id file
-	if ( -f '/etc/antiX'){
+	if ( -r '/etc/antiX'){
 		@working = main::reader('/etc/antiX');
 		$distro = main::awk(\@working,'antix.*\.iso') if @working;
 		$distro = main::clean_characters($distro) if $distro;
@@ -19654,7 +19652,7 @@ sub get_hostname {
 	if ( $ENV{'HOSTNAME'} ){
 		$hostname = $ENV{'HOSTNAME'};
 	}
-	elsif ( !$bsd_type && -f "/proc/sys/kernel/hostname" ){
+	elsif ( !$bsd_type && -r "/proc/sys/kernel/hostname" ){
 		$hostname = reader('/proc/sys/kernel/hostname','',0);
 	}
 	# puppy removed this from core modules, sigh
@@ -19676,7 +19674,7 @@ sub get_init_data {
 	my $runlevel = get_runlevel_data();
 	my $default = ($extra > 1) ? get_runlevel_default() : '';
 	my ($init,$init_version,$rc,$rc_version,$program) = ('','','','','');
-	my $comm = ( -e '/proc/1/comm' ) ? reader('/proc/1/comm','',0) : '';
+	my $comm = ( -r '/proc/1/comm' ) ? reader('/proc/1/comm','',0) : '';
 	my (@data);
 	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
 	# otherwise that is 'init', which covers the rest of the init systems.
@@ -19738,10 +19736,10 @@ sub get_init_data {
 		elsif ($program = check_program('rc')){
 			$rc_version = program_version($program, '^rc', '3','--version');
 		}
-		if ( -e '/run/openrc/softlevel' ){
+		if ( -r '/run/openrc/softlevel' ){
 			$runlevel = reader('/run/openrc/softlevel','',0);
 		}
-		elsif ( -e '/var/run/openrc/softlevel'){
+		elsif ( -r '/var/run/openrc/softlevel'){
 			$runlevel = reader('/var/run/openrc/softlevel','',0);
 		}
 		elsif ( $program = check_program('rc-status')){
@@ -20037,7 +20035,7 @@ sub get_module_version {
 	return if ! $module;
 	my ($version);
 	my $path = "/sys/module/$module/version";
-	if (-f $path){
+	if (-r $path){
 		$version = reader($path,'',0);
 	}
 	elsif (-f "/sys/module/$module/uevent"){
@@ -20254,13 +20252,13 @@ sub get_runlevel_default {
 	# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
 	# note that technically default can be changed at boot but for inxi purposes 
 	# that does not matter, we just want to know the system default
-	elsif ( -e $upstart){
+	elsif ( -r $upstart){
 		# env DEFAULT_RUNLEVEL=2
 		@data = reader($upstart);
 		$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
 	}
 	# handle weird cases where null but inittab exists
-	if (!$default && -e $inittab ){
+	if (!$default && -r $inittab ){
 		@data = reader($inittab);
 		$default = awk(\@data,'^id.*initdefault',2,':');
 	}
