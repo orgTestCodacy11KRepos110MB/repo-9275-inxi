@@ -1261,7 +1261,7 @@ sub log_data {
 	if ($one eq 'fs') {
 		if (ref $three eq 'ARRAY'){
 			# my @temp = @$three;
-			# print Data::Dumper::Dumper \@$three;
+			# print Data::Dumper::Dumper $three;
 			$args = "\n${spacer}Args: " . joiner($three, '; ', 'unset');
 		}
 		else {
@@ -1303,11 +1303,11 @@ sub log_data {
 	elsif ( $one eq 'dump') {
 		$data = "$two:\n";
 		if (ref $three eq 'HASH'){
-			$data .= Data::Dumper::Dumper \%$three;
+			$data .= Data::Dumper::Dumper $three;
 		}
 		elsif (ref $three eq 'ARRAY'){
-			# print Data::Dumper::Dumper \@$three;
-			$data .= Data::Dumper::Dumper \@$three;
+			# print Data::Dumper::Dumper $three;
+			$data .= Data::Dumper::Dumper $three;
 		}
 		else {
 			$data .= Data::Dumper::Dumper $three;
@@ -5933,37 +5933,37 @@ sub check_output_path {
 	$b_good = 1 if (-d $dir && -w $dir && $dir =~ /^\// && $file);
 	return $b_good;
 }
-
+# passing along hash ref
 sub output_handler {
-	my (%data) = @_;
+	my ($data) = @_;
 	# print Dumper \%data;
 	if ($output_type eq 'screen'){
-		print_data(%data);
+		print_data($data);
 	}
 	elsif ($output_type eq 'json'){
-		generate_json(%data);
+		generate_json($data);
 	}
 	elsif ($output_type eq 'xml'){
-		generate_xml(%data);
+		generate_xml($data);
 	}
 }
-
+# passing along hash ref
 # NOTE: file has already been set and directory verified
 sub generate_json {
 	eval $start if $b_log;
-	my (%data) = @_;
+	my ($data) = @_;
 	my ($json);
 	my $b_debug = 1;
 	my ($b_cpanel,$b_valid);
 	error_handler('not-in-irc', 'help') if $b_irc;
-	#print Dumper \%data if $b_debug;
+	print Dumper $data if $b_debug;
 	if (check_module('Cpanel::JSON::XS')){
 		Cpanel::JSON::XS->import;
-		$json = Cpanel::JSON::XS::encode_json(\%data);
+		$json = Cpanel::JSON::XS::encode_json($data);
 	}
 	elsif (check_module('JSON::XS')){
 		JSON::XS->import;
-		$json = JSON::XS::encode_json(\%data);
+		$json = JSON::XS::encode_json($data);
 	}
 	else {
 		error_handler('required-module', 'json', 'Cpanel::JSON::XS OR JSON::XS');
@@ -5990,14 +5990,14 @@ sub generate_json {
 # least xml has some output now.
 sub generate_xml {
 	eval $start if $b_log;
-	my (%data) = @_;
+	my ($data) = @_;
 	my ($xml);
 	my $b_debug = 0;
 	error_handler('not-in-irc', 'help') if $b_irc;
-	#print Dumper \%data if $b_debug;
+	#print Dumper $data if $b_debug;
 	if (check_module('XML::Dumper')){
 		XML::Dumper->import;
-		$xml = XML::Dumper::pl2xml(\%data);
+		$xml = XML::Dumper::pl2xml($data);
 		#$xml =~ s/"[0-9]+#/"/g;
 		if ($output_file eq 'print'){
 			print "$xml";
@@ -6107,7 +6107,7 @@ sub print_basic {
 # because perl does not retain insertion order, I use a prefix for each
 # hash key to force sorts. 
 sub print_data {
-	my (%data) = @_;
+	my ($data) = @_;
 	my ($array,$counter,$length,$split_count) = (0,0,0,0);
 	my ($hash_id,$holder,$start,$start2,$start_holder) = ('','','','','');
 	my $indent = $size{'indent'};
@@ -6121,9 +6121,9 @@ sub print_data {
 	if ($size{'max'} < $size{'indent-min'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
-	#foreach my $key1 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %data) {
-	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %data) {
-	#foreach my $key1 (sort { $a cmp $b } keys %data) {
+	#foreach my $key1 (sort { (split/#/, $a)[0] <=> (split/#/, $b)[0] } keys %$data) {
+	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$data) {
+	#foreach my $key1 (sort { $a cmp $b } keys %$data) {
 		$key = (split/#/, $key1)[3];
 		if ($key ne 'SHORT' ) {
 			$start = sprintf("$colors{'c1'}%-${indent}s$colors{'cn'}","$key$sep{'s1'}");
@@ -6138,8 +6138,8 @@ sub print_data {
 		else {
 			$indent = 0;
 		}
-		next if ref($data{$key1}) ne 'ARRAY';
-		# @working = @{$data{$key1}};
+		next if ref($$data{$key1}) ne 'ARRAY';
+		# @working = @{$$data{$key1}};
 		# Line starters that will be -x incremented always
 		# It's a tiny bit faster manually resetting rather than using for loop
 		%ids = (
@@ -6156,7 +6156,7 @@ sub print_data {
 		'Screen' => 1,
 		'variant' => 1, # arm > 1 cpu type
 		);
-		foreach my $val1 (@{$data{$key1}}){
+		foreach my $val1 (@{$$data{$key1}}){
 			$indent_use = $length = $indent;
 			if (ref($val1) eq 'HASH'){
 				#%row = %$val1;
@@ -8780,7 +8780,7 @@ sub get {
 sub create_output {
 	eval $start if $b_log;
 	my ($disks) = @_;
-	#print Data::Dumper::Dumper \@$disks;
+	#print Data::Dumper::Dumper $disks;
 	my ($b_oldage,$b_prefail,$b_smart,$b_smart_permissions,@data,@rows);
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size,$used,$percent,$size_holder,
@@ -8860,7 +8860,7 @@ sub create_output {
 	['smart-unknown-4-f','alert'],
 	);
 	my @sizing = main::get_size($$disks[0]{'size'}) if $$disks[0]{'size'};
-	#print Data::Dumper::Dumper \@$disks;
+	#print Data::Dumper::Dumper $disks;
 	if (@sizing){
 		$size = $sizing[0];
 		# note: if a string is returned there will be no Size unit so just use string.
@@ -8902,7 +8902,7 @@ sub create_output {
 			$model = ($row{'model'}) ? $row{'model'}: 'N/A';
 			$id =  ($row{'id'}) ? "/dev/$row{'id'}":'N/A';
 			my @sizing = main::get_size($row{'size'});
-			#print Data::Dumper::Dumper \@$disks;
+			#print Data::Dumper::Dumper $disks;
 			if (@sizing){
 				$size = $sizing[0];
 				# note: if a string is returned there will be no Size unit so just use string.
@@ -9166,7 +9166,7 @@ sub proc_data_advanced {
 	if ($file = main::system_files('scsi')){
 		@scsi = scsi_data($file);
 	}
-	# print 'drives:', Data::Dumper::Dumper \@$drives;
+	# print 'drives:', Data::Dumper::Dumper $drives;
 	for ($i = 1; $i < scalar @$drives; $i++){
 		#next if $$drives[$i]{'id'} =~ /^hd[a-z]/;
 		($block_type,$firmware,$model,$partition_scheme,
@@ -9285,7 +9285,7 @@ sub proc_data_advanced {
 			}
 		}
 	}
-	# print Data::Dumper::Dumper \@$drives;
+	# print Data::Dumper::Dumper $drives;
 	eval $end if $b_log;
 	return @$drives;
 }
@@ -22076,13 +22076,13 @@ sub bus_id_alpha {
 #### -------------------------------------------------------------------
 
 sub assign_data {
-	my (%row) = @_;
-	return if ! %row;
+	my ($row) = @_;
+	return if ! %$row;
 	if ($output_type eq 'screen'){
-		print_data(%row);
+		print_data($row);
 	}
 	else {
-		%rows = (%rows,%row);
+		%rows = (%rows,%$row);
 	}
 }
 
@@ -22100,35 +22100,35 @@ sub generate_lines {
 	if ( $show{'short'} ){
 		set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 		%row = generate_short_data();
-		assign_data(%row);
+		assign_data(\%row);
 	}
 	else {
 		if ( $show{'system'} ){
 			%row = generate_system_data();
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'machine'} ){
 			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 			%row = line_handler('Machine','machine');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'battery'} ){
 			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('Battery','battery');
 			if (%row || $show{'battery-forced'}){
-				assign_data(%row);
+				assign_data(\%row);
 			}
 		}
 		if ( $show{'ram'} ){
 			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('Memory','ram');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'slot'} ){
 			set_dmi_data($b_dmi_check) if $b_dmi && !$b_dmi_check; 
 			%row = line_handler('PCI Slots','slot');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'cpu'} || $show{'cpu-basic'} ){
 			DeviceData::set($b_pci_check) if $b_arm && !$b_pci_check;
@@ -22136,81 +22136,81 @@ sub generate_lines {
 			set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = line_handler('CPU','cpu',$arg);
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'graphic'} ){
 			USBData::set() if !$b_usb_check;
 			DeviceData::set($b_pci_check) if !$b_pci_check; 
 			%row = line_handler('Graphics','graphic');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'audio'} ){
 			# Note: USBData is set internally in AudioData because it's only run in one case
 			DeviceData::set($b_pci_check) if !$b_pci_check; 
 			%row = line_handler('Audio','audio');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'network'} ){
 			USBData::set() if !$b_usb_check;
 			DeviceData::set($b_pci_check) if !$b_pci_check; 
 			set_ip_data() if ($show{'ip'} || ($bsd_type && $show{'network-advanced'}));
 			%row = line_handler('Network','network');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'optical'} ){
 			set_dmesg_boot_data() if ($bsd_type && !$b_dmesg_boot_check);
 			%row = line_handler('Drives','disk');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'lvm'} ){
 			%row = line_handler('LVM','lvm');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'raid'} ){
 			DeviceData::set() if !$b_pci_check; 
 			%row = line_handler('RAID','raid');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'partition'} || $show{'partition-full'}){
 			%row = line_handler('Partition','partition');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'swap'} ){
 			%row = line_handler('Swap','swap');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'unmounted'} ){
 			%row = line_handler('Unmounted','unmounted');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'usb'} ){
 			USBData::set() if !$b_usb_check;
 			%row = line_handler('USB','usb');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'sensor'} ){
 			%row = line_handler('Sensors','sensor');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'repo'} ){
 			%row = line_handler('Repos','repo');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'process'} ){
 			%row = line_handler('Processes','process');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'weather'} ){
 			%row = line_handler('Weather','weather');
-			assign_data(%row);
+			assign_data(\%row);
 		}
 		if ( $show{'info'} ){
 			%row = generate_info_data();
-			assign_data(%row);
+			assign_data(\%row);
 		}
 	}
 	if ( $output_type ne 'screen' ){
-		output_handler(%rows);
+		output_handler(\%rows);
 	}
 	eval $end if $b_log;
 }
