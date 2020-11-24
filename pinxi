@@ -1991,29 +1991,28 @@ sub run_commands {
 	my ($cmds,$type) = @_;
 	my $holder = '';
 	my ($name,$cmd,$args);
-	foreach (@$cmds){
-		my @rows = @$_;
-		if (my $program = main::check_program($rows[0])){
-			if ($rows[1] eq 'present'){
-				$name = "$data_dir/$type-cmd-$rows[0]-present";
+	foreach my $rows (@$cmds){
+		if (my $program = main::check_program($rows->[0])){
+			if ($rows->[1] eq 'present'){
+				$name = "$data_dir/$type-cmd-$rows->[0]-present";
 				main::toucher($name);
 			}
 			else {
-				$args = $rows[1];
+				$args = $rows->[1];
 				$args =~ s/\s|--|\/|=/-/g; # for:
 				$args =~ s/--/-/g;# strip out -- that result from the above
 				$args =~ s/^-//g;
 				$args = "-$args" if $args;
-				$name = "$data_dir/$type-cmd-$rows[0]$args.txt";
-				$cmd = "$program $rows[1] >$name 2>&1";
+				$name = "$data_dir/$type-cmd-$rows->[0]$args.txt";
+				$cmd = "$program $rows->[1] >$name 2>&1";
 				system($cmd);
 			}
 		}
 		else {
-			if ($holder ne $rows[0]){
-				$name = "$data_dir/$type-cmd-$rows[0]-absent";
+			if ($holder ne $rows->[0]){
+				$name = "$data_dir/$type-cmd-$rows->[0]-absent";
 				main::toucher($name);
-				$holder = $rows[0];
+				$holder = $rows->[0];
 			}
 		}
 	}
@@ -10516,21 +10515,20 @@ sub card_data {
 	eval $start if $b_log;
 	my (@rows,@data);
 	my ($j,$num) = (0,1);
-	foreach (@devices_graphics){
+	foreach my $row (@devices_graphics){
 		$num = 1;
-		my @row = @$_;
-		#print "$row[0] $row[3]\n";
+		#print "$row->[0] $row->[3]\n";
 		# not using 3D controller yet, needs research: |3D controller |display controller
 		# note: this is strange, but all of these can be either a separate or the same
 		# card. However, by comparing bus id, say: 00:02.0 we can determine that the
 		# cards are  either the same or different. We want only the .0 version as a valid
 		# card. .1 would be for example: Display Adapter with bus id x:xx.1, not the right one
-		next if $row[3] != 0;
-		#print "$row[0] $row[3]\n";
+		next if $row->[3] != 0;
+		#print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
-		$driver = $row[9];
+		$driver = $row->[9];
 		$driver ||= 'N/A';
-		my $card = main::trimmer($row[4]);
+		my $card = main::trimmer($row->[4]);
 		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
 		if (length($card) > 85 || $size{'max'} < 110){
@@ -10540,27 +10538,27 @@ sub card_data {
 		main::key($num++,1,1,'Device') => $card,
 		},);
 		@rows = (@rows,@data);
-		if ($extra > 0 && $b_pci_tool && $row[12]){
-			my $item = main::get_pci_vendor($row[4],$row[12]);
+		if ($extra > 0 && $b_pci_tool && $row->[12]){
+			my $item = main::get_pci_vendor($row->[4],$row->[12]);
 			$rows[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
 		$rows[$j]{main::key($num++,1,2,'driver')} = $driver;
-		if ($row[9] && !$bsd_type){
-			my $version = main::get_module_version($row[9]);
+		if ($row->[9] && !$bsd_type){
+			my $version = main::get_module_version($row->[9]);
 			$version ||= 'N/A';
 			$rows[$j]{main::key($num++,0,3,'v')} = $version;
 		}
-		if ($b_admin && $row[10]){
-			$row[10] = main::get_driver_modules($row[9],$row[10]);
-			$rows[$j]{main::key($num++,0,3,'alternate')} = $row[10] if $row[10];
+		if ($b_admin && $row->[10]){
+			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
+			$rows[$j]{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0){
-			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row[2] && !$row[3]) ? 'N/A' : "$row[2].$row[3]";
+			$rows[$j]{main::key($num++,0,2,'bus ID')} = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 		}
 		if ($extra > 1){
-			$rows[$j]{main::key($num++,0,2,'chip ID')} = ($row[5]) ? "$row[5]:$row[6]" : $row[6];
+			$rows[$j]{main::key($num++,0,2,'chip ID')} = ($row->[5]) ? "$row->[5]:$row->[6]" : $row->[6];
 		}
-		#print "$row[0]\n";
+		#print "$row->[0]\n";
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -12209,14 +12207,13 @@ sub card_data {
 	eval $start if $b_log;
 	my ($b_wifi,@rows,@data,%holder);
 	my ($j,$num) = (0,1);
-	foreach (@devices_network){
+	foreach my $row (@devices_network){
 		$num = 1;
-		my @row = @$_;
-		#print "$row[0] $row[3]\n"; 
-		#print "$row[0] $row[3]\n";
+		#print "$row->[0] $row->[3]\n"; 
+		#print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
-		my $driver = $row[9];
-		my $chip_id = "$row[5]:$row[6]";
+		my $driver = $row->[9];
+		my $chip_id = "$row->[5]:$row->[6]";
 		# working around a virtuo bug same chip id is used on two nics
 		if (!defined $holder{$chip_id}){
 			$holder{$chip_id} = 0;
@@ -12225,8 +12222,8 @@ sub card_data {
 			$holder{$chip_id}++; 
 		}
 		# first check if it's a known wifi id'ed card, if so, no print of duplex/speed
-		$b_wifi = check_wifi($row[4]);
-		my $card = $row[4];
+		$b_wifi = check_wifi($row->[4]);
+		my $card = $row->[4];
 		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
 		#$card ||= 'N/A';
 		$driver ||= 'N/A';
@@ -12234,33 +12231,33 @@ sub card_data {
 		main::key($num++,1,1,'Device') => $card,
 		},);
 		@rows = (@rows,@data);
-		if ($extra > 0 && $b_pci_tool && $row[12]){
-			my $item = main::get_pci_vendor($row[4],$row[12]);
+		if ($extra > 0 && $b_pci_tool && $row->[12]){
+			my $item = main::get_pci_vendor($row->[4],$row->[12]);
 			$rows[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
-		if ($row[1] eq '0680'){
+		if ($row->[1] eq '0680'){
 			$rows[$j]{main::key($num++,0,2,'type')} = 'network bridge';
 		}
 		$rows[$j]{main::key($num++,1,2,'driver')} = $driver;
 		my $bus_id = 'N/A';
 		# note: for arm/mips we want to see the single item bus id, why not?
 		# note: we can have bus id: 0002 / 0 which is valid, but 0 / 0 is invalid
-		if (defined $row[2] && $row[2] ne '0' && defined $row[3]){$bus_id = "$row[2].$row[3]"}
-		elsif (defined $row[2] && $row[2] ne '0'){$bus_id = $row[2]}
-		elsif (defined $row[3] && $row[3] ne '0'){$bus_id = $row[3]}
+		if (defined $row->[2] && $row->[2] ne '0' && defined $row->[3]){$bus_id = "$row->[2].$row->[3]"}
+		elsif (defined $row->[2] && $row->[2] ne '0'){$bus_id = $row->[2]}
+		elsif (defined $row->[3] && $row->[3] ne '0'){$bus_id = $row->[3]}
 		if ($extra > 0){
-			if ($row[9] && !$bsd_type){
-				my $version = main::get_module_version($row[9]);
+			if ($row->[9] && !$bsd_type){
+				my $version = main::get_module_version($row->[9]);
 				$version ||= 'N/A';
 				$rows[$j]{main::key($num++,0,3,'v')} = $version;
 			}
-			if ($b_admin && $row[10]){
-				$row[10] = main::get_driver_modules($row[9],$row[10]);
-				$rows[$j]{main::key($num++,0,3,'modules')} = $row[10] if $row[10];
+			if ($b_admin && $row->[10]){
+				$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
+				$rows[$j]{main::key($num++,0,3,'modules')} = $row->[10] if $row->[10];
 			}
-			$row[8] ||= 'N/A';
+			$row->[8] ||= 'N/A';
 			# as far as I know, wifi has no port, but in case it does in future, use it
-			$rows[$j]{main::key($num++,0,2,'port')} = $row[8] if (!$b_wifi || ( $b_wifi && $row[8] ne 'N/A') );
+			$rows[$j]{main::key($num++,0,2,'port')} = $row->[8] if (!$b_wifi || ( $b_wifi && $row->[8] ne 'N/A') );
 			$rows[$j]{main::key($num++,0,2,'bus ID')} = $bus_id;
 		}
 		if ($extra > 1){
@@ -12269,14 +12266,14 @@ sub card_data {
 		if ($show{'network-advanced'}){
 			@data = ();
 			if (!$bsd_type){
-				@data = advanced_data_sys($row[5],$row[6],$holder{$chip_id},$b_wifi,'',$bus_id);
+				@data = advanced_data_sys($row->[5],$row->[6],$holder{$chip_id},$b_wifi,'',$bus_id);
 			}
 			else {
-				@data = advanced_data_bsd("$row[9]$row[11]",$b_wifi) if defined $row[9] && defined $row[11];
+				@data = advanced_data_bsd("$row->[9]$row->[11]",$b_wifi) if defined $row->[9] && defined $row->[11];
 			}
 			@rows = (@rows,@data) if @data;
 		}
-		#print "$row[0]\n";
+		#print "$row->[0]\n";
 	}
 	# @rows = ();
 	# we want to handle ARM errors in main get
