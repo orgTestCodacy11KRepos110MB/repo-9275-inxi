@@ -3776,7 +3776,7 @@ sub program_version_pkg  {
 
 # arg: 1 - full file path, returns array of file lines.
 # 2 - optionsl, strip and clean data
-# 3 - optional, return specific index, if it exists
+# 3 - optional, return specific index, if it exists, else undef
 # note: chomp has to chomp the entire action, not just <$fh>
 sub reader {
 	eval $start if $b_log;
@@ -3817,7 +3817,7 @@ sub trimmer {
 # send array, assign to hash, return array, uniq values only.
 sub uniq {
 	my %seen;
-	grep !$seen{$_}++, @_;
+	grep !$seen{$_}++, @{$_[0]};
 }
 
 # arg: 1 file full  path to write to; 2 - arrayof data to write. 
@@ -8232,11 +8232,11 @@ sub set_cpu_speeds_sys {
 					}
 				}
 				if (@max_freq){
-					@max_freq = main::uniq(@max_freq);
+					@max_freq = main::uniq(\@max_freq);
 					$max = join ':', @max_freq;
 				}
 				if (@min_freq){
-					@min_freq = main::uniq(@min_freq);
+					@min_freq = main::uniq(\@min_freq);
 					$min = join ':', @min_freq;
 				}
 				$speeds{'cur-freq'} = $current if $current;
@@ -15463,7 +15463,7 @@ sub get_repos_linux {
 			} @files;
 		}
 		@files = sort(@files);
-		@files = main::uniq(@files);
+		@files = main::uniq(\@files);
 		unshift @files, $pacman if @repos;
 		foreach (@files){
 			if (-f $_){
@@ -18942,7 +18942,7 @@ sub set_info_data {
 		}
 	}
 	if (@info){
-		@info = main::uniq(@info);
+		@info = main::uniq(\@info);
 		$desktop[4] = join (', ', @info);
 	}
 	eval $end if $b_log;
@@ -20925,7 +20925,7 @@ sub soc_devices_files {
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
 	@files = grep {!/\/(subsystem|driver)\//} @files if @files;
-	@files = main::uniq(@files);
+	@files = main::uniq(\@files);
 	eval $end if $b_log;
 }
 sub soc_devices {
@@ -21552,7 +21552,7 @@ sub set_ps_gui {
 		wavy waycooler way-cooler wayfire wayhouse westford weston xcompmgr);
 		@match = (@match,@temp);
 	}
-	@match = uniq(@match);
+	@match = uniq(\@match);
 	my $matches = join '|', @match;
 	foreach (@ps_cmd){
 		if (/^(|[\S]*\/)($matches)(\/|\s|$)/){
@@ -21560,7 +21560,7 @@ sub set_ps_gui {
 			push @ps_gui, $working; # deal with duplicates with uniq
 		}
 	}
-	@ps_gui = uniq(@ps_gui) if @ps_gui;
+	@ps_gui = uniq(\@ps_gui) if @ps_gui;
 	print Dumper \@ps_gui if $test[5];
 	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
 	eval $end if $b_log;
@@ -21856,7 +21856,7 @@ sub sys_data {
 			@drivers = uevent_data("$_/[0-9]*/uevent");
 			@drivers = (@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
 			$ports = sys_item("$_/maxchild") if $b_hub;
-			$driver = join ',', sort(main::uniq(@drivers)) if @drivers;
+			$driver = join ',', sort(main::uniq(\@drivers)) if @drivers;
 			$interfaces = sys_item("$_/bNumInterfaces");
 			$serial = sys_item("$_/serial");
 			$usb_version = sys_item("$_/version");
@@ -21984,7 +21984,7 @@ sub uevent_data {
 		push @drivers,$driver if $driver;
 	}
 	if (@interfaces){
-		@interfaces = main::uniq(@interfaces);
+		@interfaces = main::uniq(\@interfaces);
 		# clear out values like: <vendor defined>,Printer
 		if ( scalar @interfaces > 1 && (grep {/^<vendor/} @interfaces) && (grep {!/^<vendor/} @interfaces) ){
 			@interfaces = grep {/^<vendor/} @interfaces;
