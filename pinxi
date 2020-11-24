@@ -3820,21 +3820,21 @@ sub uniq {
 	grep !$seen{$_}++, @{$_[0]};
 }
 
-# arg: 1 file full  path to write to; 2 - arrayof data to write. 
+# arg: 1 file full  path to write to; 2 - array ref or scalar of data to write. 
 # note: turning off strict refs so we can pass it a scalar or an array reference.
 sub writer {
-	my ($path, $ref_content) = @_;
-	my ($content);
+	my ($path, $content) = @_;
+	my ($contents);
 	no strict 'refs';
-	# print Dumper $ref_content, "\n";
-	if (ref $ref_content eq 'ARRAY'){
-		$content = join "\n", @$ref_content or die "failed with error $!";
+	# print Dumper $content, "\n";
+	if (ref $content eq 'ARRAY'){
+		$contents = join "\n", @$content or die "failed with error $!";
 	}
 	else {
-		$content = scalar $ref_content;
+		$contents = $content;
 	}
 	open(my $fh, ">", $path) or error_handler('open',"$path", "$!");
-	print $fh $content;
+	print $fh $contents;
 	close $fh;
 }
 
@@ -7039,7 +7039,7 @@ sub create_output_full {
 	my $type = ($properties{'cpu-type'}) ? $properties{'cpu-type'}: '';
 	my $ref = $cpu{'processors'};
 	my @processors = @$ref;
-	my @speeds = cpu_speeds(@processors);
+	my @speeds = cpu_speeds(\@processors);
 	my $j = scalar @rows;
 	$cpu{'model_name'} ||= 'N/A'; 
 	@data = ({
@@ -7218,24 +7218,24 @@ sub create_output_full {
 }
 sub create_output_short {
 	eval $start if $b_log;
-	my (@cpu) = @_;
+	my ($cpu) = @_;
 	my @data;
 	my $num = 0;
-	$cpu[1] ||= main::row_defaults('cpu-model-null');
-	$cpu[2] ||= 'N/A';
+	$$cpu[1] ||= main::row_defaults('cpu-model-null');
+	$$cpu[2] ||= 'N/A';
 	@data = ({
-	main::key($num++,1,1,'Info') => $cpu[0] . ' ' . $cpu[1] . ' [' . $cpu[2] . ']',
-	#main::key($num++,0,2,'type') => $cpu[2],
+	main::key($num++,1,1,'Info') => $$cpu[0] . ' ' . $$cpu[1] . ' [' . $$cpu[2] . ']',
+	#main::key($num++,0,2,'type') => $$cpu[2],
 	},);
 	if ($extra > 0){
-		$data[0]{main::key($num++,1,2,'arch')} = $cpu[7];
-		if ($cpu[8]){
-			$data[0]{main::key($num++,0,3,'note')} = $cpu[8];
+		$data[0]{main::key($num++,1,2,'arch')} = $$cpu[7];
+		if ($$cpu[8]){
+			$data[0]{main::key($num++,0,3,'note')} = $$cpu[8];
 		}
 	}
-	$data[0]{main::key($num++,0,2,$cpu[3])} = $cpu[4];
-	if ($cpu[6]){
-		$data[0]{main::key($num++,0,2,$cpu[5])} = $cpu[6];
+	$data[0]{main::key($num++,0,2,$$cpu[3])} = $$cpu[4];
+	if ($$cpu[6]){
+		$data[0]{main::key($num++,0,2,$$cpu[5])} = $$cpu[6];
 	}
 	eval $end if $b_log;
 	return @data;
@@ -7279,7 +7279,7 @@ sub data_short {
 		@data = prep_short_data(%cpu);
 	}
 	if ($type eq 'basic'){
-		@data = create_output_short(@data);
+		@data = create_output_short(\@data);
 	}
 	eval $end if $b_log;
 	return @data;
@@ -8157,7 +8157,7 @@ sub cpu_bugs_sys {
 
 sub cpu_speeds {
 	eval $start if $b_log;
-	my (@processors) = @_;
+	my ($processors) = @_;
 	my (@speeds);
 	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq');
 	foreach (@files){
@@ -8168,7 +8168,7 @@ sub cpu_speeds {
 		}
 	}
 	if (!@speeds){
-		foreach (@processors){
+		foreach (@$processors){
 			if ($_ || $_ eq '0'){
 				$_ = sprintf "%.0f", $_;
 				push @speeds, $_;
@@ -8722,7 +8722,7 @@ my ($b_hddtemp,$b_nvme,$smartctl_missing);
 my ($hddtemp,$nvme) = ('','');
 my (@by_id,@by_path,@vendors);
 my ($debugger_dir);
-# main::writer("$debugger_dir/system-repo-data-urpmq.txt",@data2) if $debugger_dir;
+# main::writer("$debugger_dir/system-repo-data-urpmq.txt",\@data2) if $debugger_dir;
 sub get {
 	eval $start if $b_log;
 	my (@data,@rows,$key1,$val1);
@@ -15431,7 +15431,7 @@ sub get_repos_linux {
 			}
 			if (@apt_urls){
 				$key = repo_data('active','apt');
-				@apt_urls = url_cleaner(@apt_urls);
+				@apt_urls = url_cleaner(\@apt_urls);
 			}
 			else {
 				$key = repo_data('missing','apt');
@@ -15528,14 +15528,14 @@ sub get_repos_linux {
 				$key = repo_data('missing','slackpkg+');
 			}
 			else {
-				@content = url_cleaner(@content);
+				@content = url_cleaner(\@content);
 				$key = repo_data('active','slackpkg+');
 			}
 			@data = (
 			{main::key($num++,1,1,$key) => $slackpkg_plus},
 			[@content],
 			);
-			@data = url_cleaner(@data);
+			@data = url_cleaner(\@data);
 			@rows = (@rows,@data);
 			@content = ();
 		}
@@ -15602,7 +15602,7 @@ sub get_repos_linux {
 					$key = repo_data('missing',$repo);
 				}
 				else {
-					@content = url_cleaner(@content);
+					@content = url_cleaner(\@content);
 					$key = repo_data('active',$repo);
 				}
 				@data = (
@@ -15666,7 +15666,7 @@ sub get_repos_linux {
 					$key = repo_data('missing','portage');
 				}
 				else {
-					@content = url_cleaner(@content);
+					@content = url_cleaner(\@content);
 					$key = repo_data('active','portage');
 				}
 				@data = (
@@ -15697,7 +15697,7 @@ sub get_repos_linux {
 			$key = repo_data('missing','cards');
 		}
 		else {
-			@content = url_cleaner(@content);
+			@content = url_cleaner(\@content);
 			$key = repo_data('active','cards');
 		}
 		@data = (
@@ -15729,7 +15729,7 @@ sub get_repos_linux {
 	# Mandriva/Mageia using: urpmq
 	if ( $path = main::check_program('urpmq') ){
 		@data2 = main::grabber("$path --list-media active --list-url","\n",'strip');
-		main::writer("$debugger_dir/system-repo-data-urpmq.txt",@data2) if $debugger_dir;
+		main::writer("$debugger_dir/system-repo-data-urpmq.txt",\@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
 		# we do that by looping through the lines of the output and then
 		# putting it back into the <data>:<url> format print repos expects to see
@@ -15749,7 +15749,7 @@ sub get_repos_linux {
 			if (/(.+)\s([\S]+:\/\/.+)/){
 				# pack the repo url
 				push @content, $1;
-				@content = url_cleaner(@content);
+				@content = url_cleaner(\@content);
 				# get the repo
 				$repo = $2;
 				@data = (
@@ -15770,7 +15770,7 @@ sub get_repos_linux {
 		#my $file = "$ENV{HOME}/bin/scripts/inxi/data/repo/solus/eopkg-2.txt";
 		#@data2 = main::reader($file,'strip');
 		@data2 = main::grabber("$cmd 2>/dev/null","\n",'strip');
-		main::writer("$debugger_dir/system-repo-data-$which.txt",@data2) if $debugger_dir;
+		main::writer("$debugger_dir/system-repo-data-$which.txt",\@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
 		# we do that by looping through the lines of the output and then
 		# putting it back into the <data>:<url> format print repos expects to see
@@ -15796,7 +15796,7 @@ sub get_repos_linux {
 				$repo = ($2 =~ /^activ/i) ? $repo : '';
 			}
 			if ($repo && @content){
-				@content = url_cleaner(@content);
+				@content = url_cleaner(\@content);
 				$key = repo_data('active',$which);
 				@data = (
 				{main::key($num++,1,1,$key) => $repo},
@@ -15809,7 +15809,7 @@ sub get_repos_linux {
 		}
 		# last one if present
 		if ($repo && @content){
-			@content = url_cleaner(@content);
+			@content = url_cleaner(\@content);
 			$key = repo_data('active',$which);
 			@data = (
 			{main::key($num++,1,1,$key) => $repo},
@@ -15881,7 +15881,7 @@ sub get_repos_bsd {
 						$key = repo_data('missing','bsd-package');
 					}
 					else {
-						@data3 = url_cleaner(@data3);
+						@data3 = url_cleaner(\@data3);
 						$key = repo_data('active','bsd-package');
 					}
 					@data = (
@@ -15996,7 +15996,7 @@ sub repo_builder {
 	if (-r $file){
 		@content =  main::reader($file);
 		@content = grep {/$search/i && !/^\s*$/} @content if @content;
-		@content = data_cleaner(@content) if @content;
+		@content = data_cleaner(\@content) if @content;
 	}
 	if ($split && @content){
 		@content = map { 
@@ -16009,7 +16009,7 @@ sub repo_builder {
 	}
 	else {
 		$key = repo_data('active',$type);
-		@content = url_cleaner(@content);
+		@content = url_cleaner(\@content);
 	}
 	@data = (
 	{main::key($num++,1,1,$key) => $file},
@@ -16019,16 +16019,16 @@ sub repo_builder {
 	return @data;
 }
 sub data_cleaner {
-	my (@content) = @_;
+	my ($content) = @_;
 	# basics: trim white space, get rid of double spaces
-	@content = map { $_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @content;
-	return @content;
+	@$content = map { $_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @$content;
+	return @$content;
 }
 # clean if irc
 sub url_cleaner {
-	my (@content) = @_;
-	@content = map { $_ =~ s/:\//: \//; $_} @content if $b_irc;
-	return @content;
+	my ($content) = @_;
+	@$content = map { $_ =~ s/:\//: \//; $_} @$content if $b_irc;
+	return @$content;
 }
 sub file_path {
 	my ($filename,$dir) = @_;
@@ -20692,7 +20692,7 @@ sub lspci_data {
 			if ($_ =~ /^~$/) {
 				@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 				$rev,$port,$driver,$modules,$driver_nu,$subsystem,$subsystem_id);
-				assign_data('pci',@temp);
+				assign_data('pci',\@temp);
 				$device = '';
 				#print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
 			}
@@ -20769,7 +20769,7 @@ sub pciconf_data {
 				}
 				@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 				$rev,$port,$driver,$modules,$driver_nu);
-				assign_data('pci',@temp);
+				assign_data('pci',\@temp);
 				$driver = '';
 				#print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
 			}
@@ -20813,7 +20813,7 @@ sub pcidump_data {
 		if ($_ =~ /^~$/ && $busid && $device) {
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu);
-			assign_data('pci',@temp);
+			assign_data('pci',\@temp);
 			($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu) = undef;
 			next;
@@ -20975,7 +20975,7 @@ sub soc_devices {
 		($busid_nu,$modules,$port,$rev) = (0,'','','');
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,
 		$port,$driver,$modules,'','','',$handle);
-		assign_data('soc',@temp3);
+		assign_data('soc',\@temp3);
 	}
 	eval $end if $b_log;
 }
@@ -21003,7 +21003,7 @@ sub soc_devicetree {
 				}
 				$type = soc_type($type,$vendor_id,'');
 				@temp3 = ($type,$type_id,0,0,$device,$vendor_id,'soc','','','','','','','',$handle);
-				assign_data('soc',@temp3);
+				assign_data('soc',\@temp3);
 				main::log_data('dump','@devices @temp3',\@temp3) if $b_log;
 			}
 		}
@@ -21011,31 +21011,31 @@ sub soc_devicetree {
 	eval $end if $b_log;
 }
 sub assign_data {
-	my ($tool,@data) = @_;
-	if (check_graphics($data[0],$data[1])){
-		@devices_graphics = (@devices_graphics,[@data]);
+	my ($tool,$data) = @_;
+	if (check_graphics($$data[0],$$data[1])){
+		@devices_graphics = (@devices_graphics,[@$data]);
 		$b_soc_gfx = 1 if $tool eq 'soc';
 	}
 	# for hdmi, we need gfx/audio both
-	if (check_audio($data[0],$data[1])){
-		@devices_audio = (@devices_audio,[@data]);
+	if (check_audio($$data[0],$$data[1])){
+		@devices_audio = (@devices_audio,[@$data]);
 		$b_soc_audio = 1 if $tool eq 'soc';
 	}
-	elsif (check_hwraid($data[0],$data[1])){
-		@devices_hwraid = (@devices_hwraid,[@data]);
+	elsif (check_hwraid($$data[0],$$data[1])){
+		@devices_hwraid = (@devices_hwraid,[@$data]);
 		$b_soc_net = 1 if $tool eq 'soc';
 	}
-	elsif (check_network($data[0],$data[1])){
-		@devices_network = (@devices_network,[@data]);
+	elsif (check_network($$data[0],$$data[1])){
+		@devices_network = (@devices_network,[@$data]);
 		$b_soc_net = 1 if $tool eq 'soc';
 	}
-	elsif (check_timer($data[0],$data[1])){
-		@devices_timer = (@devices_timer,[@data]);
+	elsif (check_timer($$data[0],$$data[1])){
+		@devices_timer = (@devices_timer,[@$data]);
 		$b_soc_timer = 1;
 	}
 	# not used at this point, -M comes before ANG
 	# $device_vm = check_vm($data[4]) if ( (!$b_ppc && !$b_mips) && !$device_vm );
-	@devices = (@devices,[@data]);
+	@devices = (@devices,[@$data]);
 }
 # note: for soc, these have been converted in soc_type()
 sub check_audio {
