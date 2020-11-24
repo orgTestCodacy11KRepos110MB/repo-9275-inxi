@@ -3784,16 +3784,19 @@ sub reader {
 	return if ! $file;
 	open( my $fh, '<', $file ) or error_handler('open', $file, $!);
 	chomp(my @rows = <$fh>);
-	if ($fh){
-		close $fh or error_handler('close', $file, $!);
-	}
+	close($fh) if $fh;
 	if (@rows && $strip){
 		@rows = grep {/^\s*[^#]/} @rows;
 		@rows = map {s/^\s+|\s+$//g; $_} @rows if @rows;
 	}
 	eval $end if $b_log;
 	if (defined $index){
-		return (defined $rows[$index]) ? $rows[$index] : '';
+		if (defined $rows[$index]){
+			return $rows[$index];
+		}
+		else {
+			return; # plain return, nothing, including not undef
+		}
 	}
 	else {
 		return @rows;
@@ -9235,16 +9238,12 @@ sub proc_data_advanced {
 			$path = "${working_path}model";
 			if ( -e $path){
 				$model = main::reader($path,'strip',0);
-				if ($model){
-					$drives[$i]{'model'} = $model;
-				}
+				$drives[$i]{'model'} = $model if $model;
 			}
 			elsif ($block_type eq 'mmc' && -e "${working_path}name"){
 				$path = "${working_path}name";
 				$model = main::reader($path,'strip',0);
-				if ($model){
-					$drives[$i]{'model'} = $model;
-				}
+				$drives[$i]{'model'} = $model if $model;
 			}
 		}
 		if (!$drives[$i]{'model'} && @disk_data){
@@ -10444,7 +10443,7 @@ sub device_speed {
 					$speed = ($speed <= 5 ) ? $speed * .8 : $speed * 128/130; 
 					$speed = sprintf("%.1f",$speed) if $speed;
 					$working = "/sys/class/nvme/$id/device/max_link_width";
-					$lanes = main::reader($working,'',0) if -f $working;
+					$lanes = main::reader($working,'',0) if -r $working;
 					$lanes = 1 if !$lanes;
 					# https://www.edn.com/electronics-news/4380071/What-does-GT-s-mean-anyway-
 					# https://www.anandtech.com/show/2412/2
@@ -10456,7 +10455,7 @@ sub device_speed {
 			}
 			else {
 				$working = "/sys/class/ata_link/link$id/sata_spd";
-				$speed = main::reader($working,'',0) if -f $working;
+				$speed = main::reader($working,'',0) if -r $working;
 				$speed = main::disk_cleaner($speed) if $speed;
 				$speed =~ s/Gbps/Gb\/s/ if $speed;
 			}
