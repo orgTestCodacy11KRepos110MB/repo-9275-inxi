@@ -41,7 +41,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-22';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7035,7 +7035,7 @@ sub create_output_full {
 			}
 		}
 	}
-	my %properties = cpu_properties(%cpu);
+	my %properties = cpu_properties(\%cpu);
 	my $type = ($properties{'cpu-type'}) ? $properties{'cpu-type'}: '';
 	my $ref = $cpu{'processors'};
 	my @processors = @$ref;
@@ -7276,7 +7276,7 @@ sub data_short {
 	}
 	# $cpu{'cur-freq'} = $cpu[0]{'core-id'}[0]{'speed'};
 	if ($type eq 'short' || $type eq 'basic'){
-		@data = prep_short_data(%cpu);
+		@data = prep_short_data(\%cpu);
 	}
 	if ($type eq 'basic'){
 		@data = create_output_short(\@data);
@@ -7287,10 +7287,10 @@ sub data_short {
 
 sub prep_short_data {
 	eval $start if $b_log;
-	my (%cpu) = @_;
-	my %properties = cpu_properties(%cpu);
+	my ($cpu_data) = @_;
+	my %properties = cpu_properties($cpu_data);
 	my ($cpu,$speed_key,$speed,$type) = ('','speed',0,'');
-	$cpu = $cpu{'model_name'} if $cpu{'model_name'};
+	$cpu = $$cpu_data{'model_name'} if $$cpu_data{'model_name'};
  	$type = $properties{'cpu-type'} if $properties{'cpu-type'};
  	$speed_key = $properties{'speed-key'} if $properties{'speed-key'};
  	$speed = $properties{'speed'} if $properties{'speed'};
@@ -7304,9 +7304,9 @@ sub prep_short_data {
  	$properties{'min-max'},
  	);
  	if ($extra > 0){
-		$cpu{'arch'} ||= 'N/A';
-		$result[7] = $cpu{'arch'};
-		$result[8] = $cpu{'arch-note'};
+		$$cpu_data{'arch'} ||= 'N/A';
+		$result[7] = $$cpu_data{'arch'};
+		$result[8] = $$cpu_data{'arch-note'};
  	}
 	eval $end if $b_log;
 	return @result;
@@ -7735,32 +7735,32 @@ sub data_sysctl {
 }
 
 sub cpu_properties {
-	my (%cpu) = @_;
+	my ($cpu) = @_;
 	my ($b_amd_zen,$b_epyc,$b_ht,$b_elbrus,$b_intel,$b_ryzen,$b_xeon);
-	if ($cpu{'type'} ){
-		if ($cpu{'type'} eq 'intel'){
+	if ($$cpu{'type'} ){
+		if ($$cpu{'type'} eq 'intel'){
 			$b_intel = 1;
-			$b_xeon = 1 if $cpu{'model_name'} =~ /Xeon/i;
+			$b_xeon = 1 if $$cpu{'model_name'} =~ /Xeon/i;
 		}
-		elsif ($cpu{'type'} eq 'amd' ){
-			if ( $cpu{'family'} && $cpu{'family'} eq '17' ) {
+		elsif ($$cpu{'type'} eq 'amd' ){
+			if ( $$cpu{'family'} && $$cpu{'family'} eq '17' ) {
 				$b_amd_zen = 1;
-				if ($cpu{'model_name'} ){
-					if ($cpu{'model_name'} =~ /Ryzen/i ){ 
+				if ($$cpu{'model_name'} ){
+					if ($$cpu{'model_name'} =~ /Ryzen/i ){ 
 						$b_ryzen = 1;
 					}
-					elsif ($cpu{'model_name'} =~ /EPYC/i){
+					elsif ($$cpu{'model_name'} =~ /EPYC/i){
 						$b_epyc = 1;
 					}
 				}
 			}
 		}
-		elsif ($cpu{'type'} eq 'elbrus') {
+		elsif ($$cpu{'type'} eq 'elbrus') {
 			$b_elbrus = 1;
 		}
 	}
 	#my @dies = $phys[0][0];
-	my $ref = $cpu{'ids'};
+	my $ref = $$cpu{'ids'};
 	my @phys = @$ref;
 	my $phyical_count = 0;
 	#my $phyical_count = scalar @phys;
@@ -7772,9 +7772,9 @@ sub cpu_properties {
 	}
 	# count unique processors ##
 	# note, this fails for intel cpus at times
-	$ref = $cpu{'processors'};
+	$ref = $$cpu{'processors'};
 	@processors = @$ref;
-	#print ref $cpu{'processors'}, "\n";
+	#print ref $$cpu{'processors'}, "\n";
 	my $processors_count = scalar @processors;
 	#print "p count:$processors_count\n";
 	#print Data::Dumper::Dumper \@processors;
@@ -7784,11 +7784,11 @@ sub cpu_properties {
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	if ($b_elbrus && $processors_count){
-		my @elbrus = elbrus_data($cpu{'model_id'},$processors_count,$cpu{'arch'});
+		my @elbrus = elbrus_data($$cpu{'model_id'},$processors_count,$$cpu{'arch'});
 		$cpu_cores = $elbrus[0];
 		$phyical_count = $elbrus[1];
-		$cpu{'arch'} = $elbrus[2];
-		# print 'model id: ' . $cpu{'model_id'} . ' arch: ' . $cpu{'arch'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
+		$$cpu{'arch'} = $elbrus[2];
+		# print 'model id: ' . $$cpu{'model_id'} . ' arch: ' . $$cpu{'arch'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
 	}
 	$phyical_count ||= 1; # assume 1 if no id found, as with ARM
 	if ($extra > 1){
@@ -7798,8 +7798,8 @@ sub cpu_properties {
 		$l1_cache = $cpu_dmi{'L1'} if $cpu_dmi{'L1'};
 		$l3_cache = $cpu_dmi{'L3'} if $cpu_dmi{'L3'};
 		# bsd sysctl can have these values so let's check just in case
-		$l1_cache = $cpu{'l1-cache'} * $phyical_count if !$l1_cache && $cpu{'l1-cache'};
-		$l3_cache = $cpu{'l3-cache'} * $phyical_count if !$l3_cache && $cpu{'l3-cache'};
+		$l1_cache = $$cpu{'l1-cache'} * $phyical_count if !$l1_cache && $$cpu{'l1-cache'};
+		$l3_cache = $$cpu{'l3-cache'} * $phyical_count if !$l3_cache && $$cpu{'l3-cache'};
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
 		$upgrade = $cpu_dmi{'upgrade'} if $cpu_dmi{'upgrade'};
@@ -7812,7 +7812,7 @@ sub cpu_properties {
 		my @dies = @$die_ref;
 		$core_count = 0;
 		$die_count = scalar @dies;
-		#$cpu{'dies'} = $die_count;
+		#$$cpu{'dies'} = $die_count;
 		foreach my $core_ref (@dies){
 			next if ref $core_ref ne 'ARRAY';
 			my @cores = @$core_ref;
@@ -7828,56 +7828,56 @@ sub cpu_properties {
 	}
 	
 	# this covers potentially cases where ARM cpus have > 1 die 
-	$cpu{'dies'} = ($b_arm && $die_count <= 1 && $cpu{'dies'} > 1) ? $cpu{'dies'}: $die_count;
+	$$cpu{'dies'} = ($b_arm && $die_count <= 1 && $$cpu{'dies'} > 1) ? $$cpu{'dies'}: $die_count;
 	# this is an attempt to fix the amd family 15 bug with reported cores vs actual cores
 	# NOTE: amd A6-4400M APU 2 core reports: cores: 1 siblings: 2
 	# NOTE: AMD A10-5800K APU 4 core reports: cores: 2 siblings: 4
 	if (!$cpu_cores){
-		if ($cpu{'cores'} && ! $core_count || $cpu{'cores'} >= $core_count){
-			$cpu_cores = $cpu{'cores'};
+		if ($$cpu{'cores'} && ! $core_count || $$cpu{'cores'} >= $core_count){
+			$cpu_cores = $$cpu{'cores'};
 		}
-		elsif ($core_count > $cpu{'cores'}){
+		elsif ($core_count > $$cpu{'cores'}){
 			$cpu_cores = $core_count;
 		}
 	}
 	#print "cpu-c:$cpu_cores\n";
-	#$cpu_cores = $cpu{'cores'}; 
+	#$cpu_cores = $$cpu{'cores'}; 
 	# like, intel core duo
 	# NOTE: sadly, not all core intel are HT/MT, oh well...
 	# xeon may show wrong core / physical id count, if it does, fix it. A xeon
 	# may show a repeated core id : 0 which gives a fake num_of_cores=1
 	if ($b_intel){
-		if ($cpu{'siblings'} && $cpu{'siblings'} > 1 && $cpu{'cores'} && $cpu{'cores'} > 1 ){
-			if ( $cpu{'siblings'}/$cpu{'cores'} == 1 ){
+		if ($$cpu{'siblings'} && $$cpu{'siblings'} > 1 && $$cpu{'cores'} && $$cpu{'cores'} > 1 ){
+			if ( $$cpu{'siblings'}/$$cpu{'cores'} == 1 ){
 				$b_intel = 0;
 				$b_ht = 0;
 			}
 			else {
-				$cpu_cores = ($cpu{'siblings'}/2); 
+				$cpu_cores = ($$cpu{'siblings'}/2); 
 				$b_ht = 1;
 			}
 		}
 	}
 	# ryzen is made out of blocks of 8 core dies
 	elsif ($b_ryzen){
-		$cpu_cores = $cpu{'cores'}; 
+		$cpu_cores = $$cpu{'cores'}; 
 		 # note: posix ceil isn't present in Perl for some reason, deprecated?
 		my $working = $cpu_cores / 8;
 		my @temp = split /\./, $working;
-		$cpu{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
+		$$cpu{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
 	}
 	# these always have 4 dies
 	elsif ($b_epyc) {
-		$cpu_cores = $cpu{'cores'}; 
-		$cpu{'dies'} = 4;
+		$cpu_cores = $$cpu{'cores'}; 
+		$$cpu{'dies'} = 4;
 	}
 # 	elsif ($b_elbrus){
 # 		$cpu_cores = 
 # 	}
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
-	if ( $cpu_cores == 0 && ($cpu{'cores'} * $phyical_count > 1)){
-		$cpu_cores = ($cpu{'cores'} * $phyical_count);
+	if ( $cpu_cores == 0 && ($$cpu{'cores'} * $phyical_count > 1)){
+		$cpu_cores = ($$cpu{'cores'} * $phyical_count);
 	}
 	# last check, seeing some intel cpus and vms with intel cpus that do not show any
 	# core id data at all, or siblings.
@@ -7892,12 +7892,12 @@ sub cpu_properties {
 		}
 		my $count = $processors_count;
 		$count-- if $count > 0;
-		$cpu{'processors'}[$count] = 0;
+		$$cpu{'processors'}[$count] = 0;
 		# no way to get per processor speeds yet, so assign 0 to each
 		# must be a numeric value. Could use raw speed from core 0, but 
 		# that would just be a hack.
 		foreach (0 .. $count){
-			$cpu{'processors'}[$_] = 0;
+			$$cpu{'processors'}[$_] = 0;
 		}
 	}
 	# last test to catch some corner cases 
@@ -7910,26 +7910,26 @@ sub cpu_properties {
 		$b_intel = 0;
 		$cpu_cores = 1;
 		$core_count = 1;
-		$cpu{'siblings'} = 1;
+		$$cpu{'siblings'} = 1;
 	}
-	#print "pc: $processors_count s: $cpu{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
+	#print "pc: $processors_count s: $$cpu{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
 	# Algorithm:
 	# if > 1 processor && processor id (physical id) == core id then Multi threaded (MT)
-	# if siblings > 1 && siblings ==  2 * num_of_cores ($cpu{'cores'}) then Multi threaded (MT)
+	# if siblings > 1 && siblings ==  2 * num_of_cores ($$cpu{'cores'}) then Multi threaded (MT)
 	# if > 1 processor && processor id (physical id) != core id then Multi-Core Processors (MCP)
 	# if > 1 processor && processor ids (physical id) > 1 then Symmetric Multi Processing (SMP)
 	# if = 1 processor then single core/processor Uni-Processor (UP)
-	if ( $processors_count > 1 || ( $b_intel && $cpu{'siblings'} > 0 ) ) {
+	if ( $processors_count > 1 || ( $b_intel && $$cpu{'siblings'} > 0 ) ) {
 		# non-multicore MT
 		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
 			#print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
-# 		elsif ($b_xeon && $cpu{'siblings'} > 1){
+# 		elsif ($b_xeon && $$cpu{'siblings'} > 1){
 # 			#print "mt:2\n";
 # 			$cpu_type .= 'MT'; 
 # 		}
-		elsif ($cpu{'siblings'} > 1 && ($cpu{'siblings'} == 2 * $cpu_cores )){
+		elsif ($$cpu{'siblings'} > 1 && ($$cpu{'siblings'} == 2 * $cpu_cores )){
 			#print "mt:3\n";
 			$cpu_type .= 'MT'; 
 		}
@@ -7939,7 +7939,7 @@ sub cpu_properties {
 			$cpu_type .= $sep . 'MCP'; 
 		}
 		# only solidly known > 1 die cpus will use this, ryzen and arm for now
-		if ( $cpu{'dies'} > 1 ){
+		if ( $$cpu{'dies'} > 1 ){
 			my $sep = ($cpu_type) ? ' ' : '' ;
 			$cpu_type .= $sep . 'MCM'; 
 		}
@@ -7956,22 +7956,22 @@ sub cpu_properties {
 		$cpu_layout = $phyical_count . 'x ';
 	}
 	$cpu_layout .= count_alpha($cpu_cores) . 'Core';
-	$cpu_layout .= ' (' . $cpu{'dies'}. '-Die)' if !$bsd_type && $cpu{'dies'} > 1;
+	$cpu_layout .= ' (' . $$cpu{'dies'}. '-Die)' if !$bsd_type && $$cpu{'dies'} > 1;
 	# the only possible change for bsds is if we can get phys counts in the future
 	if ($bsd_type){
-		$l2_cache = $cpu{'l2-cache'} * $phyical_count;
+		$l2_cache = $$cpu{'l2-cache'} * $phyical_count;
 	}
 	# AMD SOS chips appear to report full L2 cache per core
-	elsif ($cpu{'type'} eq 'amd' && ($cpu{'family'} eq '14' || $cpu{'family'} eq '15' || $cpu{'family'} eq '16')){
-		$l2_cache = $cpu{'l2-cache'} * $phyical_count;
+	elsif ($$cpu{'type'} eq 'amd' && ($$cpu{'family'} eq '14' || $$cpu{'family'} eq '15' || $$cpu{'family'} eq '16')){
+		$l2_cache = $$cpu{'l2-cache'} * $phyical_count;
 	}
-	elsif ($cpu{'type'} ne 'intel'){
-		$l2_cache = $cpu{'l2-cache'} * $cpu_cores * $phyical_count;
+	elsif ($$cpu{'type'} ne 'intel'){
+		$l2_cache = $$cpu{'l2-cache'} * $cpu_cores * $phyical_count;
 	}
 	## note: this handles how intel reports L2, total instead of per core like AMD does
 	# note that we need to multiply by number of actual cpus here to get true cache size
 	else {
-		$l2_cache = $cpu{'l2-cache'} * $phyical_count;
+		$l2_cache = $$cpu{'l2-cache'} * $phyical_count;
 	}
 	if ($l1_cache > 0){
 		$l1_cache = "$l1_cache KiB";
@@ -7988,35 +7988,35 @@ sub cpu_properties {
 	elsif ($l3_cache > 0){
 		$l3_cache = "$l3_cache KiB";
 	}
-	if ($cpu{'cur-freq'} && $cpu{'min-freq'} && $cpu{'max-freq'} ){
-		$min_max = "$cpu{'min-freq'}/$cpu{'max-freq'} MHz";
+	if ($$cpu{'cur-freq'} && $$cpu{'min-freq'} && $$cpu{'max-freq'} ){
+		$min_max = "$$cpu{'min-freq'}/$$cpu{'max-freq'} MHz";
 		$min_max_key = "min/max";
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-		$speed = "$cpu{'cur-freq'} MHz";
+		$speed = "$$cpu{'cur-freq'} MHz";
  	}
- 	elsif ($cpu{'cur-freq'} && $cpu{'max-freq'}){
-		$min_max = "$cpu{'max-freq'} MHz";
+ 	elsif ($$cpu{'cur-freq'} && $$cpu{'max-freq'}){
+		$min_max = "$$cpu{'max-freq'} MHz";
 		$min_max_key = "max";
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-		$speed = "$cpu{'cur-freq'} MHz";
+		$speed = "$$cpu{'cur-freq'} MHz";
  	}
-#  	elsif ($cpu{'cur-freq'} && $cpu{'max-freq'} && $cpu{'cur-freq'} == $cpu{'max-freq'}){
+#  	elsif ($$cpu{'cur-freq'} && $$cpu{'max-freq'} && $$cpu{'cur-freq'} == $$cpu{'max-freq'}){
 # 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-# 		$speed = "$cpu{'cur-freq'} MHz (max)";
+# 		$speed = "$$cpu{'cur-freq'} MHz (max)";
 #  	}
- 	elsif ($cpu{'cur-freq'} && $cpu{'min-freq'}){
-		$min_max = "$cpu{'min-freq'} MHz";
+ 	elsif ($$cpu{'cur-freq'} && $$cpu{'min-freq'}){
+		$min_max = "$$cpu{'min-freq'} MHz";
 		$min_max_key = "min";
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-		$speed = "$cpu{'cur-freq'} MHz";
+		$speed = "$$cpu{'cur-freq'} MHz";
  	}
- 	elsif ($cpu{'cur-freq'} && !$cpu{'max-freq'}){
+ 	elsif ($$cpu{'cur-freq'} && !$$cpu{'max-freq'}){
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-		$speed = "$cpu{'cur-freq'} MHz";
+		$speed = "$$cpu{'cur-freq'} MHz";
  	}
  	
- 	if ( !$bits_sys && !$b_arm && $cpu{'flags'} ){
-		$bits_sys = ($cpu{'flags'} =~ /\blm\b/) ? 64 : 32;
+ 	if ( !$bits_sys && !$b_arm && $$cpu{'flags'} ){
+		$bits_sys = ($$cpu{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
 	my %cpu_properties = (
 	'bits-sys' => $bits_sys,
@@ -8037,7 +8037,7 @@ sub cpu_properties {
 	'l3-cache' => $l3_cache,
 	);
 	main::log_data('dump','%cpu_properties',\%cpu_properties) if $b_log;
-	#print Data::Dumper::Dumper \%cpu;
+	#print Data::Dumper::Dumper $cpu;
 	#print Data::Dumper::Dumper \%cpu_properties;
 	#my $dc = scalar @dies;
 	#print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
@@ -16058,7 +16058,7 @@ sub get {
 	    ( $program = main::check_program('ipmitool') ) ) ) ){
 		if ($b_ipmi || $b_root){
 			%sensors = ipmi_data($program);
-			@data = create_output('ipmi',%sensors);
+			@data = create_output('ipmi',\%sensors);
 			if (!@data) {
 				$key1 = 'Message';
 				$val1 = main::row_defaults('sensors-data-ipmi');
@@ -16086,7 +16086,7 @@ sub get {
 	}
 	else {
 		%sensors = lm_sensors_data();
-		@data = create_output($source,%sensors);
+		@data = create_output($source,\%sensors);
 		#print "here 2\n";
 		if (!@data) {
 			$key1 = 'Message';
@@ -16100,45 +16100,45 @@ sub get {
 }
 sub create_output {
 	eval $start if $b_log;
-	my ($source,%sensors) = @_;
+	my ($source,$sensors) = @_;
 	# note: might revisit this, since gpu sensors data might be present
-	return if ! %sensors;
+	return if ! %$sensors;
 	my (@gpu,@data,@rows,@fan_default,@fan_main);
 	my ($data_source) = ('');
 	my $fan_number = 0;
 	my $num = 0;
 	my $j = 0;
 	@gpu = gpu_data() if ( $source eq 'sensors' || $source eq 'lm-sensors' );
-	my $temp_unit  = (defined $sensors{'temp-unit'}) ? " $sensors{'temp-unit'}": '';
-	my $cpu_temp = (defined $sensors{'cpu-temp'}) ? $sensors{'cpu-temp'} . $temp_unit: 'N/A';
-	my $mobo_temp = (defined $sensors{'mobo-temp'}) ? $sensors{'mobo-temp'} . $temp_unit: 'N/A';
-	my $cpu1_key = ($sensors{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
+	my $temp_unit  = (defined $$sensors{'temp-unit'}) ? " $$sensors{'temp-unit'}": '';
+	my $cpu_temp = (defined $$sensors{'cpu-temp'}) ? $$sensors{'cpu-temp'} . $temp_unit: 'N/A';
+	my $mobo_temp = (defined $$sensors{'mobo-temp'}) ? $$sensors{'mobo-temp'} . $temp_unit: 'N/A';
+	my $cpu1_key = ($$sensors{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
 	$data_source = $source if ($source eq 'ipmi' || $source eq 'lm-sensors');
 	@data = ({
 	main::key($num++,1,1,'System Temperatures') => $data_source,
 	main::key($num++,0,2,$cpu1_key) => $cpu_temp,
 	});
 	@rows = (@rows,@data);
-	if ($sensors{'cpu2-temp'}){
-		$rows[$j]{main::key($num++,0,2,'cpu-2')} = $sensors{'cpu2-temp'} . $temp_unit;
+	if ($$sensors{'cpu2-temp'}){
+		$rows[$j]{main::key($num++,0,2,'cpu-2')} = $$sensors{'cpu2-temp'} . $temp_unit;
 	}
-	if ($sensors{'cpu3-temp'}){
-		$rows[$j]{main::key($num++,0,2,'cpu-3')} = $sensors{'cpu3-temp'} . $temp_unit;
+	if ($$sensors{'cpu3-temp'}){
+		$rows[$j]{main::key($num++,0,2,'cpu-3')} = $$sensors{'cpu3-temp'} . $temp_unit;
 	}
-	if ($sensors{'cpu4-temp'}){
-		$rows[$j]{main::key($num++,0,2,'cpu-4')} = $sensors{'cpu4-temp'} . $temp_unit;
+	if ($$sensors{'cpu4-temp'}){
+		$rows[$j]{main::key($num++,0,2,'cpu-4')} = $$sensors{'cpu4-temp'} . $temp_unit;
 	}
 	$rows[$j]{main::key($num++,0,2,'mobo')} = $mobo_temp;
-	if (defined $sensors{'sodimm-temp'}){
-		my $sodimm_temp = $sensors{'sodimm-temp'} . $temp_unit;
+	if (defined $$sensors{'sodimm-temp'}){
+		my $sodimm_temp = $$sensors{'sodimm-temp'} . $temp_unit;
 		$rows[$j]{main::key($num++,0,2,'sodimm')} = $sodimm_temp;
 	}
-	if (defined $sensors{'psu-temp'}){
-		my $psu_temp = $sensors{'psu-temp'} . $temp_unit;
+	if (defined $$sensors{'psu-temp'}){
+		my $psu_temp = $$sensors{'psu-temp'} . $temp_unit;
 		$rows[$j]{main::key($num++,0,2,'psu')} = $psu_temp;
 	}
-	if (defined $sensors{'ambient-temp'}){
-		my $ambient_temp = $sensors{'ambient-temp'} . $temp_unit;
+	if (defined $$sensors{'ambient-temp'}){
+		my $ambient_temp = $$sensors{'ambient-temp'} . $temp_unit;
 		$rows[$j]{main::key($num++,0,2,'ambient')} = $ambient_temp;
 	}
 	if (scalar @gpu == 1 && defined $gpu[0]{'temp'}){
@@ -16152,8 +16152,8 @@ sub create_output {
 		}
 	}
 	$j = scalar @rows;
-	my $ref_main = $sensors{'fan-main'};
-	my $ref_default = $sensors{'fan-default'};
+	my $ref_main = $$sensors{'fan-main'};
+	my $ref_default = $$sensors{'fan-default'};
 	@fan_main = @$ref_main if @$ref_main;
 	@fan_default = @$ref_default if @$ref_default;
 	my $fan_def = ($data_source) ? $data_source : '';
@@ -16190,9 +16190,9 @@ sub create_output {
 			$rows[$j]{main::key($num++,0,2,"fan-$i")} = $fan_default[$i];
 		}
 	}
-	$rows[$j]{main::key($num++,0,2,'psu')} = $sensors{'fan-psu'} if defined $sensors{'fan-psu'};
-	$rows[$j]{main::key($num++,0,2,'psu-1')} = $sensors{'fan-psu1'} if defined $sensors{'fan-psu1'};
-	$rows[$j]{main::key($num++,0,2,'psu-2')} = $sensors{'fan-psu2'} if defined $sensors{'fan-psu2'};
+	$rows[$j]{main::key($num++,0,2,'psu')} = $$sensors{'fan-psu'} if defined $$sensors{'fan-psu'};
+	$rows[$j]{main::key($num++,0,2,'psu-1')} = $$sensors{'fan-psu1'} if defined $$sensors{'fan-psu1'};
+	$rows[$j]{main::key($num++,0,2,'psu-2')} = $$sensors{'fan-psu2'} if defined $$sensors{'fan-psu2'};
 	# note: so far, only nvidia-settings returns speed, and that's in percent
 	if (scalar @gpu == 1 && defined $gpu[0]{'fan-speed'}){
 		my $gpu_fan = $gpu[0]{'fan-speed'} . $gpu[0]{'speed-unit'};
@@ -16230,24 +16230,24 @@ sub create_output {
 		}
 	}
 	if ($extra > 0 && ($source eq 'ipmi' || 
-	   ($sensors{'volts-12'} || $sensors{'volts-5'} || $sensors{'volts-3.3'} || $sensors{'volts-vbat'}))){
+	   ($$sensors{'volts-12'} || $$sensors{'volts-5'} || $$sensors{'volts-3.3'} || $$sensors{'volts-vbat'}))){
 		$j = scalar @rows;
-		$sensors{'volts-12'} ||= 'N/A';
-		$sensors{'volts-5'} ||= 'N/A';
-		$sensors{'volts-3.3'} ||= 'N/A';
-		$sensors{'volts-vbat'} ||= 'N/A';
+		$$sensors{'volts-12'} ||= 'N/A';
+		$$sensors{'volts-5'} ||= 'N/A';
+		$$sensors{'volts-3.3'} ||= 'N/A';
+		$$sensors{'volts-vbat'} ||= 'N/A';
 		$rows[$j]{main::key($num++,1,1,'Power')} = $data_source;
-		$rows[$j]{main::key($num++,0,2,'12v')} = $sensors{'volts-12'};
-		$rows[$j]{main::key($num++,0,2,'5v')} = $sensors{'volts-5'};
-		$rows[$j]{main::key($num++,0,2,'3.3v')} = $sensors{'volts-3.3'};
-		$rows[$j]{main::key($num++,0,2,'vbat')} = $sensors{'volts-vbat'};
+		$rows[$j]{main::key($num++,0,2,'12v')} = $$sensors{'volts-12'};
+		$rows[$j]{main::key($num++,0,2,'5v')} = $$sensors{'volts-5'};
+		$rows[$j]{main::key($num++,0,2,'3.3v')} = $$sensors{'volts-3.3'};
+		$rows[$j]{main::key($num++,0,2,'vbat')} = $$sensors{'volts-vbat'};
 		if ($extra > 1 && $source eq 'ipmi' ){
-			$sensors{'volts-dimm-p1'} ||= 'N/A';
-			$sensors{'volts-dimm-p2'} ||= 'N/A';
-			$rows[$j]{main::key($num++,0,2,'dimm-p1')} = $sensors{'volts-dimm-p1'} if $sensors{'volts-dimm-p1'};
-			$rows[$j]{main::key($num++,0,2,'dimm-p2')} = $sensors{'volts-dimm-p2'} if $sensors{'volts-dimm-p2'};
-			$rows[$j]{main::key($num++,0,2,'soc-p1')} = $sensors{'volts-soc-p1'} if $sensors{'volts-soc-p1'};
-			$rows[$j]{main::key($num++,0,2,'soc-p2')} = $sensors{'volts-soc-p2'} if $sensors{'volts-soc-p2'};
+			$$sensors{'volts-dimm-p1'} ||= 'N/A';
+			$$sensors{'volts-dimm-p2'} ||= 'N/A';
+			$rows[$j]{main::key($num++,0,2,'dimm-p1')} = $$sensors{'volts-dimm-p1'} if $$sensors{'volts-dimm-p1'};
+			$rows[$j]{main::key($num++,0,2,'dimm-p2')} = $$sensors{'volts-dimm-p2'} if $$sensors{'volts-dimm-p2'};
+			$rows[$j]{main::key($num++,0,2,'soc-p1')} = $$sensors{'volts-soc-p1'} if $$sensors{'volts-soc-p1'};
+			$rows[$j]{main::key($num++,0,2,'soc-p2')} = $$sensors{'volts-soc-p2'} if $$sensors{'volts-soc-p2'};
 		}
 		if (scalar @gpu == 1 && $extra > 2 && ($gpu[0]{'watts'} || $gpu[0]{'mvolts'})){
 			$rows[$j]{main::key($num++,1,2,'gpu')} = $gpu[0]{'type'};
