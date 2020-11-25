@@ -1629,6 +1629,8 @@ sub disk_data {
 	['swapon', '-s'],
 	# 3ware-raid
 	['tw-cli', 'info'],
+	['vgdisplay', ''],
+	['vgdisplay', '-v'],
 	['vgdisplay', '-c'],
 	['vgdisplay', '-vc'],
 	['vgs', '--separator :'],
@@ -3810,11 +3812,11 @@ sub trimmer {
 	return $str;
 }
 
-# args: 1 - hash
+# args: 1 - array, by ref, modifying by ref
 # send array, assign to hash, return array, uniq values only.
 sub uniq {
 	my %seen;
-	grep !$seen{$_}++, @{$_[0]};
+	@{$_[0]} = grep !$seen{$_}++, @{$_[0]};
 }
 
 # arg: 1 file full  path to write to; 2 - array ref or scalar of data to write. 
@@ -8215,11 +8217,11 @@ sub set_cpu_speeds_sys {
 					}
 				}
 				if (@max_freq){
-					@max_freq = main::uniq(\@max_freq);
+					main::uniq(\@max_freq);
 					$max = join ':', @max_freq;
 				}
 				if (@min_freq){
-					@min_freq = main::uniq(\@min_freq);
+					main::uniq(\@min_freq);
 					$min = join ':', @min_freq;
 				}
 				$speeds{'cur-freq'} = $current if $current;
@@ -11482,11 +11484,12 @@ sub lvm_data {
 		# lv_full_name: ar0-home; lv_dm_path: /dev/mapper/ar0-home
 		# seg_size: unit location on volume where segement starts
 		#   2>/dev/null -unit k  ---separator ^:
-		my $cmd = main::check_program('pvs') . ' -aPv --segments  -o ';
+		my $cmd = main::check_program('pvs') . ' -aPv ---separator " ^: " --segments  -o ';
 		# $cmd .= ' -o +lv_size,pv_major,pv_minor  2>/dev/null';
 		$cmd .= 'vg_name,vg_fmt,vg_size,vg_free,vg_sysid,lv_count,lv_name,lv_size,lv_health_status,lv_parent,';
 		$cmd .= 'pv_count,vg_missing_pv_count,pv_name,dev_size,pv_size,pv_free,pv_used,pv_major,pv_minor,';
 		$cmd .= 'seg_size,devices,metadata_devices,segtype,stripes,';
+		$cmd .= ' 2>/dev/null';
 		@data = main::grabber("$cmd",'','strip');
 		print "command: $cmd\n" if $test[22];
 	}
@@ -11497,6 +11500,15 @@ sub lvm_data {
 	print Data::Dumper::Dumper \@data if $test[22];
 	eval $end if $b_log;
 	return @lvm_data;
+}
+sub luks_data {
+	eval $start if $b_log;
+	my (@data,@luks_data);
+	
+	main::log_data('dump','luks @data', \@data);
+	print Data::Dumper::Dumper \@data if $test[22];
+	eval $end if $b_log;
+	return @luks_data;
 }
 }
 
@@ -13290,6 +13302,9 @@ sub partition_data {
 				$dev_mapped = $row[0];
 				$dev_mapped =~ s/^\/dev\/mapper\///;
 				$row[0] = ($mapper{$row[0]}) ? $mapper{$row[0]}: $row[0];
+			}
+			elsif ($row[0] =~ /\/dm-[0-9]+$/ && %mapper){
+				$dev_mapped = main::get_mapped($row[0]);
 			}
 			$dev_base = $row[0];
 			$dev_base =~ s/^\/dev\///;
@@ -15399,7 +15414,7 @@ sub get_repos_linux {
 			} @files;
 		}
 		@files = sort(@files);
-		@files = main::uniq(\@files);
+		main::uniq(\@files);
 		unshift @files, $pacman if @repos;
 		foreach (@files){
 			if (-f $_){
@@ -17331,7 +17346,8 @@ sub unmounted_data {
 			}
 			$size ||= $working[2];
 		   $fs = unmounted_filesystem($working[-1]) if !$fs;
-		   next if $fs && $fs =~ /_member$/i; # seen: zfs_ lvm2_ linux_raid_
+		   # seen: (zfs|lvm2|linux_raid)_member; crypto_luks
+		   next if $fs && $fs =~ /(crypto|luks|_member)$/i; 
 		   if ($working[-1] =~ /^dm-/){
 				$dev_mapped = main::get_mapped("/dev/$working[-1]");
 				$dev_mapped =~ s|^/dev/mapper/||;
@@ -18862,7 +18878,7 @@ sub set_info_data {
 		}
 	}
 	if (@info){
-		@info = main::uniq(\@info);
+		main::uniq(\@info);
 		$desktop[4] = join (', ', @info);
 	}
 	eval $end if $b_log;
@@ -20844,7 +20860,7 @@ sub soc_devices_files {
 	@temp2 = undef;
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
 	@files = grep {!/\/(subsystem|driver)\//} @files if @files;
-	@files = main::uniq(\@files);
+	main::uniq(\@files);
 	eval $end if $b_log;
 }
 sub soc_devices {
@@ -21471,7 +21487,7 @@ sub set_ps_gui {
 		wavy waycooler way-cooler wayfire wayhouse westford weston xcompmgr);
 		@match = (@match,@temp);
 	}
-	@match = uniq(\@match);
+	uniq(\@match);
 	my $matches = join '|', @match;
 	foreach (@ps_cmd){
 		if (/^(|[\S]*\/)($matches)(\/|\s|$)/){
@@ -21479,7 +21495,7 @@ sub set_ps_gui {
 			push @ps_gui, $working; # deal with duplicates with uniq
 		}
 	}
-	@ps_gui = uniq(\@ps_gui) if @ps_gui;
+	uniq(\@ps_gui) if @ps_gui;
 	print Dumper \@ps_gui if $test[5];
 	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
 	eval $end if $b_log;
@@ -21775,7 +21791,10 @@ sub sys_data {
 			@drivers = uevent_data("$_/[0-9]*/uevent");
 			@drivers = (@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
 			$ports = sys_item("$_/maxchild") if $b_hub;
-			$driver = join ',', sort(main::uniq(\@drivers)) if @drivers;
+			if (@drivers){
+				main::uniq(\@drivers);
+				$driver = join ',', sort(@drivers);
+			}
 			$interfaces = sys_item("$_/bNumInterfaces");
 			$serial = sys_item("$_/serial");
 			$usb_version = sys_item("$_/version");
@@ -21903,7 +21922,7 @@ sub uevent_data {
 		push @drivers,$driver if $driver;
 	}
 	if (@interfaces){
-		@interfaces = main::uniq(\@interfaces);
+		main::uniq(\@interfaces);
 		# clear out values like: <vendor defined>,Printer
 		if ( scalar @interfaces > 1 && (grep {/^<vendor/} @interfaces) && (grep {!/^<vendor/} @interfaces) ){
 			@interfaces = grep {/^<vendor/} @interfaces;
