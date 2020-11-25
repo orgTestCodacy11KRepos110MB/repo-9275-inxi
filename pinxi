@@ -28,7 +28,8 @@ use 5.008;
 
 use Cwd qw(abs_path); # #abs_path realpath getcwd
 use Data::Dumper qw(Dumper); # print_r
-use File::Find;
+# NOTE: load in SystemDebugger unless encounter issues with require/import
+#use File::Find;
 use File::stat; # needed for Xorg.0.log file mtime comparisons
 use Getopt::Long qw(GetOptions);
 # Note: default auto_abbrev is enabled
@@ -40,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-23';
-my $self_patch='33';
+my $self_date='2020-11-25';
+my $self_patch='35';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1366,16 +1367,9 @@ sub set_debugger {
 		}
 	}
 }
-
 ## SystemDebugger
 {
 package SystemDebugger;
-
-# use File::Find q(find);
-#no warnings 'File::Find';
-# use File::Spec::Functions;
-#use File::Copy;
-#use POSIX qw(strftime);
 
 my $option = 'main';
 my ($data_dir,$debug_dir,$debug_gz,$parse_src,$upload) = ('','','','','');
@@ -1394,14 +1388,28 @@ sub new {
 }
 
 sub run_debugger {
-	#require File::Find;
-	#File::Find::Functions->import;
-	require File::Copy;
-	File::Copy->import;
-	require File::Spec::Functions;
-	File::Spec::Functions->import;
-	
 	print "Starting $self_name debugging data collector...\n";
+	print "Loading required debugger Perl File:: modules...\n";
+	# Fedora/Redhat doesn't include File::Find in core modules!! why?
+	if (main::check_module('File::Find')){
+		File::Find->import('find');
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Find');
+	}
+	if (main::check_module('File::Copy')){
+		File::Copy->import;
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Copy');
+	}
+	if (main::check_module('File::Spec::Functions')){
+		File::Spec::Functions->import;
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Spec::Functions');
+	}
+	print "Required Perl modules loaded.\n";
 	create_debug_directory();
 	print "Note: for dmidecode data you must be root.\n" if !$b_root;
 	print $line3;
@@ -1769,9 +1777,9 @@ sub perl_modules {
 		}
 	}
 	main::writer("$data_dir/perl-inc-data.txt",$value);
-	File::Find::find { wanted => sub { 
+	File::Find::find({ wanted => sub { 
 		push @modules, File::Spec->canonpath($_) if /\.pm\z/  
-	}, no_chdir => 1 }, @inc;
+	}, no_chdir => 1 }, @inc);
 	@modules = sort(@modules);
 	foreach (@modules){
 		my $dir = $_;
@@ -1798,7 +1806,7 @@ sub system_data {
 	my %data = (
 	'cc' => $ENV{'CC'},
 	# @(#)MIRBSD KSH R56 2018/03/09: ksh and mksh
-	'ksh-version' => system('ksh -c \'printf %s "$KSH_VERSION"\''), # shell, not env, variable
+	'ksh-version' => qx/ksh -c 'printf \%s "\$KSH_VERSION"'/, # shell, not env, variable
 	'manpath' => $ENV{'MANPATH'},
 	'path' => $ENV{'PATH'},
 	'xdg-config-home' => $ENV{'XDG_CONFIG_HOME'},
@@ -2131,9 +2139,10 @@ sub directory_ls {
 sub proc_traverse_data {
 	print "Building /proc file list...\n";
 	# get rid pointless error:Can't cd to (/sys/kernel/) debug: Permission denied
-	no warnings 'File::Find';
+	#no warnings 'File::Find';
+	no warnings;
 	$parse_src = 'proc';
-	File::Find::find( \&wanted, "/proc");
+	File::Find::find(\&wanted, "/proc");
 	proc_traverse_processor();
 	@content = ();
 }
@@ -2144,17 +2153,16 @@ sub proc_traverse_processor {
 	mkdir $proc_dir or main::error_handler('mkdir', "$proc_dir", "$!");
 	# @content = sort @content; 
 	copy_files(\@content,'proc',$proc_dir);
-# 	foreach (@content){
-# 		print "$_\n";
-# 	}
+# 	foreach (@content){print "$_\n";}
 }
 
 sub sys_traverse_data {
 	print "Building /sys file list...\n";
 	# get rid pointless error:Can't cd to (/sys/kernel/) debug: Permission denied
-	no warnings 'File::Find';
+	#no warnings 'File::Find';
+	no warnings;
 	$parse_src = 'sys';
-	File::Find::find( \&wanted, "/sys");
+	File::Find::find(\&wanted, "/sys");
 	sys_traverse_processsor();
 	@content = ();
 }
@@ -2692,14 +2700,17 @@ sub check_items {
 		$item = 'Program';
 	}
 	elsif ($type eq 'recommended Perl modules'){
-		@data = qw(HTTP::Tiny IO::Socket::SSL Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
+		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
+		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
 		$b_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
-		$extra2 = "None of these are strictly required, but if you have them all, you can eliminate
-		some recommended non Perl programs from the install. ";
+		$extra2 = "None of these are strictly required, but if you have them all, you can 
+		eliminate some recommended non Perl programs from the install. ";
 		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a downloader option. 
-		For json export Cpanel::JSON::XS is preferred over JSON::XS.";
+		For json export Cpanel::JSON::XS is preferred over JSON::XS. To run --debug 20-22 File::Copy,
+		File::Find, and File::Spec::Functions must be present (most distros have these in Core Modules).
+		";
 	}
 	elsif ($type eq 'recommended directories'){
 		if ($bsd_type){
@@ -3110,6 +3121,27 @@ sub item_data {
 	'apt' => 'libcpanel-json-xs-perl',
 	'pacman' => 'perl-cpanel-json-xs',
 	'rpm' => 'perl-Cpanel-JSON-XS',
+	}),
+	'File::Copy' => ({
+	'info' => '--debug 20-22 - required to run debugger.',
+	'info-bsd' => '--debug 20-22 - required to run debugger.',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'perl-File-Copy',
+	}),
+	'File::Find' => ({
+	'info' => '--debug 20-22 - required to run debugger.',
+	'info-bsd' => '--debug 20-22 - required to run debugger.',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'perl-File-Find',
+	}),
+	'File::Spec::Functions' => ({
+	'info' => '--debug 20-22 - required to run debugger.',
+	'info-bsd' => '--debug 20-22 - required to run debugger.',
+	'apt' => 'Core Modules',
+	'pacman' => 'Core Modules',
+	'rpm' => 'Core Modules',
 	}),
 	'HTTP::Tiny' => ({
 	'info' => '-U; -w,-W; -i (if dig not installed).',
