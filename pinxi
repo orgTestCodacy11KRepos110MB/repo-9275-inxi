@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-25';
-my $self_patch='35';
+my $self_date='2020-11-26';
+my $self_patch='36';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -71,8 +71,8 @@ my (@app,@dmesg_boot,@devices_audio,@devices_graphics,@devices_network,
 @paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
 ## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@hardware_raid,@labels,
-@lsblk,@partitions,@raid,@sysctl_disks,@swaps,@uuids);
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,
+@lsblk,@lvm_raid,@md_raid,@partitions,@sysctl_disks,@swaps,@uuids,@zfs_raid);
 my @test = (0,0,0,0,0);
 
 ## Booleans
@@ -14040,79 +14040,104 @@ sub throttled {
 {
 package RaidData;
 # debugger switches
+my $b_lvm = 0;
 my $b_md = 0;
 my $b_zfs = 0;
 
 sub get {
 	eval $start if $b_log;
-	my (@rows,$key1,$val1);
+	my (@data,@hardware_raid,@rows,$key1,$val1);
 	my $num = 0;
+	@hardware_raid = hardware_raid() if $b_hardware_raid;
 	raid_data() if !$b_raid;
-	#print 'get: ', Data::Dumper::Dumper \@raid;
-	if (!@raid && !@hardware_raid){
+	#print 'get: ', Data::Dumper::Dumper \@lvm_raid;
+	#print 'get: ', Data::Dumper::Dumper \@md_raid;
+	#print 'get: ', Data::Dumper::Dumper \@zfs_raid;
+	if (!@lvm_raid && !@md_raid && !@zfs_raid && !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('raid-data');
 		}
 	}
 	else {
-		@rows = create_output();
+		if (@hardware_raid){
+			@data = create_output_hw(\@hardware_raid) ;
+			@rows = (@rows,@data);
+		}
+		if (@lvm_raid){
+			@data = create_output_lvm() ;
+			@rows = (@rows,@data);
+		}
+		if (@md_raid){
+			@data = create_output_md() ;
+			@rows = (@rows,@data);
+		}
+		if (@zfs_raid){
+			@data = create_output_zfs() ;
+			@rows = (@rows,@data);
+		}
 	}
 	if (!@rows && $key1){
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	eval $end if $b_log;
-	($b_md,$b_zfs,@hardware_raid) = undef;
+	($b_md,$b_zfs) = undef;
 	return @rows;
 }
-sub create_output {
+sub create_output_hw {
 	eval $start if $b_log;
-	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
-	@sizes,@spare,@temp);
-	my ($allocated,$available,$blocks_avail,$chunk_raid,$component_string,$raid,
-	$report_size,$size,$status);
-	my ($b_row_1_sizes);
-	my ($cont_arr,$i,$ind_arr,$j,$num,$status_id) = (2,0,3,0,0,0);
-	#print Data::Dumper::Dumper \@raid;
-	if (@hardware_raid){
-		foreach my $row (@hardware_raid){
-			$num = 1;
-			my $device = ($row->{'device'}) ? $row->{'device'}: 'N/A';
-			my $driver = ($row->{'driver'}) ? $row->{'driver'}: 'N/A';
-			@data = ({
-			main::key($num++,1,1,'Hardware') => $device,
-			});
-			@rows = (@rows,@data);
-			$j = scalar @rows - 1;
-			$rows[$j]{main::key($num++,0,2,'vendor')} = $row->{'vendor'} if $row->{'vendor'};
-			$rows[$j]{main::key($num++,1,2,'driver')} = $driver;
-			if ($extra > 0){
-				my $driver_version = ($row->{'driver-version'}) ?  $row->{'driver-version'}: 'N/A' ;
-				$rows[$j]{main::key($num++,0,3,'v')} = $driver_version;
-				if ($extra > 2){
-					my $port= ($row->{'port'}) ? $row->{'port'}: 'N/A' ;
-					$rows[$j]{main::key($num++,0,2,'port')} = $port;
-				}
-				my $bus_id = (defined $row->{'bus-id'} && defined $row->{'sub-id'}) ?  "$row->{'bus-id'}.$row->{'sub-id'}": 'N/A' ;
-				$rows[$j]{main::key($num++,0,2,'bus ID')} = $bus_id;
-			}
-			if ($extra > 1){
-				my $chip_id = (defined $row->{'vendor-id'} && defined $row->{'chip-id'}) ?  "$row->{'vendor-id'}.$row->{'chip-id'}": 'N/A' ;
-				$rows[$j]{main::key($num++,0,2,'chip ID')} = $chip_id;
-			}
+	my ($hardware_raid) = @_;
+	my (@data,@rows);
+	my ($j,$num) = (0,0);
+	foreach my $row (@$hardware_raid){
+		$num = 1;
+		my $device = ($row->{'device'}) ? $row->{'device'}: 'N/A';
+		my $driver = ($row->{'driver'}) ? $row->{'driver'}: 'N/A';
+		@data = ({
+		main::key($num++,1,1,'Hardware') => $device,
+		});
+		@rows = (@rows,@data);
+		$j = scalar @rows - 1;
+		$rows[$j]{main::key($num++,0,2,'vendor')} = $row->{'vendor'} if $row->{'vendor'};
+		$rows[$j]{main::key($num++,1,2,'driver')} = $driver;
+		if ($extra > 0){
+			my $driver_version = ($row->{'driver-version'}) ?  $row->{'driver-version'}: 'N/A' ;
+			$rows[$j]{main::key($num++,0,3,'v')} = $driver_version;
 			if ($extra > 2){
-				my $rev= (defined $row->{'rev'} && $row->{'rev'}) ? $row->{'rev'}: 'N/A' ;
-				$rows[$j]{main::key($num++,0,2,'rev')} = $rev;
+				my $port= ($row->{'port'}) ? $row->{'port'}: 'N/A' ;
+				$rows[$j]{main::key($num++,0,2,'port')} = $port;
 			}
+			my $bus_id = (defined $row->{'bus-id'} && defined $row->{'sub-id'}) ?  "$row->{'bus-id'}.$row->{'sub-id'}": 'N/A' ;
+			$rows[$j]{main::key($num++,0,2,'bus ID')} = $bus_id;
+		}
+		if ($extra > 1){
+			my $chip_id = (defined $row->{'vendor-id'} && defined $row->{'chip-id'}) ?  "$row->{'vendor-id'}.$row->{'chip-id'}": 'N/A' ;
+			$rows[$j]{main::key($num++,0,2,'chip ID')} = $chip_id;
+		}
+		if ($extra > 2){
+			my $rev= (defined $row->{'rev'} && $row->{'rev'}) ? $row->{'rev'}: 'N/A' ;
+			$rows[$j]{main::key($num++,0,2,'rev')} = $rev;
 		}
 	}
-	if ($extra > 2 && $raid[0]{'system-supported'}){
+	eval $end if $b_log;
+	#print Data::Dumper::Dumper \@rows;
+	return @rows;
+}
+sub create_output_md {
+		eval $start if $b_log;
+	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
+	@sizes,@spare,@temp);
+	my ($available,$component_string,$raid,$size,$status);
+	my ($b_row_1_sizes);
+	my ($cont_arr,$i,$ind_arr,$j,$num,$status_id) = (2,0,3,0,0,0);
+	#print Data::Dumper::Dumper \@md_raid;
+	if ($extra > 2 && $md_raid[0]->{'system-supported'}){
 		@data = ({
-		main::key($num++,0,1,'Supported md-raid types') => $raid[0]{'system-supported'},
+		main::key($num++,0,1,'Supported md-raid types') => $md_raid[0]->{'system-supported'},
 		});
 		@rows = (@rows,@data);
 	}
-	foreach my $row (@raid){
+	foreach my $row (@md_raid){
 		$j = scalar @rows;
 		$b_row_1_sizes = 0;
 		next if !%$row;
@@ -14123,53 +14148,25 @@ sub create_output {
 		main::key($num++,0,2,'status') => $row->{'status'},
 		});
 		@rows = (@rows,@data);
-		if ($row->{'type'} eq 'mdraid'){
-			$blocks_avail = 'blocks';
-			$chunk_raid = 'chunk size';
-			$report_size = 'report';
-			if ($extra > 0){
-				$available = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
-			}
-			$size = ($row->{'report'}) ? $row->{'report'}: '';
-			$size .= " $row->{'u-data'}" if $size; 
-			$size ||= 'N/A';
-			$status_id = 2;
+		if ($extra > 0){
+			$available = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
 		}
-		else {
-			$blocks_avail = 'free';
-			$chunk_raid = 'allocated';
-			$report_size = 'size';
-			@sizes = ($row->{'size'}) ? main::get_size($row->{'size'}) : ();
-			$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-			@sizes = ($row->{'free'}) ? main::get_size($row->{'free'}) : ();
-			$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-			if ($extra > 2){
-				@sizes = ($row->{'allocated'}) ? main::get_size($row->{'allocated'}) : ();
-				$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-			}
-			$status_id = 1;
-		}
+		$size = ($row->{'report'}) ? $row->{'report'}: '';
+		$size .= " $row->{'u-data'}" if $size; 
+		$size ||= 'N/A';
+		$status_id = 2;
 		@arrays = @{$row->{'arrays'}};
 		@arrays = grep {defined $_} @arrays;
 		@arrays_holder = @arrays;
-		if (($row->{'type'} eq 'mdraid' && $extra == 0 ) || !defined $arrays[0]{'raid'} ){
+		if ($extra == 0 || !defined $arrays[0]{'raid'} ){
 			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
 			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
 		}
-		if ( ( $row->{'type'} eq 'zfs' || ($row->{'type'} eq 'mdraid' && $extra == 0 ) ) && $size){
+		if ($extra == 0 && $size){
 			#print "here 0\n";
-			$rows[$j]{main::key($num++,0,2,$report_size)} = $size;
+			$rows[$j]{main::key($num++,0,2,'report')} = $size;
 			$size = '';
 			$b_row_1_sizes = 1;
-		}
-		if ( $row->{'type'} eq 'zfs' && $available){
-			$rows[$j]{main::key($num++,0,2,$blocks_avail)} = $available;
-			$available = '';
-			$b_row_1_sizes = 1;
-		}
-		if ( $row->{'type'} eq 'zfs' && $allocated){
-			$rows[$j]{main::key($num++,0,2,$chunk_raid)} = $allocated;
-			$allocated = '';
 		}
 		$i = 0;
 		my $count = scalar @arrays;
@@ -14192,23 +14189,6 @@ sub create_output {
 				main::key($num++,0,3,'free') => $available,
 				});
 				@rows = (@rows,@data);
-			}
-			# items like cache may have one component, with a size on that component
-			elsif (!$b_row_1_sizes && $row->{'type'} eq 'zfs'){
-				#print "here $count\n";
-				@sizes = ($row2->{'size'}) ? main::get_size($row2->{'size'}) : ();
-				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-				@sizes = ($row2->{'free'}) ? main::get_size($row2->{'free'}) : ();
-				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-				$rows[$j]{main::key($num++,0,2,'size')} = $size;
-				$rows[$j]{main::key($num++,0,2,'free')} = $available;
-				if ($extra > 2){
-					@sizes = ($row->{'allocated'}) ? main::get_size($row2->{'allocated'}) : ();
-					$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-					if ($allocated){
-						$rows[$j]{main::key($num++,0,2,$chunk_raid)} = $allocated;
-					}
-				}
 			}
 			@components = (ref $row2->{'components'} eq 'ARRAY') ? @{$row2->{'components'}} : ();
 			@failed = ();
@@ -14239,19 +14219,19 @@ sub create_output {
 			if (@spare){
 				$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join ' ', @spare;
 			}
-			if ($row->{'type'} eq 'mdraid' && $extra > 0 ){
+			if ($extra > 0){
 				$j = scalar @rows;
 				$num = 1;
 				#print Data::Dumper::Dumper \@arrays_holder;
 				$rows[$j]{main::key($num++,1,$cont_arr,'Info')} = '';
 				$raid = (defined $arrays_holder[0]{'raid'}) ? $arrays_holder[0]{'raid'}: 'no-raid';
 				$rows[$j]{main::key($num++,0,$ind_arr,'raid')} = $raid;
-				$rows[$j]{main::key($num++,0,$ind_arr,$blocks_avail)} = $available;
+				$rows[$j]{main::key($num++,0,$ind_arr,'blocks')} = $available;
 				if ($size){
-					$rows[$j]{main::key($num++,0,$ind_arr,$report_size)} = $size;
+					$rows[$j]{main::key($num++,0,$ind_arr,'report')} = $size;
 				}
 				my $chunk = ($row->{'chunk-size'}) ? $row->{'chunk-size'}: 'N/A';
-				$rows[$j]{main::key($num++,0,$ind_arr,$chunk_raid)} = $chunk;
+				$rows[$j]{main::key($num++,0,$ind_arr,'chunk size')} = $chunk;
 				if ($extra > 1){
 					if ($row->{'bitmap'}){
 						$rows[$j]{main::key($num++,0,$ind_arr,'bitmap')} = $row->{'bitmap'};
@@ -14290,23 +14270,148 @@ sub create_output {
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
+sub create_output_zfs {
+		eval $start if $b_log;
+	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
+	@sizes,@spare,@temp);
+	my ($allocated,$available,$component_string,$raid,$size,$status);
+	my ($b_row_1_sizes);
+	my ($cont_arr,$i,$ind_arr,$j,$num,$status_id) = (2,0,3,0,0,0);
+	#print Data::Dumper::Dumper \@zfs_raid;
+	foreach my $row (@zfs_raid){
+		$j = scalar @rows;
+		$b_row_1_sizes = 0;
+		next if !%$row;
+		$num = 1;
+		@data = ({
+		main::key($num++,1,1,'Device') => $row->{'id'},
+		main::key($num++,0,2,'type') => $row->{'type'},
+		main::key($num++,0,2,'status') => $row->{'status'},
+		});
+		@rows = (@rows,@data);
+		@sizes = ($row->{'size'}) ? main::get_size($row->{'size'}) : ();
+		$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+		@sizes = ($row->{'free'}) ? main::get_size($row->{'free'}) : ();
+		$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+		if ($extra > 2){
+			@sizes = ($row->{'allocated'}) ? main::get_size($row->{'allocated'}) : ();
+			$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+		}
+		$status_id = 1;
+		@arrays = @{$row->{'arrays'}};
+		@arrays = grep {defined $_} @arrays;
+		@arrays_holder = @arrays;
+		if (!defined $arrays[0]{'raid'} ){
+			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
+			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
+		}
+		if ($size){
+			#print "here 0\n";
+			$rows[$j]{main::key($num++,0,2,'size')} = $size;
+			$size = '';
+			$b_row_1_sizes = 1;
+		}
+		if ($available){
+			$rows[$j]{main::key($num++,0,2,'free')} = $available;
+			$available = '';
+			$b_row_1_sizes = 1;
+		}
+		if ($allocated){
+			$rows[$j]{main::key($num++,0,2,'allocated')} = $allocated;
+			$allocated = '';
+		}
+		$i = 0;
+		my $count = scalar @arrays;
+		foreach my $row2 (@arrays){
+			($cont_arr,$ind_arr) = (2,3);
+			if ($count > 1){
+				($cont_arr,$ind_arr) = (3,4);
+				$j = scalar @rows;
+				$num = 1;
+				@sizes = ($row2->{'size'}) ? main::get_size($row2->{'size'}) : ();
+				$size = (@sizes) ? "$sizes[0] $sizes[1]" : 'N/A';
+				@sizes = ($row2->{'free'}) ? main::get_size($row2->{'free'}) : ();
+				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				$raid = (defined $row2->{'raid'}) ? $row2->{'raid'}: 'no-raid';
+				$status = ($row2->{'status'}) ? $row2->{'status'}: 'N/A';
+				@data = ({
+				main::key($num++,1,2,'Array') => $raid,
+				main::key($num++,0,3,'status') => $status,
+				main::key($num++,0,3,'size') => $size,
+				main::key($num++,0,3,'free') => $available,
+				});
+				@rows = (@rows,@data);
+			}
+			# items like cache may have one component, with a size on that component
+			elsif (!$b_row_1_sizes){
+				#print "here $count\n";
+				@sizes = ($row2->{'size'}) ? main::get_size($row2->{'size'}) : ();
+				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				@sizes = ($row2->{'free'}) ? main::get_size($row2->{'free'}) : ();
+				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				$rows[$j]{main::key($num++,0,2,'size')} = $size;
+				$rows[$j]{main::key($num++,0,2,'free')} = $available;
+				if ($extra > 2){
+					@sizes = ($row->{'allocated'}) ? main::get_size($row2->{'allocated'}) : ();
+					$allocated = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+					if ($allocated){
+						$rows[$j]{main::key($num++,0,2,'allocated')} = $allocated;
+					}
+				}
+			}
+			@components = (ref $row2->{'components'} eq 'ARRAY') ? @{$row2->{'components'}} : ();
+			@failed = ();
+			@spare = ();
+			@components_good = ();
+			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
+			foreach my $item (@components){
+				@temp = split /~/, $item;
+				if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+					$temp[0] = "$temp[0]~$temp[1]" if $status_id == 2;
+					push @failed, $temp[0];
+				}
+				elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
+					$temp[0] = "$temp[0]~$temp[1]" if $status_id == 2;
+					push @spare, $temp[0];
+				}
+				else {
+					$temp[0] = ($status_id == 2) ? "$temp[0]~$temp[1]" : $temp[0];
+					push @components_good, $temp[0];
+				}
+			}
+			$component_string = (@components_good) ? join ' ', @components_good : 'N/A';
+			$rows[$j]{main::key($num++,1,$cont_arr,'Components')} = '';
+			$rows[$j]{main::key($num++,0,$ind_arr,'online')} = $component_string;
+			if (@failed){
+				$rows[$j]{main::key($num++,0,$ind_arr,'FAILED')} = join ' ', @failed;
+			}
+			if (@spare){
+				$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join ' ', @spare;
+			}
+			$i++;
+		}
+	}
+	eval $end if $b_log;
+	#print Data::Dumper::Dumper \@rows;
+	return @rows;
+}
+sub create_output_lvm {
+
+}
+
 sub raid_data {
 	eval $start if $b_log;
 	my (@data);
 	$b_raid = 1;
-	if ($b_hardware_raid){
-		hardware_raid();
+	if ($b_lvm){
+		@lvm_raid = lvm_data();
 	}
 	if ($b_md || (my $file = main::system_files('mdstat') )){
-		@data = mdraid_data($file);
-		@raid = (@raid,@data) if @data;
+		@md_raid = mdraid_data($file);
 	}
 	if ($b_zfs || (my $path = main::check_program('zpool') )){
-		@data = zfs_data($path);
-		@raid = (@raid,@data) if @data;
+		@zfs_raid = zfs_data($path);
 	}
-	main::log_data('dump','@raid',\@raid) if $b_log;
-	#print Data::Dumper::Dumper \@raid;
 	eval $end if $b_log;
 }
 # 0 type
@@ -14322,7 +14427,7 @@ sub raid_data {
 # 10 modules
 sub hardware_raid {
 	eval $start if $b_log;
-	my ($driver,$vendor,@data,@working);
+	my ($driver,$vendor,@data,@hardware_raid,@working);
 	foreach my $working (@devices_hwraid){
 		$driver = ($working->[9]) ? lc($working->[9]): '';
 		$driver =~ s/-/_/g if $driver;
@@ -14346,6 +14451,12 @@ sub hardware_raid {
 	}
 	# print Data::Dumper::Dumper \@hardware_raid;
 	main::log_data('dump','@hardware_raid',\@hardware_raid) if $b_log;
+	eval $end if $b_log;
+	return @hardware_raid;
+}
+sub lvm_data {
+	eval $start if $b_log;
+	
 	eval $end if $b_log;
 }
 sub mdraid_data {
@@ -17410,7 +17521,7 @@ sub get_mounted {
 	foreach my $row (@partitions){
 		push @mounted, $row->{'dev-base'} if $row->{'dev-base'};
 	}
-	foreach my $row (@raid){
+	foreach my $row ((@lvm_raid,@md_raid,@zfs_raid)){
 		# we want to not show md0 etc in unmounted report
 		push @mounted, $row->{'id'} if $row->{'id'}; 
 		my @arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
