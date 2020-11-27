@@ -11518,7 +11518,8 @@ sub lvm_data {
 		# lv_full_name: ar0-home; lv_dm_path: /dev/mapper/ar0-home
 		# seg_size: unit location on volume where segement starts
 		#   2>/dev/null -unit k  ---separator ^:
-		my $cmd = main::check_program('pvs') . ' -aPv --separator " ^: " --segments  -o ';
+		my $rows = ($test[22]) ? ' --rows' : '';
+		my $cmd = main::check_program('pvs') . $rows . ' -aPv --separator " ^: " --segments  -o ';
 		# $cmd .= ' -o +lv_size,pv_major,pv_minor  2>/dev/null';
 		$cmd .= 'vg_name,vg_fmt,vg_size,vg_free,vg_sysid,lv_count,lv_name,lv_size,lv_health_status,lv_parent,';
 		$cmd .= 'pv_count,vg_missing_pv_count,pv_name,dev_size,pv_size,pv_free,pv_used,pv_major,pv_minor,';
@@ -14048,7 +14049,7 @@ sub get {
 	eval $start if $b_log;
 	my (@data,@hardware_raid,@rows,$key1,$val1);
 	my $num = 0;
-	@hardware_raid = hardware_raid() if $b_hardware_raid;
+	@hardware_raid = hw_data() if $b_hardware_raid;
 	raid_data() if !$b_raid;
 	#print 'get: ', Data::Dumper::Dumper \@lvm_raid;
 	#print 'get: ', Data::Dumper::Dumper \@md_raid;
@@ -14123,8 +14124,16 @@ sub create_output_hw {
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
+sub create_output_lvm {
+	eval $start if $b_log;
+	my (@rows);
+	
+	eval $end if $b_log;
+	#print Data::Dumper::Dumper \@rows;
+	return @rows;
+}
 sub create_output_md {
-		eval $start if $b_log;
+	eval $start if $b_log;
 	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
 	@sizes,@spare,@temp);
 	my ($available,$component_string,$raid,$size,$status);
@@ -14390,9 +14399,6 @@ sub create_output_zfs {
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
-sub create_output_lvm {
-
-}
 
 sub raid_data {
 	eval $start if $b_log;
@@ -14402,7 +14408,7 @@ sub raid_data {
 		@lvm_raid = lvm_data();
 	}
 	if ($b_md || (my $file = main::system_files('mdstat') )){
-		@md_raid = mdraid_data($file);
+		@md_raid = md_data($file);
 	}
 	if ($b_zfs || (my $path = main::check_program('zpool') )){
 		@zfs_raid = zfs_data($path);
@@ -14420,9 +14426,9 @@ sub raid_data {
 # 8 port
 # 9 driver
 # 10 modules
-sub hardware_raid {
+sub hw_data {
 	eval $start if $b_log;
-	my ($driver,$vendor,@data,@hardware_raid,@working);
+	my ($driver,$vendor,@data,@hardware_raid);
 	foreach my $working (@devices_hwraid){
 		$driver = ($working->[9]) ? lc($working->[9]): '';
 		$driver =~ s/-/_/g if $driver;
@@ -14454,7 +14460,7 @@ sub lvm_data {
 	
 	eval $end if $b_log;
 }
-sub mdraid_data {
+sub md_data {
 	eval $start if $b_log;
 	my ($mdstat) = @_;
 	my $j = 0;
@@ -14689,7 +14695,7 @@ sub zfs_status {
 		main::log_data('cmd',$cmd) if $b_log;
 		@arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
 		#print "$row->{'id'} rs:$row->{'status'}\n";
-		$status = ($row->{'status'} && $row->{'status'} eq 'no-status') ? check_status($row->{'id'},\@pool_status): $row->{'status'};
+		$status = ($row->{'status'} && $row->{'status'} eq 'no-status') ? check_zfs_status($row->{'id'},\@pool_status): $row->{'status'};
 		$zfs->[$j]{'status'} = $status if $status;
 		#@arrays = grep {defined $_} @arrays;
 		#print "$row->{id} $#arrays\n";
@@ -14701,12 +14707,12 @@ sub zfs_status {
 			$l = 0;
 			# zpool status: mirror-0  ONLINE       2     0     0
 			$raid = ($array->{'raid'}) ? "$array->{'raid'}-$i": $array->{'raid'};
-			$status = ($raid) ? check_status($raid,\@pool_status): '';
+			$status = ($raid) ? check_zfs_status($raid,\@pool_status): '';
 			$zfs->[$j]{'arrays'}[$k]{'status'} = $status;
 			#print "$raid i:$i j:$j k:$k $status\n";
 			foreach my $component (@components){
 				my @temp = split /~/, $component;
-				$status = ($temp[0]) ? check_status($temp[0],\@pool_status): '';
+				$status = ($temp[0]) ? check_zfs_status($temp[0],\@pool_status): '';
 				$zfs->[$j]{'arrays'}[$k]{'components'}[$l] .= $status if $status;
 				$l++;
 			}
@@ -14719,7 +14725,7 @@ sub zfs_status {
 	eval $end if $b_log;
 	return @$zfs;
 }
-sub check_status {
+sub check_zfs_status {
 	eval $start if $b_log;
 	my ($item,$pool_status) = @_;
 	my ($status) = ('');
