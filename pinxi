@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-26';
-my $self_patch='36';
+my $self_date='2020-11-27';
+my $self_patch='37';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7138,10 +7138,9 @@ sub create_output_full {
 		if ($b_arm && $flag eq 'N/A'){
 			$flag = main::row_defaults('arm-cpu-f');
 		}
-		@data = ({
+		@rows = (@rows,{
 		main::key($num++,0,2,$flag_key) => $flag,
-		},);
-		@rows = (@rows,@data);
+		});
 		$b_flags = 1;
 	}
 	if ($extra > 0 && !$bsd_type){
@@ -7168,11 +7167,11 @@ sub create_output_full {
 		$core_speeds_value = 'N/A';
 	}
 	$j = scalar @rows;
-	@data = ({
+	@data = ();
+	@rows = (@rows,{
 	main::key($num++,1,1,$speed_key) => $speed,
 	main::key($num++,0,2,$min_max_key) => $min_max,
 	});
-	@rows = (@rows,@data);
 	if ($b_admin && $properties{'dmi-speed'} && $properties{'dmi-max-speed'}){
 		$rows[$j]{main::key($num++,0,2,'base/boost')} = $properties{'dmi-speed'} . '/' . $properties{'dmi-max-speed'};
 	}
@@ -9081,34 +9080,29 @@ sub proc_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives);
-	my ($b_hdx,$size,$drive_size) = (0,0,0);
+	my ($b_hdx,$size) = (0,0);
 	set_proc_partitions() if !$b_proc_partitions;
-	foreach (@proc_partitions){
-		next if (/^\s*$/);
-		my @row = split /\s+/, $_;
-		if ( $row[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
-			$drive_size = $row[2];
-			$b_hdx = 1 if $row[-1] =~ /^hd[a-z]/;
-			@data = ({
+	foreach my $row (@proc_partitions){
+		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
+			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
+			@drives = (@drives, {
 			'firmware' => '',
-			'id' => $row[-1],
-			'major' => $row[0],
-			'minor' => $row[1],
+			'id' => $row->[-1],
+			'maj-min' => $row->[0] . ':' . $row->[1],
 			'model' => '',
 			'serial' => '',
-			'size' => $drive_size,
+			'size' => $row->[2],
 			'spec' => '',
 			'speed' => '',
 			'temp' => '',
 			'type' => '',
 			'vendor' => '',
 			});
-			@drives = (@drives,@data);
 		}
 		# See http://lanana.org/docs/device-list/devices-2.6+.txt for major numbers used below
 		# See https://www.mjmwired.net/kernel/Documentation/devices.txt for kernel 4.x device numbers
-		# if ( $row[0] =~ /^(3|22|33|8)$/ && $row[1] % 16 == 0 )  {
-		#	 $size += $row[2];
+		# if ( $row->[0] =~ /^(3|22|33|8)$/ && $row->[1] % 16 == 0 )  {
+		#	 $size += $row->[2];
 		# }
 		# special case from this data: 8     0  156290904 sda
 		# 43        0   48828124 nbd0
@@ -9116,10 +9110,10 @@ sub proc_data {
 		# Note: with > 1 nvme drives, the minor number no longer passes the modulus tests,
 		# It appears to just increase randomly from the first 0 minor of the first nvme to 
 		# nvme partitions to next nvme, so it only passes the test for the first nvme drive.
-		if ( $row[0] =~ /^(3|8|22|33|43|179|202|252|253|254|259)$/ && 
-		     $row[-1] =~ /(mmcblk[0-9]+|n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|[hsv]d[a-z]+)$/ && 
-		     ( $row[1] % 16 == 0 || $row[1] % 16 == 8 || $row[-1] =~ /(nvme[0-9]+n[0-9]+)$/) ) {
-			$size += $row[2];
+		if ( $row->[0] =~ /^(3|8|22|33|43|179|202|252|253|254|259)$/ && 
+		     $row->[-1] =~ /(mmcblk[0-9]+|n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|[hsv]d[a-z]+)$/ && 
+		     ( $row->[1] % 16 == 0 || $row->[1] % 16 == 8 || $row->[-1] =~ /(nvme[0-9]+n[0-9]+)$/) ) {
+			$size += $row->[2];
 		}
 	}
 	# print Data::Dumper::Dumper \@drives;
@@ -9145,6 +9139,11 @@ sub set_proc_partitions {
 	if (my $file = main::system_files('partitions')){
 		@proc_partitions = main::reader($file,'strip');
 		shift @proc_partitions;
+		@proc_partitions = map {
+			my @temp = split /\s+/, $_;
+			next if ! defined $temp[2];
+			[$temp[0],$temp[1],$temp[2],$temp[3]];
+		} @proc_partitions;
 	}
 	eval $end if $b_log;
 }
@@ -9760,7 +9759,7 @@ sub smartctl_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper\@$data if $test[19];
+	print Data::Dumper::Dumper $data if $test[19];
 	eval $end if $b_log;
 	return @$data;
 }
@@ -9877,12 +9876,11 @@ sub scsi_data {
 		}
 		if (/Type:/i){
 			if (/Type:\s*Direct-Access/i){
-				my @working = ({
+				@scsi = (@scsi,{
 				'vendor' => $vendor,
 				'model' => $model,
 				'firmware' => $firmware,
 				});
-				@scsi = (@scsi,@working);
 			}
 			else {
 				($firmware,$model,$vendor) = ('','','');
@@ -13239,14 +13237,15 @@ sub partition_data {
 	my ($b_fake_map,$b_fs,$b_load,$b_space,$cols,$roots) = (0,1,0,0,6,0);
 	my ($back_size,$back_used) = (4,3);
 	my ($block_size,$blockdev,$dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
-	$percent_used,$raw_size,$replace,$size_available,$size,$test,$type,$uuid,$used);
+	$maj_min,$percent_used,$raw_size,$replace,$size_available,$size,$test,
+	$type,$uuid,$used);
 	$b_partitions = 1;
 	if ($b_admin){
 		# for partition block size
 		$blockdev = main::check_program('blockdev');
-		# for raw partition sizes
-		DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	}
+	# for raw partition sizes, maj_min
+	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	set_label_uuid() if !$b_label_uuid;
@@ -13317,7 +13316,8 @@ sub partition_data {
 		   ($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|iso9660|tmpfs)$/ ) )){
 			next;
 		}
-		($dev_base,$dev_mapped,$dev_type,$fs,$id,$label,$type,$uuid) = ('','','','','','','','');
+		($dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
+		$maj_min,$type,$uuid) = ('','','','','','','','','');
 		($b_load,$block_size,$percent_used,$raw_size,$size_available,
 		$size,$used) = (0,0,0,0,0,0,0,0);
 		%part = ();
@@ -13343,6 +13343,7 @@ sub partition_data {
 			$dev_base =~ s/^\/dev\///;
 			$dev_mapped =~ s/^\/dev\/mapper\/// if $dev_mapped;
 			%part = check_lsblk($dev_base,0) if @lsblk;
+			$maj_min = get_maj_min($dev_base) if @proc_partitions;
 		}
 		# this handles zfs type devices/partitions, which do not start with / but contain /
 		# note: Main/jails/transmission_1 path can be > 1 deep 
@@ -13432,7 +13433,7 @@ sub partition_data {
 			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size && main::is_numeric($size) );
-			@data = ({
+			@partitions = (@partitions,{
 			'block-size' => $block_size,
 			'dev-base' => $dev_base,
 			'dev-mapped' => $dev_mapped,
@@ -13440,6 +13441,7 @@ sub partition_data {
 			'fs' => $fs,
 			'id' => $id,
 			'label' => $label,
+			'maj-min' => $maj_min,
 			'percent-used' => $percent_used,
 			'raw-available' => $size_available,
 			'raw-size' => $raw_size,
@@ -13448,15 +13450,13 @@ sub partition_data {
 			'used' => $used,
 			'uuid' => $uuid,
 			});
-			@partitions = (@partitions,@data);
 		}
 	}
 	@data = swap_data();
 	@partitions = (@partitions,@data);
 	# print Data::Dumper::Dumper \@partitions if $test[16];
 	if (!$bsd_type && @lsblk){
-		@data = check_partition_data();
-		@partitions = (@partitions,@data) if @data;
+		check_partition_data();# updates @partitions 
 	}
 	main::log_data('dump','@partitions',\@partitions) if $b_log;
 	print Data::Dumper::Dumper \@partitions if $test[16];
@@ -13468,9 +13468,9 @@ sub swap_data {
 	return @swaps if $b_swaps;
 	$b_swaps = 1;
 	my (@data,@working);
-	my ($cache_pressure,$dev_base,$dev_mapped,$dev_type,$label,$mount,
- 	$path,$pattern1,$pattern2,$percent_used,$priority,$size,$swap_type,
-	$swappiness,$used,$uuid);
+	my ($cache_pressure,$dev_base,$dev_mapped,$dev_type,$label,$maj_min,
+	$mount,$path,$pattern1,$pattern2,$percent_used,$priority,$size,
+	$swap_type,$swappiness,$used,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
 		# faster, avoid subshell, same as swapon -s
@@ -13505,8 +13505,8 @@ sub swap_data {
 	foreach (@working){
 		#next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
 		next if /^(Device|Filename)/;
-		($dev_base,$dev_mapped,$dev_type,$label,$mount,$priority,
-		$swap_type,$uuid) = ('','','','','',undef,'partition','');
+		($dev_base,$dev_mapped,$dev_type,$label,$maj_min,$mount,$priority,
+		$swap_type,$uuid) = ('','','','','','',undef,'partition','');
 		@data = split /\s+/, $_;
 		if (/^\/dev\/(block\/)?(compcache|ramzwap|zram)/i){
 			$swap_type = 'zram';
@@ -13537,6 +13537,7 @@ sub swap_data {
 				}
 			}
 			$dev_type = 'dev';
+			$maj_min = get_maj_min($dev_base) if @proc_partitions;
 		}
 		elsif ($data[1] && $data[1] eq 'file' || m|^/|){
 			$swap_type = 'file';
@@ -13551,7 +13552,7 @@ sub swap_data {
 		$size = $data[$size_id];
 		$used = $data[$used_id];
 		$percent_used = sprintf( "%.1f", ( $used/$size )*100 );
-		@data = ({
+		@swaps = (@swaps,{
 		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
 		'dev-mapped' => $dev_mapped,
@@ -13559,6 +13560,7 @@ sub swap_data {
 		'fs' => 'swap',
 		'id' => "swap-$s",
 		'label' => $label,
+		'maj-min' => $maj_min,
 		'mount' => $mount,
 		'percent-used' => $percent_used,
 		'priority' => $priority,
@@ -13569,7 +13571,6 @@ sub swap_data {
 		'used' => $used,
 		'uuid' => $uuid,
 		});
-		@swaps = (@swaps,@data);
 		$s++;
 	}
 	main::log_data('dump','@swaps',\@swaps) if $b_log;
@@ -13672,14 +13673,20 @@ sub set_label_uuid {
 sub set_lsblk {
 	eval $start if $b_log;
 	$b_lsblk = 1;
-	my (@temp,@working);
 	if (my $program = main::check_program('lsblk')){
-		@working = main::grabber("$program -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS 2>/dev/null");
+		my $cmd = $program . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
+		$cmd .= 'SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,MAJ:MIN 2>/dev/null';
+		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
+		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
+		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
+		$pattern .= 'PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"\s+';
+		$pattern .= 'MAJ:MIN="([^"]*)"';
+		my @working = main::grabber($cmd);
 		foreach (@working){
-			if (/NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"/){
+			if (/$pattern/){
 				my $size = ($5) ? $5/1024: 0;
 				# some versions of lsblk do not return serial, fs, uuid, or label
-				@temp = ({
+				@lsblk = (@lsblk,{
 				'name' => $1, 
 				'type' => $2,
 				'rm' => $3, 
@@ -13692,8 +13699,8 @@ sub set_lsblk {
 				'block-physical' => $10,
 				'block-logical' => $11,
 				'partition-flags' => $12,
+				'maj-min' => $13,
 				});
-				@lsblk = (@lsblk,@temp);
 			}
 		}
 	}
@@ -13720,7 +13727,7 @@ sub check_lsblk {
 # handle cases of hidden file systems
 sub check_partition_data {
 	eval $start if $b_log;
-	my ($b_found,$dev_mapped,@data,@temp);
+	my ($b_found,$dev_mapped,$temp);
 	# NOTE: these filters must match the fs filters in sub partitiion_data!!
 	my $fs_filters = 'aufs|cgmfs|configfs|devfs|devtmpfs|';
 	$fs_filters .= 'fdescfs|linprocfs|procfs|squashfs|swap|';
@@ -13749,26 +13756,26 @@ sub check_partition_data {
 		}
 		if (!$b_found){
 			#print "found: $row->{'name'} $row->{'mount'}\n";
-			@temp = ({
+			$temp = {
 			'dev-base' => $row->{'name'},
 			'dev-mapped' => $dev_mapped,
 			'fs' => $row->{'fs'},
 			'id' => $row->{'mount'},
 			'hidden' => 1,
 			'label' => $row->{'label'},
+			'maj-min' => $row->{'maj-min'},
 			'percent-used' => 0,
 			'raw-size' => $row->{'size'},
 			'size' => 0,
 			'type' => 'secondary',
 			'used' => 0,
 			'uuid' => $row->{'uuid'},
-			});
-			@partitions = (@partitions,@temp);
-			main::log_data('dump','lsblk check: @temp',\@temp) if $b_log;
+			};
+			push @partitions,$temp;
+			main::log_data('dump','lsblk check: @temp',$temp) if $b_log;
 		}
 	}
 	eval $end if $b_log;
-	return @data;
 }
 # args: 1: blockdev full path (part only); 2: block id; 3: size (part only)
 sub admin_data {
@@ -13777,10 +13784,9 @@ sub admin_data {
 	# 0: calc block 1: available percent 2: disk physical block size/partition block size;
 	my @sizes = (0,0,0); 
 	my ($block_size,$percent,$size_raw) = (0,0,0);
-	foreach (@proc_partitions){
-		my @row = split /\s+/, $_;
-		if ($row[-1] eq $id){
-			$size_raw = $row[2];
+	foreach my $row (@proc_partitions){
+		if ($row->[-1] eq $id){
+			$size_raw = $row->[2];
 			last;
 		}
 	}
@@ -13797,6 +13803,19 @@ sub admin_data {
 	main::log_data('dump','@sizes',\@sizes) if $b_log;
 	eval $end if $b_log;
 	return @sizes;
+}
+sub get_maj_min {
+	eval $start if $b_log;
+	my ($id) = @_;
+	my ($maj_min,@working);
+	foreach my $row (@proc_partitions){
+		if ($id eq $row->[-1]){
+			$maj_min = $row->[0] . ':' . $row->[1];
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $maj_min;
 }
 sub get_label {
 	eval $start if $b_log;
@@ -14427,7 +14446,7 @@ sub raid_data {
 # 10 modules
 sub hw_data {
 	eval $start if $b_log;
-	my ($driver,$vendor,@data,@hardware_raid);
+	my ($driver,$vendor,@hardware_raid);
 	foreach my $working (@devices_hwraid){
 		$driver = ($working->[9]) ? lc($working->[9]): '';
 		$driver =~ s/-/_/g if $driver;
@@ -14435,7 +14454,7 @@ sub hw_data {
 		if ($extra > 2 && $b_pci_tool && $working->[11]){
 			$vendor = main::get_pci_vendor($working->[4],$working->[11]);
 		}
-		@data = ({
+		@hardware_raid = (@hardware_raid,{
 		'bus-id' => $working->[2],
 		'chip-id' => $working->[6],
 		'device' => $working->[4],
@@ -14447,7 +14466,6 @@ sub hw_data {
 		'vendor-id' => $working->[5],
 		'vendor' => $vendor,
 		});
-		@hardware_raid = (@hardware_raid,@data);
 	}
 	# print Data::Dumper::Dumper \@hardware_raid;
 	main::log_data('dump','@hardware_raid',\@hardware_raid) if $b_log;
@@ -14470,7 +14488,7 @@ sub md_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
-	my (@data,@mdraid,@temp,$b_found,$system,$unused);
+	my (@mdraid,@temp,$b_found,$system,$unused);
 	# NOTE: a system with empty mdstat will still show these values
 	if ($working[0] && $working[0] =~ /^Personalities/){
 		$system = ( split /:\s*/,  $working[0])[1];
@@ -14507,13 +14525,12 @@ sub md_data {
 			@components = @temp;
 			#print "$component_string\n";
 			$j = scalar @mdraid;
-			@data = ({
+			@mdraid = (@mdraid,{
 			'id' => $id,
 			'arrays' => ([],),
 			'status' => $status,
 			'type' => 'mdraid',
 			});
-			@mdraid = (@mdraid,@data);
 			$mdraid[$j]{'arrays'}[0]{'raid'} = $raid;
 			$mdraid[$j]{'arrays'}[0]{'components'} = \@components;
 		}
@@ -14560,7 +14577,7 @@ sub md_data {
 sub zfs_data {
 	eval $start if $b_log;
 	my ($zpool) = @_;
-	my (@components,@data,@zfs);
+	my (@components,@zfs);
 	my ($allocated,$free,$size,$status);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
@@ -14603,7 +14620,7 @@ sub zfs_data {
 			$free = ($row[3] && $row[3] ne '-')? main::translate_size($row[3]): '';
 			$status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-status';
 			$j = scalar @zfs;
-			@data = ({
+			@zfs = (@zfs,{
 			'id' => $row[0],
 			'allocated' => $allocated,
 			'arrays' => ([],),
@@ -14612,7 +14629,6 @@ sub zfs_data {
 			'status' => $status,
 			'type' => 'zfs',
 			});
-			@zfs = (@zfs,@data);
 		}
 		#print Data::Dumper::Dumper \@zfs;
 		# raid level is the second item in the output, unless it is not, sometimes it is absent
@@ -14968,13 +14984,13 @@ sub dmidecode_data {
 			else {
 				$main_locator = $locator;
 			}
-			$ram[$k]{'modules'}[$j] = ({
+			$ram[$k]{'modules'}[$j] = {
 			'device-type' => $device_type,
 			'locator' => $main_locator,
 			'size' => $size,
 			'speed' => $speed,
 			'type' => $type,
-			});
+			};
 			#print Data::Dumper::Dumper \@ram;
 			$j++;
 		}
@@ -15138,7 +15154,7 @@ sub data_processor {
 	eval $start if $b_log;
 	my ($ram) = @_;
 	my $b_debug = 0;
-	my (@return,@temp);
+	my (@return);
 	my $check = main::row_defaults('note-check');
 	my $est = main::row_defaults('note-est');
 	foreach my $item (@$ram){
@@ -15288,7 +15304,7 @@ sub data_processor {
 			$item->{'slots-16'} = scalar @{$item->{'modules'}};
 			print "L\n" if $b_debug;
 		}
-		@temp = ({
+		@return = (@return,{
 		'capacity' => $max_cap,
 		'cap-qualifier' => $est_cap,
 		'eec' => $item->{'eec'},
@@ -15301,7 +15317,6 @@ sub data_processor {
 		'use' => $item->{'use'},
 		'voltage' => $item->{'voltage'},
 		});
-		@return = (@return,@temp);
 	}
 	eval $end if $b_log;
 	return @return;
@@ -17295,6 +17310,7 @@ sub create_output {
 	my $num = 0;
 	my $j = 0;
 	my (@data,@data2,%part,@rows,$dev,$percent,$raw_size,$size,$used);
+	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	main::set_mapper() if !$b_mapper;
 	my @swap_data = PartitionData::swap_data();
 	foreach my $row (@swap_data){
@@ -17388,8 +17404,8 @@ sub get {
 		$val1 = main::row_defaults('unmounted-data-bsd');
 	}
  	else {
-		if (my $file = main::system_files('partitions')){
-			@data = unmounted_data($file);
+		if (main::system_files('partitions')){
+			@data = unmounted_data();
 			if (!@data){
 				$key1 = 'Message';
 				$val1 = main::row_defaults('unmounted-data');
@@ -17450,23 +17466,18 @@ sub create_output {
 }
 sub unmounted_data {
 	eval $start if $b_log;
-	my ($file) = @_;
-	my ($dev_mapped,$fs,$label,$size,$uuid,@data,%part,@unmounted);
+	my ($dev_mapped,$fs,$label,$maj_min,$size,$uuid,%part,@unmounted);
 	# last filters to make sure these are dumped
 	my @filters = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
 	'dvd[0-9]*','dvdrw[0-9]*','fd[0-9]','ram[0-9]*');
-	my @mounts = main::reader($file,'strip');
 	my $num = 0;
-	PartitionData::set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	PartitionData::partition_data() if !$b_partitions;
-	PartitionData::set_label_uuid() if !$b_label_uuid;
 	RaidData::raid_data() if !$b_raid;
 	my @mounted = get_mounted();
 	#print join("\n",(@filters,@mounted)),"\n";
-	foreach (@mounts){
-		my @working = split /\s+/, $_;
-		($dev_mapped,$fs,$label,$uuid,$size) = ('','','','','');
+	foreach my $row (@proc_partitions){
+		($dev_mapped,$fs,$label,$maj_min,$uuid,$size) = ('','','','','','');
 		# note that size 1 means it is a logical extended partition container
 		# lvm might have dm-1 type syntax
 		# need to exclude loop type file systems, squashfs for example
@@ -17476,38 +17487,40 @@ sub unmounted_data {
 		# the unmounted report because sdb was found in sdb1, but match of eg sdb1 and sdb12
 		# makes this a problem, so usinig zfs_member test instead to filter out zfs members.
 		# in arm/android seen /dev/block/mmcblk0p12
-		#print "mount: $working[-1] row: $_ \n";
-		if ( $working[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
-		     $working[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
-		     $working[-1] !~ /\bloop/ && 
-		     !(grep {$working[-1] =~ /$_$/} (@filters,@mounted)) && 
-		     !(grep {$_ =~ /(block\/)?$working[-1]$/} @mounted)){
-			%part = PartitionData::check_lsblk($working[-1],0) if (@lsblk && $working[-1]);
+		#print "mount: $row->[-1] row: $_ \n";
+		if ( $row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
+		     $row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
+		     $row->[-1] !~ /\bloop/ && 
+		     !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
+		     !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted)){
+			%part = PartitionData::check_lsblk($row->[-1],0) if (@lsblk && $row->[-1]);
 			if (%part){
 				$fs = $part{'fs'};
 				$label = $part{'label'};
+				$maj_min = $part{'maj-min'};
 				$uuid = $part{'uuid'};
-				$size = $part{'size'} if $part{'size'} && !$working[2];
+				$size = $part{'size'} if $part{'size'} && !$row->[2];
 			}
-			$size ||= $working[2];
-		   $fs = unmounted_filesystem($working[-1]) if !$fs;
+			$size ||= $row->[2];
+		   $fs = unmounted_filesystem($row->[-1]) if !$fs;
 		   # seen: (zfs|lvm2|linux_raid)_member; crypto_luks
 		   next if $fs && $fs =~ /(crypto|luks|_member)$/i; 
-		   if ($working[-1] =~ /^dm-/){
-				$dev_mapped = main::get_mapped("/dev/$working[-1]");
+		   if ($row->[-1] =~ /^dm-/){
+				$dev_mapped = main::get_mapped("/dev/$row->[-1]");
 				$dev_mapped =~ s|^/dev/mapper/||;
 			}
-		   $label = PartitionData::get_label("/dev/$working[-1]") if !$label;
-			$uuid = PartitionData::get_uuid("/dev/$working[-1]") if !$uuid;
-			@data = ({
-			'dev-base' => $working[-1],
+		   $label = PartitionData::get_label("/dev/$row->[-1]") if !$label;
+		   $maj_min = "$row->[0]:$row->[1]" if !$maj_min;
+			$uuid = PartitionData::get_uuid("/dev/$row->[-1]") if !$uuid;
+			@unmounted = (@unmounted,{
+			'dev-base' => $row->[-1],
 			'dev-mapped' => $dev_mapped,
 			'fs' => $fs,
 			'label' => $label,
+			'maj-min' => $maj_min,
 			'size' => $size,
 			'uuid' => $uuid,
 			});
-			@unmounted = (@unmounted,@data);
 		}
 	}
 	# print Data::Dumper::Dumper @unmounted;
