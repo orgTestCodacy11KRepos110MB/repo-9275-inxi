@@ -9090,7 +9090,7 @@ sub proc_data {
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
-			@drives = (@drives, {
+			push @drives, {
 			'firmware' => '',
 			'id' => $row->[-1],
 			'maj-min' => $row->[0] . ':' . $row->[1],
@@ -9102,7 +9102,7 @@ sub proc_data {
 			'temp' => '',
 			'type' => '',
 			'vendor' => '',
-			});
+			};
 		}
 		# See http://lanana.org/docs/device-list/devices-2.6+.txt for major numbers used below
 		# See https://www.mjmwired.net/kernel/Documentation/devices.txt for kernel 4.x device numbers
@@ -9881,11 +9881,11 @@ sub scsi_data {
 		}
 		if (/Type:/i){
 			if (/Type:\s*Direct-Access/i){
-				@scsi = (@scsi,{
+				push @scsi, {
 				'vendor' => $vendor,
 				'model' => $model,
 				'firmware' => $firmware,
-				});
+				};
 			}
 			else {
 				($firmware,$model,$vendor) = ('','','');
@@ -13452,7 +13452,7 @@ sub partition_data {
 			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf( "%.1f", ( $used/$size )*100 ) if ($size && main::is_numeric($size) );
-			@partitions = (@partitions,{
+			push @partitions,{
 			'block-size' => $block_size,
 			'dev-base' => $dev_base,
 			'dev-mapped' => $dev_mapped,
@@ -13468,7 +13468,7 @@ sub partition_data {
 			'type' => $type,
 			'used' => $used,
 			'uuid' => $uuid,
-			});
+			};
 		}
 	}
 	@data = swap_data();
@@ -13571,7 +13571,7 @@ sub swap_data {
 		$size = $data[$size_id];
 		$used = $data[$used_id];
 		$percent_used = sprintf( "%.1f", ( $used/$size )*100 );
-		@swaps = (@swaps,{
+		push @swaps, {
 		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
 		'dev-mapped' => $dev_mapped,
@@ -13589,7 +13589,7 @@ sub swap_data {
 		'swap-type' => $swap_type,
 		'used' => $used,
 		'uuid' => $uuid,
-		});
+		};
 		$s++;
 	}
 	main::log_data('dump','@swaps',\@swaps) if $b_log;
@@ -13705,7 +13705,7 @@ sub set_lsblk {
 			if (/$pattern/){
 				my $size = ($5) ? $5/1024: 0;
 				# some versions of lsblk do not return serial, fs, uuid, or label
-				@lsblk = (@lsblk,{
+				push @lsblk, {
 				'name' => $1, 
 				'type' => $2,
 				'rm' => $3, 
@@ -13719,7 +13719,7 @@ sub set_lsblk {
 				'block-logical' => $11,
 				'partition-flags' => $12,
 				'maj-min' => $13,
-				});
+				};
 			}
 		}
 	}
@@ -14473,7 +14473,7 @@ sub hw_data {
 		if ($extra > 2 && $b_pci_tool && $working->[11]){
 			$vendor = main::get_pci_vendor($working->[4],$working->[11]);
 		}
-		@hardware_raid = (@hardware_raid,{
+		push @hardware_raid, {
 		'bus-id' => $working->[2],
 		'chip-id' => $working->[6],
 		'device' => $working->[4],
@@ -14484,7 +14484,7 @@ sub hw_data {
 		'sub-id' => $working->[3],
 		'vendor-id' => $working->[5],
 		'vendor' => $vendor,
-		});
+		};
 	}
 	# print Data::Dumper::Dumper \@hardware_raid;
 	main::log_data('dump','@hardware_raid',\@hardware_raid) if $b_log;
@@ -14544,12 +14544,12 @@ sub md_data {
 			@components = @temp;
 			#print "$component_string\n";
 			$j = scalar @mdraid;
-			@mdraid = (@mdraid,{
+			push @mdraid, {
 			'id' => $id,
 			'arrays' => ([],),
 			'status' => $status,
 			'type' => 'mdraid',
-			});
+			};
 			$mdraid[$j]{'arrays'}[0]{'raid'} = $raid;
 			$mdraid[$j]{'arrays'}[0]{'components'} = \@components;
 		}
@@ -14639,7 +14639,7 @@ sub zfs_data {
 			$free = ($row[3] && $row[3] ne '-')? main::translate_size($row[3]): '';
 			$status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-status';
 			$j = scalar @zfs;
-			@zfs = (@zfs,{
+			push @zfs, {
 			'id' => $row[0],
 			'allocated' => $allocated,
 			'arrays' => ([],),
@@ -14647,7 +14647,7 @@ sub zfs_data {
 			'size' => $size,
 			'status' => $status,
 			'type' => 'zfs',
-			});
+			};
 		}
 		#print Data::Dumper::Dumper \@zfs;
 		# raid level is the second item in the output, unless it is not, sometimes it is absent
@@ -15323,7 +15323,7 @@ sub data_processor {
 			$item->{'slots-16'} = scalar @{$item->{'modules'}};
 			print "L\n" if $b_debug;
 		}
-		@return = (@return,{
+		push @return, {
 		'capacity' => $max_cap,
 		'cap-qualifier' => $est_cap,
 		'eec' => $item->{'eec'},
@@ -15335,7 +15335,7 @@ sub data_processor {
 		'slots-qualifier' => $est_slots,
 		'use' => $item->{'use'},
 		'voltage' => $item->{'voltage'},
-		});
+		};
 	}
 	eval $end if $b_log;
 	return @return;
@@ -17512,7 +17512,7 @@ sub unmounted_data {
 		     $row->[-1] !~ /\bloop/ && 
 		     !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
 		     !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted)){
-			%part = PartitionData::check_lsblk($row->[-1],0) if (@lsblk && $row->[-1]);
+			%part = PartitionData::check_lsblk($row->[-1],0) if @lsblk;
 			if (%part){
 				$fs = $part{'fs'};
 				$label = $part{'label'};
@@ -17525,7 +17525,7 @@ sub unmounted_data {
 		   # seen: (zfs|lvm2|linux_raid)_member; crypto_luks
 		   next if $fs && $fs =~ /(crypto|luks|_member)$/i; 
 		  
-		   if ($row->[-1] =~ /^dm-/){
+		   if ($row->[-1] =~ /^dm-/ && %mapper){
 				$dev_mapped = main::get_mapped("/dev/$row->[-1]");
 				$dev_mapped =~ s|^/dev/mapper/||;
 			}
@@ -17534,7 +17534,7 @@ sub unmounted_data {
 		   $label = PartitionData::get_label("/dev/$row->[-1]") if !$label;
 		   $maj_min = "$row->[0]:$row->[1]" if !$maj_min;
 			$uuid = PartitionData::get_uuid("/dev/$row->[-1]") if !$uuid;
-			@unmounted = (@unmounted,{
+			push @unmounted, {
 			'dev-base' => $row->[-1],
 			'dev-mapped' => $dev_mapped,
 			'fs' => $fs,
@@ -17542,7 +17542,7 @@ sub unmounted_data {
 			'maj-min' => $maj_min,
 			'size' => $size,
 			'uuid' => $uuid,
-			});
+			};
 		}
 	}
 	# print Data::Dumper::Dumper @unmounted;
@@ -21128,29 +21128,29 @@ sub soc_devicetree {
 sub assign_data {
 	my ($tool,$data) = @_;
 	if (check_graphics($data->[0],$data->[1])){
-		@devices_graphics = (@devices_graphics,[@$data]);
+		push @devices_graphics,[@$data];
 		$b_soc_gfx = 1 if $tool eq 'soc';
 	}
 	# for hdmi, we need gfx/audio both
 	if (check_audio($data->[0],$data->[1])){
-		@devices_audio = (@devices_audio,[@$data]);
+		push @devices_audio,[@$data];
 		$b_soc_audio = 1 if $tool eq 'soc';
 	}
 	elsif (check_hwraid($data->[0],$data->[1])){
-		@devices_hwraid = (@devices_hwraid,[@$data]);
+		push @devices_hwraid,[@$data];
 		$b_soc_net = 1 if $tool eq 'soc';
 	}
 	elsif (check_network($data->[0],$data->[1])){
-		@devices_network = (@devices_network,[@$data]);
+		push @devices_network,[@$data];
 		$b_soc_net = 1 if $tool eq 'soc';
 	}
 	elsif (check_timer($data->[0],$data->[1])){
-		@devices_timer = (@devices_timer,[@$data]);
+		push @devices_timer,[@$data];
 		$b_soc_timer = 1;
 	}
 	# not used at this point, -M comes before ANG
 	# $device_vm = check_vm($data[4]) if ( (!$b_ppc && !$b_mips) && !$device_vm );
-	@devices = (@devices,[@$data]);
+	push @devices,[@$data];
 }
 # note: for soc, these have been converted in soc_type()
 sub check_audio {
@@ -21805,7 +21805,7 @@ sub lsusb_data {
 		$working[16] = '';
 		$working[17] = '';
 		$working[18] = '';
-		@usb = (@usb,[@working]);
+		push @usb,[@working];
 		#print join ("\n",@working),"\n\n=====\n";
 	}
 	print Data::Dumper::Dumper \@usb if $test[6];
