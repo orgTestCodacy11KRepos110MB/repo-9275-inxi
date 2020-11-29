@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-28';
-my $self_patch='44';
+my $self_date='2020-11-29';
+my $self_patch='45';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -194,8 +194,8 @@ sub initialize {
 }
 
 sub check_tools {
-	my ($action,$program,$message,@data,%commands,%hash);
-	if ( $b_dmi ){
+	my ($action,$program,$message,@data,%commands);
+	if ($b_dmi){
 		$action = 'use';
 		if ($program = check_program('dmidecode')) {
 			@data = grabber("$program -t chassis -t baseboard -t processor 2>&1");
@@ -229,43 +229,39 @@ sub check_tools {
 		else {
 			$action = 'missing';
 		}
-		%hash = (
-		'dmidecode' => {
+		$alerts{'dmidecode'} = {
 		'action' => $action,
 		'missing' => row_defaults('tool-missing-required','dmidecode'),
 		'permissions' => row_defaults('tool-permissions','dmidecode'),
+		'path' => $program,
 		'smbios' => row_defaults('dmidecode-smbios'),
 		'no-data' => row_defaults('dmidecode-dev-mem'),
 		'unknown-error' => row_defaults('tool-unknown-error','dmidecode'),
-		},
-		);
-		%alerts = (%alerts, %hash);
+		};
 	}
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
-	if ($b_lvm || $b_pci || $b_sysctl){
+	if ($b_lvm || $b_pci || $b_sysctl || $show{'raid'}){
 		if (!$bsd_type){
 			if ($b_pci ){
-				%hash = ('lspci' => '-n',);
-				%commands = (%commands,%hash);
+				$commands{'lspci'} = '-n';
 			}
 			if ($b_lvm){
-				%hash = (
-				'pvs' => '',
-				#'lvdisplay' => '-m',
-				);
-				%commands = (%commands,%hash);
+				$commands{'lvs'} = '';
+			}
+			if ($show{'raid'}){
+				$commands{'mdadm'} = '--detail /dev/md0';
 			}
 		}
 		else {
 			if ($b_pci ){
-				%hash = ('pciconf' => '-l','pcictl' => 'list', 'pcidump' => '');
-				%commands = (%commands,%hash);
+				$commands{'pciconf'} = '-l';
+				$commands{'pcictl'} = 'list';
+				$commands{'pcidump'} = '';
 			}
 			if ($b_sysctl ){
 				# note: there is a case of kernel.osrelease but it's a linux distro
-				%hash = ('sysctl' => 'kern.osrelease',);
-				%commands = (%commands,%hash);
+				$commands{'sysctl'} = 'kern.osrelease';
 			}
 		}
 		foreach ( keys %commands ){
@@ -280,68 +276,53 @@ sub check_tools {
 			else {
 				$action = 'missing';
 			}
-			%hash = (
-			$_ => {
+			$alerts{$_} = {
 			'action' => $action,
 			'missing' => row_defaults('tool-missing-incomplete',"$_"),
+			'path' => $program,
 			'permissions' => row_defaults('tool-permissions',"$_"),
-			},
-			);
-			%alerts = (%alerts, %hash);
+			};
 		}
 	}
 	%commands = ();
-	if ( $show{'sensor'} ){
-		%commands = ('sensors' => 'linux',);
+	if ($show{'sensor'}){
+		$commands{'sensors'} = 'linux';
 	}
 	# note: lsusb ships in FreeBSD ports sysutils/usbutils
-	if ( $b_usb ){
-		%hash = ('lsusb' => 'all',);
-		%commands = (%commands,%hash);
-		%hash = ('usbdevs' => 'bsd',);
-		%commands = (%commands,%hash);
+	if ($b_usb){
+		$commands{'lsusb'} = 'all';
+		$commands{'usbdevs'} = 'bsd';
 	}
 	if ($show{'ip'} || ($bsd_type && $show{'network-advanced'})){
-		%hash = (
-		'ip' => 'linux',
-		'ifconfig' => 'all',
-		);
-		%commands = (%commands,%hash);
+		$commands{'ip'} = 'linux';
+		$commands{'ifconfig'} = 'all';
 	}
 	# can't check permissions since we need to know the partition/disc
 	if ($b_block_tool){
-		%hash = (
-		'blockdev' => 'linux',
-		'lsblk' => 'linux',
-		);
-		%commands = (%commands,%hash);
+		$commands{'blockdev'} = 'linux';
+		$commands{'lsblk'} = 'linux';
 	}
-	
 	if ($b_smartctl){
-		%hash = (
-		'smartctl' => 'all',
-		);
-		%commands = (%commands,%hash);
+		$commands{'smartctl'} = 'all';
 	}
 	foreach ( keys %commands ){
 		$action = 'use';
+		$program = '';
 		$message = row_defaults('tool-present');
 		if ( ($commands{$_} eq 'linux' && $os ne 'linux' ) || ($commands{$_} eq 'bsd' && $os eq 'linux' ) ){
 			$message = row_defaults('tool-missing-os', ucfirst($os) . " $_");
 			$action = 'platform';
 		}
-		elsif (!check_program($_)){
+		elsif (!($program = check_program($_))){
 			$message = row_defaults('tool-missing-recommends',"$_");
 			$action = 'missing';
 		}
-		%hash = (
-		$_ => {
+		$alerts{$_} = {
 		'action' => $action,
 		'missing' => $message,
+		'path' => $program,
 		'platform' => $message,
-		},
-		);
-		%alerts = (%alerts, %hash);
+		};
 	}
 	# print Dumper \%alerts;
 	set_fake_tools() if $b_fake_bsd;
@@ -428,14 +409,15 @@ sub set_display_width {
 # only for dev/debugging BSD 
 sub set_fake_tools {
 	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $b_fake_dboot;
-	$alerts{'pciconf'} = ({'action' => 'use'}) if $b_fake_pciconf;
-	$alerts{'sysctl'} = ({'action' => 'use'}) if $b_fake_sysctl;
-	if ($b_fake_usbdevs ){
-		$alerts{'usbdevs'} = ({'action' => 'use'});
-		$alerts{'lsusb'} = ({
+	$alerts{'lvs'}->{'action'} = 'use' if $b_fake_lvm;
+	$alerts{'pciconf'}->{'action'} = 'use' if $b_fake_pciconf;
+	$alerts{'sysctl'}->{'action'} = 'use' if $b_fake_sysctl;
+	if ($b_fake_usbdevs){
+		$alerts{'usbdevs'}->{'action'} = 'use';
+		$alerts{'lsusb'} = {
 		'action' => 'missing',
 		'missing' => 'Required program lsusb not available',
-		});
+		};
 	}
 }
 
@@ -1257,7 +1239,6 @@ sub log_data {
 	# print "1: $one 2: $two 3: $three\n";
 	if ($one eq 'fs') {
 		if (ref $three eq 'ARRAY'){
-			# my @temp = @$three;
 			# print Data::Dumper::Dumper $three;
 			$args = "\n${spacer}Args: " . joiner($three, '; ', 'unset');
 		}
@@ -4733,7 +4714,10 @@ sub get_options {
 		@sensors_exclude = ();
 		@sensors_use = ();
 	}
-	$b_block_tool = 1 if ( $b_admin && ($show{'partition'} || $show{'partition-full'} ));
+	if ($show{'disk'} || $show{'partition'} || $show{'partition-full'} || 
+		  $show{'raid'} || $show{'unmounted'}){
+		$b_block_tool = 1;
+	}
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
 	$use{'filter'} = 0 if $use{'filter-override'};
@@ -9381,7 +9365,6 @@ sub smartctl_data {
 	my ($data) = @_;
 	my ($b_attributes,$b_intel,$b_kingston,$cmd,%holder,$id,@working,@result,@split);
 	my ($splitter,$num,$a,$f,$r,$t,$v,$w,$y) = (':\s*',0,0,8,1,5,3,4,6); # $y is type, $t threashold, etc
-	my $smartctl = main::check_program('smartctl');
 	for (my $i = 0; $i < scalar @$data; $i++){
 		next if !$data->[$i]{'id'};
 		($b_attributes,$b_intel,$b_kingston,$splitter,$num,$a,$r) = (0,0,0,':\s*',0,0,1);
@@ -9390,7 +9373,7 @@ sub smartctl_data {
 		# m2 nvme failed on nvme0n1 drive id:
 		$id = $data->[$i]{'id'};
 		$id =~ s/n[0-9]+$// if $id =~ /^nvme/;
-		$cmd = "$smartctl -AHi /dev/" . $id . ' 2>/dev/null';
+		$cmd = $alerts{'smartctl'}->{'path'} . " -AHi /dev/" . $id . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
@@ -13234,7 +13217,7 @@ sub partition_data {
 	$b_partitions = 1;
 	if ($b_admin){
 		# for partition block size
-		$blockdev = main::check_program('blockdev');
+		$blockdev = $alerts{'blockdev'}->{'path'} if $alerts{'blockdev'}->{'path'};
 	}
 	# for raw partition sizes, maj_min
 	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
@@ -13665,8 +13648,8 @@ sub set_label_uuid {
 sub set_lsblk {
 	eval $start if $b_log;
 	$b_lsblk = 1;
-	if (my $program = main::check_program('lsblk')){
-		my $cmd = $program . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
+	if ($alerts{'lsblk'} && $alerts{'lsblk'}->{'path'}){
+		my $cmd = $alerts{'lsblk'}->{'path'} . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
 		$cmd .= 'SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,MAJ:MIN 2>/dev/null';
 		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
 		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
@@ -14501,6 +14484,8 @@ sub md_data {
 			my $status = $2;
 			my $raid = $4;
 			my $component_string = $5;
+			my ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
+			$dev_size,$size,$state,$uuid,$working,@devices);
 			@temp = ();
 			$raid =~ s/^raid1$/mirror/;
 			$raid =~ s/^raid/raid-/; 
@@ -14515,11 +14500,19 @@ sub md_data {
 				push(@temp, $string);
 			}
 			@components = @temp;
+			if ($alerts{'mdadm'}->{'action'} eq 'use'){
+				($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
+				$dev_size,$size,$state,$uuid,$working,@devices) = md_details($id);
+			}
+			else {
+				$size = $alerts{'mdadm'}->{$alerts{'dmidecode'}->{'action'}};
+			}
 			#print "$component_string\n";
 			$j = scalar @mdraid;
 			push(@mdraid, {
 			'id' => $id,
 			'arrays' => ([],),
+			'size' => $size,
 			'status' => $status,
 			'type' => 'mdraid',
 			});
@@ -14564,6 +14557,20 @@ sub md_data {
 	#print Data::Dumper::Dumper \@mdraid;
 	eval $end if $b_log;
 	return @mdraid;
+}
+sub md_details {
+	eval $start if $b_log;
+	my ($id) = @_;
+	my ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
+	$dev_size,$size,$state,$uuid,$working,@devices);
+	my $cmd = $alerts{'mdadm'}->{'path'} . " --detail /dev/$id 2>/dev/null";
+	my @data = main::grabber($cmd,'strip');
+	
+	
+	#print Data::Dumper::Dumper \@mdraid;
+	eval $end if $b_log;
+	return ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
+	$dev_size,$size,$state,$uuid,$working,@devices);
 }
 
 sub zfs_data {
@@ -16725,7 +16732,7 @@ sub lm_sensors_processor {
 	}
 	else {
 		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
-		@sensors_data = main::grabber(main::check_program('sensors') . ' 2>/dev/null');
+		@sensors_data = main::grabber($alerts{'sensors'}->{'path'} . ' 2>/dev/null');
 	}
 	# print join("\n", @sensors_data), "\n";
 	if (@sensors_data){
@@ -20927,20 +20934,22 @@ sub pcidump_data {
 sub pci_grabber {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($args,$pattern,@working);
+	my ($args,$path,$pattern,@working);
 	if ($program eq 'lspci'){
 		$args = ' -knnv';
+		$path = $alerts{'lspci'}->{'path'};
 		$pattern = '^[0-9a-f]+:';
 	}
 	elsif ($program eq 'pciconf'){
 		$args = ' -lv';
+		$path = $alerts{'pciconf'}->{'path'};
 		$pattern = '^([^@]+)\@pci';
 	}
 	elsif ($program eq 'pcidump'){
 		$args = ' -v';
+		$path = $alerts{'pcidump'}->{'path'};
 		$pattern = '^[0-9a-f]+:';
 	}
-	my $path = main::check_program($program);
 	@data = main::grabber("$path $args 2>/dev/null",'','strip');
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
 	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
@@ -21313,8 +21322,7 @@ sub set_dmidecode_data {
 		#chomp(@data = <$fh>);
 	}
 	else {
-		my $path = check_program('dmidecode'); 
-		$content = qx($path 2>/dev/null) if $path;
+		$content = qx($alerts{'dmidecode'}->{'path'} 2>/dev/null);
 		@data = split('\n', $content);
 	}
 	# we don't need the opener lines of dmidecode output
@@ -21384,8 +21392,7 @@ sub set_ip_data {
 
 sub set_ip_addr {
 	eval $start if $b_log;
-	my $program = check_program('ip');
-	my @data = grabber("$program addr 2>/dev/null",'\n','strip') if $program;
+	my @data = grabber($alerts{'ip'}->{'path'} . " addr 2>/dev/null",'\n','strip');
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/if/scope-ipaddr-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/networking/ip-addr-blue-advance.txt";
 	#my @data = reader($file,'strip') or die $!;
@@ -21439,8 +21446,7 @@ sub set_ip_addr {
 
 sub set_ifconfig {
 	eval $start if $b_log;
-	my $program = check_program('ifconfig'); # not in user path, sbin
-	my @data = grabber("$program 2>/dev/null",'\n','') if $program;
+	my @data = grabber($alerts{'ifconfig'}->{'path'} . " 2>/dev/null",'\n','');
 	#my @data = reader("$ENV{'HOME'}/bin/scripts/inxi/data/if/vps-ifconfig-1.txt",'') or die $!;
 	my ($b_skip,$broadcast,$if,@ips_bsd,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	my ($state,$speed,$duplex,$mac);
@@ -21655,12 +21661,11 @@ sub set_ps_gui {
 }
 sub set_sysctl_data {
 	eval $start if $b_log;
-	return if $alerts{'sysctl'}->{'action'} ne 'use';
+	return if !$alerts{'sysctl'} || $alerts{'sysctl'}->{'action'} ne 'use';
 	my (@temp);
 	# darwin sysctl has BOTH = and : separators, and repeats data. Why? 
 	if (!$b_fake_sysctl){
-		my $program = check_program('sysctl');
-		@temp = grabber("$program -a 2>/dev/null");
+		@temp = grabber($alerts{'sysctl'}->{'path'} . " -a 2>/dev/null");
 	}
 	else {
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
@@ -21891,8 +21896,7 @@ sub data_grabber {
 	my %args = ('lsusb' => '', 'usbdevs' => '-v');
 	my (@data);
 	if ($b_live && !$b_fake_usbdevs){
-		my $path = main::check_program($program);
-		@data = main::grabber("$path $args{$program} 2>/dev/null") if $path;
+		@data = main::grabber($alerts{$program}->{'path'} . " $args{$program} 2>/dev/null");
 	}
 	else {
 		my $file;
