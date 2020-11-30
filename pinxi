@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-11-29';
-my $self_patch='71';
+my $self_date='2020-11-30';
+my $self_patch='72';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9076,7 +9076,7 @@ sub proc_data {
 	my ($used) = @_;
 	my (@data,@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
-	set_proc_partitions() if !$b_proc_partitions;
+	main::set_proc_partitions() if $bsd_type && !$b_proc_partitions;
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
@@ -9134,20 +9134,7 @@ sub proc_data {
 	eval $end if $b_log;
 	return @data;
 }
-sub set_proc_partitions {
-	eval $start if $b_log;
-	$b_proc_partitions = 1;
-	if (my $file = main::system_files('partitions')){
-		@proc_partitions = main::reader($file,'strip');
-		shift @proc_partitions;
-		@proc_partitions = map {
-			my @temp = split(/\s+/, $_);
-			next if ! defined $temp[2];
-			[$temp[0],$temp[1],$temp[2],$temp[3]];
-		} @proc_partitions;
-	}
-	eval $end if $b_log;
-}
+
 sub proc_data_advanced {
 	eval $start if $b_log;
 	my ($b_hdx,$drives) = @_;
@@ -13258,7 +13245,7 @@ sub partition_data {
 		$blockdev = $alerts{'blockdev'}->{'path'} if $alerts{'blockdev'}->{'path'};
 	}
 	# for raw partition sizes, maj_min
-	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
+	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	main::set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	set_label_uuid() if !$b_label_uuid;
@@ -13355,7 +13342,7 @@ sub partition_data {
 			$dev_base = $row[0];
 			$dev_base =~ s/^\/dev\///;
 			$dev_mapped =~ s/^\/dev\/mapper\/// if $dev_mapped;
-			%part = check_lsblk($dev_base,0) if @lsblk;
+			%part = main::get_lsblk($dev_base) if @lsblk;
 			$maj_min = get_maj_min($dev_base) if @proc_partitions;
 		}
 		# this handles zfs type devices/partitions, which do not start with / but contain /
@@ -13683,22 +13670,7 @@ sub set_label_uuid {
 	}
 	eval $end if $b_log;
 }
-sub check_lsblk {
-	eval $start if $b_log;
-	my ($name,$b_size) = @_;
-	my (%part);
-	foreach my $row (@lsblk){
-		next if ! $row->{'name'};
-		if ($name eq $row->{'name'}){
-			%part = %$row;
-			last;
-		}
-	}
-	# print Data::Dumper::Dumper \%part;
-	main::log_data('dump','%part',\%part) if $b_log;
-	eval $end if $b_log;
-	return %part;
-}
+
 # handle cases of hidden file systems
 sub check_partition_data {
 	eval $start if $b_log;
@@ -14425,6 +14397,9 @@ sub create_output_zfs {
 				if ($b_admin && $device->[2]){
 					$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[2];
 				}
+				if ($b_admin && $device->[1]){
+					$rows[$j]{main::key($num++,0,6,'state')} = $device->[1];
+				}
 				$k++;
 			}
 			if (@failed){
@@ -14445,6 +14420,9 @@ sub create_output_zfs {
 					}
 					if ($b_admin && $device->[2]){
 						$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[2];
+					}
+					if ($b_admin && $device->[1]){
+						$rows[$j]{main::key($num++,0,6,'state')} = $device->[1];
 					}
 					$k++;
 				}
@@ -14468,6 +14446,9 @@ sub create_output_zfs {
 					if ($b_admin && $device->[2]){
 						$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[2];
 					}
+					if ($b_admin && $device->[1]){
+						$rows[$j]{main::key($num++,0,6,'state')} = $device->[1];
+					}
 					$k++;
 				}
 			}
@@ -14481,6 +14462,7 @@ sub create_output_zfs {
 sub raid_data {
 	eval $start if $b_log;
 	main::set_lsblk() if !$bsd_type && !$b_lsblk;
+	main::set_proc_partitions() if $bsd_type && !$b_proc_partitions;
 	@raw_logical = (0,0);
 	my (@data);
 	$b_raid = 1;
@@ -14571,18 +14553,27 @@ sub md_data {
 			my $status = $2;
 			my $level = $4;
 			my $component_string = $5;
-			my (@components,%details,%device,$size);
+			my (@components,%details,%device,$maj_min,@part,$size);
 			@temp = ();
 			$level =~ s/^raid1$/mirror/;
 			$level =~ s/^raid/raid-/; 
 			$level = 'mirror' if $level eq '1';
-			if ($alerts{'mdadm'}->{'action'} eq 'use'){
+			# cascade of tests, light to cpu intense
+			if ((!$maj_min || !$size) && @proc_partitions){
+				@part = main::get_proc_partition($id);
+				if (@part){
+					$maj_min = $part[0] . ':' . $part[1];
+					$size = $part[2];
+				}
+			}
+			if ((!$maj_min || !$size) && @lsblk){
+				%device = main::get_lsblk($id) if @lsblk;
+				$maj_min = $device{'maj-min'};
+				$size = $device{'size'};
+			}
+			if ((!$size || $b_admin) && $alerts{'mdadm'}->{'action'} eq 'use'){
 				%details = md_details($id);
 				$size = $details{'size'};
-			}
-			%device = main::get_lsblk($id) if @lsblk;
-			if (!$size && $device{'size'}){
-				$size = $device{'size'};
 			}
 			$raw_logical[0] += $size if $size;
 			# remember, these include the [x] id, so remove that for disk/unmounted
@@ -14596,12 +14587,19 @@ sub md_data {
 					$maj_min = $details{'devices'}->{$name}{'maj-min'};
 					$state = $details{'devices'}->{$name}{'state'};
 				}
-				if (@lsblk) {
+				if ((!$maj_min || !$part_size) && @proc_partitions){
+					@part = main::get_proc_partition($id);
+					if (@part){
+						$maj_min = $part[0] . ':' . $part[1];
+						$part_size = $part[2];
+					}
+				}
+				if ((!$maj_min || !$size) && @lsblk) {
 					%data= main::get_lsblk($name);
 					$maj_min = $data{'maj-min'} if !$maj_min;
 					$part_size = $data{'size'};
-					$raw_logical[1] += $part_size if $part_size;
 				}
+				$raw_logical[1] += $part_size if $part_size;
 				push(@components,[$name,$number,$info,$maj_min,$part_size,$state]);
 			}
 			#print "$component_string\n";
@@ -14612,7 +14610,7 @@ sub md_data {
 			'details' => \%details,
 			'id' => $id,
 			'level' => $level,
-			'maj-min' => $device{'maj-min'},
+			'maj-min' => $maj_min,
 			'size' => $size,
 			'status' => $status,
 			'type' => 'mdraid',
@@ -14830,12 +14828,19 @@ sub zfs_data {
 				$free = ($row[4])? main::translate_size($row[4]): '';
 				$zfs[$j]{'arrays'}[$k]{'free'} = $free;
 			}
-			if (@lsblk){
+			if ((!$maj_min || !$part_size) && @lsblk){
+				my @part = main::get_proc_partition($working);
+				if (@part){
+					$maj_min = $part[0] . ':' . $part[1];
+					$part_size = $part[2];
+				}
+			}
+			if ((!$maj_min || !$part_size) && @lsblk){
 				my %data= main::get_lsblk($working);
 				$maj_min = $data{'maj-min'};
 				$part_size = $data{'size'};
-				$raw_logical[1] += $part_size if $part_size;
 			}
+			$raw_logical[1] += $part_size if $part_size;
 			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = [$working,$state,$maj_min,$part_size];
 			$i++;
 		}
@@ -17472,7 +17477,7 @@ sub create_output {
 	my $num = 0;
 	my $j = 0;
 	my (@data,@data2,%part,@rows,$dev,$percent,$raw_size,$size,$used);
-	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
+	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	main::set_mapper() if !$b_mapper;
 	my @swap_data = PartitionData::swap_data();
 	foreach my $row (@swap_data){
@@ -17655,7 +17660,7 @@ sub unmounted_data {
 		     $row->[-1] !~ /\bloop/ && 
 		     !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
 		     !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted)){
-			%part = PartitionData::check_lsblk($row->[-1],0) if @lsblk;
+			%part = main::get_lsblk($row->[-1]) if @lsblk;
 			if (%part){
 				$fs = $part{'fs'};
 				$label = $part{'label'};
@@ -20072,6 +20077,7 @@ sub get_kernel_parameters_bsd {
 	return $parameters;
 }
 
+# 1 - partition name
 sub get_lsblk {
 	eval $start if $b_log;
 	my $item = $_[0];
@@ -20481,6 +20487,22 @@ sub get_pci_vendor {
 	}
 	eval $end if $b_log;
 	return $vendor;
+}
+
+# 1 - partition name, without /dev, like sda1, sde
+sub get_proc_partition {
+	eval $start if $b_log;
+	my $item = $_[0];
+	return if !@proc_partitions;
+	my (@device);
+	foreach my $device (@proc_partitions){
+		if ($device->[3] eq $item){
+			@device = @$device;
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return @device;
 }
 
 # # check? /var/run/nologin for bsds?
@@ -21770,6 +21792,22 @@ sub set_mapper {
 	}
 	eval $end if $b_log;
 }
+
+sub set_proc_partitions {
+	eval $start if $b_log;
+	$b_proc_partitions = 1;
+	if (my $file = main::system_files('partitions')){
+		@proc_partitions = main::reader($file,'strip');
+		shift @proc_partitions; # get rid of headers
+		@proc_partitions = map {
+			my @temp = split(/\s+/, $_);
+			next if ! defined $temp[2];
+			[$temp[0],$temp[1],$temp[2],$temp[3]];
+		} @proc_partitions;
+	}
+	eval $end if $b_log;
+}
+
 sub set_ps_aux {
 	eval $start if $b_log;
 	my ($header,@temp);
