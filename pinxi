@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-29';
-my $self_patch='45';
+my $self_patch='46';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -325,7 +325,7 @@ sub check_tools {
 		};
 	}
 	# print Dumper \%alerts;
-	set_fake_tools() if $b_fake_bsd;
+	set_fake_bsd_tools() if $b_fake_bsd;
 }
 # args: 1 - desktop/app command for --version; 2 - search string; 
 # 3 - space print number; 4 - [optional] version arg: -v, version, etc
@@ -407,9 +407,8 @@ sub set_display_width {
 }
 
 # only for dev/debugging BSD 
-sub set_fake_tools {
+sub set_fake_bsd_tools {
 	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $b_fake_dboot;
-	$alerts{'lvs'}->{'action'} = 'use' if $b_fake_lvm;
 	$alerts{'pciconf'}->{'action'} = 'use' if $b_fake_pciconf;
 	$alerts{'sysctl'}->{'action'} = 'use' if $b_fake_sysctl;
 	if ($b_fake_usbdevs){
@@ -14127,11 +14126,10 @@ sub create_output_lvm {
 }
 sub create_output_md {
 	eval $start if $b_log;
-	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
+	my (@components,@components_good,@data,@failed,@rows,
 	@sizes,@spare,@temp);
-	my ($available,$component_string,$raid,$size,$status);
-	my ($b_row_1_sizes);
-	my ($cont_arr,$i,$ind_arr,$j,$num,$status_id) = (2,0,3,0,0,2);
+	my ($blocks,$component_string,$raid,$report,$size,$sizes,$status);
+	my ($cont_arr,$ind_arr,$j,$num,$status_id) = (2,3,0,0,2);
 	#print Data::Dumper::Dumper \@md_raid;
 	if ($extra > 2 && $md_raid[0]->{'system-supported'}){
 		@data = ({
@@ -14141,111 +14139,86 @@ sub create_output_md {
 	}
 	foreach my $row (@md_raid){
 		$j = scalar @rows;
-		$b_row_1_sizes = 0;
 		next if !%$row;
 		$num = 1;
+		if ($row->{'details'}{'size'}){
+			@temp = main::get_size($row->{'details'}{'size'});
+			$size = "$temp[0] $temp[1]";
+		}
+		else {
+			$size = (!$b_root) ? main::row_defaults('root-required'): 'N/A';
+		}
 		@data = ({
 		main::key($num++,1,1,'Device') => $row->{'id'},
 		main::key($num++,0,2,'type') => $row->{'type'},
 		main::key($num++,0,2,'status') => $row->{'status'},
+		main::key($num++,0,2,'size') => $size,
 		});
 		push(@rows,@data);
 		if ($extra > 0){
-			$available = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
+			$blocks = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
 		}
-		$size = ($row->{'report'}) ? $row->{'report'}: '';
-		$size .= " $row->{'u-data'}" if $size; 
-		$size ||= 'N/A';
-		@arrays = @{$row->{'arrays'}};
-		@arrays = grep {defined $_} @arrays;
-		@arrays_holder = @arrays;
-		if ($extra == 0 || !defined $arrays[0]{'raid'} ){
-			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
+		$raid = (defined $row->{'raid'}) ? $row->{'raid'}: 'no-raid';
+		if ($extra == 0){
 			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
 		}
-		if ($extra == 0 && $size){
+		$report = ($row->{'report'}) ? $row->{'report'}: '';
+		$report .= " $row->{'u-data'}" if $report; 
+		$report ||= 'N/A';
+		if ($extra == 0){
 			#print "here 0\n";
-			$rows[$j]{main::key($num++,0,2,'report')} = $size;
-			$size = '';
-			$b_row_1_sizes = 1;
+			$rows[$j]{main::key($num++,0,2,'report')} = $report;
 		}
-		$i = 0;
-		my $count = scalar @arrays;
-		foreach my $row2 (@arrays){
-			($cont_arr,$ind_arr) = (2,3);
-			if ($count > 1){
-				($cont_arr,$ind_arr) = (3,4);
-				$j = scalar @rows;
-				$num = 1;
-				@sizes = ($row2->{'size'}) ? main::get_size($row2->{'size'}) : ();
-				$size = (@sizes) ? "$sizes[0] $sizes[1]" : 'N/A';
-				@sizes = ($row2->{'free'}) ? main::get_size($row2->{'free'}) : ();
-				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-				$raid = (defined $row2->{'raid'}) ? $row2->{'raid'}: 'no-raid';
-				$status = ($row2->{'status'}) ? $row2->{'status'}: 'N/A';
-				@data = ({
-				main::key($num++,1,2,'Array') => $raid,
-				main::key($num++,0,3,'status') => $status,
-				main::key($num++,0,3,'size') => $size,
-				main::key($num++,0,3,'free') => $available,
-				});
-				push(@rows,@data);
+		($cont_arr,$ind_arr) = (2,3);
+		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
+		@failed = ();
+		@spare = ();
+		@components_good = ();
+		# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
+		foreach my $item (@components){
+			@temp = split('~', $item);
+			if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+				$temp[0] = "$temp[0]~$temp[1]";
+				push(@failed, $temp[0]);
 			}
-			@components = (ref $row2->{'components'} eq 'ARRAY') ? @{$row2->{'components'}} : ();
-			@failed = ();
-			@spare = ();
-			@components_good = ();
-			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
-			foreach my $item (@components){
-				@temp = split('~', $item);
-				if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
-					$temp[0] = "$temp[0]~$temp[1]";
-					push(@failed, $temp[0]);
-				}
-				elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
-					$temp[0] = "$temp[0]~$temp[1]";
-					push(@spare, $temp[0]);
-				}
-				else {
-					$temp[0] = "$temp[0]~$temp[1]";
-					push(@components_good, $temp[0]);
-				}
+			elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
+				$temp[0] = "$temp[0]~$temp[1]";
+				push(@spare, $temp[0]);
 			}
-			$component_string = (@components_good) ? join(' ', @components_good) : 'N/A';
-			$rows[$j]{main::key($num++,1,$cont_arr,'Components')} = '';
-			$rows[$j]{main::key($num++,0,$ind_arr,'online')} = $component_string;
-			if (@failed){
-				$rows[$j]{main::key($num++,0,$ind_arr,'FAILED')} = join(' ', @failed);
+			else {
+				$temp[0] = "$temp[0]~$temp[1]";
+				push(@components_good, $temp[0]);
 			}
-			if (@spare){
-				$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join(' ', @spare);
-			}
-			if ($extra > 0){
-				$j = scalar @rows;
-				$num = 1;
-				#print Data::Dumper::Dumper \@arrays_holder;
-				$rows[$j]{main::key($num++,1,$cont_arr,'Info')} = '';
-				$raid = (defined $arrays_holder[0]{'raid'}) ? $arrays_holder[0]{'raid'}: 'no-raid';
-				$rows[$j]{main::key($num++,0,$ind_arr,'raid')} = $raid;
-				$rows[$j]{main::key($num++,0,$ind_arr,'blocks')} = $available;
-				if ($size){
-					$rows[$j]{main::key($num++,0,$ind_arr,'report')} = $size;
+		}
+		$component_string = (@components_good) ? join(' ', @components_good) : 'N/A';
+		$rows[$j]{main::key($num++,1,$cont_arr,'Components')} = '';
+		$rows[$j]{main::key($num++,0,$ind_arr,'online')} = $component_string;
+		if (@failed){
+			$rows[$j]{main::key($num++,0,$ind_arr,'FAILED')} = join(' ', @failed);
+		}
+		if (@spare){
+			$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join(' ', @spare);
+		}
+		if ($extra > 0){
+			$j = scalar @rows;
+			$num = 1;
+			$rows[$j]{main::key($num++,1,$cont_arr,'Info')} = '';
+			$rows[$j]{main::key($num++,0,$ind_arr,'raid')} = $raid;
+			$rows[$j]{main::key($num++,0,$ind_arr,'blocks')} = $blocks;
+			$rows[$j]{main::key($num++,0,$ind_arr,'report')} = $report;
+			my $chunk = ($row->{'chunk-size'}) ? $row->{'chunk-size'}: 'N/A';
+			$rows[$j]{main::key($num++,0,$ind_arr,'chunk size')} = $chunk;
+			if ($extra > 1){
+				if ($row->{'bitmap'}){
+					$rows[$j]{main::key($num++,0,$ind_arr,'bitmap')} = $row->{'bitmap'};
 				}
-				my $chunk = ($row->{'chunk-size'}) ? $row->{'chunk-size'}: 'N/A';
-				$rows[$j]{main::key($num++,0,$ind_arr,'chunk size')} = $chunk;
-				if ($extra > 1){
-					if ($row->{'bitmap'}){
-						$rows[$j]{main::key($num++,0,$ind_arr,'bitmap')} = $row->{'bitmap'};
-					}
-					if ($row->{'super-block'}){
-						$rows[$j]{main::key($num++,0,$ind_arr,'super blocks')} = $row->{'super-block'};
-					}
-					if ($row->{'algorithm'}){
-						$rows[$j]{main::key($num++,0,$ind_arr,'algorithm')} = $row->{'algorithm'};
-					}
+				if ($row->{'super-block'}){
+					$rows[$j]{main::key($num++,0,$ind_arr,'super blocks')} = $row->{'super-block'};
+				}
+				if ($row->{'algorithm'}){
+					$rows[$j]{main::key($num++,0,$ind_arr,'algorithm')} = $row->{'algorithm'};
 				}
 			}
-			$i++;
 		}
 		if ($row->{'recovery-percent'}){
 			$j = scalar @rows;
@@ -14458,7 +14431,7 @@ sub md_data {
 	my $j = 0;
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-4-device-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
-	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
+	$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
 	my @working = main::reader($mdstat,'strip');
@@ -14484,8 +14457,7 @@ sub md_data {
 			my $status = $2;
 			my $raid = $4;
 			my $component_string = $5;
-			my ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
-			$dev_size,$size,$state,$uuid,$working,@devices);
+			my (%details);
 			@temp = ();
 			$raid =~ s/^raid1$/mirror/;
 			$raid =~ s/^raid/raid-/; 
@@ -14501,23 +14473,18 @@ sub md_data {
 			}
 			@components = @temp;
 			if ($alerts{'mdadm'}->{'action'} eq 'use'){
-				($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
-				$dev_size,$size,$state,$uuid,$working,@devices) = md_details($id);
-			}
-			else {
-				$size = $alerts{'mdadm'}->{$alerts{'dmidecode'}->{'action'}};
+				%details = md_details($id);
 			}
 			#print "$component_string\n";
 			$j = scalar @mdraid;
 			push(@mdraid, {
 			'id' => $id,
-			'arrays' => ([],),
-			'size' => $size,
+			'components' => \@components,
+			'raid' => $raid,
+			'details' => \%details,
 			'status' => $status,
 			'type' => 'mdraid',
 			});
-			$mdraid[$j]{'arrays'}[0]{'raid'} = $raid;
-			$mdraid[$j]{'arrays'}[0]{'components'} = \@components;
 		}
 		#print "$_\n";
 		if ($_ =~ /^([0-9]+)\sblocks/){
@@ -14561,16 +14528,61 @@ sub md_data {
 sub md_details {
 	eval $start if $b_log;
 	my ($id) = @_;
-	my ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
-	$dev_size,$size,$state,$uuid,$working,@devices);
+	my (%details,@working);
 	my $cmd = $alerts{'mdadm'}->{'path'} . " --detail /dev/$id 2>/dev/null";
 	my @data = main::grabber($cmd,'strip');
-	
-	
-	#print Data::Dumper::Dumper \@mdraid;
+	foreach (@data) {
+		@working = split(/\s*:\s*/, $_, 2);
+		if (scalar @working == 2){
+			if ($working[0] eq 'Array Size' && $working[1] =~ /^([0-9]+)\s\(/){
+				$details{'size'} = $1;
+			}
+			elsif ($working[0] eq 'Active Devices'){
+				$details{'c-active'} = $working[1];
+			}
+			elsif ($working[0] eq 'Failed Devices'){
+				$details{'c-failed'} = $working[1];
+			}
+			elsif ($working[0] eq 'Raid Devices'){
+				$details{'c-raid'} = $working[1];
+			}
+			elsif ($working[0] eq 'Spare Devices'){
+				$details{'c-spare'} = $working[1];
+			}
+			elsif ($working[0] eq 'State'){
+				$details{'state'} = $working[1];
+			}
+			elsif ($working[0] eq 'Total Devices'){
+				$details{'c-total'} = $working[1];
+			}
+			elsif ($working[0] eq 'Used Dev Size' && $working[1] =~ /^([0-9]+)\s\(/){
+				$details{'dev-size'} = $1;
+			}
+			elsif ($working[0] eq 'UUID'){
+				$details{'uuid'} = $working[1];
+			}
+			elsif ($working[0] eq 'Working Devices'){
+				$details{'c-working'} = $working[1];
+			}
+		}
+		# end component data lines
+		else {
+			@working = split(/\s+/,$working[0]);
+			# 0       8       80        0      active sync   /dev/sdf
+			# 2       8      128        -      spare   /dev/sdi
+			next if !@working || $working[0] eq 'Number' || scalar @working < 6;
+			$working[-1] =~ s|^/dev/(mapper/)?||;
+			$details{'devices'}->{$working[-1]} = {
+			'maj-min' => $working[1] . ':' . $working[2],
+			'number' => $working[0],
+			'raid-device' => $working[3],
+			'state' => join(' ', $working[4..($#working - 1)]),
+			};
+		}
+	}
+	#print Data::Dumper::Dumper \%details;
 	eval $end if $b_log;
-	return ($c_active,$c_failed,$c_raid,$c_spare,$c_total,$c_working,
-	$dev_size,$size,$state,$uuid,$working,@devices);
+	return %details;
 }
 
 sub zfs_data {
