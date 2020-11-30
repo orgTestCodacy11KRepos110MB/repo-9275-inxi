@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-29';
-my $self_patch='48';
+my $self_patch='49';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14253,10 +14253,10 @@ sub create_output_md {
 sub create_output_zfs {
 		eval $start if $b_log;
 	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
-	@sizes,@spare,@temp);
-	my ($allocated,$available,$component_string,$raid,$size,$status);
+	@sizes,@spare);
+	my ($allocated,$available,$raid,$size,$status);
 	my ($b_row_1_sizes);
-	my ($cont_arr,$i,$ind_arr,$j,$num,$status_id) = (2,0,3,0,0,1);
+	my ($j,$num) = (0,0);
 	#print Data::Dumper::Dumper \@zfs_raid;
 	foreach my $row (@zfs_raid){
 		$j = scalar @rows;
@@ -14299,12 +14299,9 @@ sub create_output_zfs {
 			$rows[$j]{main::key($num++,0,2,'allocated')} = $allocated;
 			$allocated = '';
 		}
-		$i = 0;
 		my $count = scalar @arrays;
 		foreach my $row2 (@arrays){
-			($cont_arr,$ind_arr) = (2,3);
 			if ($count > 1){
-				($cont_arr,$ind_arr) = (3,4);
 				$j = scalar @rows;
 				$num = 1;
 				@sizes = ($row2->{'size'}) ? main::get_size($row2->{'size'}) : ();
@@ -14343,28 +14340,42 @@ sub create_output_zfs {
 			@spare = ();
 			@components_good = ();
 			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
-			foreach my $item (@components){
-				@temp = split('~', $item);
-				if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
-					push(@failed, $temp[0]);
+			foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
+				if (defined $item->[1] && $item->[1] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+					push(@failed, $item->[0]);
 				}
-				elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
-					push(@spare, $temp[0]);
+				elsif (defined $item->[1] && $item->[1] =~ /(S|OFFLINE)$/){
+					push(@spare, $item->[0]);
 				}
 				else {
-					push(@components_good, $temp[0]);
+					push(@components_good, $item->[0]);
 				}
 			}
-			$component_string = (@components_good) ? join(' ', @components_good) : 'N/A';
-			$rows[$j]{main::key($num++,1,$cont_arr,'Components')} = '';
-			$rows[$j]{main::key($num++,0,$ind_arr,'online')} = $component_string;
+			$j = scalar @rows;
+			$rows[$j]{main::key($num++,1,2,'Components')} = '';
+			my $good = (@components_good) ? '' : 'N/A';
+			$rows[$j]{main::key($num++,0,3,'online')} = $good;
+			my $k = 1;
+			foreach my $device (@components_good){
+				$rows[$j]{main::key($num++,0,4,$k)} = $device;
+				$k++;
+			}
 			if (@failed){
-				$rows[$j]{main::key($num++,0,$ind_arr,'FAILED')} = join(' ', @failed);
+				$k = 1;
+				$rows[$j]{main::key($num++,1,3,'FAILED')} = '';
+				foreach my $device (@failed){
+					$rows[$j]{main::key($num++,0,4,$k)} = $device;
+					$k++;
+				}
 			}
 			if (@spare){
-				$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join(' ', @spare);
+				$k = 1;
+				$rows[$j]{main::key($num++,1,3,'spare')} = '';
+				foreach my $device (@spare){
+					$rows[$j]{main::key($num++,0,4,$k)} = $device;
+					$k++;
+				}
 			}
-			$i++;
 		}
 	}
 	eval $end if $b_log;
@@ -14690,7 +14701,7 @@ sub zfs_data {
 				$free = ($row[4])? main::translate_size($row[4]): '';
 				$zfs[$j]{'arrays'}[$k]{'free'} = $free;
 			}
-			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = $working . '~' . $state;
+			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = [$working,$state];
 			$i++;
 		}
 	}
