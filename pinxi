@@ -14141,6 +14141,21 @@ sub create_output_md {
 		$j = scalar @rows;
 		next if !%$row;
 		$num = 1;
+		
+		@data = ({
+		main::key($num++,1,1,'Device') => $row->{'id'},
+		main::key($num++,0,2,'type') => $row->{'type'},
+		main::key($num++,0,2,'status') => $row->{'status'},
+		});
+		push(@rows,@data);
+		if ($row->{'details'}{'state'}){
+			$rows[$j]{main::key($num++,0,2,'state')} = $row->{'details'}{'state'};
+		}
+		
+		$raid = (defined $row->{'raid'}) ? $row->{'raid'}: 'no-raid';
+		if ($extra == 0){
+			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
+		}
 		if ($row->{'details'}{'size'}){
 			@temp = main::get_size($row->{'details'}{'size'});
 			$size = "$temp[0] $temp[1]";
@@ -14148,20 +14163,7 @@ sub create_output_md {
 		else {
 			$size = (!$b_root) ? main::row_defaults('root-required'): 'N/A';
 		}
-		@data = ({
-		main::key($num++,1,1,'Device') => $row->{'id'},
-		main::key($num++,0,2,'type') => $row->{'type'},
-		main::key($num++,0,2,'status') => $row->{'status'},
-		main::key($num++,0,2,'size') => $size,
-		});
-		push(@rows,@data);
-		if ($extra > 0){
-			$blocks = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
-		}
-		$raid = (defined $row->{'raid'}) ? $row->{'raid'}: 'no-raid';
-		if ($extra == 0){
-			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
-		}
+		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		$report = ($row->{'report'}) ? $row->{'report'}: '';
 		$report .= " $row->{'u-data'}" if $report; 
 		$report ||= 'N/A';
@@ -14202,6 +14204,7 @@ sub create_output_md {
 		if ($extra > 0){
 			$j = scalar @rows;
 			$num = 1;
+			$blocks = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
 			$rows[$j]{main::key($num++,1,$cont_arr,'Info')} = '';
 			$rows[$j]{main::key($num++,0,$ind_arr,'raid')} = $raid;
 			$rows[$j]{main::key($num++,0,$ind_arr,'blocks')} = $blocks;
