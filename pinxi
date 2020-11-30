@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-30';
-my $self_patch='72';
+my $self_patch='74';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -241,16 +241,13 @@ sub check_tools {
 	}
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
-	if ($b_lvm || $b_pci || $b_sysctl || $b_mdadm){
+	if ($b_lvm || $b_pci || $b_sysctl){
 		if (!$bsd_type){
 			if ($b_pci ){
 				$commands{'lspci'} = '-n';
 			}
 			if ($b_lvm){
 				$commands{'lvs'} = '';
-			}
-			if ($b_mdadm){
-				$commands{'mdadm'} = '--detail /dev/md50';
 			}
 		}
 		else {
@@ -301,6 +298,9 @@ sub check_tools {
 	if ($b_block_tool){
 		$commands{'blockdev'} = 'linux';
 		$commands{'lsblk'} = 'linux';
+	}
+	if ($b_mdadm){
+		$commands{'mdadm'} = 'linux';
 	}
 	if ($b_smartctl){
 		$commands{'smartctl'} = 'all';
@@ -14568,12 +14568,12 @@ sub md_data {
 			}
 			if ((!$maj_min || !$size) && @lsblk){
 				%device = main::get_lsblk($id) if @lsblk;
-				$maj_min = $device{'maj-min'};
-				$size = $device{'size'};
+				$maj_min = $device{'maj-min'} if $device{'maj-min'};
+				$size = $device{'size'} if $device{'size'};
 			}
 			if ((!$size || $b_admin) && $alerts{'mdadm'}->{'action'} eq 'use'){
 				%details = md_details($id);
-				$size = $details{'size'};
+				$size = $details{'size'} if $details{'size'};
 			}
 			$raw_logical[0] += $size if $size;
 			# remember, these include the [x] id, so remove that for disk/unmounted
@@ -14590,14 +14590,14 @@ sub md_data {
 				if ((!$maj_min || !$part_size) && @proc_partitions){
 					@part = main::get_proc_partition($id);
 					if (@part){
-						$maj_min = $part[0] . ':' . $part[1];
-						$part_size = $part[2];
+						$maj_min = $part[0] . ':' . $part[1] if !$maj_min;
+						$part_size = $part[2] if !$part_size;
 					}
 				}
 				if ((!$maj_min || !$size) && @lsblk) {
 					%data= main::get_lsblk($name);
 					$maj_min = $data{'maj-min'} if !$maj_min;
-					$part_size = $data{'size'};
+					$part_size = $data{'size'}if !$part_size;
 				}
 				$raw_logical[1] += $part_size if $part_size;
 				push(@components,[$name,$number,$info,$maj_min,$part_size,$state]);
