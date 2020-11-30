@@ -14531,6 +14531,7 @@ sub md_details {
 	my (%details,@working);
 	my $cmd = $alerts{'mdadm'}->{'path'} . " --detail /dev/$id 2>/dev/null";
 	my @data = main::grabber($cmd,'','strip');
+	main::log_data('dump',"$id raw: @data",\@data) if $b_log;
 	foreach (@data) {
 		@working = split(/\s*:\s*/, $_, 2);
 		if (scalar @working == 2){
@@ -14567,7 +14568,7 @@ sub md_details {
 		}
 		# end component data lines
 		else {
-			@working = split(/\s+/,$working[0]);
+			@working = split(/\s+/,$_);
 			# 0       8       80        0      active sync   /dev/sdf
 			# 2       8      128        -      spare   /dev/sdi
 			next if !@working || $working[0] eq 'Number' || scalar @working < 6;
@@ -14576,11 +14577,12 @@ sub md_details {
 			'maj-min' => $working[1] . ':' . $working[2],
 			'number' => $working[0],
 			'raid-device' => $working[3],
-			'state' => join(' ', $working[4..($#working - 1)]),
+			'state' => join(' ', @working[4..($#working - 1)]),
 			};
 		}
 	}
 	#print Data::Dumper::Dumper \%details;
+	main::log_data('dump',"$id: %details",\%details) if $b_log;
 	eval $end if $b_log;
 	return %details;
 }
