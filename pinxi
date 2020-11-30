@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-29';
-my $self_patch='56';
+my $self_patch='57';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14090,7 +14090,7 @@ sub create_output_md {
 	eval $start if $b_log;
 	my (@components,@components_good,@data,@failed,@rows,
 	@sizes,@spare,@temp);
-	my ($blocks,$chunk,$raid,$report,$size,$status);
+	my ($blocks,$chunk,$level,$report,$size,$status);
 	my ($j,$num) = (0,0);
 	#print Data::Dumper::Dumper \@md_raid;
 	if ($extra > 2 && $md_raid[0]->{'system-supported'}){
@@ -14103,11 +14103,11 @@ sub create_output_md {
 		$j = scalar @rows;
 		next if !%$row;
 		$num = 1;
-		$raid = (defined $row->{'raid'}) ? $row->{'raid'}: 'no-raid';
+		$level = (defined $row->{'level'}) ? $row->{'level'}: 'no-raid';
 		@data = ({
 		main::key($num++,1,1,'Device') => $row->{'id'},
 		main::key($num++,0,2,'type') => $row->{'type'},
-		main::key($num++,0,2,'level') => $raid,
+		main::key($num++,0,2,'level') => $level,
 		main::key($num++,0,2,'status') => $row->{'status'},
 		});
 		push(@rows,@data);
@@ -14116,16 +14116,16 @@ sub create_output_md {
 			$rows[$j]{main::key($num++,0,2,'state')} = $row->{'details'}{'state'};
 		}
 		if ($row->{'size'}){
-			@temp = main::get_size($row->{'size'});
-			$size = "$temp[0] $temp[1]";
+			@sizes = main::get_size($row->{'size'});
+			$size = "$sizes[0] $sizes[1]";
 		}
 		else {
 			$size = (!$b_root && !@lsblk) ? main::row_defaults('root-required'): 'N/A';
 		}
+		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		if ($b_admin && $row->{'maj-min'}){
 			$rows[$j]{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
 		}
-		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		$report = ($row->{'report'}) ? $row->{'report'}: '';
 		$report .= " $row->{'u-data'}" if $report; 
 		$report ||= 'N/A';
@@ -14154,9 +14154,9 @@ sub create_output_md {
 			$num = 1;
 			$rows[$j]{main::key($num++,1,2,'Info')} = '';
 			#$rows[$j]{main::key($num++,0,3,'raid')} = $raid;
+			$rows[$j]{main::key($num++,0,3,'report')} = $report;
 			$blocks = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
 			$rows[$j]{main::key($num++,0,3,'blocks')} = $blocks;
-			$rows[$j]{main::key($num++,0,3,'report')} = $report;
 			$chunk = ($row->{'chunk-size'}) ? $row->{'chunk-size'} : 'N/A';
 			$rows[$j]{main::key($num++,0,3,'chunk size')} = $chunk;
 			if ($extra > 1){
@@ -14176,26 +14176,44 @@ sub create_output_md {
 		my $good = (@components_good) ? '' : 'N/A';
 		$rows[$j]{main::key($num++,1,3,'online')} = $good;
 		foreach my $device (@components_good){
+			$j++ if $b_admin && $device->[2] && $device->[3];
 			$rows[$j]{main::key($num++,1,4,$device->[1])} = $device->[0];
 			if ($b_admin && $device->[2]){
 				$rows[$j]{main::key($num++,0,5,'maj-min')} = $device->[2];
+			}
+			if ($b_admin && $device->[3]){
+				@sizes = main::get_size($device->[3]);
+				$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+				$rows[$j]{main::key($num++,0,5,'size')} = $size;
 			}
 		}
 		if (@failed){
 			$rows[$j]{main::key($num++,1,3,'FAILED')} = '';
 			foreach my $device (@failed){
+				$j++ if $b_admin && $device->[2] && $device->[3];
 				$rows[$j]{main::key($num++,1,4,$device->[1])} = $device->[0];
 				if ($b_admin && $device->[2]){
 					$rows[$j]{main::key($num++,0,5,'maj-min')} = $device->[2];
+				}
+				if ($b_admin && $device->[3]){
+					@sizes = main::get_size($device->[3]);
+					$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+					$rows[$j]{main::key($num++,0,5,'size')} = $size;
 				}
 			}
 		}
 		if (@spare){
 			$rows[$j]{main::key($num++,1,3,'spare')} = '';
 			foreach my $device (@spare){
+				$j++ if $b_admin && $device->[2] && $device->[3];
 				$rows[$j]{main::key($num++,1,4,$device->[1])} = $device->[0];
 				if ($b_admin && $device->[2]){
 					$rows[$j]{main::key($num++,0,5,'maj-min')} = $device->[2];
+				}
+				if ($b_admin && $device->[3]){
+					@sizes = main::get_size($device->[3]);
+					$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+					$rows[$j]{main::key($num++,0,5,'size')} = $size;
 				}
 			}
 		}
@@ -14227,7 +14245,7 @@ sub create_output_zfs {
 		eval $start if $b_log;
 	my (@arrays,@arrays_holder,@components,@components_good,@data,@failed,@rows,
 	@sizes,@spare);
-	my ($allocated,$available,$raid,$size,$status);
+	my ($allocated,$available,$level,$size,$status);
 	my ($b_row_1_sizes);
 	my ($j,$num) = (0,0);
 	#print Data::Dumper::Dumper \@zfs_raid;
@@ -14253,9 +14271,9 @@ sub create_output_zfs {
 		@arrays = @{$row->{'arrays'}};
 		@arrays = grep {defined $_} @arrays;
 		@arrays_holder = @arrays;
-		if (!defined $arrays[0]{'raid'} ){
-			$raid = (defined $arrays[0]{'raid'}) ? $arrays[0]{'raid'}: 'no-raid';
-			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
+		if (!defined $arrays[0]{'level'} ){
+			$level = 'no-raid';
+			$rows[$j]{main::key($num++,0,2,'level')} = $level;
 		}
 		if ($size){
 			#print "here 0\n";
@@ -14281,10 +14299,10 @@ sub create_output_zfs {
 				$size = (@sizes) ? "$sizes[0] $sizes[1]" : 'N/A';
 				@sizes = ($row2->{'free'}) ? main::get_size($row2->{'free'}) : ();
 				$available = (@sizes) ? "$sizes[0] $sizes[1]" : '';
-				$raid = (defined $row2->{'raid'}) ? $row2->{'raid'}: 'no-raid';
+				$level = (defined $row2->{'level'}) ? $row2->{'level'}: 'no-raid';
 				$status = ($row2->{'status'}) ? $row2->{'status'}: 'N/A';
 				@data = ({
-				main::key($num++,1,2,'Array') => $raid,
+				main::key($num++,1,2,'Array') => $level,
 				main::key($num++,0,3,'status') => $status,
 				main::key($num++,0,3,'size') => $size,
 				main::key($num++,0,3,'free') => $available,
@@ -14314,14 +14332,14 @@ sub create_output_zfs {
 			@components_good = ();
 			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
 			foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
-				if (defined $item->[1] && $item->[1] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
-					push(@failed, $item->[0]);
+				if (defined $item->[3] && $item->[3] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+					push(@failed, $item);
 				}
-				elsif (defined $item->[1] && $item->[1] =~ /(S|OFFLINE)$/){
-					push(@spare, $item->[0]);
+				elsif (defined $item->[3] && $item->[3] =~ /(S|OFFLINE)$/){
+					push(@spare, $item);
 				}
 				else {
-					push(@components_good, $item->[0]);
+					push(@components_good, $item);
 				}
 			}
 			$j = scalar @rows;
@@ -14330,14 +14348,32 @@ sub create_output_zfs {
 			$rows[$j]{main::key($num++,0,4,'online')} = $good;
 			my $k = 1;
 			foreach my $device (@components_good){
-				$rows[$j]{main::key($num++,0,5,$k)} = $device;
+				$j++ if $b_admin && $device->[1] && $device->[2];
+				$rows[$j]{main::key($num++,1,5,$k)} = $device->[0];
+				if ($b_admin && $device->[1]){
+					$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[1];
+				}
+				if ($b_admin && $device->[2]){
+					@sizes = main::get_size($device->[2]);
+					$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+					$rows[$j]{main::key($num++,0,6,'size')} = $size;
+				}
 				$k++;
 			}
 			if (@failed){
 				$k = 1;
 				$rows[$j]{main::key($num++,1,4,'FAILED')} = '';
 				foreach my $device (@failed){
-					$rows[$j]{main::key($num++,0,5,$k)} = $device;
+					$j++ if $b_admin && $device->[1] && $device->[2];
+					$rows[$j]{main::key($num++,1,5,$k)} = $device->[0];
+					if ($b_admin && $device->[1]){
+						$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[1];
+					}
+					if ($b_admin && $device->[2]){
+						@sizes = main::get_size($device->[2]);
+						$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+						$rows[$j]{main::key($num++,0,6,'size')} = $size;
+					}
 					$k++;
 				}
 			}
@@ -14345,7 +14381,16 @@ sub create_output_zfs {
 				$k = 1;
 				$rows[$j]{main::key($num++,1,4,'spare')} = '';
 				foreach my $device (@spare){
-					$rows[$j]{main::key($num++,0,5,$k)} = $device;
+					$j++ if $b_admin && $device->[1] && $device->[2];
+					$rows[$j]{main::key($num++,1,5,$k)} = $device->[0];
+					if ($b_admin && $device->[1]){
+						$rows[$j]{main::key($num++,0,6,'maj-min')} = $device->[1];
+					}
+					if ($b_admin && $device->[2]){
+						@sizes = main::get_size($device->[2]);
+						$size = (@sizes) ? "$sizes[0] $sizes[1]" : '';
+						$rows[$j]{main::key($num++,0,6,'size')} = $size;
+					}
 					$k++;
 				}
 			}
@@ -14446,13 +14491,13 @@ sub md_data {
 		if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
 			my $id = $1;
 			my $status = $2;
-			my $raid = $4;
+			my $level = $4;
 			my $component_string = $5;
 			my (@components,%details,%device,$size);
 			@temp = ();
-			$raid =~ s/^raid1$/mirror/;
-			$raid =~ s/^raid/raid-/; 
-			$raid = 'mirror' if $raid eq '1';
+			$level =~ s/^raid1$/mirror/;
+			$level =~ s/^raid/raid-/; 
+			$level = 'mirror' if $level eq '1';
 			if ($alerts{'mdadm'}->{'action'} eq 'use'){
 				%details = md_details($id);
 				$size = $details{'size'};
@@ -14487,8 +14532,8 @@ sub md_data {
 			'components' => \@components,
 			'details' => \%details,
 			'id' => $id,
+			'level' => $level,
 			'maj-min' => $device{'maj-min'},
-			'raid' => $raid,
 			'size' => $size,
 			'status' => $status,
 			'type' => 'mdraid',
@@ -14660,7 +14705,7 @@ sub zfs_data {
 			$row[1] =~ s/^raid1/mirror/;
 			#$row[1] =~ s/^raid/raid-/; # need to match in zpool status <device>
 			$k = scalar @{$zfs[$j]{'arrays'}};
-			$zfs[$j]{'arrays'}[$k]{'raid'} = $row[1];
+			$zfs[$j]{'arrays'}[$k]{'level'} = $row[1];
 			$i = 0;
 			$zfs[$j]{'arrays'}[$k]{'size'} = ($row[2] && $row[2] ne '-') ? main::translate_size($row[2]) : '';
 			$zfs[$j]{'arrays'}[$k]{'allocated'} = ($row[3] && $row[3] ne '-') ? main::translate_size($row[3]) : '';
@@ -14680,6 +14725,7 @@ sub zfs_data {
 			$row[1] =~ /^(sd[a-z]|[a-z0-9]+[0-9]+|([\S]+)\/.*)\s*(DEGRADED|FAULTED|OFFLINE)?$/;
 			my $working = ($1) ? $1 : ''; # note: the negative case can never happen
 			my $state = ($3) ? $3 : '';
+			my $maj_min;
 			if ($working =~ /[\S]+\// && @glabel){
 				$working = DiskData::match_glabel($working);
 			}
@@ -14699,7 +14745,11 @@ sub zfs_data {
 				$free = ($row[4])? main::translate_size($row[4]): '';
 				$zfs[$j]{'arrays'}[$k]{'free'} = $free;
 			}
-			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = [$working,$state];
+			if ($b_admin && @lsblk){
+				my %data= main::get_lsblk($working);
+				$maj_min = $data{'maj-min'};
+			}
+			$zfs[$j]{'arrays'}[$k]{'components'}[$i] = [$working,$maj_min,$state];
 			$i++;
 		}
 	}
