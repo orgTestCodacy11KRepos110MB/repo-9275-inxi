@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-29';
-my $self_patch='47';
+my $self_patch='48';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14128,8 +14128,8 @@ sub create_output_md {
 	eval $start if $b_log;
 	my (@components,@components_good,@data,@failed,@rows,
 	@sizes,@spare,@temp);
-	my ($blocks,$component_string,$raid,$report,$size,$status);
-	my ($cont_arr,$ind_arr,$j,$num,$status_id) = (2,3,0,0,2);
+	my ($blocks,$raid,$report,$size,$status);
+	my ($j,$num) = (0,0);
 	#print Data::Dumper::Dumper \@md_raid;
 	if ($extra > 2 && $md_raid[0]->{'system-supported'}){
 		@data = ({
@@ -14169,52 +14169,60 @@ sub create_output_md {
 			#print "here 0\n";
 			$rows[$j]{main::key($num++,0,2,'report')} = $report;
 		}
-		($cont_arr,$ind_arr) = (2,3);
 		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
 		@failed = ();
 		@spare = ();
 		@components_good = ();
 		# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
-		foreach my $item (@components){
-			@temp = split('~', $item);
-			if (defined $temp[$status_id] && $temp[$status_id] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
-				push(@failed, "$temp[0]~$temp[1]");
+		foreach my $item (sort { $a->[1] <=> $b->[1]} @components){
+			if (defined $item->[2] && $item->[2] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+				push(@failed, $item);
 			}
-			elsif (defined $temp[$status_id] && $temp[$status_id] =~ /(S|OFFLINE)$/){
-				push(@spare, "$temp[0]~$temp[1]");
+			elsif (defined $item->[2] && $item->[2] =~ /(S|OFFLINE)$/){
+				push(@spare, $item);
 			}
 			else {
-				push(@components_good, "$temp[0]~$temp[1]");
+				push(@components_good, $item);
 			}
 		}
-		$component_string = (@components_good) ? join(' ', @components_good) : 'N/A';
-		$rows[$j]{main::key($num++,1,$cont_arr,'Components')} = '';
-		$rows[$j]{main::key($num++,0,$ind_arr,'online')} = $component_string;
+		$j = scalar @rows;
+		$rows[$j]{main::key($num++,1,1,'Components')} = '';
+		my $good = (@components_good) ? '' : 'N/A';
+		$rows[$j]{main::key($num++,1,2,'online')} = $good;
+		foreach my $device (@components_good){
+			$rows[$j]{main::key($num++,0,3,$device->[1])} = $device->[0];
+		}
 		if (@failed){
-			$rows[$j]{main::key($num++,0,$ind_arr,'FAILED')} = join(' ', @failed);
+			$rows[$j]{main::key($num++,1,2,'FAILED')} = '';
+			foreach my $device (@failed){
+				$rows[$j]{main::key($num++,0,3,$device->[1])} = $device->[0];
+			}
 		}
 		if (@spare){
-			$rows[$j]{main::key($num++,0,$ind_arr,'spare')} = join(' ', @spare);
+			$rows[$j]{main::key($num++,1,2,'spare')} = '';
+			foreach my $device (@spare){
+				$rows[$j]{main::key($num++,0,3,$device->[1])} = $device->[0];
+			}
 		}
 		if ($extra > 0){
 			$j = scalar @rows;
 			$num = 1;
-			$rows[$j]{main::key($num++,1,$cont_arr,'Info')} = '';
-			$rows[$j]{main::key($num++,0,$ind_arr,'raid')} = $raid;
+			$rows[$j]{main::key($num++,1,1,'Info')} = '';
+			$rows[$j]{main::key($num++,0,2,'raid')} = $raid;
 			$blocks = ($row->{'blocks'}) ? $row->{'blocks'} : 'N/A';
-			$rows[$j]{main::key($num++,0,$ind_arr,'blocks')} = $blocks;
-			$rows[$j]{main::key($num++,0,$ind_arr,'report')} = $report;
+			$rows[$j]{main::key($num++,0,2,'blocks')} = $blocks;
+			$rows[$j]{main::key($num++,0,2,'report')} = $report;
 			my $chunk = ($row->{'chunk-size'}) ? $row->{'chunk-size'}: 'N/A';
-			$rows[$j]{main::key($num++,0,$ind_arr,'chunk size')} = $chunk;
+			$rows[$j]{main::key($num++,0,2,'chunk size')} = $chunk;
 			if ($extra > 1){
 				if ($row->{'bitmap'}){
-					$rows[$j]{main::key($num++,0,$ind_arr,'bitmap')} = $row->{'bitmap'};
+					$rows[$j]{main::key($num++,0,2,'bitmap')} = $row->{'bitmap'};
 				}
 				if ($row->{'super-block'}){
-					$rows[$j]{main::key($num++,0,$ind_arr,'super blocks')} = $row->{'super-block'};
+					$rows[$j]{main::key($num++,0,2,'super blocks')} = $row->{'super-block'};
 				}
 				if ($row->{'algorithm'}){
-					$rows[$j]{main::key($num++,0,$ind_arr,'algorithm')} = $row->{'algorithm'};
+					$rows[$j]{main::key($num++,0,2,'algorithm')} = $row->{'algorithm'};
 				}
 			}
 		}
@@ -14225,16 +14233,16 @@ sub create_output_md {
 			if ($extra > 1 && $row->{'progress-bar'}){
 				$percent .= " $row->{'progress-bar'}"
 			}
-			$rows[$j]{main::key($num++,1,$cont_arr,'Recovering')} = $percent;
+			$rows[$j]{main::key($num++,1,1,'Recovering')} = $percent;
 			my $finish = ($row->{'recovery-finish'})?$row->{'recovery-finish'} : 'N/A';
-			$rows[$j]{main::key($num++,0,$ind_arr,'time remaining')} = $finish;
+			$rows[$j]{main::key($num++,0,2,'time remaining')} = $finish;
 			if ($extra > 0){
 				if ($row->{'sectors-recovered'}){
-					$rows[$j]{main::key($num++,0,$ind_arr,'sectors')} = $row->{'sectors-recovered'};
+					$rows[$j]{main::key($num++,0,2,'sectors')} = $row->{'sectors-recovered'};
 				}
 			}
 			if ($extra > 1 && $row->{'recovery-speed'}){
-				$rows[$j]{main::key($num++,0,$ind_arr,'speed')} = $row->{'recovery-speed'};
+				$rows[$j]{main::key($num++,0,2,'speed')} = $row->{'recovery-speed'};
 			}
 		}
 	}
@@ -14430,7 +14438,7 @@ sub md_data {
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-4-device-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
-	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
+	$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
 	#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
@@ -14455,21 +14463,17 @@ sub md_data {
 			my $status = $2;
 			my $raid = $4;
 			my $component_string = $5;
-			my (%details);
+			my (@components,%details);
 			@temp = ();
 			$raid =~ s/^raid1$/mirror/;
 			$raid =~ s/^raid/raid-/; 
 			$raid = 'mirror' if $raid eq '1';
 			# remember, these include the [x] id, so remove that for disk/unmounted
-			my @components = split(/\s+/, $component_string);
-			foreach my $component (@components){
-				$component =~ /([\S]+)\[([0-9]+)\]\(?([SF])?\)?/;
-				my $string = "$1~";
-				$string .= (defined $2) ? "c$2" : '';
-				$string .= (defined $3) ? "~$3" : '';
-				push(@temp, $string);
+			foreach my $component (split(/\s+/, $component_string)){
+				if ($component =~ /([\S]+)\[([0-9]+)\]\(?([SF])?\)?/){
+					push(@components,[$1,$2,$3]);
+				}
 			}
-			@components = @temp;
 			if ($alerts{'mdadm'}->{'action'} eq 'use'){
 				%details = md_details($id);
 			}
