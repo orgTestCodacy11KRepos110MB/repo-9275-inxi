@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-29';
-my $self_patch='50';
+my $self_patch='51';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13220,7 +13220,7 @@ sub partition_data {
 	}
 	# for raw partition sizes, maj_min
 	DiskData::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
-	set_lsblk() if !$bsd_type && !$b_lsblk;
+	main::set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set labels, uuid, gpart
 	set_label_uuid() if !$b_label_uuid;
 	# most current OS support -T and -k, but -P means different things
@@ -13642,44 +13642,6 @@ sub set_label_uuid {
 			}
 		}
 	}
-	eval $end if $b_log;
-}
-sub set_lsblk {
-	eval $start if $b_log;
-	$b_lsblk = 1;
-	if ($alerts{'lsblk'} && $alerts{'lsblk'}->{'path'}){
-		my $cmd = $alerts{'lsblk'}->{'path'} . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
-		$cmd .= 'SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,MAJ:MIN 2>/dev/null';
-		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
-		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
-		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
-		$pattern .= 'PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"\s+';
-		$pattern .= 'MAJ:MIN="([^"]*)"';
-		my @working = main::grabber($cmd);
-		foreach (@working){
-			if (/$pattern/){
-				my $size = ($5) ? $5/1024: 0;
-				# some versions of lsblk do not return serial, fs, uuid, or label
-				push(@lsblk, {
-				'name' => $1, 
-				'type' => $2,
-				'rm' => $3, 
-				'fs' => $4, 
-				'size' => $size,
-				'label' => $6,
-				'uuid' => $7,
-				'serial' => $8,
-				'mount' => $9,
-				'block-physical' => $10,
-				'block-logical' => $11,
-				'partition-flags' => $12,
-				'maj-min' => $13,
-				});
-			}
-		}
-	}
-	#print Data::Dumper::Dumper \@lsblk;
-	main::log_data('dump','@lsblk',\@lsblk) if $b_log;
 	eval $end if $b_log;
 }
 sub check_lsblk {
@@ -14385,6 +14347,7 @@ sub create_output_zfs {
 
 sub raid_data {
 	eval $start if $b_log;
+	main::set_lsblk() if !$bsd_type && !$b_lsblk;
 	my (@data);
 	$b_raid = 1;
 	if ($b_lvm){
@@ -14488,6 +14451,10 @@ sub md_data {
 			if ($alerts{'mdadm'}->{'action'} eq 'use'){
 				%details = md_details($id);
 			}
+			my %device = main::get_lsblk($id) if @lsblk;
+			if (!$details{'size'} && $device{'size'}){
+				$details{'size'} = $device{'size'};
+			}
 			#print "$component_string\n";
 			$j = scalar @mdraid;
 			push(@mdraid, {
@@ -14495,6 +14462,7 @@ sub md_data {
 			'components' => \@components,
 			'raid' => $raid,
 			'details' => \%details,
+			'maj-min' => $device{'maj-min'},
 			'status' => $status,
 			'type' => 'mdraid',
 			});
@@ -14553,6 +14521,9 @@ sub md_details {
 			}
 			elsif ($working[0] eq 'Active Devices'){
 				$details{'c-active'} = $working[1];
+			}
+			elsif ($working[0] eq 'Chunk Size'){
+				$details{'chunk-size'} = $working[1];
 			}
 			elsif ($working[0] eq 'Failed Devices'){
 				$details{'c-failed'} = $working[1];
@@ -19936,6 +19907,21 @@ sub get_kernel_parameters_bsd {
 	return $parameters;
 }
 
+sub get_lsblk {
+	eval $start if $b_log;
+	my $item = $_[0];
+	return if !@lsblk;
+	my (%device);
+	foreach my $device (@lsblk){
+		if ($device->{'name'} eq $item){
+			%device = %$device;
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return %device;
+}
+
 sub get_mapped {
 	eval $start if $b_log;
 	my $item = $_[0];
@@ -21568,6 +21554,45 @@ sub set_ifconfig {
 	print Dumper \@ifs_bsd if $test[3];
 	log_data('dump','@ifs',\@ifs) if $b_log;
 	log_data('dump','@ifs_bsd',\@ifs_bsd) if $b_log;
+	eval $end if $b_log;
+}
+
+sub set_lsblk {
+	eval $start if $b_log;
+	$b_lsblk = 1;
+	if ($alerts{'lsblk'} && $alerts{'lsblk'}->{'path'}){
+		my $cmd = $alerts{'lsblk'}->{'path'} . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
+		$cmd .= 'SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,MAJ:MIN 2>/dev/null';
+		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
+		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
+		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
+		$pattern .= 'PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"\s+';
+		$pattern .= 'MAJ:MIN="([^"]*)"';
+		my @working = main::grabber($cmd);
+		foreach (@working){
+			if (/$pattern/){
+				my $size = ($5) ? $5/1024: 0;
+				# some versions of lsblk do not return serial, fs, uuid, or label
+				push(@lsblk, {
+				'name' => $1, 
+				'type' => $2,
+				'rm' => $3, 
+				'fs' => $4, 
+				'size' => $size,
+				'label' => $6,
+				'uuid' => $7,
+				'serial' => $8,
+				'mount' => $9,
+				'block-physical' => $10,
+				'block-logical' => $11,
+				'partition-flags' => $12,
+				'maj-min' => $13,
+				});
+			}
+		}
+	}
+	#print Data::Dumper::Dumper \@lsblk;
+	main::log_data('dump','@lsblk',\@lsblk) if $b_log;
 	eval $end if $b_log;
 }
 
