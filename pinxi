@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-11-30';
-my $self_patch='79';
+my $self_patch='80';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8859,12 +8859,14 @@ sub create_output {
 			$size .= ' ' . $sizing[1];
 		}
 	}
+	my $size_value;
 	$size ||= 'N/A';
 	if ($disks->[0]{'logical-size'}){
 		$rows[$j]{main::key($num++,1,2,'total')} = '';
 		$rows[$j]{main::key($num++,0,3,'raw')} = $size;
 		$size = 0;
 		@sizing = main::get_size($disks->[0]{'logical-size'});
+		$size_value = $disks->[0]{'logical-size'} if $disks->[0]{'logical-size'};
 		#print Data::Dumper::Dumper $disks;
 		if (@sizing){
 			$size = $sizing[0];
@@ -8875,38 +8877,26 @@ sub create_output {
 		}
 		$size ||= 'N/A';
 		$rows[$j]{main::key($num++,1,3,'logical')} = $size;
-		@sizing = main::get_size($disks->[0]{'used'}) if defined $disks->[0]{'used'};
-		if (@sizing){
-			$used = $sizing[0];
-			if (defined $sizing[0] && $sizing[1]){
-				$used .= ' ' . $sizing[1];
-				if (( $disks->[0]{'size'} && $disks->[0]{'size'} =~ /^[0-9]/ ) && 
-					( $disks->[0]{'used'} =~ /^[0-9]/ ) ){
-					$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$disks->[0]{'logical-size'}*100) . '%)';
-				}
-			}
-			
-		}
-		$used ||= 'N/A';
-		$rows[$j]{main::key($num++,0,2,'used')} = $used;
 	}
 	else {
 		@sizing = ();
-		@sizing = main::get_size($disks->[0]{'used'}) if defined $disks->[0]{'used'};
-		if (@sizing){
-			$used = $sizing[0];
-			if (defined $sizing[0] && $sizing[1]){
-				$used .= ' ' . $sizing[1];
-				if (( $disks->[0]{'size'} && $disks->[0]{'size'} =~ /^[0-9]/ ) && 
-					( $disks->[0]{'used'} =~ /^[0-9]/ ) ){
-					$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$disks->[0]{'size'}*100) . '%)';
-				}
+		$size_value = $disks->[0]{'size'} if $disks->[0]{'size'};
+		$rows[$j]{main::key($num++,0,2,'total')} = $size;
+		
+	}
+	@sizing = main::get_size($disks->[0]{'used'}) if defined $disks->[0]{'used'};
+	if (@sizing){
+		$used = $sizing[0];
+		if (defined $sizing[0] && $sizing[1]){
+			$used .= ' ' . $sizing[1];
+			if (($size_value && $size_value =~ /^[0-9]/) && 
+			   ( $disks->[0]{'used'} =~ /^[0-9]/ ) ){
+				$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$size_value*100) . '%)';
 			}
 		}
-		$used ||= 'N/A';
-		$rows[$j]{main::key($num++,0,2,'total')} = $size;
-		$rows[$j]{main::key($num++,0,2,'used')} = $used;
 	}
+	$used ||= 'N/A';
+	$rows[$j]{main::key($num++,0,2,'used')} = $used;
 	shift @$disks;
 	if ($smartctl_missing){
 		$j = scalar @rows;
