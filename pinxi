@@ -4715,13 +4715,26 @@ sub get_options {
 		@sensors_exclude = ();
 		@sensors_use = ();
 	}
-	if ($show{'disk'} || $show{'disk-basic'} || $show{'disk-total'}  || $show{'lvm'} || 
+	if ($show{'short'} || $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'}  || $show{'lvm'} || 
 	    $show{'partition'} || $show{'partition-full'} || $show{'raid'} || $show{'unmounted'}){
 		$b_block_tool = 1;
 	}
 	if ($show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} 
 	 || $show{'unmounted'}){
 		$b_mdadm = 1;
+	}
+	if ($bsd_type && ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'})){
+		$b_dm_boot_disk = 1;
+	}
+	if ($bsd_type && ($show{'optical-basic'} || $show{'optical'})){
+		$b_dm_boot_optical = 1
+	}
+	if ($b_admin && $show{'disk'}){
+		$b_smartctl = 1;
+	}
+	# triggers may extend to -D, -pP
+	if ($show{'lvm'}){
+		$b_lvm = 1;
 	}
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
@@ -4749,19 +4762,6 @@ sub get_options {
 	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'battery'} || $show{'cpu'} || $show{'cpu-basic'} || 
 	   $show{'info'} || $show{'machine'} || $show{'process'} || $show{'ram'}  || $show{'sensor'} ) ){
 		$b_sysctl = 1;
-	}
-	if ($bsd_type && ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'})){
-		$b_dm_boot_disk = 1;
-	}
-	if ($bsd_type && ($show{'optical-basic'} || $show{'optical'})){
-		$b_dm_boot_optical = 1
-	}
-	if ($b_admin && $show{'disk'}){
-		$b_smartctl = 1;
-	}
-	# triggers may extend to -D, -pP
-	if ($show{'lvm'}){
-		$b_lvm = 1;
 	}
 } 
 
@@ -22519,10 +22519,10 @@ sub generate_short_data {
 	my ($size,$used,$size_type,$used_type) = ('','','','');
 	my (@temp,$size_holder,$used_holder);
 	if (@disk){
-		$size = $disk[0]{'size'};
+		$size = ($disk[0]{'logical'}) ? $disk[0]{'logical'} : $disk[0]{'size'};
 		# must be > 0
-		if ($disk[0]{'size'} && is_numeric($disk[0]{'size'}) ){
-			$size_holder = $disk[0]{'size'};
+		if ($size && is_numeric($size) ){
+			$size_holder = $size;
 			@temp = get_size($size);
 			$size = $temp[0];
 			$size_type = " $temp[1]";
