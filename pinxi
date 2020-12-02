@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-12-01';
-my $self_patch='84';
+my $self_patch='85';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7078,8 +7078,10 @@ sub create_output_full {
 		$rows[$j]{main::key($num++,0,2,'family')} = hex_and_decimal($cpu{'family'});
 		$rows[$j]{main::key($num++,0,2,'model-id')} = hex_and_decimal($cpu{'model_id'});
 		$rows[$j]{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu{'stepping'});
-		$cpu{'microcode'} ||= 'N/A';
-		$rows[$j]{main::key($num++,0,2,'microcode')} = $cpu{'microcode'};
+		if (!$b_arm && !$b_mips && !$b_ppc && $cpu{'type'} ne 'elbrus'){
+			$cpu{'microcode'} ||= 'N/A';
+			$rows[$j]{main::key($num++,0,2,'microcode')} = $cpu{'microcode'};
+		}
 	}
 	if ($extra > 1 && $properties{'l1-cache'}){
 		$rows[$j]{main::key($num++,0,2,'L1 cache')} = $properties{'l1-cache'};
@@ -7308,7 +7310,7 @@ sub data_cpuinfo {
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($b_fake_cpu){
-		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
+		 $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
@@ -7339,7 +7341,7 @@ sub data_cpuinfo {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
 	}
 	my @cpuinfo = main::reader($file);
 	my %speeds = set_cpu_speeds_sys();
@@ -8525,7 +8527,10 @@ sub cpu_arch {
 				else {$arch = 'Elbrus-8C';}
 			} # note: stepping > 1 may be 8C1
 			elsif ( $model eq '8' ) {$arch = 'Elbrus-1C+'}
-			elsif ( $model eq '9' ) {$arch = 'Elbrus-8CV'}
+			elsif ( $model eq '9' ) {
+				if ($stepping == 1) {$arch = 'Elbrus-8CV';}
+				else {$arch = 'Elbrus-8C2';}
+			}
 			elsif ( $model eq '10' ) {$arch = 'Elbrus-12C'}
 			elsif ( $model eq '11' ) {$arch = 'Elbrus-16C'}
 			elsif ( $model eq '12' ) {$arch = 'Elbrus-2C3'}
@@ -8534,7 +8539,7 @@ sub cpu_arch {
 				$note = $check;}
 		}
 		elsif ($family eq '5'){
-			if ($model eq '9') {$arch = 'Elbrus-E8C2'}
+			if ($model eq '9') {$arch = 'Elbrus-8C2'}
 			else {
 				$arch = 'Elbrus-??';
 				$note = $check;}
