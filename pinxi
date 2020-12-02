@@ -78,7 +78,7 @@ my @test = (0,0,0,0,0);
 ## Booleans
 my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
-$b_fake_bsd,$b_fake_dboot,$b_fake_dmidecode,$b_fake_lvm,$b_fake_pciconf,
+$b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_lvm,$b_fake_pciconf,
 $b_fake_raid,$b_fake_sensors,$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,
 $b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
@@ -4534,6 +4534,8 @@ sub get_options {
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
+	'fake-cpu' => sub {
+		$b_fake_cpu = 1 },
 	'fake-dmi' => sub {
 		$b_fake_dmidecode = 1 },
 	'fake-lvm' => sub {
@@ -7301,39 +7303,45 @@ sub data_cpuinfo {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter);
-	# use --arm flag when testing arm cpus
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-althlon-mjro.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-a10-5800k-1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
-	# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
-	my %speeds = set_cpu_speeds_sys();
+	# has to be set above fake cpu section
+	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
+	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
+	if ($b_fake_cpu){
+		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-althlon-mjro.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-a10-5800k-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
+	}
 	my @cpuinfo = main::reader($file);
+	my %speeds = set_cpu_speeds_sys();
 	my @phys_cpus = (0);# start with 1 always
 	my ($core_count,$die_holder,$die_id,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
 	my ($phys_holder) = (undef);
@@ -7343,8 +7351,6 @@ sub data_cpuinfo {
 	$ids[0] = ([]);
 	$ids[0][0] = ([]);
 	my %cpu =  set_cpu_data();
-	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
-	#$cpu{'type'} = 'elbrus';
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
 	foreach (@cpuinfo){
 		next if /^\s*$/;
@@ -7499,24 +7505,35 @@ sub data_cpuinfo {
 		## this is only for -C full cpu output
 		if ( $type eq 'full' ){
 			if (!$cpu{'l2-cache'} && ($line[0] eq 'cache size' || $line[0] eq 'l2 cache size' )){
-				if ($line[1] =~ /(\d+)\sKB$/){
-					$cpu{'l2-cache'} = $1;
-				}
-				elsif ($line[1] =~ /(\d+)\sMB$/){
-					$cpu{'l2-cache'} = ($1*1024);
+				if ($line[1] =~ /(\d+)\s(K|M)B$/){
+					$cpu{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 				}
 			}
 			elsif (!$cpu{'l1-cache'} && $line[0] eq 'l1 cache size'){
 				if ($line[1] =~ /(\d+)\sKB$/){
-					$cpu{'l1-cache'} = ($1);
+					$cpu{'l1-cache'} = $1;
 				}
 			}
 			elsif (!$cpu{'l3-cache'} && $line[0] eq 'l3 cache size'){
-				if ($line[1] =~ /(\d+)\sKB$/){
-					$cpu{'l3-cache'} = $1;
+				if ($line[1] =~ /(\d+)\s(K|M)B$/){
+					$cpu{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 				}
-				elsif ($line[1] =~ /(\d+)\sMB$/){
-					$cpu{'l3-cache'} = ($1*1024);
+			}
+			if ($cpu{'type'} eq 'elbrus'){
+				if (!$cpu{'l1-cache'} && $line[0] eq 'cache1'){
+					if ($line[1] =~ /size=(\d+)K\s/){
+						$cpu{'l1-cache'} = $1;
+					}
+				}
+				elsif (!$cpu{'l2-cache'} && $line[0] eq 'cache2'){
+					if ($line[1] =~ /size=(\d+)(K|M)\s/){
+						$cpu{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
+					}
+				}
+				elsif (!$cpu{'l3-cache'} && $line[0] eq 'cache3'){
+					if ($line[1] =~ /size=(\d+)(K|M)\s/){
+						$cpu{'l3-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
+					}
 				}
 			}
 			if (!$cpu{'flags'} && ($line[0] eq 'flags' || $line[0] eq 'features' )){
@@ -7595,7 +7612,8 @@ sub data_sysctl {
 		next if ! $line[0];
 		# darwin shows machine, like MacBook7,1, not cpu
 		# machdep.cpu.brand_string: Intel(R) Core(TM)2 Duo CPU     P8600  @ 2.40GHz
-		if ( ($bsd_type ne 'darwin' && $line[0] eq 'hw.model' ) || $line[0] eq 'machdep.cpu.brand_string' ){
+		if ( ($bsd_type ne 'darwin' && $line[0] eq 'hw.model' ) || 
+		      $line[0] eq 'machdep.cpu.brand_string' ){
 			# cut L2 cache/cpu max speed out of model string, if available
 			# openbsd 5.6: AMD Sempron(tm) Processor 3400+ ("AuthenticAMD" 686-class, 256KB L2 cache)
 			# freebsd 10: hw.model: AMD Athlon(tm) II X2 245 Processor
@@ -8316,6 +8334,7 @@ sub cpu_flags_bsd {
 	return $flags;
 }
 
+# only elbrus ID is actually used live
 sub cpu_vendor {
 	eval $start if $b_log;
 	my ($string) = @_;
@@ -8491,6 +8510,7 @@ sub cpu_arch {
 			elsif ( $model =~ /^(F)$/ ) {$arch = 'Isaiah'}
 		}
 	}
+	# note, to test uncoment $cpu{'type'} = Elbrus in proc/cpuinfo logic
 	elsif ( $type eq 'elbrus'){ 
 		# E8CB
 		if ($family eq '4'){
