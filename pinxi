@@ -71,7 +71,7 @@ my (@app,@dmesg_boot,@devices_audio,@devices_graphics,@devices_network,
 @paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
 ## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 @lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
 my @test = (0,0,0,0,0);
 
@@ -80,7 +80,7 @@ my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
 $b_fake_raid,$b_fake_sensors,$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,
-$b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,
+$b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
@@ -4735,7 +4735,7 @@ sub get_options {
 		$b_smartctl = 1;
 	}
 	# triggers may extend to -D, -pP
-	if ($show{'logical'}){
+	if ($show{'logical'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} ){
 		$b_lvm = 1;
 	}
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
@@ -11478,7 +11478,7 @@ sub get {
 	}
  	else {
 		if ($b_fake_logical || $alerts{'lvs'}->{'action'} eq 'use'){
-			@data = lvm_data();
+			@data = lvm_data() if !$b_lvm_data;
 			if (!@data){
 				my $key = 'Message';
 				push(@rows, {
@@ -11510,6 +11510,7 @@ sub create_output {
 }
 sub lvm_data {
 	eval $start if $b_log;
+	$b_lvm_data = 1;
 	my (@args,@data,@temp,@lvm_data);
 	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
 	lv_name lv_size lv_health_status lv_parent pv_count 
@@ -11544,14 +11545,13 @@ sub lvm_data {
 		}
 		$j++;
 	}
-	@data = @temp;
+	@lvm = @data = @temp;
 	foreach my $row (@data){
 	
 	}
 	main::log_data('dump','lvm @data', \@data);
 	print Data::Dumper::Dumper \@data if $test[22];
 	eval $end if $b_log;
-	return @lvm_data;
 }
 sub luks_data {
 	eval $start if $b_log;
@@ -14122,7 +14122,7 @@ sub create_output_md {
 		$j = scalar @rows;
 		next if !%$row;
 		$num = 1;
-		$level = (defined $row->{'level'}) ? $row->{'level'}: 'no-raid';
+		$level = (defined $row->{'level'}) ? $row->{'level'} : 'no-raid';
 		push(@rows, {
 		main::key($num++,1,1,'Device') => $row->{'id'},
 		});
@@ -14430,6 +14430,14 @@ sub hw_data {
 }
 sub lvm_data {
 	eval $start if $b_log;
+	LogicalData::lvm_data() if !$b_lvm_data;
+	return if !@lvm;
+	foreach my $item (@lvm){
+		next if $item->{'segtype'} !~ /^raid/;
+		#print Data::Dumper::Dumper $item;
+	
+	}
+	
 	
 	eval $end if $b_log;
 }
