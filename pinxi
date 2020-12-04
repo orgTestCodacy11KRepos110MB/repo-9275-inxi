@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-03';
-my $self_patch='88';
+my $self_date='2020-12-04';
+my $self_patch='89';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -61,8 +61,8 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 ## Hashes
-my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,%mapper,
-%program_values,%rows,%sensors_raw,%system_files);
+my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,
+%dmmapper,%mapper,%program_values,%rows,%sensors_raw,%system_files);
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
@@ -4717,8 +4717,9 @@ sub get_options {
 		@sensors_exclude = ();
 		@sensors_use = ();
 	}
-	if ($show{'short'} || $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'}  || $show{'logical'} || 
-	    $show{'partition'} || $show{'partition-full'} || $show{'raid'} || $show{'unmounted'}){
+	if ($show{'short'} || $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'} || 
+	    $show{'logical'} || $show{'partition'} || $show{'partition-full'} || $show{'raid'} || 
+	    $show{'unmounted'}){
 		$b_block_tool = 1;
 	}
 	if ($show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} 
@@ -4735,7 +4736,8 @@ sub get_options {
 		$b_smartctl = 1;
 	}
 	# triggers may extend to -D, -pP
-	if ($show{'short'} || $show{'logical'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} ){
+	if ($show{'short'} || $show{'logical'} || $show{'raid'} || $show{'disk'} || 
+	    $show{'disk-total'} || $show{'disk-basic'} || $show{'unmounted'}){
 		$b_lvm = 1;
 	}
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
@@ -13357,14 +13359,16 @@ sub partition_data {
 			}
 			elsif ($row[0] =~ /mapper\// && %mapper){
 				$dev_mapped = $row[0];
-				$row[0] = $mapper{$row[0]} if $mapper{$row[0]};
+				$dev_mapped =~ s|^/.*/||;
+				$row[0] = $mapper{$dev_mapped} if $mapper{$dev_mapped};
 			}
-			elsif ($row[0] =~ /\/dm-[0-9]+$/ && %mapper){
-				$dev_mapped = main::get_mapped($row[0]);
+			elsif ($row[0] =~ /\/dm-[0-9]+$/ && %dmmapper){
+				my $temp = $row[0];
+				$temp =~ s|^/.*/||;
+				$dev_mapped = $dmmapper{$temp};
 			}
 			$dev_base = $row[0];
-			$dev_base =~ s/^\/dev\///;
-			$dev_mapped =~ s/^\/dev\/mapper\/// if $dev_mapped;
+			$dev_base =~ s|^/.*/||;
 			%part = main::get_lsblk($dev_base) if @lsblk;
 			$maj_min = get_maj_min($dev_base) if @proc_partitions;
 		}
@@ -13541,11 +13545,10 @@ sub swap_data {
 		elsif (m|^/dev|){
 			$swap_type = 'partition';
 			$dev_base = $data[0];
-			if (!$bsd_type && $dev_base =~ m|^\/dev\/dm-| && %mapper ){
-				$dev_mapped = main::get_mapped($dev_base);
-				$dev_mapped =~ s|^/dev/mapper/|| if $dev_mapped;
-			}
 			$dev_base =~ s|^/dev/||;
+			if (!$bsd_type && $dev_base =~ /^dm-/ && %dmmapper){
+				$dev_mapped = $dmmapper{$dev_base};
+			}
 			if ($show{'label'} && @labels){
 				$label = get_label($data[0]);
 			}
@@ -13716,10 +13719,9 @@ sub check_partition_data {
 			next if !$row2->{'id'};
 			if ($row->{'mount'} eq $row2->{'id'}){
 				$b_found = 1;
-				if (%mapper && $mapper{'/dev/mapper/' . $row->{'name'}}){
+				if (%mapper && $mapper{$row->{'name'}}){
 					$dev_mapped = $row->{'name'};
-					$row->{'name'} = $mapper{'/dev/mapper/' . $row->{'name'}};
-					$row->{'name'} =~ s|^/dev/||;
+					$row->{'name'} = $mapper{$row->{'name'}};
 				}
 				last;
 			}
@@ -14550,8 +14552,7 @@ sub lvm_data {
 				@data = map {$_ =~ s|^/.*/||; $_;} @data if @data;
 				$dev = join(',', @data) if @data;
 			}
-			$mapped = main::get_mapped("/dev/$part") if %mapper;
-			$mapped =~ s|/dev/mapper/|| if $mapped;
+			$mapped = $dmmapper{$part} if %dmmapper;
 			push(@components, [$part,$size,$maj_min,undef,$mapped,$dev],);
 		}
 		if ($item->{'segtype'}){
@@ -17727,11 +17728,10 @@ sub unmounted_data {
 			$size ||= $row->[2];
 		   $fs = unmounted_filesystem($row->[-1]) if !$fs;
 		   # seen: (zfs|lvm2|linux_raid)_member; crypto_luks
+		   # note: could have an umnounted luks/crypto filesystem
 		   next if $fs && $fs =~ /(crypto|luks|_member)$/i; 
-		  
-		   if ($row->[-1] =~ /^dm-/ && %mapper){
-				$dev_mapped = main::get_mapped("/dev/$row->[-1]");
-				$dev_mapped =~ s|^/dev/mapper/||;
+		   if ($row->[-1] =~ /^dm-/ && %dmmapper){
+				$dev_mapped = $dmmapper{$row->[-1]};
 			}
 			# these components of lvm raid will show as partitions butt hey really aren't
 			next if $dev_mapped && $dev_mapped =~ /_r(image|meta)(_[0-9]+)?$/;
@@ -20144,19 +20144,6 @@ sub get_lsblk {
 	return %device;
 }
 
-sub get_mapped {
-	eval $start if $b_log;
-	return if ! %mapper || ! $_[0];
-	my $mapped;
-	foreach (keys %mapper){
-		if ($_[0] eq $mapper{$_}){
-			$mapped = $_;
-			last;
-		}
-	}
-	eval $start if $b_log;
-	return $mapped;
-}
 sub get_memory_data_full {
 	eval $start if $b_log;
 	my ($source) = @_;
@@ -21838,8 +21825,13 @@ sub set_mapper {
 	$b_mapper = 1;
 	return if ! -d '/dev/mapper';
 	foreach ((globber('/dev/mapper/*'))){
-		$mapper{$_} = Cwd::abs_path("$_");
+		my ($key,$value) = ($_,Cwd::abs_path("$_"));
+		next if !$value;
+		$key =~ s|^/.*/||;
+		$value =~ s|^/.*/||;
+		$mapper{$key} = $value;
 	}
+	%dmmapper = reverse %mapper if %mapper;
 	eval $end if $b_log;
 }
 
