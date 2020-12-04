@@ -11518,7 +11518,8 @@ sub lvm_data {
 	seg_size devices metadata_devices segtype stripes);
 	@args = qw(vg_name vg_fmt vg_size vg_free lv_name lv_layout lv_size 
 	lv_kernel_major lv_kernel_minor segtype seg_count seg_start_pe seg_size_pe 
-	stripes devices raid_mismatch_count raid_sync_action raid_write_behind);
+	stripes devices raid_mismatch_count raid_sync_action raid_write_behind
+	copy_percent);
 	my $num = 0;
 	if ($b_fake_logical){
 		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvs.txt";
@@ -14134,8 +14135,11 @@ sub create_output_lvm {
 			if (defined $row->{'stripes'}){
 				$rows[$j]{main::key($num++,0,3,'stripes')} = $row->{'stripes'};
 			}
-			if ($extra > 1 && defined $row->{'raid-mismatches'}){
+			if (defined $row->{'raid-mismatches'} && ($extra > 1 || $row->{'raid-mismatches'} > 0 )){
 				$rows[$j]{main::key($num++,0,3,'mismatches')} = $row->{'raid-mismatches'};
+			}
+			if (defined $row->{'copy-percent'} && ($extra > 1 || $row->{'copy-percent'} < 100)){
+				$rows[$j]{main::key($num++,0,3,'copied')} = $row->{'copy-percent'};
 			}
 			if ($row->{'vg'}){
 				$rows[$j]{main::key($num++,1,3,'v-group')} = $row->{'vg'};
@@ -14544,6 +14548,7 @@ sub lvm_data {
 		}
 		push(@lvraid, {
 		'components' => \@components,
+		'copy-percent' => $item->{'copy_percent'},
 		'id' => $item->{'lv_name'},
 		'level' => $item->{'segtype'},
 		'maj-min' => $maj_min,
