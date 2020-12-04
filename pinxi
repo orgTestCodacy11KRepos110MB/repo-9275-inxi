@@ -4735,7 +4735,7 @@ sub get_options {
 		$b_smartctl = 1;
 	}
 	# triggers may extend to -D, -pP
-	if ($show{'logical'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} ){
+	if ($show{'short'} || $show{'logical'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} ){
 		$b_lvm = 1;
 	}
 	set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
@@ -9099,7 +9099,7 @@ sub proc_data {
 	my ($used) = @_;
 	my (@data,@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
-	main::set_proc_partitions() if $bsd_type && !$b_proc_partitions;
+	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
@@ -11518,7 +11518,7 @@ sub lvm_data {
 	seg_size devices metadata_devices segtype stripes);
 	@args = qw(vg_name vg_fmt vg_size vg_free lv_name lv_layout lv_size 
 	lv_kernel_major lv_kernel_minor segtype seg_count seg_start_pe seg_size_pe 
-	stripes devices);
+	stripes devices raid_mismatch_count raid_sync_action raid_write_behind);
 	my $num = 0;
 	if ($b_fake_logical){
 		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvs.txt";
@@ -14101,8 +14101,38 @@ sub create_output_hw {
 }
 sub create_output_lvm {
 	eval $start if $b_log;
-	my (@rows);
-	
+	my (@components,@components_good,@rows,@sizes);
+	my ($size);
+	my ($j,$num) = (0,0);
+	foreach my $row (@lvm_raid){
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $row->{'id'},
+		});
+		if ($b_admin && $row->{'maj-min'}){
+			$rows[$j]{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
+		}
+		$rows[$j]{main::key($num++,0,2,'type')} = $row->{'type'};
+		$rows[$j]{main::key($num++,0,2,'level')} = $row->{'level'};
+		if ($row->{'size'}){
+			@sizes = main::get_size($row->{'size'});
+			$size = "$sizes[0] $sizes[1]";
+		}
+		else {
+			#$size = (!$b_root && !@lsblk) ? main::row_defaults('root-required'): 'N/A';
+			$size = 'N/A';
+		}
+		$rows[$j]{main::key($num++,0,2,'size')} = $size;
+		if ($row->{'details'}{'raid-sync'}){
+			$rows[$j]{main::key($num++,0,2,'sync-action')} = $row->{'raid-sync'};
+		}
+		foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
+			push(@components_good, $item);
+		}
+		$j = scalar @rows;
+		$rows[$j]{main::key($num++,1,3,'Components')} = '';
+		my $b_bump;
+		create_components_output('lvm','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+	}
 	eval $end if $b_log;
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
@@ -14335,9 +14365,14 @@ sub create_output_zfs {
 sub create_components_output {
 	eval $start if $b_log;
 	my ($type,$item,$rows_ref,$array_ref,$j_ref,$num_ref,$b_bump_ref) = @_;
-	my ($f1,$f2,$f3,$k,$k1,$key,$l1,$l2,$l3);
+	my ($extra1,$f1,$f2,$f3,$f4,$k,$k1,$key1,$l1,$l2,$l3);
 	return if !@$array_ref && $item ne 'Online';
-	if ($type eq 'mdraid'){
+	if ($type eq 'lvm'){
+		($f1,$f2,$f3,$f4,$l1,$l2,$l3) = (1,2,3,4,3,4,5);
+		$k = 1;
+		$extra1 = 'mapped';
+	}
+	elsif ($type eq 'mdraid'){
 		($f1,$f2,$f3,$k1,$l1,$l2,$l3) = (3,4,5,1,3,4,5);
 	}
 	elsif ($type eq 'zfs'){
@@ -14354,8 +14389,8 @@ sub create_components_output {
 			$$b_bump_ref = 1;
 			$$num_ref = 1;
 		}
-		$key = (defined $k1) ? $device->[$k1] : $k++;
-		$$rows_ref[$$j_ref]{main::key($$num_ref++,1,$l2,$key)} = $device->[0];
+		$key1 = (defined $k1) ? $device->[$k1] : $k++;
+		$$rows_ref[$$j_ref]{main::key($$num_ref++,1,$l2,$key1)} = $device->[0];
 		if ($b_admin && $device->[$f2]){
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'maj-min')} = $device->[$f2];
 		}
@@ -14367,6 +14402,9 @@ sub create_components_output {
 		if ($b_admin && $device->[$f3]){
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'state')} = $device->[$f3];
 		}
+		if ($b_admin && $extra1 && $device->[$f4]){
+			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,$extra1)} = $device->[$f4];
+		}
 	}
 	eval $end if $b_log;
 }
@@ -14374,7 +14412,8 @@ sub create_components_output {
 sub raid_data {
 	eval $start if $b_log;
 	main::set_lsblk() if !$bsd_type && !$b_lsblk;
-	main::set_proc_partitions() if $bsd_type && !$b_proc_partitions;
+	main::set_mapper() if !$bsd_type && !$b_mapper;
+	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	@raw_logical = (0,0);
 	my (@data);
 	$b_raid = 1;
@@ -14432,15 +14471,50 @@ sub lvm_data {
 	eval $start if $b_log;
 	LogicalData::lvm_data() if !$b_lvm_data;
 	return if !@lvm;
+	my (@components,@lvraid,$maj_min,$vg_used,@working);
 	foreach my $item (@lvm){
 		next if $item->{'segtype'} !~ /^raid/;
+		(@components,$maj_min,$vg_used) = (undef,undef,undef);
 		#print Data::Dumper::Dumper $item;
-	
+		if ($item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'}){
+			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
+		}
+		if (defined $item->{'vg_free'} && defined $item->{'vg_size'}){
+			$vg_used = ($item->{'vg_size'} - $item->{'vg_free'});
+		}
+		@working = main::globber("/sys/dev/block/$maj_min/slaves/*") if $maj_min;
+		foreach my $part (@working){
+			my (@data,$maj_min,$mapped,$size);
+			if (@proc_partitions){
+				@data = main::get_proc_partition($part);
+				$maj_min = $data[0] . ':' . $data[1] if defined $data[1];
+				$mapped = main::get_mapped("/dev/$part") if %mapper;
+				$size = $data[2];
+			}
+			push(@components, 
+			[$part,$maj_min,$size,$mapped],
+			);
+		}
+		push(@lvraid, {
+		'components' => \@components,
+		'id' => $item->{'lv_name'},
+		'maj-min' => $maj_min,
+		'raid-mismatches' =>  $item->{'raid_mismatch_count'},
+		'raid-sync' =>  $item->{'raid_sync_action'},
+		'size' => $item->{'lv_size'},
+		'stripes' => $item->{'stripes'},
+		'type' => $item->{'vg_fmt'},
+		'vg' => $item->{'vg_name'},
+		'vg-free' => $item->{'vg_free'},
+		'vg-size' => $item->{'vg_size'},
+		'vg-used' => $vg_used,
+		});
 	}
 	
-	# print Data::Dumper::Dumper \@lvm_raid;
-	main::log_data('dump','@hardware_raid',\@lvm_raid) if $b_log;
+	# print Data::Dumper::Dumper \@lvraid;
+	main::log_data('dump','@lvraid',\@lvraid) if $b_log;
 	eval $end if $b_log;
+	return @lvraid;
 }
 sub md_data {
 	eval $start if $b_log;
