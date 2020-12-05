@@ -11522,7 +11522,9 @@ sub create_output_lvm {
 
 sub lvm_data {
 	eval $start if $b_log;
+	
 	$b_lvm_data = 1;
+	main::set_proc_partitions() if !$b_proc_partitions;
 	my (@args,@data,@temp,@lvm_data,%totals);
 	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
 	lv_name lv_size lv_health_status lv_parent pv_count 
@@ -11558,18 +11560,21 @@ sub lvm_data {
 		}
 		$j++;
 	}
+	shift @temp if @temp;
 	@lvm = @data = @temp;
 	foreach my $row (@data){
 		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
 			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
+			$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
 		}
 		my @devices = split(',', $row->{'devices'});
 		@devices = map {$_ =~ s/(^\/dev\/|\([0-9]+\)$)//g; $_} @devices if @devices;
 		foreach my $device (@devices){
-			if ($row->{'segtype'} !~ /^raid/ && $row->{'lv_name'} !~ /^\[/ && 
-			    $device =~ /^([hsv]d|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
+			if ($row->{'segtype'} !~ /^raid/ && 
+			    $device =~ /^([hsv]d[a-z]|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
 				my $size = (main::get_proc_partition($device))[2];
-				$totals{'pvs'}->{$row->{$device}} = $size;
+				$totals{'pvs'}->{$device} = $size;
+				$raw_logical[1] += $size if $size;
 			}
 		}
 		
