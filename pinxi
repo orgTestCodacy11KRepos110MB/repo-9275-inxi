@@ -11506,7 +11506,7 @@ sub create_output_luks {
 	my ($luks_data) = @_;
 	my (@rows);
 	my ($num) = (0);
-	
+	# cryptsetup status luks-a00baac5-44ff-4b48-b303-3bedb1f623ce
 	eval $end if $b_log;
 	return @rows;
 }
@@ -11523,7 +11523,7 @@ sub create_output_lvm {
 sub lvm_data {
 	eval $start if $b_log;
 	$b_lvm_data = 1;
-	my (@args,@data,@temp,@lvm_data);
+	my (@args,@data,@temp,@lvm_data,%totals);
 	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
 	lv_name lv_size lv_health_status lv_parent pv_count 
 	pv_count pv_name dev_size pv_size pv_free pv_used pv_major pv_minor
@@ -11560,8 +11560,20 @@ sub lvm_data {
 	}
 	@lvm = @data = @temp;
 	foreach my $row (@data){
-	
+		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
+			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
+		}
+		my @devices = split(',', $row->{'devices'});
+		@devices = map {$_ =~ s/(^\/dev\/|\([0-9]+\)$)//g; $_} @devices if @devices;
+		foreach my $device (@devices){
+			if ($device =~ /^([hsv]d|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
+				my $size = (main::get_proc_partition($device))[2];
+				$totals{'pvs'}->{$row->{$device}} = $size;
+			}
+		}
+		
 	}
+	#print Data::Dumper::Dumper \%totals;
 	main::log_data('dump','lvm @data', \@data);
 	print Data::Dumper::Dumper \@data if $test[22];
 	eval $end if $b_log;
