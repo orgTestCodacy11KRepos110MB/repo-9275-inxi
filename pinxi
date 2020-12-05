@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-04';
-my $self_patch='89';
+my $self_date='2020-12-05';
+my $self_patch='90';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11483,15 +11483,16 @@ sub get {
 	}
  	else {
 		if ($b_fake_logical || $alerts{'lvs'}->{'action'} eq 'use'){
-			@data = lvm_data() if !$b_lvm_data;
-			if (!@data){
+			lvm_data() if !$b_lvm_data;
+			if (!@lvm){
 				my $key = 'Message';
 				push(@rows, {
 				main::key($num++,0,1,$key) => main::row_defaults('lvm-data',''),
 				},);
 			}
 			else {
-				@rows = create_output_lvm(\@data);
+				my %processed = process_lvm_data();
+				@rows = create_output_lvm(\%processed);
 			}
 		}
 		elsif ( $alerts{'lvs'}->{'action'} ne 'use'){
@@ -11522,13 +11523,12 @@ sub create_output_lvm {
 	eval $end if $b_log;
 	return @rows;
 }
-
+# note: called for disk totals, raid, and logical
 sub lvm_data {
 	eval $start if $b_log;
-	
 	$b_lvm_data = 1;
 	main::set_proc_partitions() if !$b_proc_partitions;
-	my (@args,@data,@temp,@lvm_data,%totals);
+	my (@args,@data,%totals);
 	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
 	lv_name lv_size lv_health_status lv_parent pv_count 
 	pv_count pv_name dev_size pv_size pv_free pv_used pv_major pv_minor
@@ -11546,12 +11546,13 @@ sub lvm_data {
 		# lv_full_name: ar0-home; lv_dm_path: /dev/mapper/ar0-home
 		# seg_size: unit location on volume where segement starts
 		#   2>/dev/null -unit k  ---separator ^:
-		my $cmd = main::check_program('lvs') . ' -aPv --unit k --separator "^:" --segments  -o ';
+		my $cmd = $alerts{'lvs'}->{'path'};
+		$cmd .= ' -aPv --unit k --separator "^:" --segments --noheadings -o ';
 		# $cmd .= ' -o +lv_size,pv_major,pv_minor  2>/dev/null';
 		$cmd .= join(',', @args);
 		#$cmd .= ' 2>/dev/null';
 		@data = main::grabber("$cmd",'','strip');
-		
+		main::log_data('dump','lvm @data', \@data) if $b_log;
 		print "command: $cmd\n" if $test[22];
 	}
 	my $j = 0;
@@ -11559,13 +11560,11 @@ sub lvm_data {
 		my @line = split(/\^:/, $_);
 		for (my $i = 0; $i < scalar @args; $i++){
 			$line[$i] =~ s/k$// if $args[$i] =~ /_(free|size|used)$/;
-			$temp[$j]->{$args[$i]} = $line[$i];
+			$lvm[$j]->{$args[$i]} = $line[$i];
 		}
 		$j++;
 	}
-	shift @temp if @temp;
-	@lvm = @data = @temp;
-	foreach my $row (@data){
+	foreach my $row (@lvm){
 		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
 			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
 			$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
@@ -11581,13 +11580,69 @@ sub lvm_data {
 				$raw_logical[1] += $size if $size;
 			}
 		}
-		
-	}
+	};
 	#print Data::Dumper::Dumper \%totals;
-	main::log_data('dump','lvm @data', \@data);
-	print Data::Dumper::Dumper \@data if $test[22];
+	main::log_data('dump','lvm @lvm', \@lvm) if $b_log;
+	print Data::Dumper::Dumper \@lvm if $test[22];
 	eval $end if $b_log;
-	return @data;
+}
+sub process_lvm_data {
+	eval $start if $b_log;
+	my (%processed);
+	foreach my $item (@lvm){
+		my (@components,@devices,@full_components,@full_devices,$maj_min);
+		if (!$processed{$item->{'vg_name'}}){
+			$processed{$item->{'vg_name'}} = $item->{'vg_name'};
+			$processed{$item->{'vg_name'}}->{'vg-size'} = $item->{'vg_size'};
+			$processed{$item->{'vg_name'}}->{'vg-free'} = $item->{'vg_free'};
+			$processed{$item->{'vg_name'}}->{'vg-format'} = $item->{'vg_fmt'};
+		}
+		
+		if (!$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}){
+			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'lv-size'} = $item->{'lv_size'};
+			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'lv-type'} = $item->{'segtype'};
+			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
+			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'maj-min'} = $maj_min;
+			@devices = main::globber("/sys/dev/block/$maj_min/slaves") if -e "/sys/dev/block/$maj_min/slaves";
+			@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
+			foreach my $device (@devices){
+				my @part = main::get_proc_partition($device) if @proc_partitions; 
+				my $mm2 = $part[0] . ':' . $part[1];
+				my @full_devices2;
+				if ($device =~ /^dm-[0-9]+$/){
+					my @dms =  main::globber("/sys/dev/block/$mm2/slaves") if -e "/sys/dev/block/$mm2/slaves";
+					@dms = map {$_ =~ s|^/.*/||; $_;} @dms if @dms;
+					foreach my $dm (@dms){
+						my @part2 = main::get_proc_partition($dm) if @proc_partitions; 
+						my $mm3 = $part2[0] . ':' . $part2[1];
+						push(@full_devices2,
+						[$dm,$mm3,$part2[2],],
+						) if @part2;
+					}
+					push(@full_components,
+					[$device,$mm2,$part[2],\@full_devices2]
+					) if @part;
+				}
+				else {
+					push(@full_devices,
+					[$device,$mm2,$part[2]]
+					) if @part;
+				}
+			}
+			if (@full_devices){
+				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'devices'} = \@full_devices;
+			}
+			elsif (@full_components){
+				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'components'} = \@full_components;
+			}
+		}
+	}
+	
+	
+	main::log_data('dump','lvm %processed', \%processed) if $b_log;
+	print Data::Dumper::Dumper \%processed if $test[22];
+	eval $end if $b_log;
+	return %processed;
 }
 sub luks_data {
 	eval $start if $b_log;
