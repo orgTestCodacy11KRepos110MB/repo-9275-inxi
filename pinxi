@@ -357,7 +357,7 @@ sub set_basics {
 	$client{'version'} = '';
 	$colors{'default'} = 2;
 	$show{'partition-sort'} = 'id'; # sort order for partitions
-	@raw_logical = (0,0);
+	@raw_logical = (0,0,0);
 }
 
 # args: $1 - default OR override default cols max integer count. $_[0]
@@ -9101,7 +9101,7 @@ sub proc_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives);
-	my ($b_hdx,$logical_size,$size) = (0,0,0);
+	my ($b_hdx,$logical_free,$logical_size,$size) = (0,0,0,0);
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
@@ -9142,11 +9142,13 @@ sub proc_data {
 	# and we end up with raw logical less than used, give up
 	if (@raw_logical && $raw_logical[0] && (!$used || $raw_logical[0] > $used)){
 		$logical_size = ($size - $raw_logical[1] + $raw_logical[0]);
+		$logical_free = $raw_logical[2];
 	}
 	# print Data::Dumper::Dumper \@drives;
 	main::log_data('data',"size: $size") if $b_log;
 	@data = ({
 	'logical-size' => $logical_size,
+	'logical-free' => ,
 	'size' => $size,
 	'used' => $used,
 	});
@@ -11567,12 +11569,13 @@ sub lvm_data {
 		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
 			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
 			$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
+			$raw_logical[2] += $row->{'vg_free'} if $row->{'vg_free'};
 		}
 		my @devices = split(',', $row->{'devices'});
 		@devices = map {$_ =~ s/(^\/dev\/|\([0-9]+\)$)//g; $_} @devices if @devices;
 		foreach my $device (@devices){
 			if ($row->{'segtype'} !~ /^raid/ && 
-			    $device =~ /^([hsv]d[a-z]|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
+			    $device =~ /^([hsv]d[a-z]+[0-9]*$|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
 				my $size = (main::get_proc_partition($device))[2];
 				$totals{'pvs'}->{$device} = $size;
 				$raw_logical[1] += $size if $size;
