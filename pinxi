@@ -11537,6 +11537,7 @@ sub create_output_lvm {
 		$rows[$j]{main::key($num++,1,2,'Logical Volumes')} = '';
 		$k = 1;
 		foreach my $lv (sort keys %{$lvm_data->{$vg}{'lvs'}}){
+			next if $extra < 2 && $lv =~ /^\[/; # it's an internal vg lv, raid meta/image 
 			$j = scalar @rows;
 			@sizing = main::get_size($lvm_data->{$vg}{'lvs'}{$lv}{'lv-size'});
 			$size = join(' ', @sizing);
@@ -11544,6 +11545,7 @@ sub create_output_lvm {
 			main::key($num++,1,3,$k) => $lv,
 			main::key($num++,0,4,'type') => $lvm_data->{$vg}{'lvs'}{$lv}{'lv-type'},
 			},);
+			$k++;
 			if ($b_admin && $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'}){
 				$rows[$j]{main::key($num++,0,4,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'};
 			}
@@ -11563,19 +11565,21 @@ sub create_output_lvm {
 				$rows[$j]{main::key($num++,1,4,'Components')} = '';
 				foreach my $component (@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}}){
 					$rows[$j]{main::key($num++,1,5,$l)} = $component->[0];
+					$l++;
 					if ($component->[3] && ref $component->[3] eq 'ARRAY'){
 						$m = 1;
 						$j = scalar @rows if $b_admin;
-						$rows[$j]{main::key($num++,1,5,'Devices')} = '';
+						$rows[$j]{main::key($num++,1,5,'devices')} = '';
+						next if !$b_admin;
 						foreach my $device (@{$component->[3]}){
 							$rows[$j]{main::key($num++,1,6,$m)} = $device->[0];
 							$m++;
 						}
 					}
-					$l++;
+					
 				}
 			}
-			$k++;
+			
 		}
 	}
 	
