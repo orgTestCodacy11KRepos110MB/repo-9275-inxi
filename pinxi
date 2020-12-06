@@ -6186,7 +6186,7 @@ sub print_data {
 					elsif ($start_holder eq 'USB' && $key eq 'Hub'){
 						$ids{'Device'} = 1;
 					}
-					elsif ($start_holder eq 'LVM' && $key eq 'VG'){
+					elsif ($start_holder eq 'Logical' && $key eq 'VG'){
 						$ids{'LV'} = 1;
 					}
 					if ($counter == 0 && defined $ids{$key}){
@@ -11517,8 +11517,60 @@ sub create_output_luks {
 sub create_output_lvm {
 	eval $start if $b_log;
 	my ($lvm_data) = @_;
-	my (@rows);
-	my ($num) = (0);
+	my (@rows,@sizing);
+	my ($size);
+	my ($j,$k,$l,$m,$num) = (0,0,0,0,0);
+	foreach my $vg (sort keys %$lvm_data){
+		$j = scalar @rows;
+		print Data::Dumper::Dumper $lvm_data->{$vg};
+		@sizing = main::get_size($lvm_data->{$vg}{'vg-size'});
+		$size = join(' ', @sizing);
+		push(@rows,{
+		main::key($num++,1,1,'VG') => $vg,
+		main::key($num++,0,2,'type') => $lvm_data->{$vg}{'vg-format'},
+		main::key($num++,0,2,'size') => $size,
+		},);
+		@sizing = main::get_size($lvm_data->{$vg}{'vg-free'});
+		$size = join(' ', @sizing);
+		$rows[$j]{main::key($num++,0,2,'free')} = $size;
+		$j = scalar @rows;
+		$rows[$j]{main::key($num++,1,2,'Logical Volumes')} = '';
+		$k = 1;
+		foreach my $lv (sort keys %{$lvm_data->{$vg}{'lvs'}}){
+			$j = scalar @rows if $b_admin;
+			@sizing = main::get_size($lvm_data->{$vg}{'lvs'}{$lv}{'lv-size'});
+			$size = join(' ', @sizing);
+			push(@rows,{
+			main::key($num++,1,3,$k) => $lv,
+			main::key($num++,0,4,'type') => $lvm_data->{$vg}{'lvs'}{$lv}{'lv-type'},
+			},);
+			if ($b_admin && $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'}){
+				$rows[$j]{main::key($num++,0,4,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'};
+			}
+			$rows[$j]{main::key($num++,0,4,'size')} = $size;
+			if ($lvm_data->{$vg}{'lvs'}{$lv}{'devices'}){
+				$l = 1;
+				$rows[$j]{main::key($num++,1,4,'Devices')} = '';
+				foreach my $device (@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}}){
+					push(@rows,{
+					main::key($num++,1,3,$l) => $device->[0],
+					},);
+					$l++;
+				}
+			}
+			if ($lvm_data->{$vg}{'lvs'}{$lv}{'components'}){
+				$l = 1;
+				$rows[$j]{main::key($num++,1,4,'Components')} = '';
+				foreach my $component (@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}}){
+					push(@rows,{
+					main::key($num++,1,3,$l) => $component->[0],
+					},);
+					$l++;
+				}
+			}
+			$k++;
+		}
+	}
 	
 	eval $end if $b_log;
 	return @rows;
@@ -11539,7 +11591,7 @@ sub lvm_data {
 	copy_percent);
 	my $num = 0;
 	if ($b_fake_logical){
-		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/pvs.txt";
+		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
 		@data = main::reader($file,'strip');
 	}
 	else {
