@@ -11545,6 +11545,12 @@ sub create_output_lvm {
 			if ($b_admin && $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'}){
 				$rows[$j]{main::key($num++,0,3,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'};
 			}
+			if ($extra > 0 && $lvm_data->{$vg}{'lvs'}{$lv}{'dm'}){
+				$rows[$j]{main::key($num++,1,3,'dm')} = $lvm_data->{$vg}{'lvs'}{$lv}{'dm'};
+				if ($b_admin && $lvm_data->{$vg}{'lvs'}{$lv}{'dm-maj-min'}){
+					$rows[$j]{main::key($num++,0,4,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'dm-maj-min'};
+				}
+			}
 			$rows[$j]{main::key($num++,0,3,'size')} = $size;
 			if ($lvm_data->{$vg}{'lvs'}{$lv}{'devices'}){
 				$l = 1;
@@ -11650,7 +11656,7 @@ sub process_lvm_data {
 	eval $start if $b_log;
 	my (%processed);
 	foreach my $item (@lvm){
-		my (@components,@devices,@full_components,@full_devices,$maj_min);
+		my (@components,@devices,$dm,$dm_mm,@full_components,@full_devices,$maj_min,@temp);
 		if (!$processed{$item->{'vg_name'}}){
 			$processed{$item->{'vg_name'}}->{'vg-size'} = $item->{'vg_size'};
 			$processed{$item->{'vg_name'}}->{'vg-free'} = $item->{'vg_free'};
@@ -11661,6 +11667,11 @@ sub process_lvm_data {
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'lv-type'} = $item->{'segtype'};
 			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'maj-min'} = $maj_min;
+			$dm = $mapper{$item->{'vg_name'} . '-' . $item->{'lv_name'}} if %mapper;
+			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm'} = $dm;
+			@temp = main::get_proc_partition($dm) if @proc_partitions;
+			$dm_mm = join(':', @temp[0..1]) if @temp;
+			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm-maj-min'} = $dm_mm;
 			@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
 			@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
 			foreach my $device (@devices){
