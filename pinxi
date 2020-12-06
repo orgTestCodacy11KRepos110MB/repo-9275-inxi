@@ -76,7 +76,8 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
+my ($b_active_bcache,$b_active_luks,$b_active_lvm,
+$b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
 $b_fake_raid,$b_fake_sensors,$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,
@@ -9110,7 +9111,7 @@ sub proc_data {
 	my ($b_hdx,$logical_free,$logical_size,$size) = (0,0,0,0);
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	foreach my $row (@proc_partitions){
-		if ( $row->[-1] =~ /^([hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
+		if ( $row->[-1] =~ /^(fio[a-z]+|[hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
 			push(@drives, {
 			'firmware' => '',
@@ -9138,7 +9139,7 @@ sub proc_data {
 		# It appears to just increase randomly from the first 0 minor of the first nvme to 
 		# nvme partitions to next nvme, so it only passes the test for the first nvme drive.
 		if ( $row->[0] =~ /^(3|8|22|33|43|179|202|252|253|254|259)$/ && 
-		     $row->[-1] =~ /(mmcblk[0-9]+|n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|[hsv]d[a-z]+)$/ && 
+		     $row->[-1] =~ /(mmcblk[0-9]+|n[b]?d[0-9]+|nvme[0-9]+n[0-9]+|fio[a-z]+|[hsv]d[a-z]+)$/ && 
 		     ( $row->[1] % 16 == 0 || $row->[1] % 16 == 8 || $row->[-1] =~ /(nvme[0-9]+n[0-9]+)$/) ) {
 			$size += $row->[2];
 		}
@@ -11661,7 +11662,7 @@ sub lvm_data {
 			$raw_logical[2] += $row->{'vg_free'} if $row->{'vg_free'};
 		}
 		foreach my $device (@devices){
-			if (!$totals{'pvs'}->{$device} && $device =~ /^([hsv]d[a-z]+[0-9]*$|nvme|mmcblk)/){
+			if (!$totals{'pvs'}->{$device} && $device =~ /^([fio[a-z]+[0-9]+|hsv]d[a-z]+[0-9]*$|nvme|mmcblk)/){
 				my $size = (main::get_proc_partition($device))[2];
 				$totals{'pvs'}->{$device} = $size;
 				$raw_logical[1] += $size if $size;
@@ -21962,6 +21963,9 @@ sub set_lsblk {
 		foreach (@working){
 			if (/$pattern/){
 				my $size = ($5) ? $5/1024: 0;
+				$b_active_bcache = 1 if !$b_active_bcache && $1 && $1 =~ /^bcache/;
+				$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
+				$b_active_luks = 1 if !$b_active_luks && $2 && $2 eq 'crypt' && $1 =~ /^luks/;
 				# some versions of lsblk do not return serial, fs, uuid, or label
 				push(@lsblk, {
 				'name' => $1, 
