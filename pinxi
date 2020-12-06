@@ -11667,7 +11667,7 @@ sub process_lvm_data {
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'lv-type'} = $item->{'segtype'};
 			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'maj-min'} = $maj_min;
-			$dm = $mapper{$item->{'vg_name'} . '-' . $item->{'lv_name'}} if %mapper;
+			$dm = $mapper{$item->{'vg_name'} . '-' . $item->{'lv_name'}};
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm'} = $dm;
 			@temp = main::get_proc_partition($dm) if @proc_partitions;
 			$dm_mm = join(':', @temp[0..1]) if @temp;
@@ -11675,15 +11675,17 @@ sub process_lvm_data {
 			@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
 			@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
 			foreach my $device (@devices){
-				my @part = main::get_proc_partition($device) if @proc_partitions; 
-				my $mm2 = $part[0] . ':' . $part[1];
-				my @full_devices2;
+				my (@full_devices,$mm2,@part);
+				@part = main::get_proc_partition($device) if @proc_partitions; 
+				$mm2 = $part[0] . ':' . $part[1] if @part;
 				if ($device =~ /^dm-[0-9]+$/){
+					my (@full_devices2);
 					my @dms =  main::globber("/sys/dev/block/$mm2/slaves/*") if -e "/sys/dev/block/$mm2/slaves";
 					@dms = map {$_ =~ s|^/.*/||; $_;} @dms if @dms;
 					foreach my $dm (@dms){
-						my @part2 = main::get_proc_partition($dm) if @proc_partitions; 
-						my $mm3 = $part2[0] . ':' . $part2[1];
+						my ($mm3,@part2);
+						@part2 = main::get_proc_partition($dm) if @proc_partitions; 
+						$mm3 = $part2[0] . ':' . $part2[1] if @part2;
 						push(@full_devices2,
 						[$dm,$mm3,$part2[2],],
 						) if @part2;
