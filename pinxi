@@ -11648,13 +11648,17 @@ sub lvm_data {
 		$j++;
 	}
 	foreach my $row (@lvm){
-		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
-			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
-			$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
-			$raw_logical[2] += $row->{'vg_free'} if $row->{'vg_free'};
-		}
 		my @devices = split(',', $row->{'devices'});
 		@devices = map {$_ =~ s/(^\/dev\/|\([0-9]+\)$)//g; $_} @devices if @devices;
+		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
+			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
+			# don't add mdraid!!, it's already been counted in raid
+			if (!grep {/^md[0-9]/} @devices){
+				$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
+				$raw_logical[2] += $row->{'vg_free'} if $row->{'vg_free'};
+			}
+		}
+		
 		foreach my $device (@devices){
 			if ($row->{'segtype'} !~ /^raid/ && 
 			    $device =~ /^([hsv]d[a-z]+[0-9]*$|nvme|mmcblk)/ && !$totals{'pvs'}->{$device}){
