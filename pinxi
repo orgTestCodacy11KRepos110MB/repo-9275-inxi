@@ -11594,6 +11594,7 @@ sub lvm_data {
 	eval $start if $b_log;
 	$b_lvm_data = 1;
 	main::set_proc_partitions() if !$b_proc_partitions;
+	main::set_mapper() if !$b_mapper;
 	my (@args,@data,%totals);
 	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
 	lv_name lv_size lv_health_status lv_parent pv_count 
@@ -11656,7 +11657,8 @@ sub process_lvm_data {
 	eval $start if $b_log;
 	my (%processed);
 	foreach my $item (@lvm){
-		my (@components,@devices,$dm,$dm_mm,@full_components,@full_devices,$maj_min,@temp);
+		my (@components,@devices,$dm,$dm_tmp,$dm_mm,@full_components,@full_devices,
+		$maj_min,@temp);
 		if (!$processed{$item->{'vg_name'}}){
 			$processed{$item->{'vg_name'}}->{'vg-size'} = $item->{'vg_size'};
 			$processed{$item->{'vg_name'}}->{'vg-free'} = $item->{'vg_free'};
@@ -11667,9 +11669,10 @@ sub process_lvm_data {
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'lv-type'} = $item->{'segtype'};
 			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'maj-min'} = $maj_min;
-			$dm = $mapper{$item->{'vg_name'} . '-' . $item->{'lv_name'}};
+			$dm_tmp = $item->{'vg_name'} . '-' . $item->{'lv_name'};
+			$dm = $mapper{$dm_tmp} if %mapper;
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm'} = $dm;
-			@temp = main::get_proc_partition($dm) if @proc_partitions;
+			@temp = main::get_proc_partition($dm) if $dm && @proc_partitions;
 			$dm_mm = join(':', @temp[0..1]) if @temp;
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm-maj-min'} = $dm_mm;
 			@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
