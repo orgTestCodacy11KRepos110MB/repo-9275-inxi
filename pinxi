@@ -11648,28 +11648,13 @@ sub lvm_data {
 			$line[$i] =~ s/k$// if $args[$i] =~ /_(free|size|used)$/;
 			$lvm[$j]->{$args[$i]} = $line[$i];
 		}
+		if (!$totals{'vgs'}->{$lvm[$j]->{'vg_name'}}){
+			$totals{'vgs'}->{$lvm[$j]->{'vg_name'}} = $lvm[$j]->{'vg_size'};
+			$raw_logical[2] += $lvm[$j]->{'vg_free'} if $lvm[$j]->{'vg_free'};
+		}
 		$j++;
 	}
-	foreach my $row (@lvm){
-		my @devices = split(',', $row->{'devices'});
-		@devices = map {$_ =~ s/(^\/dev\/|\([0-9]+\)$)//g; $_} @devices if @devices;
-		if (!$totals{'vgs'}->{$row->{'vg_name'}}){
-			$totals{'vgs'}->{$row->{'vg_name'}} = $row->{'vg_size'};
-			# don't add mdraid!!, it's already been counted in raid
-# 			if (!grep {/^md[0-9]/} @devices){
-# 				$raw_logical[0] += $row->{'vg_size'} if $row->{'vg_size'};
-# 			}
-			$raw_logical[2] += $row->{'vg_free'} if $row->{'vg_free'};
-		}
-# 		foreach my $device (@devices){
-# 			if (!$totals{'pvs'}->{$device} && $device =~ /^([fio[a-z]+[0-9]+|hsv]d[a-z]+[0-9]*$|nvme|mmcblk)/){
-# 				my $size = (main::get_proc_partition($device))[2];
-# 				$totals{'pvs'}->{$device} = $size;
-# 				$raw_logical[1] += $size if $size;
-# 			}
-# 		}
-	};
-	#print Data::Dumper::Dumper \%totals;
+	# print Data::Dumper::Dumper \%totals, \@raw_logical;
 	main::log_data('dump','lvm @lvm', \@lvm) if $b_log;
 	print Data::Dumper::Dumper \@lvm if $test[22];
 	eval $end if $b_log;
