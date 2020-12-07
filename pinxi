@@ -7538,9 +7538,16 @@ sub data_cpuinfo {
 				}
 			}
 			if ($cpu{'type'} eq 'elbrus'){
-				if (!$cpu{'l1-cache'} && $line[0] eq 'cache1'){
+				# note: cache0 is L1i and cache1 L1d, but add both for L1
+				if (!$cpu{'l0-cache'} && $line[0] eq 'cache0'){
+					if ($line[1] =~ /size=(\d+)K\s/){
+						$cpu{'l0-cache'} = $1;
+					}
+				}
+				elsif (!$cpu{'l1-cache'} && $line[0] eq 'cache1'){
 					if ($line[1] =~ /size=(\d+)K\s/){
 						$cpu{'l1-cache'} = $1;
+						$cpu{'l1-cache'} += $cpu{'l0-cache'} if $cpu{'l0-cache'};
 					}
 				}
 				elsif (!$cpu{'l2-cache'} && $line[0] eq 'cache2'){
@@ -15657,7 +15664,7 @@ sub process_size {
 	my ($size) = @_;
 	my ($b_trim,$unit) = (0,'');
 	#print "size0: $size\n";
-	return 'N/A' if ( ! $size );
+	return 'N/A' if !$size;
 	#return $size if $size =~ /\D/;
 	return $size if !main::is_numeric($size);
 	#print "size: $size\n";
