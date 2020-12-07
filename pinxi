@@ -4311,11 +4311,12 @@ sub get_options {
 			if ($arg >= 8 ){
 				$b_admin = 1;
 				$b_downloader = 1;
-				$show{'slot'} = 1;
+				$show{'logical'} = 1;
 				$show{'process'} = 1;
 				$show{'ps-cpu'} = 1;
 				$show{'ps-mem'} = 1;
 				$show{'repo'} = 1;
+				$show{'slot'} = 1;
 				#$show{'weather'} = 1;
 			}
 		}
@@ -4827,6 +4828,8 @@ sub show_options {
 	['2', '-p,-P', '', "If available: raw size of ${partition_string}s, maj:min, 
 	percent available for user, block size of file system (root required)." ],
 	['2', '-r', '', "Packages, see -Ia." ],
+	['2', '-L', '', "LVM: show maj:min, component devices; per component/device: 
+	size, maj:min." ],
 	['2', '-R', '', "mdraid: device maj:min; per component: size, maj:min, state." ],
 	['2', '-S', '', "If available: kernel boot parameters." ],
 	['1', '-A', '--audio', "Audio/sound card(s), driver, sound server." ],
@@ -4868,6 +4871,8 @@ sub show_options {
 	['1', '-J', '--usb', "Show USB data: Hubs and Devices." ],
 	['1', '-l', '--label', "$partition_string_u labels. Triggers -P. 
 	For full -p output, use -pl." ],
+	['1', '-L', '--logical', "Logical volumes, LVM (VG, LV), 
+	LUKS. Shows compenents/devices, sizes, etc." ],
 	['1', '-m', '--memory', "Memory (RAM) data. Requires root. Numbers of 
 	devices (slots) supported and individual memory devices (sticks of memory etc). 
 	For devices, shows device locator, size, speed, type (e.g. DDR3). 
@@ -4929,8 +4934,8 @@ sub show_options {
 	unmounted $partition_string (-o), optical drive (-d), USB (-J),
 	full RAID; triggers -xx." ], 
 	['2', '7', '', "Network IP data (-i); triggers -xxx."],
-	['2', '8', '', "Everything available, including repos (-r), processes 
-	(-tcm), PCI slots (--slots)."],
+	['2', '8', '', "Everything available, including logical (-L), 
+	repos (-r), processes (-tcm), PCI slots (--slots)."],
 	);
 	# if distro maintainers don't want the weather feature disable it
 	if ( $use{'weather'} ){
@@ -5013,6 +5018,8 @@ sub show_options {
 	package counts if not -r." ],
 	['2', '-j,-p,-P', '', "Swap priority." ],
 	['2', '-J', '', "Vendor:chip ID." ],
+	['2', '-L', '', "Show internal LVM volumes, like raid image/meta volumes;
+	for LVM RAID, adds RAID report line." ],
 	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double bank (if found)." ],
 	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available." ],
 	['2', '-N', '', "Chip vendor:product ID." ],
@@ -11504,6 +11511,7 @@ sub create_output_lvm {
 		foreach my $lv (sort keys %{$lvm_data->{$vg}{'lvs'}}){
 			next if $extra < 2 && $lv =~ /^\[/; # it's an internal vg lv, raid meta/image 
 			$j = scalar @rows;
+			my $b_raid;
 			$size = main::get_size($lvm_data->{$vg}{'lvs'}{$lv}{'lv-size'},'string','N/A');
 			$rows[$j]{main::key($num++,1,2,'LV')} = $lv;
 			$rows[$j]{main::key($num++,0,3,'type')} = $lvm_data->{$vg}{'lvs'}{$lv}{'lv-type'};
@@ -11512,12 +11520,21 @@ sub create_output_lvm {
 				$rows[$j]{main::key($num++,0,3,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'};
 			}
 			if ($extra > 0 && $lvm_data->{$vg}{'lvs'}{$lv}{'dm'}){
-				$rows[$j]{main::key($num++,1,3,'dm')} = $lvm_data->{$vg}{'lvs'}{$lv}{'dm'};
+				$rows[$j]{main::key($num++,0,3,'dm')} = $lvm_data->{$vg}{'lvs'}{$lv}{'dm'};
 			}
 			$rows[$j]{main::key($num++,0,3,'size')} = $size;
+			if ($extra > 1 && !($show{'raid'} || $show{'raid-basic'}) && $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}){
+				$j = scalar @rows;
+				$rows[$j]{main::key($num++,1,3,'RAID')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'type'};
+				$rows[$j]{main::key($num++,0,4,'stripes')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'stripes'};
+				$rows[$j]{main::key($num++,0,4,'sync')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'sync'};
+				$rows[$j]{main::key($num++,0,4,'copied')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'copied'};
+				$rows[$j]{main::key($num++,0,4,'mismatches')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'mismatches'};
+				$b_raid = 1;
+			}
 			if ($lvm_data->{$vg}{'lvs'}{$lv}{'devices'}){
 				$l = 1;
-				$j = scalar @rows if $b_admin;
+				$j = scalar @rows if $b_raid || $b_admin;
 				$rows[$j]{main::key($num++,1,3,'devices')} = '';
 				foreach my $device (@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}}){
 					$rows[$j]{main::key($num++,1,4,$l)} = $device->[0];
@@ -11617,7 +11634,7 @@ sub process_lvm_data {
 	my (%processed);
 	foreach my $item (@lvm){
 		my (@components,@devices,$dm,$dm_tmp,$dm_mm,@full_components,@full_devices,
-		$maj_min,@temp);
+		$maj_min,%raid,@temp);
 		if (!$processed{$item->{'vg_name'}}){
 			$processed{$item->{'vg_name'}}->{'vg-size'} = $item->{'vg_size'};
 			$processed{$item->{'vg_name'}}->{'vg-free'} = $item->{'vg_free'};
@@ -11632,6 +11649,14 @@ sub process_lvm_data {
 			$dm_tmp =~ s/\[|\]$//g;
 			$dm = $mapper{$dm_tmp} if %mapper;
 			$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'dm'} = $dm;
+			if ($item->{'segtype'} && $item->{'segtype'} ne 'linear' && $item->{'lv_name'} =~ /^raid/){
+				$raid{'copied'} = $item->{'copy_percent'};
+				$raid{'mismatches'} = $item->{'raid_mismatch_count'};
+				$raid{'stripes'} = $item->{'stripes'};
+				$raid{'sync'} = $item->{'raid_sync_action'};
+				$raid{'type'} = $item->{'segtype'};
+				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'raid'} = \%raid;
+			}
 			@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
 			@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
 			foreach my $device (@devices){
@@ -21877,9 +21902,11 @@ sub set_lsblk {
 				'maj-min' => $13,
 				});
 				# must be below assignments!! otherwise the result of the match replaces values
-				$b_active_bcache = 1 if !$b_active_bcache && $1 && $1 =~ /^bcache/;
-				$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
-				$b_active_luks = 1 if !$b_active_luks && $2 && $2 eq 'crypt' && $1 =~ /^luks/;
+				if ($show{'logical'}){
+					$b_active_bcache = 1 if !$b_active_bcache && $1 && $1 =~ /^bcache/;
+					$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
+					$b_active_luks = 1 if !$b_active_luks && $2 && $2 eq 'crypt' && $1 =~ /^luks/;
+				}
 			}
 		}
 	}
