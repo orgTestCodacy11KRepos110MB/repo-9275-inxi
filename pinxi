@@ -11450,7 +11450,7 @@ package LogicalData;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows,$key1,$val1);
+	my (@crypto_data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
@@ -11458,6 +11458,7 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
  	else {
+		main::set_lsblk() if !$b_lsblk;
 		if ($b_fake_logical || $alerts{'lvs'}->{'action'} eq 'use'){
 			lvm_data() if !$b_lvm_data;
 			if (!@lvm){
@@ -11477,16 +11478,32 @@ sub get {
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
+		if (@lsblk && $b_active_luks){
+			my @luks_data = luks_data();
+			push(@crypto_data,@luks_data);
+		}
+		if (@crypto_data){
+			@rows = create_output_crypto(\@crypto_data);
+		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_luks {
+sub create_output_crypto {
 	eval $start if $b_log;
-	my ($luks_data) = @_;
-	my (@rows);
+	my ($crypto_data) = @_;
+	my ($size,@rows);
 	my ($num) = (0);
 	# cryptsetup status luks-a00baac5-44ff-4b48-b303-3bedb1f623ce
+	foreach my $item (@$crypto_data){
+		$size = ($item->{'size'}) ? main::get_size($item->{'size'}, 'string') : 'N/A';
+		push(@rows,{
+		main::key($num++,0,2,'Crypto') => $item->{'typo'},
+		main::key($num++,0,2,'id') => $item->{'name'},
+		main::key($num++,0,2,'dm') => $item->{'dm'},
+		main::key($num++,0,2,'size') => $size,
+		});
+	}
 	eval $end if $b_log;
 	return @rows;
 }
@@ -11703,7 +11720,19 @@ sub process_lvm_data {
 sub luks_data {
 	eval $start if $b_log;
 	my (@data,@luks_data);
-	
+	main::set_mapper() if !$b_mapper;
+	foreach my $row (@lsblk){
+		if ($row->{'type'} && $row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/){
+			my ($mapped);
+			$mapped = $mapper{$row->{'name'}} if %mapper;
+			push(@luks_data, {
+			'dm' => $mapped,
+			'name' => $row->{'name'},
+			'size' => $row->{'size'},
+			'type' => 'LUKS',
+			});
+		}
+	}
 	main::log_data('dump','luks @data', \@data);
 	print Data::Dumper::Dumper \@data if $test[22];
 	eval $end if $b_log;
