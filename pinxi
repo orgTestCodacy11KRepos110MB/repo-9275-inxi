@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-06';
-my $self_patch='94';
+my $self_date='2020-12-07';
+my $self_patch='95';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7099,16 +7099,15 @@ sub create_output_full {
 		}
 	}
 	if ($extra > 1 && $properties{'l1-cache'}){
-		$rows[$j]{main::key($num++,0,2,'L1 cache')} = $properties{'l1-cache'};
+		$rows[$j]{main::key($num++,0,2,'L1 cache')} = main::get_size($properties{'l1-cache'},'string');
 	}
-	$properties{'l2-cache'} ||= 'N/A';
-	if (!$b_arm || ($b_arm && $properties{'l2-cache'} ne 'N/A')){
+	if (!$b_arm || ($b_arm && $properties{'l2-cache'})){
+		$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
 		$rows[$j]{main::key($num++,0,2,'L2 cache')} = $properties{'l2-cache'};
 	}
 	if ($extra > 1 && $properties{'l3-cache'}){
-		$rows[$j]{main::key($num++,0,2,'L3 cache')} = $properties{'l3-cache'};
+		$rows[$j]{main::key($num++,0,2,'L3 cache')} = main::get_size($properties{'l3-cache'},'string');
 	}
-	
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split(/\s+/, $cpu{'flags'}) if $cpu{'flags'};
@@ -7995,21 +7994,6 @@ sub cpu_properties {
 	# note that we need to multiply by number of actual cpus here to get true cache size
 	else {
 		$l2_cache = $cpu->{'l2-cache'} * $phyical_count;
-	}
-	if ($l1_cache > 0){
-		$l1_cache = "$l1_cache KiB";
-	}
-	if ($l2_cache > 10000){
-		$l2_cache = sprintf("%.01f MiB",$l2_cache/1024); # trim to no decimals?
-	}
-	elsif ($l2_cache > 0){
-		$l2_cache = "$l2_cache KiB";
-	}
-	if ($l3_cache > 10000){
-		$l3_cache = sprintf("%.01f MiB",$l3_cache/1024); # trim to no decimals?
-	}
-	elsif ($l3_cache > 0){
-		$l3_cache = "$l3_cache KiB";
 	}
 	if ($cpu->{'cur-freq'} && $cpu->{'min-freq'} && $cpu->{'max-freq'} ){
 		$min_max = "$cpu->{'min-freq'}/$cpu->{'max-freq'} MHz";
@@ -8901,14 +8885,10 @@ sub create_output {
 	if ($disks->[0]{'logical-size'}){
 		$rows[$j]{main::key($num++,1,2,'total')} = '';
 		$rows[$j]{main::key($num++,0,3,'raw')} = $size;
-		$size = main::get_size($disks->[0]{'logical-size'},'string','N/A');
-		$size_value = $disks->[0]{'logical-size'} if $disks->[0]{'logical-size'};
+		$size = main::get_size($disks->[0]{'logical-size'},'string');
+		$size_value = $disks->[0]{'logical-size'};
 		#print Data::Dumper::Dumper $disks;
 		$rows[$j]{main::key($num++,1,3,'logical')} = $size;
-		if ($extra > 0 && $disks->[0]{'logical-free'}){
-			$size = main::get_size($disks->[0]{'logical-free'},'string','N/A');
-			$rows[$j]{main::key($num++,0,4,'l-free')} = $size;
-		}
 	}
 	else {
 		$size_value = $disks->[0]{'size'} if $disks->[0]{'size'};
@@ -8916,6 +8896,10 @@ sub create_output {
 		
 	}
 	$used = main::get_size($disks->[0]{'used'},'string','N/A');
+	if ($extra > 0 && $disks->[0]{'logical-free'}){
+		$size = main::get_size($disks->[0]{'logical-free'},'string');
+		$rows[$j]{main::key($num++,0,4,'lvm-free')} = $size;
+	}
 	if (($size_value && $size_value =~ /^[0-9]/) && 
 		 ($used && $disks->[0]{'used'} =~ /^[0-9]/ )){
 		$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$size_value*100) . '%)';
@@ -8933,7 +8917,7 @@ sub create_output {
 			$num = 1;
 			$model = ($row->{'model'}) ? $row->{'model'}: 'N/A';
 			$id =  ($row->{'id'}) ? "/dev/$row->{'id'}":'N/A';
-			$size = main::get_size($row->{'size'},'string','N/A');
+			$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
 			#print Data::Dumper::Dumper $disks;
 			$j = scalar @rows;
 			if (!$b_smart_permissions && $row->{'smart-permissions'}){
@@ -9087,7 +9071,7 @@ sub proc_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives);
-	my ($b_hdx,$logical_free,$logical_size,$size) = (0,0,0,0);
+	my ($b_hdx,$logical_size,$size) = (0,0,0);
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^(fio[a-z]+|[hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
@@ -9128,13 +9112,12 @@ sub proc_data {
 	# and we end up with raw logical less than used, give up
 	if (@raw_logical && $raw_logical[0] && (!$used || $raw_logical[0] > $used)){
 		$logical_size = ($size - $raw_logical[1] + $raw_logical[0]);
-		$logical_free = $raw_logical[2];
 	}
 	# print Data::Dumper::Dumper \@drives;
 	main::log_data('data',"size: $size") if $b_log;
 	@data = ({
 	'logical-size' => $logical_size,
-	'logical-free' => $logical_free,
+	'logical-free' => $raw_logical[2],
 	'size' => $size,
 	'used' => $used,
 	});
@@ -11515,7 +11498,7 @@ sub create_output_lvm {
 		main::key($num++,0,2,'type') => $lvm_data->{$vg}{'vg-format'},
 		main::key($num++,0,2,'size') => $size,
 		},);
-		$size = main::get_size($lvm_data->{$vg}{'vg-free'},'string','N/A');
+		$size = ($lvm_data->{$vg}{'vg-free'}) ? main::get_size($lvm_data->{$vg}{'vg-free'},'string') : 'N/A';
 		$rows[$j]{main::key($num++,0,2,'free')} = $size;
 		$k = 1;
 		foreach my $lv (sort keys %{$lvm_data->{$vg}{'lvs'}}){
@@ -13307,8 +13290,8 @@ sub create_output {
 		next if $show{'swap'} && $row->{'fs'} && $row->{'fs'} eq 'swap';
 		next if $row->{'swap-type'} && $row->{'swap-type'} ne 'partition';
 		if (!$row->{'hidden'}){
-			$size = main::get_size($row->{'size'},'string','N/A');
-			$used = main::get_size($row->{'used'},'string','N/A');
+			$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
+			$used = ($row->{'used'}) ? main::get_size($row->{'used'},'string') : 'N/A';
 			$percent = (defined $row->{'percent-used'}) ? ' (' . $row->{'percent-used'} . '%)' : '';
 		}
 		else {
@@ -13327,12 +13310,7 @@ sub create_output {
 		});
 		if (($b_admin || $row->{'hidden'}) && $row->{'raw-size'} ){
 			# It's an error! permissions or missing tool
-			if (!main::is_numeric($row->{'raw-size'})){
-				$raw_size = $row->{'raw-size'};
-			}
-			else {
-				$raw_size = main::get_size($row->{'raw-size'},'string','N/A');
-			}
+			$raw_size = ($row->{'raw-size'}) ? main::get_size($row->{'raw-size'},'string') : 'N/A';
 			$rows[$j]{main::key($num++,0,2,'raw size')} = $raw_size;
 		}
 		if ($b_admin && $row->{'raw-available'} && $size ne 'N/A'){
@@ -14271,14 +14249,10 @@ sub create_output_lvm {
 			if ($row->{'vg'}){
 				$rows[$j]{main::key($num++,1,3,'v-group')} = $row->{'vg'};
 			}
-			if ($row->{'vg-size'}){
-				$size = main::get_size($row->{'vg-size'},'string');
-				$rows[$j]{main::key($num++,0,4,'vg-size')} = $size;
-			}
-			if ($row->{'vg-free'}){
-				$size = main::get_size($row->{'vg-free'},'string');
-				$rows[$j]{main::key($num++,0,4,'vg-free')} = $size;
-			}
+			$size = ($row->{'vg-size'}) ? main::get_size($row->{'vg-size'},'string') : 'N/A';
+			$rows[$j]{main::key($num++,0,4,'vg-size')} = $size;
+			$size = ($row->{'vg-free'}) ? main::get_size($row->{'vg-free'},'string') : 'N/A';
+			$rows[$j]{main::key($num++,0,4,'vg-free')} = $size;
 		}
 		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
 		@components_good = ();
@@ -14429,8 +14403,8 @@ sub create_output_zfs {
 		main::key($num++,0,2,'type') => $row->{'type'},
 		main::key($num++,0,2,'status') => $row->{'status'},
 		});
-		$size = main::get_size($row->{'size'},'string','');
-		$available = main::get_size($row->{'free'},'string','');
+		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : '';
+		$available = main::get_size($row->{'free'},'string',''); # could be zero free
 		if ($extra > 2){
 			$allocated = ($row->{'allocated'}) ? main::get_size($row->{'allocated'},'string') : '';
 		}
@@ -14551,7 +14525,7 @@ sub create_components_output {
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'maj-min')} = $device->[$f2];
 		}
 		if ($b_admin && $device->[$f1]){
-			my $size = main::get_size($device->[$f1],'string','');
+			my $size = ($device->[$f1]) ? main::get_size($device->[$f1],'string') : 'N/A';
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'size')} = $size;
 		}
 		if ($b_admin && $device->[$f3]){
@@ -17637,8 +17611,8 @@ sub create_output {
 	my @swap_data = PartitionData::swap_data();
 	foreach my $row (@swap_data){
 		$num = 1;
-		$size = main::get_size($row->{'size'},'string','N/A');
-		$used = main::get_size($row->{'used'},'string','N/A');
+		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
+		$used = main::get_size($row->{'used'},'string','N/A'); # used can be 0
 		$percent = (defined $row->{'percent-used'}) ? ' (' . $row->{'percent-used'} . '%)' : '';
 		%part = ();
 		$dev = ($row->{'swap-type'} eq 'file') ? 'file' : 'dev';
@@ -17666,12 +17640,7 @@ sub create_output {
 		# not used for swap as far as I know
 		if ($b_admin && $row->{'raw-size'} ){
 			# It's an error! permissions or missing tool
-			if (!main::is_numeric($row->{'raw-size'})){
-				$raw_size = $row->{'raw-size'};
-			}
-			else {
-				$raw_size = main::get_size($row->{'raw-size','string','N/A'});
-			}
+			$raw_size = main::get_size($row->{'raw-size'},'string');
 			$rows[$j]{main::key($num++,0,2,'raw size')} = $raw_size;
 		}
 		# not used for swap as far as I know
@@ -17754,7 +17723,7 @@ sub create_output {
 	@$unmounted = sort { $a->{'dev-base'} cmp $b->{'dev-base'} } @$unmounted;
 	foreach my $row (@$unmounted){
 		$num = 1;
-		my $size = main::get_size($row->{'size'},'string','N/A');
+		my $size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
 		if ($row->{'fs'}){
 			$fs = lc($row->{'fs'});
 		}
@@ -20253,8 +20222,8 @@ sub get_memory_data_full {
 		if ($memory){
 			my @temp = split(':', $memory);
 			$gpu_ram = $temp[3] if $temp[3];
-			$total = get_size($temp[0],'string','N/A');
-			$used = get_size($temp[1],'string','N/A');
+			$total = ($temp[0]) ? get_size($temp[0],'string') : 'N/A';
+			$used = ($temp[1]) ? get_size($temp[1],'string') : 'N/A';
 			$used .= " ($temp[2]%)" if $temp[2];
 			if ($gpu_ram){
 				$gpu_ram = get_size($gpu_ram,'string');
@@ -22872,8 +22841,8 @@ sub generate_info_data {
 		if ($memory){
 			my @temp = split(':', $memory);
 			$gpu_ram = $temp[3] if $temp[3];
-			$total = get_size($temp[0],'string');
-			$used = get_size($temp[1],'string');
+			$total = ($temp[0]) ? get_size($temp[0],'string') : 'N/A';
+			$used = ($temp[1]) ? get_size($temp[1],'string') : 'N/A';
 			$used .= " ($temp[2]%)" if $temp[2];
 			if ($gpu_ram){
 				$gpu_ram = get_size($gpu_ram,'string');
