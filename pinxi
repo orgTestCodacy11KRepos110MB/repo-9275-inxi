@@ -11595,11 +11595,11 @@ sub create_output_devices {
 		}
 	}
 	if (@{$components}){
-		$$j = scalar @$rows if $b_admin;
+		$$j = scalar @$rows if $$b_raid ||$b_admin;
+		$$b_raid = 0;
 		$$rows[$$j]{main::key($$num++,1,$l1,'components')} = '';
 		foreach my $component (@{$components}){
-			$$j = scalar @$rows if $$b_raid || $b_admin;
-			$$b_raid = 0;
+			$$j = scalar @$rows if $b_admin;
 			$$rows[$$j]{main::key($$num++,1,$l2,'c-' . $l)} = $component->[0];
 			if ($b_admin){
 				$$rows[$$j]{main::key($$num++,0,$l3,'maj-min')} = $component->[1];
@@ -11713,6 +11713,38 @@ sub process_lvm_data {
 	eval $end if $b_log;
 	return %processed;
 }
+
+sub luks_data {
+	eval $start if $b_log;
+	my (@data,@luks_data);
+	main::set_mapper() if !$b_mapper;
+	foreach my $row (@lsblk){
+		if ($row->{'type'} && $row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/){
+			my (@full_components,@full_devices,$mapped);
+			$mapped = $mapper{$row->{'name'}} if %mapper;
+			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
+			my $j = scalar @luks_data;
+			push(@luks_data, {
+			'dm' => $mapped,
+			'maj-min' => $row->{'maj-min'},
+			'name' => $row->{'name'},
+			'size' => $row->{'size'},
+			'type' => 'LUKS',
+			});
+			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
+			if (@full_devices){
+				$luks_data[$j]->{'devices'} = \@full_devices;
+			}
+			elsif (@full_components){
+				$luks_data[$j]->{'components'} = \@full_components;
+			}
+		}
+	}
+	main::log_data('dump','luks @data', \@data);
+	print Data::Dumper::Dumper \@data if $test[22];
+	eval $end if $b_log;
+	return @luks_data;
+}
 sub device_component_data {
 	my ($maj_min,$full_components,$full_devices) = @_;
 	my (@devices);
@@ -11745,37 +11777,6 @@ sub device_component_data {
 			) if @part;
 		}
 	}
-}
-sub luks_data {
-	eval $start if $b_log;
-	my (@data,@luks_data);
-	main::set_mapper() if !$b_mapper;
-	foreach my $row (@lsblk){
-		if ($row->{'type'} && $row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/){
-			my (@full_components,@full_devices,$mapped);
-			$mapped = $mapper{$row->{'name'}} if %mapper;
-			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
-			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
-			my $j = scalar @luks_data;
-			push(@luks_data, {
-			'dm' => $mapped,
-			'maj-min' => $row->{'maj-min'},
-			'name' => $row->{'name'},
-			'size' => $row->{'size'},
-			'type' => 'LUKS',
-			});
-			if (@full_devices){
-				$luks_data[$j]->{'devices'} = \@full_devices;
-			}
-			elsif (@full_components){
-				$luks_data[$j]->{'components'} = \@full_components;
-			}
-		}
-	}
-	main::log_data('dump','luks @data', \@data);
-	print Data::Dumper::Dumper \@data if $test[22];
-	eval $end if $b_log;
-	return @luks_data;
 }
 }
 
