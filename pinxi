@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-08';
-my $self_patch='97';
+my $self_date='2020-12-09';
+my $self_patch='98';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -76,7 +76,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_active_bcache,$b_active_crypto,$b_active_lvm,
+my ($b_active_cache,$b_active_crypto,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
@@ -6176,7 +6176,6 @@ sub print_data {
 		'Array' => 1, # RAM or RAID
 		'Battery' => 1,
 		'Card' => 1,
-		'Crypto' => 1,
 		'Device' => 1,
 		'Floppy' => 1,
 		'Hardware' => 1, # hardware raid report
@@ -6187,7 +6186,7 @@ sub print_data {
 		'Optical' => 1,
 		'Screen' => 1,
 		'variant' => 1, # arm > 1 cpu type
-		'VG' => 1,
+		'LVM-VG' => 1,
 		);
 		foreach my $val1 (@{$data->{$key1}}){
 			$indent_use = $length = $indent;
@@ -6210,7 +6209,7 @@ sub print_data {
 					elsif ($start_holder eq 'USB' && $key eq 'Hub'){
 						$ids{'Device'} = 1;
 					}
-					elsif ($start_holder eq 'Logical' && $key eq 'VG'){
+					elsif ($start_holder eq 'Logical' && $key eq 'LVM-VG'){
 						$ids{'LV'} = 1;
 					}
 					if ($counter == 0 && defined $ids{$key}){
@@ -11455,7 +11454,7 @@ package LogicalData;
 
 sub get {
 	eval $start if $b_log;
-	my (@crypto_data,@rows,$key1,$val1);
+	my (@general_data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
@@ -11495,28 +11494,28 @@ sub get {
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
-		if (@lsblk && $b_active_crypto){
-			push(@crypto_data,crypto_data());
+		if (@lsblk && ($b_active_crypto || $b_active_cache)){
+			push(@general_data,general_data());
 		}
-		if (@crypto_data){
-			push(@rows,create_output_crypto(\@crypto_data));
+		if (@general_data){
+			push(@rows,create_output_general(\@general_data));
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_crypto {
+sub create_output_general {
 	eval $start if $b_log;
-	my ($crypto_data) = @_;
+	my ($general_data) = @_;
 	my ($size,@rows);
 	my ($num) = (0);
 	my $j = 0;
 	# cryptsetup status luks-a00baac5-44ff-4b48-b303-3bedb1f623ce
-	foreach my $item (@$crypto_data){
+	foreach my $item (sort {$a->{'type'} cmp $b->{'type'}} @$general_data){
 		$j = scalar @rows;
 		$size = ($item->{'size'}) ? main::get_size($item->{'size'}, 'string') : 'N/A';
 		push(@rows,{
-		main::key($num++,1,1,'Crypto') => $item->{'type'},
+		main::key($num++,1,1,'Device') => $item->{'type'},
 		main::key($num++,0,2,'id') => $item->{'name'},
 		});
 		if ($b_admin){
@@ -11528,7 +11527,7 @@ sub create_output_crypto {
 		}
 		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		my $b_fake;
-		create_output_devices('luks',\$j,\$num,\@rows,\@{$item->{'components'}},
+		create_output_components('luks',\$j,\$num,\@rows,\@{$item->{'components'}},
 			\@{$item->{'devices'}},\$b_fake);
 	}
 	eval $end if $b_log;
@@ -11545,7 +11544,7 @@ sub create_output_lvm {
 		# print Data::Dumper::Dumper $lvm_data->{$vg};
 		$size = main::get_size($lvm_data->{$vg}{'vg-size'},'string','N/A');
 		push(@rows,{
-		main::key($num++,1,1,'VG') => $vg,
+		main::key($num++,1,1,'LVM-VG') => $vg,
 		main::key($num++,0,2,'type') => $lvm_data->{$vg}{'vg-format'},
 		main::key($num++,0,2,'size') => $size,
 		},);
@@ -11578,7 +11577,7 @@ sub create_output_lvm {
 				$rows[$j]{main::key($num++,0,4,'mismatches')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'mismatches'};
 				$b_raid = 1;
 			}
-			create_output_devices('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
+			create_output_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
 			\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
 		}
 	}
@@ -11587,7 +11586,7 @@ sub create_output_lvm {
 	return @rows;
 }
 
-sub create_output_devices {
+sub create_output_components {
 	my ($type,$j,$num,$rows,$components,$devices,$b_raid) = @_;
 	my ($l,$m,$size) = (1,1,0);
 	my ($l1,$l2,$l3,$l4,$l5);
@@ -11643,13 +11642,14 @@ sub create_output_devices {
 }
 
 # note: type dm is seen in only one dataset, but it's a start
-sub crypto_data {
+sub general_data {
 	eval $start if $b_log;
-	my (@data,@crypto_data);
+	my (@data,@general_data);
 	main::set_mapper() if !$b_mapper;
 	foreach my $row (@lsblk){
 		if ($row->{'type'} && (($row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/i) ||
-		    $row->{'type'} eq 'dm' && $row->{'name'} =~ /^veracrypt/i)){
+		    ($row->{'type'} eq 'dm' && $row->{'name'} =~ /^veracrypt/i) ||
+		    ($row->{'name'} =~ /^bcache/ && $row->{'name'} eq 'disk') ) ){
 			my (@full_components,@full_devices,$mapped,$type);
 			$mapped = $mapper{$row->{'name'}} if %mapper;
 			if ($row->{'name'} =~ /^luks-/i){
@@ -11658,9 +11658,12 @@ sub crypto_data {
 			elsif ($row->{'name'} =~ /^veracrypt/i){
 				$type = 'VeraCrypt';
 			}
+			elsif ($row->{'name'} =~ /^bcache/ && $row->{'name'} eq 'disk'){
+				$type = 'bcache';
+			}
 			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
-			my $j = scalar @crypto_data;
-			push(@crypto_data, {
+			my $j = scalar @general_data;
+			push(@general_data, {
 			'dm' => $mapped,
 			'maj-min' => $row->{'maj-min'},
 			'name' => $row->{'name'},
@@ -11669,17 +11672,17 @@ sub crypto_data {
 			});
 			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
 			if (@full_devices){
-				$crypto_data[$j]->{'devices'} = \@full_devices;
+				$general_data[$j]->{'devices'} = \@full_devices;
 			}
 			elsif (@full_components){
-				$crypto_data[$j]->{'components'} = \@full_components;
+				$general_data[$j]->{'components'} = \@full_components;
 			}
 		}
 	}
 	main::log_data('dump','luks @data', \@data);
 	print Data::Dumper::Dumper \@data if $test[22];
 	eval $end if $b_log;
-	return @crypto_data;
+	return @general_data;
 }
 
 # note: called for disk totals, raid, and logical
@@ -22003,7 +22006,7 @@ sub set_lsblk {
 				});
 				# must be below assignments!! otherwise the result of the match replaces values
 				if ($show{'logical'}){
-					$b_active_bcache = 1 if !$b_active_bcache && $1 && $1 =~ /^bcache/;
+					$b_active_cache = 1 if !$b_active_cache && $1 && $1 =~ /^bcache/ && $2 && $2 eq 'disk';
 					$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
 					if (!$b_active_crypto && $2 && (($2 eq 'crypt' && $1 =~ /^luks/i) || 
 					    ($2 eq 'dm' && $1 =~ /^veracrypt/i))){
