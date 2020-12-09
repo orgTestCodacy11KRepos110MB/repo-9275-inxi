@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-07';
-my $self_patch='96';
+my $self_date='2020-12-08';
+my $self_patch='97';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -76,7 +76,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_active_bcache,$b_active_luks,$b_active_lvm,
+my ($b_active_bcache,$b_active_crypto,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
@@ -11495,9 +11495,8 @@ sub get {
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
-		if (@lsblk && $b_active_luks){
-			my @luks_data = luks_data();
-			push(@crypto_data,@luks_data);
+		if (@lsblk && $b_active_crypto){
+			push(@crypto_data,crypto_data());
 		}
 		if (@crypto_data){
 			push(@rows,create_output_crypto(\@crypto_data));
@@ -11642,6 +11641,47 @@ sub create_output_devices {
 		}
 	}
 }
+
+# note: type dm is seen in only one dataset, but it's a start
+sub crypto_data {
+	eval $start if $b_log;
+	my (@data,@crypto_data);
+	main::set_mapper() if !$b_mapper;
+	foreach my $row (@lsblk){
+		if ($row->{'type'} && (($row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/i) ||
+		    $row->{'type'} eq 'dm' && $row->{'name'} =~ /^veracrypt/i)){
+			my (@full_components,@full_devices,$mapped,$type);
+			$mapped = $mapper{$row->{'name'}} if %mapper;
+			if ($row->{'name'} =~ /^luks-/i){
+				$type = 'LUKS';
+			}
+			elsif ($row->{'name'} =~ /^veracrypt/i){
+				$type = 'VeraCrypt';
+			}
+			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
+			my $j = scalar @crypto_data;
+			push(@crypto_data, {
+			'dm' => $mapped,
+			'maj-min' => $row->{'maj-min'},
+			'name' => $row->{'name'},
+			'size' => $row->{'size'},
+			'type' => $type,
+			});
+			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
+			if (@full_devices){
+				$crypto_data[$j]->{'devices'} = \@full_devices;
+			}
+			elsif (@full_components){
+				$crypto_data[$j]->{'components'} = \@full_components;
+			}
+		}
+	}
+	main::log_data('dump','luks @data', \@data);
+	print Data::Dumper::Dumper \@data if $test[22];
+	eval $end if $b_log;
+	return @crypto_data;
+}
+
 # note: called for disk totals, raid, and logical
 sub lvm_data {
 	eval $start if $b_log;
@@ -11732,37 +11772,6 @@ sub process_lvm_data {
 	return %processed;
 }
 
-sub luks_data {
-	eval $start if $b_log;
-	my (@data,@luks_data);
-	main::set_mapper() if !$b_mapper;
-	foreach my $row (@lsblk){
-		if ($row->{'type'} && $row->{'type'} eq 'crypt' && $row->{'name'} =~ /^luks-/){
-			my (@full_components,@full_devices,$mapped);
-			$mapped = $mapper{$row->{'name'}} if %mapper;
-			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
-			my $j = scalar @luks_data;
-			push(@luks_data, {
-			'dm' => $mapped,
-			'maj-min' => $row->{'maj-min'},
-			'name' => $row->{'name'},
-			'size' => $row->{'size'},
-			'type' => 'LUKS',
-			});
-			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
-			if (@full_devices){
-				$luks_data[$j]->{'devices'} = \@full_devices;
-			}
-			elsif (@full_components){
-				$luks_data[$j]->{'components'} = \@full_components;
-			}
-		}
-	}
-	main::log_data('dump','luks @data', \@data);
-	print Data::Dumper::Dumper \@data if $test[22];
-	eval $end if $b_log;
-	return @luks_data;
-}
 sub device_component_data {
 	my ($maj_min,$full_components,$full_devices) = @_;
 	my (@devices);
@@ -21996,7 +22005,10 @@ sub set_lsblk {
 				if ($show{'logical'}){
 					$b_active_bcache = 1 if !$b_active_bcache && $1 && $1 =~ /^bcache/;
 					$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
-					$b_active_luks = 1 if !$b_active_luks && $2 && $2 eq 'crypt' && $1 =~ /^luks/;
+					if (!$b_active_crypto && $2 && (($2 eq 'crypt' && $1 =~ /^luks/i) || 
+					    ($2 eq 'dm' && $1 =~ /^veracrypt/i))){
+						$b_active_crypto = 1;
+					}
 				}
 			}
 		}
