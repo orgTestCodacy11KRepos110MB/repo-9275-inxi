@@ -11507,8 +11507,7 @@ sub create_output_general {
 	eval $start if $b_log;
 	my ($general_data) = @_;
 	my ($size,@rows);
-	my ($num) = (0);
-	my $j = 0;
+	my ($j,$num) = (0,0);
 	# cryptsetup status luks-a00baac5-44ff-4b48-b303-3bedb1f623ce
 	foreach my $item (sort {$a->{'type'} cmp $b->{'type'}} @$general_data){
 		$j = scalar @rows;
@@ -11527,7 +11526,7 @@ sub create_output_general {
 		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		my $b_fake;
 		create_output_components('luks',\$j,\$num,\@rows,\@{$item->{'components'}},
-			\@{$item->{'devices'}},\$b_fake);
+		\@{$item->{'devices'}},\$b_fake);
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -11537,7 +11536,7 @@ sub create_output_lvm {
 	my ($lvm_data) = @_;
 	my (@rows);
 	my ($size);
-	my ($j,$k,$l,$m,$num) = (0,0,0,0,0);
+	my ($j,$num) = (0,0);
 	foreach my $vg (sort keys %$lvm_data){
 		$j = scalar @rows;
 		# print Data::Dumper::Dumper $lvm_data->{$vg};
@@ -11550,18 +11549,16 @@ sub create_output_lvm {
 		},);
 		$size = ($lvm_data->{$vg}{'vg-free'}) ? main::get_size($lvm_data->{$vg}{'vg-free'},'string') : 'N/A';
 		$rows[$j]{main::key($num++,0,2,'free')} = $size;
-		$k = 1;
 		foreach my $lv (sort keys %{$lvm_data->{$vg}{'lvs'}}){
 			next if $extra < 2 && $lv =~ /^\[/; # it's an internal vg lv, raid meta/image 
 			$j = scalar @rows;
 			my $b_raid;
 			$size = main::get_size($lvm_data->{$vg}{'lvs'}{$lv}{'lv-size'},'string','N/A');
 			$rows[$j]{main::key($num++,1,2,'LV')} = $lv;
-			$rows[$j]{main::key($num++,0,3,'type')} = $lvm_data->{$vg}{'lvs'}{$lv}{'lv-type'};
-			$k++;
 			if ($b_admin && $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'}){
 				$rows[$j]{main::key($num++,0,3,'maj-min')} = $lvm_data->{$vg}{'lvs'}{$lv}{'maj-min'};
 			}
+			$rows[$j]{main::key($num++,0,3,'type')} = $lvm_data->{$vg}{'lvs'}{$lv}{'lv-type'};
 			if ($extra > 0 && $lvm_data->{$vg}{'lvs'}{$lv}{'dm'}){
 				$rows[$j]{main::key($num++,0,3,'dm')} = $lvm_data->{$vg}{'lvs'}{$lv}{'dm'};
 			}
@@ -11581,7 +11578,6 @@ sub create_output_lvm {
 			\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
 		}
 	}
-	
 	eval $end if $b_log;
 	return @rows;
 }
