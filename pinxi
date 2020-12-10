@@ -21984,7 +21984,7 @@ sub set_lsblk {
 		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
 		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
 		$pattern .= 'PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"\s+';
-		$pattern .= 'MAJ:MIN="([^"]*)"';
+		$pattern .= 'MAJ:MIN="([^"]*)"PKNAME="([^"]*)"';
 		my @working = main::grabber($cmd);
 		foreach (@working){
 			if (/$pattern/){
@@ -22004,13 +22004,14 @@ sub set_lsblk {
 				'block-logical' => $11,
 				'partition-flags' => $12,
 				'maj-min' => $13,
+				'parent' => $14,
 				});
 				# must be below assignments!! otherwise the result of the match replaces values
+				# note: for bcache and luks, the device that has that fs is the parent!!
 				if ($show{'logical'}){
-					$b_active_cache = 1 if !$b_active_cache && $1 && $1 =~ /^bcache/ && $2 && $2 eq 'disk';
+					$b_active_cache = 1 if !$b_active_cache && $4 && $4 eq 'bcache';
 					$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
-					if (!$b_active_crypto && $2 && (($2 eq 'crypt' && $1 =~ /^luks/i) || 
-					    ($2 eq 'dm' && $1 =~ /^veracrypt/i))){
+					if (!$b_active_crypto && (($4 && $4 eq 'crypto_LUKS') || ($2 eq 'dm' && $1 =~ /^veracrypt/i))){
 						$b_active_crypto = 1;
 					}
 				}
