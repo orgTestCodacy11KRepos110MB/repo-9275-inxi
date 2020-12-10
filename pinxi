@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-09';
-my $self_patch='98';
+my $self_date='2020-12-10';
+my $self_patch='99';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -76,7 +76,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 my @test = (0,0,0,0,0);
 
 ## Booleans
-my ($b_active_cache,$b_active_crypto,$b_active_lvm,
+my ($b_active_general,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
 $b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
@@ -6186,7 +6186,6 @@ sub print_data {
 		'Optical' => 1,
 		'Screen' => 1,
 		'variant' => 1, # arm > 1 cpu type
-		'LVM-VG' => 1,
 		);
 		foreach my $val1 (@{$data->{$key1}}){
 			$indent_use = $length = $indent;
@@ -6209,7 +6208,7 @@ sub print_data {
 					elsif ($start_holder eq 'USB' && $key eq 'Hub'){
 						$ids{'Device'} = 1;
 					}
-					elsif ($start_holder eq 'Logical' && $key eq 'LVM-VG'){
+					elsif ($start_holder eq 'Logical' && $key eq 'Device'){
 						$ids{'LV'} = 1;
 					}
 					if ($counter == 0 && defined $ids{$key}){
@@ -11476,7 +11475,7 @@ sub get {
 				@rows = create_output_lvm(\%processed);
 			}
 		}
-		elsif (@lsblk && $b_active_lvm && $alerts{'lvs'}->{'action'} eq 'permissions'){
+		elsif ($b_active_lvm && $alerts{'lvs'}->{'action'} eq 'permissions'){
 			my $key = 'Message';
 			push(@rows, {
 			main::key($num++,0,1,$key) => $alerts{'lvs'}->{'permissions'},
@@ -11488,13 +11487,13 @@ sub get {
 			main::key($num++,0,1,$key) => main::row_defaults('lvm-data',''),
 			},);
 		}
-		elsif ( $alerts{'lvs'}->{'action'} ne 'use'){
+		elsif ($alerts{'lvs'}->{'action'} ne 'use'){
 			$key1 = $alerts{'lvs'}->{'action'};
 			$val1 = $alerts{'lvs'}->{$key1};
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
-		if (@lsblk && ($b_active_crypto || $b_active_cache)){
+		if ($b_active_general){
 			push(@general_data,general_data());
 		}
 		if (@general_data){
@@ -11544,8 +11543,8 @@ sub create_output_lvm {
 		# print Data::Dumper::Dumper $lvm_data->{$vg};
 		$size = main::get_size($lvm_data->{$vg}{'vg-size'},'string','N/A');
 		push(@rows,{
-		main::key($num++,1,1,'LVM-VG') => $vg,
-		main::key($num++,0,2,'type') => $lvm_data->{$vg}{'vg-format'},
+		main::key($num++,1,1,'Device') => uc($lvm_data->{$vg}{'vg-format'}),
+		main::key($num++,1,1,'VG') => $vg,
 		main::key($num++,0,2,'size') => $size,
 		},);
 		$size = ($lvm_data->{$vg}{'vg-free'}) ? main::get_size($lvm_data->{$vg}{'vg-free'},'string') : 'N/A';
@@ -11650,8 +11649,9 @@ sub general_data {
 		next if !$mapper{$row->{'name'}} || !$row->{'parent'};
 		%parent = main::get_lsblk($row->{'parent'});
 		next if !$parent{'fs'};
-		if ($row->{'type'} && (($row->{'type'} eq 'crypt' && $parent{'fs'} eq 'crypto_LUKS') ||
-		    ($row->{'type'} eq 'dm' && $row->{'name'} =~ /^veracrypt/i) ||
+		if ($row->{'type'} && (($row->{'type'} eq 'crypt' || 
+		    $row->{'type'} eq 'mpath' || $row->{'type'} eq 'multipath')  ||
+		    ($row->{'type'} eq 'dm' && $row->{'name'} =~ /veracrypt/i) ||
 		    ($parent{'fs'} eq 'bcache' && $row->{'type'} eq 'disk') ) ){
 			my (@full_components,@full_devices,$mapped,$type);
 			$mapped = $mapper{$row->{'name'}} if %mapper;
@@ -11660,11 +11660,20 @@ sub general_data {
 			if ($parent{'fs'} eq 'crypto_LUKS'){
 				$type = 'LUKS';
 			}
-			elsif ($row->{'name'} =~ /^veracrypt/i){
+			# note, testing name is random user string, and there is no other
+			# ID known, the parent FS is '', empty.
+			elsif ($row->{'type'} eq 'dm' && $row->{'name'} =~ /veracrypt/i){
 				$type = 'VeraCrypt';
+			}
+			elsif ($row->{'type'} eq 'crypt'){
+				$type = 'Crypto';
 			}
 			elsif ($parent{'fs'} eq 'bcache'){
 				$type = 'bcache';
+			}
+			# probably only seen on older Redhat servers, LVM probably replaces
+			elsif ($row->{'type'} eq 'mpath' || $row->{'type'} eq 'multipath'){
+				$type = 'MultiPath';
 			}
 			#my $name = ($use{'filter'}) ? "luks-$filter_string" : $row->{'name'};
 			my $j = scalar @general_data;
@@ -22019,10 +22028,11 @@ sub set_lsblk {
 				# must be below assignments!! otherwise the result of the match replaces values
 				# note: for bcache and luks, the device that has that fs is the parent!!
 				if ($show{'logical'}){
-					$b_active_cache = 1 if !$b_active_cache && $4 && $4 eq 'bcache';
 					$b_active_lvm = 1 if !$b_active_lvm && $2 && $2 eq 'lvm';
-					if (!$b_active_crypto && (($4 && $4 eq 'crypto_LUKS') || ($2 eq 'dm' && $1 =~ /^veracrypt/i))){
-						$b_active_crypto = 1;
+					if (!$b_active_general && (($4 && ($4 eq 'crypto_LUKS' || $4 eq 'bcache')) 
+					    || ($2 && ($2 eq 'dm' && $1 =~ /veracrypt/i) || 
+					    $2 eq 'crypto' || $2 eq 'mpath' || $2 eq 'multipath'))){
+						$b_active_general = 1;
 					}
 				}
 			}
