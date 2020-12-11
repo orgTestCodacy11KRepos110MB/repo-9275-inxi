@@ -299,8 +299,8 @@ use: \fB\-pl\fR.
 Show Logical volume information, for LVM, LUKS, bcache, MultiPath, etc. Shows
 size, free space (for LVM VG). For LVM, shows \fBDevice-[xx]: VG:\fR 
 (Volume Group) size/free, \fBLV-[xx]\fR (Logical Volume). LV shows type, 
-size devices/components. Note that components are made up of physical devices 
-(PV), and devices are the PVs. The full report requires sudo/root.
+size, and components. Note that components are made up of either containers
+(aka, logical deevices), or physical devices. The full report requires sudo/root.
 
 Logical block devices can be thought of as devices that are made up out
 of either other logical devices, or physical devices. inxi does its best 
@@ -310,16 +310,58 @@ of all possible Logical devices, but have their own section, \fB\-R\fR.
 If \fB\-R\fR is used with \fB\-Lxx\fR, \fB\-Lxx\fR will not show RAID 
 information for LVM RAID devices since it's redundant. If \fB\-R\fR is
 not used, a simple RAID line will appear for LVM RAID in \fB\-Lxx\fR.
+\fB\-Lxx\fR also shows all components and devices. Note that since
+components can go in many levels, each level per primary component is
+indicated by either another 'c', or ends with a 'p' device, the physical
+device.
+
+Sample:
+
+\fBDevice-10: mybackup type: LUKS dm: dm-28 size: 6.36 GiB Components: c-1: md1 
+cc-1: dm-26 p-1: sdj2 cc-2: dm-27 p-1: sdk2\fR
+
+.nf
+\fBLV-5: lvm_raid1 type: raid1 dm: dm-16 size: 4.88 GiB 
+RAID: stripes: 2 sync: idle copied: 100% mismatches: 0 
+Components: c-1: dm-10 p-1: sdd1 c-2: dm-11 p-1: sdd1 c-3: dm-13 
+p-1: sde1 c-4: dm-15 p-1: sde1\fR
+.fi
+
+It is easier to follow the flow of components and devices using \fB\-y1\fR. In
+this example, there is one primary component (c\-1), md1, which is made up of two
+components (cc\-1,2), dm\-26 and dm\-27. These are respectively made from physical
+devices (p\-1) sdj2 and sdk2.
+
+.nf
+\fBDevice-10: mybackup
+  maj-min: 254:28
+  type: LUKS
+  dm: dm-28
+  size: 6.36 GiB
+  Components: 
+    c-1: md1
+    maj-min: 9:1
+    size: 6.37 GiB
+    cc-1: dm-26
+      maj-min: 254:26
+      mapped: vg5-level1a
+      size: 12.28 GiB
+      p-1: sdj2
+        maj-min: 8:146
+        size: 12.79 GiB
+    cc-2: dm-27
+      maj-min: 254:27
+      mapped: vg5-level1b
+      size: 6.38 GiB
+      p-1: sdk2
+        maj-min: 8:162
+        size: 12.79 GiB\fR
+.fi
 
 Other types of logical block handling like LUKS, bcache, multipath, 
 show as:
 
 \fBDevice-[xx] [name/id] type: [LUKS|Crypto|bcache|MultiPath]:\fR
-
-Note that due to the extreme complexity of various possible scenarios, this
-output will never be perfect, and that's just how life goes sometimes. If
-you want to help make it better, be prepared to give some active help and 
-debugging/development time, otherwise don't complain, LOL.
 
 For more complete report, see \fB\-La\fR.
 
@@ -991,6 +1033,8 @@ swap types (for \fB\-j\fR).
 .B \-xx \-L\fR, \fB\-xx \-\-logical\fR
 \- Adds internal LVM Logical volumes, like raid image and meta data volumes. 
 
+\- Adds full list of Components, sub\-components, and their physical devices.
+
 \- For LVM RAID, adds a RAID report line (if not \fB\-R\fR). Read up on LVM
 documentation to better understand their use of the term 'stripes'.
 
@@ -1353,11 +1397,10 @@ For \fB\-j\fR row 1 output:
 
 .TP
 .B \-a \-L\fR
-\- Expands component report, shows devices components are made out of, and
-shows device/component maj-min and sizes as well. Standard output does not show
-the devices compoents are made out of.
+\- Expands Component report, shows size / maj-min of components and devices, and
+mapped name for logical components. Puts each component/device on its own line.
 
-\- Adds maj-min to LV, Crypto.
+\- Adds maj-min to LV and other devices.
 
 .TP
 .B \-a \-n\fR, \fB\-a \-N\fR, \fB\-a \-i\fR
