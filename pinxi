@@ -11525,8 +11525,10 @@ sub create_output_general {
 		}
 		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		my $b_fake;
-		create_output_components('luks',\$j,\$num,\@rows,\@{$item->{'components'}},
+		create_output_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},
 		\@{$item->{'devices'}},\$b_fake);
+		#create_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},
+		#\@{$item->{'devices'}},\$b_fake);
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -11576,17 +11578,51 @@ sub create_output_lvm {
 			}
 			create_output_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
 			\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
+			#create_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
+			#\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
 
+sub create_components {
+	my ($type,$j,$num,$rows,$components,$b_raid) = @_;
+	my ($l,$m,$size) = (1,1,0);
+	my ($l1,$l2,$l3,$l4,$l5);
+	$$j = scalar @$rows if $$b_raid || $b_admin;
+	$$b_raid = 0;
+	if ($type eq 'general'){
+		($l1,$l2,$l3,$l4,$l5) = (2,3,4,5,6);
+	}
+	elsif ($type eq 'lvm'){
+		($l1,$l2,$l3,$l4,$l5) = (3,4,5,6,7);
+	}
+	$$rows[$$j]{main::key($$num++,1,$l1,'compenents')} = '';
+	foreach my $component (@$components){
+		my $id = ($component->[0] =~ /^(dm-|md)[0-9]/) ? 'c-' : 'd-' ;
+		$$rows[$$j]{main::key($$num++,1,$l2,$id . $l)} = $component->[1];
+		if ($b_admin){
+			$$rows[$$j]{main::key($$num++,0,$l3,'maj-min')} = $component->[2];
+			$size = main::get_size($component->[3],'string','N/A');
+			$$rows[$$j]{main::key($$num++,0,$l3,'size')} = $size;
+			create_recursive_components($type,$j,$num,$rows,$component);
+		}
+		$l++;
+	}
+}
+sub create_recursive_components {
+	my ($type,$j,$num,$rows,$component) = @_;
+	my ($l,$m,$size) = (1,1,0);
+	my ($l1,$l2,$l3,$l4,$l5);
+	
+}
+
 sub create_output_components {
 	my ($type,$j,$num,$rows,$components,$devices,$b_raid) = @_;
 	my ($l,$m,$size) = (1,1,0);
 	my ($l1,$l2,$l3,$l4,$l5);
-	if ($type eq 'luks'){
+	if ($type eq 'general'){
 		($l1,$l2,$l3,$l4,$l5) = (2,3,4,5,6);
 	}
 	elsif ($type eq 'lvm'){
@@ -11682,7 +11718,7 @@ sub general_data {
 			'type' => $type,
 			});
 			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
-			#  create_recursion($row->{'maj-min'},\@full_components);
+			# component_data($row->{'maj-min'},\@full_components);
 			# print "$row->{'name'}\n", Data::Dumper::Dumper \@full_components;
 			if (@full_devices){
 				$general_data[$j]->{'devices'} = \@full_devices;
@@ -11774,7 +11810,7 @@ sub process_lvm_data {
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'raid'} = \%raid;
 			}
 			device_component_data($maj_min,\@full_components,\@full_devices);
-			#  create_recursion($maj_min,\@full_components);
+			# ccomponent_data($maj_min,\@full_components);
 			# print "$item->{'lv_name'}\n", Data::Dumper::Dumper \@full_components;
 			if (@full_devices){
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'devices'} = \@full_devices;
@@ -11789,7 +11825,7 @@ sub process_lvm_data {
 	eval $end if $b_log;
 	return %processed;
 }
-sub create_recursion {
+sub component_data {
 	my ($maj_min,$full_components) = @_;
 	push(@$full_components, recursive_component($maj_min));
 }
@@ -11800,15 +11836,16 @@ sub recursive_component {
 	my (@components,@devices);
 	@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
 	@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
+	# return @devices if !$b_admin;
 	foreach my $device (@devices){
 		my ($mm2,@part);
 		@part = main::get_proc_partition($device) if @proc_partitions; 
 		$mm2 = $part[0] . ':' . $part[1] if @part;
 		if ($device =~ /^(dm-[0-9]+|md[0-9]+)$/){
-			push(@components, ['cont',$device,$mm2,$part[2],recursive_component($mm2)]);
+			push(@components, ['log',$device,$mm2,$part[2],recursive_component($mm2)]);
 		}
 		else {
-			push(@components,['dev',$device,$mm2,$part[2]]);
+			push(@components,['phy',$device,$mm2,$part[2]]);
 		}
 	}
 	eval $end if $b_log;
