@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.1.09';
 my $self_date='2020-12-10';
-my $self_patch='99';
+my $self_patch='100';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11525,10 +11525,9 @@ sub create_output_general {
 		}
 		$rows[$j]{main::key($num++,0,2,'size')} = $size;
 		my $b_fake;
-		create_output_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},
-		\@{$item->{'devices'}},\$b_fake);
-		#create_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},
+		#create_output_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},
 		#\@{$item->{'devices'}},\$b_fake);
+		create_components('general',\$j,\$num,\@rows,\@{$item->{'components'}},\$b_fake);
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -11576,10 +11575,9 @@ sub create_output_lvm {
 				$rows[$j]{main::key($num++,0,4,'mismatches')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'mismatches'};
 				$b_raid = 1;
 			}
-			create_output_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
-			\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
-			#create_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
+			#create_output_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},
 			#\@{$lvm_data->{$vg}{'lvs'}{$lv}{'devices'}},\$b_raid);
+			create_components('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},\$b_raid);
 		}
 	}
 	eval $end if $b_log;
@@ -11588,34 +11586,53 @@ sub create_output_lvm {
 
 sub create_components {
 	my ($type,$j,$num,$rows,$components,$b_raid) = @_;
-	my ($l,$m,$size) = (1,1,0);
-	my ($l1,$l2,$l3,$l4,$l5);
+	my ($l,$size) = (1,0);
+	my ($l1,$l2,$l3);
 	$$j = scalar @$rows if $$b_raid || $b_admin;
 	$$b_raid = 0;
 	if ($type eq 'general'){
-		($l1,$l2,$l3,$l4,$l5) = (2,3,4,5,6);
+		($l1,$l2,$l3) = (2,3,4);
 	}
 	elsif ($type eq 'lvm'){
-		($l1,$l2,$l3,$l4,$l5) = (3,4,5,6,7);
+		($l1,$l2,$l3) = (3,4,5);
 	}
-	$$rows[$$j]{main::key($$num++,1,$l1,'compenents')} = '';
+	$$rows[$$j]{main::key($$num++,1,$l1,'components')} = '';
 	foreach my $component (@$components){
-		my $id = ($component->[0] =~ /^(dm-|md)[0-9]/) ? 'c-' : 'd-' ;
+		my $id = ($component->[1] =~ /^(dm-|md)[0-9]/) ? 'c-' : 'd-' ;
 		$$rows[$$j]{main::key($$num++,1,$l2,$id . $l)} = $component->[1];
 		if ($b_admin){
 			$$rows[$$j]{main::key($$num++,0,$l3,'maj-min')} = $component->[2];
 			$size = main::get_size($component->[3],'string','N/A');
 			$$rows[$$j]{main::key($$num++,0,$l3,'size')} = $size;
-			create_recursive_components($type,$j,$num,$rows,$component);
+			create_recursive_components($type,$j,$num,$rows,$component,1);
 		}
 		$l++;
 	}
 }
 sub create_recursive_components {
-	my ($type,$j,$num,$rows,$component) = @_;
-	my ($l,$m,$size) = (1,1,0);
-	my ($l1,$l2,$l3,$l4,$l5);
-	
+	my ($type,$j,$num,$rows,$component,$indent) = @_;
+	my ($l,$size) = (1,0);
+	my ($l2,$l3);
+	if ($type eq 'general'){
+		($l2,$l3) = (3+$indent,4+$indent) ;
+	}
+	elsif ($type eq 'lvm'){
+		($l2,$l3) = (4+$indent,5+$indent);
+	}
+	for (my $i = 4; $i < scalar @$component; $i++){
+		my $id = ($component->[$i][1] =~ /^(dm-|md)[0-9]/) ? 'c-' : 'd-' ;
+		$$rows[$$j]{main::key($$num++,1,$l2,$id . $l)} = $component->[$i][1];
+		$$rows[$$j]{main::key($$num++,0,$l3,'maj-min')} = $component->[$i][2];
+		$size = main::get_size($component->[$i][3],'string','N/A');
+		$$rows[$$j]{main::key($$num++,0,$l3,'size')} = $size;
+		#next if !$component->[$i][4];
+		for (my $r = 4; $r < scalar @{$component->[$i]}; $r++){
+			#if (${$component->[$i]}[$r] && ref ${$component->[$i]}[$r] eq 'ARRAY'){
+				create_recursive_components($type,$j,$num,$rows,${$component->[$i]}[$r],$indent+1);
+			#}
+		}
+		$l++;
+	}
 }
 
 sub create_output_components {
@@ -11717,8 +11734,8 @@ sub general_data {
 			'size' => $row->{'size'},
 			'type' => $type,
 			});
-			device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
-			# component_data($row->{'maj-min'},\@full_components);
+			#device_component_data($row->{'maj-min'},\@full_components,\@full_devices);
+			component_data($row->{'maj-min'},\@full_components);
 			# print "$row->{'name'}\n", Data::Dumper::Dumper \@full_components;
 			if (@full_devices){
 				$general_data[$j]->{'devices'} = \@full_devices;
@@ -11809,8 +11826,8 @@ sub process_lvm_data {
 				$raid{'type'} = $item->{'segtype'};
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'raid'} = \%raid;
 			}
-			device_component_data($maj_min,\@full_components,\@full_devices);
-			# ccomponent_data($maj_min,\@full_components);
+			#device_component_data($maj_min,\@full_components,\@full_devices);
+			ccomponent_data($maj_min,\@full_components);
 			# print "$item->{'lv_name'}\n", Data::Dumper::Dumper \@full_components;
 			if (@full_devices){
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'devices'} = \@full_devices;
