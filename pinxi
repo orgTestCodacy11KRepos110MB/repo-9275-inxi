@@ -11772,6 +11772,8 @@ sub process_lvm_data {
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'raid'} = \%raid;
 			}
 			device_component_data($maj_min,\@full_components,\@full_devices);
+			#  create_recursion($maj_min,\@full_components,\@full_devices);
+			# print Data::Dumper::Dumper \@full_components;
 			if (@full_devices){
 				$processed{$item->{'vg_name'}}->{'lvs'}{$item->{'lv_name'}}{'devices'} = \@full_devices;
 			}
@@ -11785,8 +11787,39 @@ sub process_lvm_data {
 	eval $end if $b_log;
 	return %processed;
 }
+sub create_recursion {
+	my ($maj_min,$full_components) = @_;
+	my (@devices);
+	@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
+	@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
+	foreach my $device (@devices){
+		push(@$full_components, recursive_component($maj_min,$full_components));
+		
+	}
+}
+
+sub recursive_component {
+	eval $start if $b_log;
+	my ($maj_min,$full_components) = @_;
+	my (@devices);
+	@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
+	@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
+	foreach my $device (@devices){
+		my ($mm2,@part);
+		@part = main::get_proc_partition($device) if @proc_partitions; 
+		$mm2 = $part[0] . ':' . $part[1] if @part;
+		if ($device =~ /^(dm-[0-9]+|md[0-9]+)$/){
+			return ['cont',$device,$mm2,$part[2],recursive_components($mm2,$full_components)];
+		}
+		else {
+			return ['dev',$device,$mm2,$part[2]];
+		}
+	}
+	eval $end if $b_log;
+}
 
 sub device_component_data {
+	eval $start if $b_log;
 	my ($maj_min,$full_components,$full_devices) = @_;
 	my (@devices);
 	return if !$maj_min;
@@ -11818,6 +11851,7 @@ sub device_component_data {
 			) if @part;
 		}
 	}
+	eval $end if $b_log;
 }
 }
 
@@ -17733,7 +17767,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	@rows =create_output();
+	@rows = create_output();
 	if (!@rows){
 		push(@rows, 
 		{main::key($num++,0,1,'Alert') => main::row_defaults('swap-data')},
