@@ -11803,7 +11803,7 @@ sub create_recursion {
 sub recursive_component {
 	eval $start if $b_log;
 	my ($maj_min,$full_components) = @_;
-	my (@devices);
+	my (@components,@devices);
 	@devices = main::globber("/sys/dev/block/$maj_min/slaves/*") if -e "/sys/dev/block/$maj_min/slaves";
 	@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
 	foreach my $device (@devices){
@@ -11811,12 +11811,13 @@ sub recursive_component {
 		@part = main::get_proc_partition($device) if @proc_partitions; 
 		$mm2 = $part[0] . ':' . $part[1] if @part;
 		if ($device =~ /^(dm-[0-9]+|md[0-9]+)$/){
-			return ['cont',$device,$mm2,$part[2],recursive_component($mm2,$full_components)];
+			push(@components, ['cont',$device,$mm2,$part[2],recursive_component($mm2,$full_components)]);
 		}
 		else {
-			return ['dev',$device,$mm2,$part[2]];
+			push(@components,['dev',$device,$mm2,$part[2]]);
 		}
 	}
+	return @components;
 	eval $end if $b_log;
 }
 
