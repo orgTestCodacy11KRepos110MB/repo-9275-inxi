@@ -15304,19 +15304,23 @@ sub create_output {
 				    $mod->{'speed'} ne $mod->{'configured-clock-speed'}){
 					$rows[$j]{main::key($num++,1,3,'speed')} = '';
 					$rows[$j]{main::key($num++,0,4,'spec')} = $mod->{'speed'};
+					$rows[$j]{main::key($num++,0,4,'note')} = $mod->{'speed-note'} if $mod->{'speed-note'};
 					$rows[$j]{main::key($num++,0,4,'actual')} = $mod->{'configured-clock-speed'};
+					$rows[$j]{main::key($num++,0,4,'note')} = $mod->{'configured-note'} if $mod->{'configured-note'};
 				}
 				else {
 					if (!$mod->{'speed'} && $mod->{'configured-clock-speed'}){
 						if ($mod->{'configured-clock-speed'}){
 							$mod->{'speed'} = $mod->{'configured-clock-speed'};
+							$mod->{'speed-note'} = $mod->{'configured-note'} if $mod->{'configured-note'} ;
 						}
 						# rare instances, dmi type 6, no speed
 						else {
 							$mod->{'speed'} = 'N/A';
 						}
 					}
-					$rows[$j]{main::key($num++,0,3,'speed')} = $mod->{'speed'};
+					$rows[$j]{main::key($num++,1,3,'speed')} = $mod->{'speed'};
+					$rows[$j]{main::key($num++,0,4,'note')} = $mod->{'speed-note'} if $mod->{'speed-note'};
 				}
 				if ($extra > 0 ){
 					$mod->{'device-type'} ||= 'N/A';
@@ -15365,6 +15369,7 @@ sub dmidecode_data {
 	my ($b_5,$handle,@ram,@temp);
 	my ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
 	my ($i,$j,$k) = (0,0,0);
+	my $check = main::row_defaults('note-check');
 	foreach my $entry (@dmi){
 		## NOTE: do NOT reset these values, that causes failures
 		# ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
@@ -15417,7 +15422,7 @@ sub dmidecode_data {
 					$type = lc($temp[1]);
 				}
 				elsif ($temp[0] eq 'Current Speed'){
-					$speed = $temp[1];
+					$speed = main::dmi_cleaner($temp[1]);
 				}
 				elsif ($temp[0] eq 'Locator' || $temp[0] eq 'Socket Designation' ){
 					$temp[1] =~ s/D?RAM slot #?/Slot/i; # can be with or without #
@@ -15487,9 +15492,9 @@ sub dmidecode_data {
 			#print "s16: $ram[$handle]{'slots-16'}\n";
 		}
 		elsif ($entry->[0] == 17){
-			my ($bank_locator,$configured_clock_speed,$data_width) = ('','','');
+			my ($bank_locator,$configured_speed,$configured_note,$data_width) = ('','','','');
 			my ($device_type,$device_type_detail,$form_factor,$locator,$main_locator) = ('','','','','');
-			my ($manufacturer,$part_number,$serial,$speed,$total_width) = ('','','','','');
+			my ($manufacturer,$part_number,$serial,$speed,$speed_note,$total_width) = ('','','','','','');
 			my ($device_size,$i_data,$i_total,$working_size) = (0,0,0,0);
 			foreach my $item (@$entry){
 				@temp = split(/:\s*/, $item, 2);
@@ -15532,22 +15537,12 @@ sub dmidecode_data {
 					$device_type_detail = $temp[1];
 				}
 				elsif ($temp[0] eq 'Speed'){
-					if ($device_type && $device_type =~ /ddr/i && $temp[1] && $temp[1] =~ /^([0-9]+) MHz/){
-						$speed = ($1 * 2) . " MT/S ($temp[1])";
-					}
-					else {
-						$speed = $temp[1];
-					}
+					($speed,$speed_note) = speed_processor($temp[1],$device_type,$check);
 				}
 				# this is the actual speed the system booted at, speed is hardcoded
 				# clock speed means MHz, memory speed MT/S
 				elsif ($temp[0] eq 'Configured Clock Speed' || $temp[0] eq 'Configured Memory Speed'){
-					if ($device_type && $device_type =~ /ddr/i && $temp[1] && $temp[1] =~ /^([0-9]+) MHz/){
-						$configured_clock_speed  = ($1 * 2) . " MT/S ($temp[1])";
-					}
-					else {
-						$configured_clock_speed  = $temp[1];
-					}
+					($configured_speed,$configured_note) = speed_processor($temp[1],$device_type,$check);
 				}
 				elsif ($temp[0] eq 'Manufacturer'){
 					$temp[1] = main::dmi_cleaner($temp[1]);
@@ -15590,7 +15585,8 @@ sub dmidecode_data {
 				$total_width = $temp_width;
 			}
 			$ram[$handle]{'derived-module-size'} = $derived_module_size;
-			$ram[$handle]{'modules'}[$i]{'configured-clock-speed'} = $configured_clock_speed;
+			$ram[$handle]{'modules'}[$i]{'configured-clock-speed'} = $configured_speed;
+			$ram[$handle]{'modules'}[$i]{'configured-note'} = $configured_note if $configured_note;
 			$ram[$handle]{'modules'}[$i]{'data-width'} = $data_width;
 			$ram[$handle]{'modules'}[$i]{'size'} = $device_size;
 			$ram[$handle]{'modules'}[$i]{'device-type'} = $device_type;
@@ -15601,6 +15597,7 @@ sub dmidecode_data {
 			$ram[$handle]{'modules'}[$i]{'part-number'} = $part_number;
 			$ram[$handle]{'modules'}[$i]{'serial'} = $serial;
 			$ram[$handle]{'modules'}[$i]{'speed'} = $speed;
+			$ram[$handle]{'modules'}[$i]{'speed-note'} = $speed_note if $speed_note;
 			$ram[$handle]{'modules'}[$i]{'total-width'} = $total_width;
 			$i++
 		}
@@ -15787,6 +15784,19 @@ sub data_processor {
 	}
 	eval $end if $b_log;
 	return @return;
+}
+sub speed_processor {
+	my ($speed,$device_type,$check) = @_;
+	my $speed_note;
+	$speed = main::dmi_cleaner($speed) if $speed;
+	if ($device_type && $device_type =~ /ddr/i && $speed && $speed =~ /^([0-9]+) MHz/){
+		$speed = ($1 * 2) . " MT/s ($speed)";
+	}
+	# seen cases of 1 MT/s, 61690 MT/s, not sure why, bug
+	if ($speed && $speed =~ /^([0-9]+) M/){
+		$speed_note = $check if $1 < 50 || $1 > 10000 ;
+	}
+	return ($speed,$speed_note);
 }
 # this should be fixed, but for now, size in RAM is in MiB, not 
 # KiB like the rest of inxi.
@@ -21778,8 +21788,10 @@ sub set_dmidecode_data {
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
-		#open(my $fh, '<', $file) or die "can't open $file: $!";
-		#chomp(@data = <$fh>);
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
+		open(my $fh, '<', $file) or die "can't open $file: $!";
+		chomp(@data = <$fh>);
 	}
 	else {
 		$content = qx($alerts{'dmidecode'}->{'path'} 2>/dev/null);
