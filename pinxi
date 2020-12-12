@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.1.09';
-my $self_date='2020-12-11';
-my $self_patch='102';
+my $self_date='2020-12-12';
+my $self_patch='103';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -15300,8 +15300,24 @@ sub create_output {
 				if ($extra > 1 && $mod->{'type'} ){
 					$rows[$j]{main::key($num++,0,3,'info')} = $mod->{'type'};
 				}
-				$mod->{'speed'} ||= 'N/A'; # rare instances, dmi type 6, no speed
-				$rows[$j]{main::key($num++,0,3,'speed')} = $mod->{'speed'};
+				if ($mod->{'speed'} && $mod->{'configured-clock-speed'} && 
+				    $mod->{'speed'} ne $mod->{'configured-clock-speed'}){
+					$rows[$j]{main::key($num++,1,3,'speed')} = '';
+					$rows[$j]{main::key($num++,0,4,'spec')} = $mod->{'speed'};
+					$rows[$j]{main::key($num++,0,4,'actual')} = $mod->{'configured-clock-speed'};
+				}
+				else {
+					if (!$mod->{'speed'} && $mod->{'configured-clock-speed'}){
+						if ($mod->{'configured-clock-speed'}){
+							$mod->{'speed'} = $mod->{'configured-clock-speed'};
+						}
+						# rare instances, dmi type 6, no speed
+						else {
+							$mod->{'speed'} = 'N/A';
+						}
+					}
+					$rows[$j]{main::key($num++,0,3,'speed')} = $mod->{'speed'};
+				}
 				if ($extra > 0 ){
 					$mod->{'device-type'} ||= 'N/A';
 					$rows[$j]{main::key($num++,0,3,'type')} = $mod->{'device-type'};
@@ -15516,10 +15532,22 @@ sub dmidecode_data {
 					$device_type_detail = $temp[1];
 				}
 				elsif ($temp[0] eq 'Speed'){
-					$speed = $temp[1];
+					if ($device_type && $device_type =~ /ddr/i && $temp[1] && $temp[1] =~ /^([0-9]+) MHz/){
+						$speed = ($1 * 2) . " MT/S ($temp[1])";
+					}
+					else {
+						$speed = $temp[1];
+					}
 				}
-				elsif ($temp[0] eq 'Configured Clock Speed'){
-					$configured_clock_speed = $temp[1];
+				# this is the actual speed the system booted at, speed is hardcoded
+				# clock speed means MHz, memory speed MT/S
+				elsif ($temp[0] eq 'Configured Clock Speed' || $temp[0] eq 'Configured Memory Speed'){
+					if ($device_type && $device_type =~ /ddr/i && $temp[1] && $temp[1] =~ /^([0-9]+) MHz/){
+						$configured_clock_speed  = ($1 * 2) . " MT/S ($temp[1])";
+					}
+					else {
+						$configured_clock_speed  = $temp[1];
+					}
 				}
 				elsif ($temp[0] eq 'Manufacturer'){
 					$temp[1] = main::dmi_cleaner($temp[1]);
@@ -21743,12 +21771,13 @@ sub set_dmidecode_data {
 	eval $start if $b_log;
 	my ($content,@data,@working,$type,$handle);
 	if ($b_fake_dmidecode){
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
+		my $file;
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
 		#open(my $fh, '<', $file) or die "can't open $file: $!";
 		#chomp(@data = <$fh>);
 	}
