@@ -11602,7 +11602,44 @@ sub create_components_output {
 	$$rows[$$j]{main::key($$num++,1,$l1,'Components')} = '';
 	create_recursive_component($type,$j,$num,$rows,$components,0,'c','p');
 }
-
+sub create_recursive_component {
+	my ($type,$j,$num,$rows,$component,$indent,$c,$p) = @_;
+	my ($l,$m,$size) = (1,1,0);
+	my ($l2,$l3);
+	if ($type eq 'general'){
+		($l2,$l3) = (3+$indent,4+$indent) ;
+	}
+	elsif ($type eq 'lvm'){
+		($l2,$l3) = (4+$indent,5+$indent);
+	}
+	#print 'outside: ', scalar @$component, "\n", Data::Dumper::Dumper $component;
+	foreach my $component (@$component){
+		#print "inside: -n", Data::Dumper::Dumper $component->[$i];
+		$$j = scalar @$rows if $b_admin;
+		my $id;
+		if ($component->[0][0] =~ /^(bcache|dm-|md)[0-9]/){
+			$id = $c .'-' . $m;
+			$m++;
+		}
+		else {
+			$id = $p . '-' . $l;
+			$l++;
+		}
+		$$rows[$$j]{main::key($$num++,1,$l2,$id)} = $component->[0][0];
+		if ($extra > 1){
+			if ($b_admin){
+				$$rows[$$j]{main::key($$num++,0,$l3,'maj-min')} = $component->[0][1];
+				$$rows[$$j]{main::key($$num++,0,$l3,'mapped')} = $component->[0][3] if $component->[0][3];
+				$size = main::get_size($component->[0][2],'string','N/A');
+				$$rows[$$j]{main::key($$num++,0,$l3,'size')} = $size;
+			}
+			#next if !$component->[$i][4];
+			for ($i = 1; $i < scalar @$component; $i++){
+				create_recursive_component($type,$j,$num,$rows,$component->[$i],$indent+1,$c.'c',$p.'p');
+			}
+		}
+	}
+}
 sub create_components_output2 {
 	my ($type,$j,$num,$rows,$components,$b_raid) = @_;
 	my ($l,$m,$size) = (1,1,0);
@@ -11650,7 +11687,7 @@ sub create_recursive_component2 {
 		($l2,$l3) = (4+$indent,5+$indent);
 	}
 	#print 'outside: ', scalar @$component, "\n", Data::Dumper::Dumper $component;
-	for (my $i = 4; $i < scalar @$component; $i++){
+	foreach my $component (@$component; $i++){
 		#print "inside: -n", Data::Dumper::Dumper $component->[$i];
 		$$j = scalar @$rows if $b_admin;
 		my $id;
