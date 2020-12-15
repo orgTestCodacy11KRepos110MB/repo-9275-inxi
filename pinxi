@@ -14595,12 +14595,14 @@ sub create_output_zfs {
 			@components_good = ();
 			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
 			foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
-				if (defined $item->[3] && $item->[3] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+				if (defined $item->[3] && $item->[3] =~ /^(DEGRADED|FAULTED|UNAVAIL)$/){
 					push(@failed, $item);
 				}
-				elsif (defined $item->[3] && $item->[3] =~ /(S|OFFLINE)$/){
+				elsif (defined $item->[3] && $item->[3] =~ /(AVAIL|OFFLINE|REMOVED)$/){
 					push(@spare, $item);
 				}
+				# note: spares in use show: INUSE but technically it's still a spare,
+				# but since it's in use, consider it online.
 				else {
 					push(@components_good, $item);
 				}
@@ -14610,7 +14612,7 @@ sub create_output_zfs {
 			my $b_bump;
 			create_components_output('zfs','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
 			create_components_output('zfs','FAILED',\@rows,\@failed,\$j,\$num,\$b_bump);
-			create_components_output('zfs','Spare',\@rows,\@spare,\$j,\$num,\$b_bump);
+			create_components_output('zfs','Available',\@rows,\@spare,\$j,\$num,\$b_bump);
 		}
 	}
 	eval $end if $b_log;
