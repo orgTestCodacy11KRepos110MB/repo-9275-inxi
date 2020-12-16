@@ -7385,10 +7385,6 @@ sub data_cpuinfo {
 	my ($phys_holder) = (undef);
 	# need to prime for arm cpus, which do not have physical/core ids usually
 	# level 0 is phys id, level 1 is die id, level 2 is core id
-	#$ids[0] = ([(0)]);
-	$ids[0] = ([]);
-	$ids[0][0] = ([]);
-	
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
 	foreach (@cpuinfo){
 		next if /^\s*$/;
@@ -7496,7 +7492,7 @@ sub data_cpuinfo {
 		elsif ( $line[0] eq 'cpu mhz' || $line[0] eq 'clock' ){
 			$speed = speed_cleaner($line[1]);
 			$cpu{'processors'}->[$proc_count-1] = $speed;
-			#$ids[$phys_id][$die_id] = ([($speed)]);
+			#$ids[$phys_id]->[$die_id] = ([($speed)]);
 		}
 		elsif (!$cpu{'siblings'} && $line[0] eq 'siblings' ){
 			$cpu{'siblings'} = $line[1];
@@ -7511,8 +7507,6 @@ sub data_cpuinfo {
 				# only increment if not in array counter
 				push(@phys_cpus, $line[1]) if ! grep {/$line[1]/} @phys_cpus;
 				$phys_holder = $line[1];
-				$ids[$phys_holder] = ([]) if ! exists $ids[$phys_holder];
-				$ids[$phys_holder][$die_id] = ([]) if ! exists $ids[$phys_holder][$die_id];
 				#print "pid: $line[1] ph: $phys_holder did: $die_id\n";
 				$die_id = 0;
 				#$die_holder = 0;
@@ -7534,7 +7528,7 @@ sub data_cpuinfo {
 				$die_id++ if ($cpu{'type'} ne 'intel' && $cpu{'type'} ne 'amd' );
 			}
 			$phys_holder = 0 if ! defined $phys_holder;
-			$ids[$phys_holder][$die_id][$line[1]] = $speed;
+			$ids[$phys_holder]->[$die_id][$line[1]] = $speed;
 			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 		}
 		if (!$cpu{'type'} && $line[0] eq 'vendor_id' ){
@@ -7757,7 +7751,7 @@ sub data_sysctl {
 				$phys_id++;
 				$phys_holder = $line[1];
 				$ids[$phys_id] = ([(0)]);
-				$ids[$phys_id][$die_id] = ([(0)]);
+				$ids[$phys_id]->[$die_id] = ([(0)]);
 			}
 		}
 		elsif ( $line[0] eq 'hw.cpu_topology.cpu0.core_id' ){
@@ -7769,7 +7763,7 @@ sub data_sysctl {
 				$die_id++ ;
 				$die_holder = $line[1];
 			}
-			$ids[$phys_id][$die_id][$line[1]] = $speed;
+			$ids[$phys_id]->[$die_id][$line[1]] = $speed;
 			$cpu{'dies'} = $die_id;
 		}
 	}
@@ -7807,7 +7801,7 @@ sub cpu_properties {
 			$b_elbrus = 1;
 		}
 	}
-	#my @dies = $phys[0][0];
+	#my @dies = $phys[0]->[0];
 	my @phys = @{$cpu->{'ids'}};
 	my $phyical_count = 0;
 	#my $phyical_count = scalar @phys;
