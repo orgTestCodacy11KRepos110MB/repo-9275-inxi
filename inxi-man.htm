@@ -36,8 +36,8 @@
 <h1>inxi man page</h1>
 
 <pre>
-Page Updated: 2020-11-11
-inxi version: 3.1.09
+Page Updated: 2020-12-15
+inxi version: 3.2.00
 </pre>
 
 <p>The following are the supported options of inxi. If your version of inxi is missing any of
@@ -63,11 +63,11 @@ inxi - Command line system information script for console and IRC
 <h1 class="Sh" title="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
 <b>inxi</b>
 <div class="Pp"></div>
-<b>inxi</b> [<b>-AbBCdDfFGhijJIlmMnNopPrRsSuUVwzZ</b>]
+<b>inxi</b> [<b>-AbBCdDfFGhiIjJlLmMnNopPrRsSuUVwzZ</b>]
 <div class="Pp"></div>
-<b>inxi</b> [<b>-c NUMBER</b>] <b>--sensors-exclude SENSORS</b>]
-  [<b>--sensors-use SENSORS</b>] [
-  [<b>-t</b> [ <b>c</b>|<b>m</b>|<b>cm</b>|<b>mc</b>][<b>NUMBER</b>]] [ <b>-v NUMBER</b>]
+<b>inxi</b> [<b>-c NUMBER</b>] [ <b>--sensors-exclude SENSORS</b>]
+  [<b>--sensors-use SENSORS</b>] [ <b>-t</b>
+  [<b>c</b>|<b>m</b>|<b>cm</b>|<b>mc</b>][ <b>NUMBER</b>]] [ <b>-v NUMBER</b>]
   [<b>-W LOCATION</b>] [ <b>--weather-unit</b>
   {<b>m</b>|<b>i</b>|<b>mi</b>|<b>im</b>}] [ <b>-y WIDTH</b>]
 <div class="Pp"></div>
@@ -266,11 +266,23 @@ Note that all the short form options have long form equivalents, which are
   <dt><b>-D,<b> --disk</b></b></dt>
   <dd>Show Hard Disk info. Shows total disk space and used percentage. The disk
       used percentage includes space used by swap partition(s), since those are
-      not usable for data storage. Note that with RAID disks, the percentage
-      will be wrong since the total is computed from the disk sizes, but used is
-      computed from mounted partition used percentages. This small defect may
-      get corrected in the future. Also, unmounted partitions are not counted in
+      not usable for data storage. Also, unmounted partitions are not counted in
       disk use percentages since inxi has no access to the used amount.
+    <div class="Pp"></div>
+    If the system has RAID or other logical storage, and if inxi can determine
+      the size of those vs their components, you will see the storage total raw
+      and usable sizes, plus the percent used of the usable size. The no
+      argument short form of inxi will show only the usable (or total if no
+      usable) and used percent. If there is no logical storage detected, only
+      <b>total:</b> and <b>used:</b> will show. Sample (with RAID logical size
+      calculated):
+    <div class="Pp"></div>
+     <b>Local Storage: total: raw: 5.49 TiB usable: 2.80 TiB used: 1.35 TiB
+      (48.3%)</b>
+    <div class="Pp"></div>
+    Without logical storage detected:
+    <div class="Pp"></div>
+     <b>Local Storage: total: 2.89 TiB used: 1.51 TiB (52.3%)</b>
     <div class="Pp"></div>
     Also shows per disk information: Disk ID, type (if present), vendor (if
       detected), model, and size. See <b>Extra Data Options</b> (<b>-x</b>
@@ -409,6 +421,83 @@ Note that all the short form options have long form equivalents, which are
   </dd>
 </dl>
 <dl class="Bl-tag">
+  <dt><b>-L, <b>--logical</b></b></dt>
+  <dd>Show Logical volume information, for LVM, LUKS, bcache, MultiPath, etc.
+      Shows size, free space (for LVM VG). For LVM, shows <b>Device-[xx]:
+      VG:</b> (Volume Group) size/free, <b>LV-[xx]</b> (Logical Volume). LV
+      shows type, size, and components. Note that components are made up of
+      either containers (aka, logical devices), or physical devices. The full
+      report requires sudo/root.
+    <div class="Pp"></div>
+    Logical block devices can be thought of as devices that are made up out of
+      either other logical devices, or physical devices. inxi does its best to
+      show what each logical device is made out of. RAID devices form a subset
+      of all possible Logical devices, but have their own section, <b>-R</b>.
+    <div class="Pp"></div>
+    If <b>-R</b> is used with <b>-Lxx</b>, <b>-Lxx</b> will not show RAID
+      information for LVM RAID devices since it's redundant. If <b>-R</b> is not
+      used, a simple RAID line will appear for LVM RAID in <b>-Lxx</b>.
+    <div class="Pp"></div>
+     <b>-Lxx</b> also shows all components and devices. Note that since
+      components can go in many levels, each level per primary component is
+      indicated by either another 'c', or ends with a 'p' device, the physical
+      device. The number of c's or p's indicates the depth, so you can see which
+      component belongs to which.
+    <div class="Pp"></div>
+     <b>-L</b> shows only the top level components/devices (like <b>-R</b>).
+      <b>-La</b> shows component/device size, maj:min ID, mapped name (if
+      applicable), and puts each component/device on its own line.
+    <div class="Pp"></div>
+    Sample:
+    <div class="Pp"></div>
+     <b>Device-10: mybackup type: LUKS dm: dm-28 size: 6.36 GiB Components: c-1:
+      md1</b> <b>cc-1: dm-26 ppp-1: sdj2 cc-2: dm-27 ppp-1: sdk2</b>
+    <div class="Pp"></div>
+    <pre>
+<b>LV-5: lvm_raid1 type: raid1 dm: dm-16 size: 4.88 GiB </b>
+<b>RAID: stripes: 2 sync: idle copied: 100% mismatches: 0 </b>
+<b>Components: c-1: dm-10 pp-1: sdd1 c-2: dm-11 pp-1: sdd1 c-3: dm-13 </b>
+<b>pp-1: sde1 c-4: dm-15 pp-1: sde1</b>
+    </pre>
+    <div class="Pp"></div>
+    It is easier to follow the flow of components and devices using <b>-y1</b>.
+      In this example, there is one primary component (c-1), md1, which is made
+      up of two components (cc-1,2), dm-26 and dm-27. These are respectively
+      made from physical devices (p-1) sdj2 and sdk2.
+    <div class="Pp"></div>
+    <pre>
+<b>Device-10: mybackup</b>
+<b>  maj-min: 254:28</b>
+<b>  type: LUKS</b>
+<b>  dm: dm-28</b>
+<b>  size: 6.36 GiB</b>
+<b>  Components: </b>
+<b>    c-1: md1</b>
+<b>    maj-min: 9:1</b>
+<b>    size: 6.37 GiB</b>
+<b>    cc-1: dm-26</b>
+<b>      maj-min: 254:26</b>
+<b>      mapped: vg5-level1a</b>
+<b>      size: 12.28 GiB</b>
+<b>      ppp-1: sdj2</b>
+<b>        maj-min: 8:146</b>
+<b>        size: 12.79 GiB</b>
+<b>    cc-2: dm-27</b>
+<b>      maj-min: 254:27</b>
+<b>      mapped: vg5-level1b</b>
+<b>      size: 6.38 GiB</b>
+<b>      ppp-1: sdk2</b>
+<b>        maj-min: 8:162</b>
+<b>        size: 12.79 GiB</b>
+    </pre>
+    <div class="Pp"></div>
+    Other types of logical block handling like LUKS, bcache, multipath, show as:
+    <div class="Pp"></div>
+     <b>Device-[xx] [name/id] type: [LUKS|Crypto|bcache|MultiPath]:</b>
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
   <dt><b>-m,<b> --memory</b></b></dt>
   <dd>Memory (RAM) data. Does not display with <b>-b</b> or <b>-F</b> unless you
       use <b>-m</b> explicitly. Ordered by system board physical system memory
@@ -437,6 +526,31 @@ Note that all the short form options have long form equivalents, which are
       system, not dmi data. For most people, the data will be right, but a
       significant percentage of users will have either a wrong max module size,
       if present, or max capacity.
+    <div class="Pp"></div>
+    Under dmidecode, <b>Speed:</b> is the expected speed of the memory (what is
+      advertised on the memory spec sheet) and <b>Configured Clock Speed:</b> is
+      what the actual speed is now. To handle this, if speed and configured
+      speed values are different, you will see this instead:
+    <div class="Pp"></div>
+     <b>speed: spec: [specified speed] MT/S actual: [actual] MT/S</b>
+    <div class="Pp"></div>
+    Also, if DDR, and speed in MHz, will change to: <b>speed: [speed] MT/S
+      ([speed] MHz</b>
+    <div class="Pp"></div>
+    If the detected speed is logically absurd, like 1 MT/s or 69910 MT/s, adds:
+      <b>note: check</b>. Sample:
+    <div class="Pp"></div>
+    <pre>
+<b>Memory:</b>
+<b>  RAM: total: 31.38 GiB used: 20.65 GiB (65.8%) </b>
+<b>  Array-1: capacity: N/A slots: 4 note: check EC: N/A </b>
+<b>  Device-1: DIMM_A1 size: 8 GiB speed: 1600 MT/s (800 MHz) </b>
+<b>  Device-2: DIMM_A2 size: 8 GiB speed: spec: 1600 MT/s (800 MHz) </b>
+<b>  actual: 61910 MT/s (30955 MHz) note: check </b>
+<b>  Device-3: DIMM_B1 size: 8 GiB speed: 1600 MT/s (800 MHz) </b>
+<b>  Device-4: DIMM_B2 size: 8 GiB speed: spec: 1600 MT/s (800 MHz) </b>
+<b>  actual: 2 MT/s (1 MHz) note: check</b>
+    </pre>
     <div class="Pp"></div>
     See <b>--memory-modules</b> and <b>--memory-short</b> if you want a shorter
       report.
@@ -521,8 +635,9 @@ Note that all the short form options have long form equivalents, which are
 </dl>
 <dl class="Bl-tag">
   <dt><b>-P,<b> --partitions</b></b></dt>
-  <dd>Show basic Partition information. Shows, if detected: <b>/ /boot /home
-      /opt /tmp /usr /usr/home /var /var/tmp /var/log</b>. If <b>--swap</b> is
+  <dd>Show basic Partition information. Shows, if detected: <b>/ /boot /boot/efi
+      /home /opt /tmp /usr /usr/home /var /var/tmp</b> <b>/var/log</b> (for
+      android, shows <b>/cache /data /firmware /system</b>). If <b>--swap</b> is
       not used, shows active swap partitions (never shows file or zram type
       swap). Use <b>-p</b> to see all mounted partitions.
     <div class="Pp"></div>
@@ -577,14 +692,18 @@ Note that all the short form options have long form equivalents, which are
 </dl>
 <dl class="Bl-tag">
   <dt><b>-R,<b> --raid</b></b></dt>
-  <dd>Show RAID data. Shows RAID devices, states, levels and components, and
-      extra data with <b>-x</b> / <b>-xx</b>.
+  <dd>Show RAID data. Shows RAID devices, states, levels, device/array size, and
+      components. See extra data with <b>-x</b> / <b>-xx</b>.
     <div class="Pp"></div>
     md-raid: If device is resyncing, also shows resync progress line.
     <div class="Pp"></div>
-    Note: Only md-raid and ZFS are currently supported. Other software RAID
-      types could be added, but only if users supply all data required, and if
-      the software RAID actually can be made to give the required output.
+    Note: Only md-raid, ZFS and hardware RAID are currently supported. Other
+      software RAID types may be added, if the software RAID actually can be
+      made to give the required output.
+    <div class="Pp"></div>
+    The component ID numbers work like this: mdraid: the numerator is the actual
+      mdraid component number; ZFS: the numerator is auto-incremented counter
+      only. Eg. <b>Online: 1: sdb1</b>
     <div class="Pp"></div>
     If hardware RAID is detected, shows basic information. Due to complexity of
       adding hardware RAID device disk / RAID reports, those will only be added
@@ -652,8 +771,8 @@ Note that all the short form options have long form equivalents, which are
 <dl class="Bl-tag">
   <dt><b>-t m</b></dt>
   <dd>- memory only. With <b>-x</b>, also shows CPU for that process on same
-      line. If the -I line is not triggered, will also show the system RAM
-      used/total information.
+      line. If the <b>-I</b> or <b>-m</b> lines are not triggered, will also
+      show the system RAM used/total information.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -767,9 +886,10 @@ Note that all the short form options have long form equivalents, which are
 </dl>
 <dl class="Bl-tag">
   <dt><b>-v 8</b></dt>
-  <dd>- All system data available. Adds Repos (<b>-r</b>), PCI slots
-      (<b>--slots</b>), processes ( <b>-tcm</b>), admin (<b>--admin</b>). Useful
-      for testing output and to see what data you can get from your system.
+  <dd>- All system data available. Adds Logical (<b>-L</b>), Repos (<b>-r</b>),
+      PCI slots ( <b>--slots</b>), processes (<b>-tcm</b>), admin
+      (<b>--admin</b>). Useful for testing output and to see what data you can
+      get from your system.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -922,9 +1042,13 @@ The following details show which lines / items display extra information for
     <div class="Pp"></div>
     - Adds CPU microarchitecture + revision (e.g. Sandy Bridge, K8, ARMv8, P6,
       etc.). Only shows data if detected. Newer microarchitectures will have to
-      be added as they appear, and require the CPU family ID and model ID.
+      be added as they appear, and require the CPU family ID, model ID, and
+      stepping.
     <div class="Pp"></div>
     Examples: <b>arch: Sandy Bridge rev: 2</b>, <b>arch: K8 rev.F+ rev: 2</b>
+    <div class="Pp"></div>
+    If unable to non-ambiguosly determine architecture, will show something
+      like: <b>arch: Amber Lake note: check rev: 9</b>
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -937,11 +1061,32 @@ The following details show which lines / items display extra information for
 </dl>
 <dl class="Bl-tag">
   <dt><b>-x -D</b></dt>
-  <dd>- Adds HDD temperature with disk data if you have hddtemp installed, if
-      you are root or if you have added to <b>/etc/sudoers</b> (sudo v. 1.7 or
-      newer):
+  <dd>- Adds HDD temperature with disk data.
+    <div class="Pp"></div>
+    Method 1: if you have hddtemp installed, if you are root or if you have
+      added to <b>/etc/sudoers</b> (sudo v. 1.7 or newer):
     <div class="Pp"></div>
     <b>&lt;username&gt; ALL = NOPASSWD: /usr/sbin/hddtemp (sample)</b>
+    <div class="Pp"></div>
+    Method 2: systems running Linux kernels ~5.8 and newer may have drive temp
+      data available from /sys. If your system has /sys hwmon drive data, the
+      temps will come from /sys data for each drive with that data, and will not
+      require root or hddtemp!! This method is MUCH faster than using hddtemp!
+    <div class="Pp"></div>
+    If you see drive temps running as regular user and you did not configure
+      system to use sudo hddtemp, then your system supports this feature.
+      Sometimes one type of drive will have the /sys temp data, and another
+      won't, it varies widely. If no /sys data is found, inxi will try to use
+      hddtemp methods instead for that drive.
+    <div class="Pp"></div>
+    Hint: is /sys sourced, the temps will be to 1 decimal, like 34.8, if hddtemp
+      sourced, they will be integers.
+    <div class="Pp"></div>
+    You can force use of <b>hddtemp</b> for all drives using <b>--hddtemp</b>.
+    <div class="Pp"></div>
+    - If free LVM volume group size detected (root required), show
+      <b>lvm-free:</b> on Local Storage line. This is how much unused space the
+      VGs contain, that is, space not assigned to LVs.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1009,8 +1154,21 @@ The following details show which lines / items display extra information for
   </dd>
 </dl>
 <dl class="Bl-tag">
+  <dt><b>-x -j, <b>-x --swap</b></b></dt>
+  <dd>Add <b>mapper:</b>. See <b>-x -o</b>.
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
   <dt><b>-x -J (<b>--usb</b>)</b></dt>
   <dd>- For Devices, adds driver(s).
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-x -L, <b>-x --logical</b></b></dt>
+  <dd>- Adds <b>dm: dm-x</b> to VG &gt; LV and other Device types. This can help
+      tracking down which device belongs to what.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1032,6 +1190,15 @@ The following details show which lines / items display extra information for
     - Adds version/port(s)/driver version (if available) for each Network card;
     <div class="Pp"></div>
     - Adds PCI Bus ID/USB ID number of each Network card.
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-x -o, <b>-x -p</b>, <b>-x -P</b></b></dt>
+  <dd>- Adds <b>mapper:</b> (the <b>/dev/mapper/</b> partitioni ID) if mapped
+      partition.
+    <div class="Pp"></div>
+    Example: <b>ID-4: /home ... dev: /dev/dm-6 mapped: ar0-home</b>
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1185,6 +1352,18 @@ The following details show which lines / items display extra information for
 <dl class="Bl-tag">
   <dt><b>-xx -J (<b>--usb</b>)</b></dt>
   <dd>- Adds vendor:chip id.
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-xx -L, <b>-xx --logical</b></b></dt>
+  <dd>- Adds internal LVM Logical volumes, like raid image and meta data
+      volumes.
+    <div class="Pp"></div>
+    - Adds full list of Components, sub-components, and their physical devices.
+    <div class="Pp"></div>
+    - For LVM RAID, adds a RAID report line (if not <b>-R</b>). Read up on LVM
+      documentation to better understand their use of the term 'stripes'.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1476,6 +1655,8 @@ Overclocked 3000 MHz CPU, with boosted max speed:
     <div class="Pp"></div>
     - Adds SATA type (eg 1.0, 2.6, 3.0) if a SATA device.
     <div class="Pp"></div>
+    - Adds device kernel major:minor number (Linux only).
+    <div class="Pp"></div>
     - Adds SMART report line: status, enabled/disabled, health, powered on,
       cycles, and some error cases if out of range values. Note that for
       Pre-fail items, it will show the VALUE and THRESHOLD numbers. It will also
@@ -1591,7 +1772,7 @@ Overclocked 3000 MHz CPU, with boosted max speed:
   </dd>
 </dl>
 <dl class="Bl-tag">
-  <dt><b>-a -j, <b>-a -P</b> , <b>-a -P</b></b></dt>
+  <dt><b>-a -j, <b>-a -P</b> [swap], <b>-a -P</b> [swap]</b></dt>
   <dd>- Adds swappiness and vfs cache pressure, and a message to indicate if the
       value is the default value or not (Linux only, and only if available). If
       not the default value, shows default value as well, e.g.
@@ -1604,6 +1785,18 @@ Overclocked 3000 MHz CPU, with boosted max speed:
     <div class="Pp"></div>
      <b>Kernel: swappiness: 60 (default) cache pressure: 90 (default 100)</b>
     <div class="Pp"></div>
+    - Adds device kernel major:minor number (Linux only).
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-a -L</b></dt>
+  <dd>- Expands Component report, shows size / maj-min of components and
+      devices, and mapped name for logical components. Puts each
+      component/device on its own line.
+    <div class="Pp"></div>
+    - Adds maj-min to LV and other devices.
+    <div class="Pp"></div>
   </dd>
 </dl>
 <dl class="Bl-tag">
@@ -1613,6 +1806,12 @@ Overclocked 3000 MHz CPU, with boosted max speed:
       If no non-driver modules found, shows nothing. NOTE: just because it lists
       a module does NOT mean it is available in the system, it's just something
       the kernel knows could possibly be used instead.
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-a -o</b></dt>
+  <dd>- Adds device kernel major:minor number (Linux only).
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1633,11 +1832,23 @@ Overclocked 3000 MHz CPU, with boosted max speed:
     - Adds partition filesystem block size if found (requires root and
       blockdev).
     <div class="Pp"></div>
+    - Adds device kernel major:minor number (Linux only).
+    <div class="Pp"></div>
   </dd>
 </dl>
 <dl class="Bl-tag">
   <dt><b>-a -r</b></dt>
   <dd>- Adds Packages. See <b>-Ia</b>
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>-a -R</b></dt>
+  <dd>- Adds device kernel major:minor number (mdraid, Linux only).
+    <div class="Pp"></div>
+    - Adds, if available, component size, major:minor number, state (Linux
+      only). Turns Component report to 1 component per line if size and
+      major:minor present.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1725,6 +1936,12 @@ Overclocked 3000 MHz CPU, with boosted max speed:
 <dl class="Bl-tag">
   <dt><b>--downloader [curl|fetch|perl|wget]</b></dt>
   <dd>Force inxi to use Curl, Fetch, Perl, or Wget for downloads.
+    <div class="Pp"></div>
+  </dd>
+</dl>
+<dl class="Bl-tag">
+  <dt><b>--hddtemp</b></dt>
+  <dd>Force use of hddtemp instead of /sys temp data for disks.
     <div class="Pp"></div>
   </dd>
 </dl>
@@ -1823,7 +2040,7 @@ Overclocked 3000 MHz CPU, with boosted max speed:
   <dd>Skip SSL certificate checks for all downloader actions (<b>-U</b>,
       <b>-w</b>, <b>-W</b>, <b>-i</b>). Use if your system does not have current
       SSL certificate lists, or if you have problems making a connection for any
-      reason. Works with <b>Wget</b>, <b>Curl</b>, <b>Perl HTTP::Tiny</b>and
+      reason. Works with <b>Wget</b>, <b>Curl</b>, <b>Perl HTTP::Tiny</b> and
       <b>Fetch</b>.
     <div class="Pp"></div>
   </dd>
@@ -2082,7 +2299,7 @@ Overclocked 3000 MHz CPU, with boosted max speed:
 </dl>
 <h1 class="Sh" title="Sh" id="DEBUGGING_OPTIONS_TO_DEBUG_DEBUGGER_FAILURES"><a class="permalink" href="#DEBUGGING_OPTIONS_TO_DEBUG_DEBUGGER_FAILURES">DEBUGGING
   OPTIONS TO DEBUG DEBUGGER FAILURES</a></h1>
-Only used the following in conjunction with <b>--debug 2[012]</b>, and only use
+Only use the following in conjunction with <b>--debug 2[012]</b>, and only use
   if you experienced a failure or hang, or were instructed to do so.
 <div class="Pp"></div>
 <dl class="Bl-tag">
@@ -2401,7 +2618,7 @@ And of course, a big thanks to locsmif, who figured out a lot of the core
   methods, logic, and tricks originally used in inxi Gawk/Bash.</div>
 <table class="foot">
   <tr>
-    <td class="foot-date">2020-11-11</td>
+    <td class="foot-date">2020-12-15</td>
     <td class="foot-os">inxi</td>
   </tr>
 </table>
