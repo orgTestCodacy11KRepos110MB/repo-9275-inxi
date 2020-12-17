@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.00';
 my $self_date='2020-12-16';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6950,7 +6950,7 @@ sub battery_data_dmi {
 			$i++;
 			$battery{$id}->{'purpose'} = 'primary';
 			# skip first three row, we don't need that data
-			foreach my $item (@$row[4 .. $#$row]){
+			foreach my $item (@$row[3 .. $#$row]){
 				my @value = split(/:\s+/, $item);
 				next if !$value[0];
 				if ($value[0] eq 'Location') {$battery{$id}->{'location'} = $value[1] }
@@ -8078,7 +8078,7 @@ sub cpu_dmi_data {
 		if ($item->[0] == 7){
 			# skip first three row, we don't need that data
 			($id,$amount) = ('',0);
-			foreach my $value (@$item[4 .. $#$item]){
+			foreach my $value (@$item[3 .. $#$item]){
 				next if $value =~ /~/;
 				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
 				if ($value =~ /^Socket Designation:.* (L[1-3])\b/){
@@ -8104,7 +8104,7 @@ sub cpu_dmi_data {
 		elsif ($item->[0] == 4){
 			# skip first three row, we don't need that data
 			($socket,$upgrade) = (undef);
-			foreach my $value (@$item[4 .. $#$item]){
+			foreach my $value (@$item[3 .. $#$item]){
 				next if $value =~ /~/;
 				# note: on single cpu systems, Socket Designation shows socket type,
 				# but on multi, shows like, CPU1; CPU Socket #2; Socket 0; so check values a bit.
@@ -12201,15 +12201,23 @@ sub machine_data_dmi {
 		# bios/firmware
 		if ($row->[0] == 0){
 			# skip first three row, we don't need that data
-			foreach my $item (@$row[4 .. $#$row]){
+			foreach my $item (@$row[3 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
-					if ($value[0] eq 'Release Date') {$data{'bios_date'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Vendor') {$data{'bios_vendor'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Version') {$data{'bios_version'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'ROM Size') {$data{'bios_romsize'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'BIOS Revision') {$data{'bios_rev'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] =~ /^UEFI is supported/) {$data{'firmware'} = 'UEFI';}
+					if ($value[0] eq 'Release Date') {
+						$data{'bios_date'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Vendor') {
+						$data{'bios_vendor'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Version') {
+						$data{'bios_version'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'ROM Size') {
+						$data{'bios_romsize'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'BIOS Revision') {
+						$data{'bios_rev'} = main::dmi_cleaner($value[1]) }
+				}
+				else {
+					if ($item eq '~UEFI is supported') {
+						$data{'firmware'} = 'UEFI';}
 				}
 			}
 			next;
@@ -12217,14 +12225,19 @@ sub machine_data_dmi {
 		# system information
 		elsif ($row->[0] == 1){
 			# skip first three row, we don't need that data
-			foreach my $item (@$row[4 .. $#$row]){
+			foreach my $item (@$row[3 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
-					if ($value[0] eq 'Product Name') {$data{'product_name'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Version') {$data{'product_version'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Serial Number') {$data{'product_serial'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Manufacturer') {$data{'sys_vendor'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'UUID') {$data{'sys_uuid'} = main::dmi_cleaner($value[1]) }
+					if ($value[0] eq 'Product Name') {
+						$data{'product_name'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Version') {
+						$data{'product_version'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Serial Number') {
+						$data{'product_serial'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Manufacturer') {
+						$data{'sys_vendor'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'UUID') {
+						$data{'sys_uuid'} = main::dmi_cleaner($value[1]) }
 				}
 			}
 			next;
@@ -12232,12 +12245,15 @@ sub machine_data_dmi {
 		# baseboard information
 		elsif ($row->[0] == 2){
 			# skip first three row, we don't need that data
-			foreach my $item (@$row[4 .. $#$row]){
+			foreach my $item (@$row[3 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
-					if ($value[0] eq 'Product Name') {$data{'board_name'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Serial Number') {$data{'board_serial'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Manufacturer') {$data{'board_vendor'} = main::dmi_cleaner($value[1]) }
+					if ($value[0] eq 'Product Name') {
+						$data{'board_name'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Serial Number') {
+						$data{'board_serial'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Manufacturer') {
+						$data{'board_vendor'} = main::dmi_cleaner($value[1]) }
 				}
 			}
 			next;
@@ -12245,13 +12261,17 @@ sub machine_data_dmi {
 		# chassis information
 		elsif ($row->[0] == 3){
 			# skip first three row, we don't need that data
-			foreach my $item (@$row[4 .. $#$row]){
+			foreach my $item (@$row[3 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
-					if ($value[0] eq 'Serial Number') {$data{'chassis_serial'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Type') {$data{'chassis_type'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Manufacturer') {$data{'chassis_vendor'} = main::dmi_cleaner($value[1]) }
-					elsif ($value[0] eq 'Version') {$data{'chassis_version'} = main::dmi_cleaner($value[1]) }
+					if ($value[0] eq 'Serial Number') {
+						$data{'chassis_serial'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Type') {
+						$data{'chassis_type'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Manufacturer') {
+						$data{'chassis_vendor'} = main::dmi_cleaner($value[1]) }
+					elsif ($value[0] eq 'Version') {
+						$data{'chassis_version'} = main::dmi_cleaner($value[1]) }
 				}
 			}
 			if ( $data{'chassis_type'} && $data{'chassis_type'} ne 'Other' ){
@@ -12282,6 +12302,7 @@ sub machine_data_dmi {
 # 	foreach (keys %data){
 # 		print "$_: $data{$_}\n";
 # 	}
+	#print Data::Dumper::Dumper \%data;
 	main::log_data('dump','%data',\%data) if $b_log;
 	my @rows = create_output(\%data);
 	eval $end if $b_log;
@@ -17690,7 +17711,7 @@ sub slot_data {
 			my ($designation,$id,$length,$type,$usage) = ('','','','','');
 			# skip first two row, we don't need that data
 			my $j = scalar @rows;
-			foreach my $item (@$entry[3 .. $#$entry]){
+			foreach my $item (@$entry[2 .. $#$entry]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Type'){
