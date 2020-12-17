@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.00';
-my $self_date='2020-12-15';
-my $self_patch='01';
+my $self_date='2020-12-16';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6950,8 +6950,7 @@ sub battery_data_dmi {
 			$i++;
 			$battery{$id}->{'purpose'} = 'primary';
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
-			foreach my $item (@$row){
+			foreach my $item (@$row[4 .. $#$row]){
 				my @value = split(/:\s+/, $item);
 				next if !$value[0];
 				if ($value[0] eq 'Location') {$battery{$id}->{'location'} = $value[1] }
@@ -8078,9 +8077,8 @@ sub cpu_dmi_data {
 		last if $item->[0] > 7;
 		if ($item->[0] == 7){
 			# skip first three row, we don't need that data
-			splice @$item, 0, 3;
 			($id,$amount) = ('',0);
-			foreach my $value (@$item){
+			foreach my $value (@$item[4 .. $#$item]){
 				next if $value =~ /~/;
 				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
 				if ($value =~ /^Socket Designation:.* (L[1-3])\b/){
@@ -8105,9 +8103,8 @@ sub cpu_dmi_data {
 		# Older dmidecode appear to have unreliable Upgrade outputs
 		elsif ($item->[0] == 4){
 			# skip first three row, we don't need that data
-			splice @$item, 0, 3;
 			($socket,$upgrade) = (undef);
-			foreach my $value (@$item){
+			foreach my $value (@$item[4 .. $#$item]){
 				next if $value =~ /~/;
 				# note: on single cpu systems, Socket Designation shows socket type,
 				# but on multi, shows like, CPU1; CPU Socket #2; Socket 0; so check values a bit.
@@ -12049,7 +12046,7 @@ sub machine_data_sys {
 	product_name product_serial product_uuid product_version sys_vendor
 	);
 	if ($extra > 1){
-		splice @sys_files, 0, 0, qw( chassis_serial chassis_vendor chassis_version);
+		splice(@sys_files, 0, 0, qw(chassis_serial chassis_vendor chassis_version));
 	}
 	$data{'firmware'} = 'BIOS';
 	# print Data::Dumper::Dumper \@sys_files;
@@ -12204,8 +12201,7 @@ sub machine_data_dmi {
 		# bios/firmware
 		if ($row->[0] == 0){
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
-			foreach my $item (@$row){
+			foreach my $item (@$row[4 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Release Date') {$data{'bios_date'} = main::dmi_cleaner($value[1]) }
@@ -12221,8 +12217,7 @@ sub machine_data_dmi {
 		# system information
 		elsif ($row->[0] == 1){
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
-			foreach my $item (@$row){
+			foreach my $item (@$row[4 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name') {$data{'product_name'} = main::dmi_cleaner($value[1]) }
@@ -12237,8 +12232,7 @@ sub machine_data_dmi {
 		# baseboard information
 		elsif ($row->[0] == 2){
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
-			foreach my $item (@$row){
+			foreach my $item (@$row[4 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name') {$data{'board_name'} = main::dmi_cleaner($value[1]) }
@@ -12251,8 +12245,7 @@ sub machine_data_dmi {
 		# chassis information
 		elsif ($row->[0] == 3){
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
-			foreach my $item (@$row){
+			foreach my $item (@$row[4 .. $#$row]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Serial Number') {$data{'chassis_serial'} = main::dmi_cleaner($value[1]) }
@@ -12270,7 +12263,6 @@ sub machine_data_dmi {
 		# processor information: check for hypervisor
 		elsif ($row->[0] == 4){
 			# skip first three row, we don't need that data
-			splice @$row, 0, 3 if @$row;
 			if (!$data{'device'}){
 				if (grep {/hypervisor/i} @$row){
 					$data{'device'} = 'virtual-machine';
@@ -12679,7 +12671,7 @@ sub advanced_data_sys {
 	}
 	@paths = grep {!/\/lo$/} @paths;
 	if ( $count > 0 && $count < scalar @paths ){
-		@paths = splice @paths, $count, scalar @paths;
+		@paths = splice(@paths, $count, scalar @paths);
 	}
 	if ($vendor eq 'check'){
 		$b_check = 1;
@@ -14125,7 +14117,7 @@ sub cpu_processes {
 		$pid_col = 0 if $ps_cols == 2;
 	}
 	# if there's a count limit, for irc, etc, only use that much of the data
-	@rows = splice @rows,0,$count;
+	@rows = splice(@rows,0,$count);
 	
 	$j = scalar @rows;
 	# $cpu_mem = ' - Memory: MiB / % used' if $extra > 0;
@@ -14182,7 +14174,7 @@ sub mem_processes {
 		@rows = @ps_aux;
 		$pid_col = 0 if $ps_cols == 2;
 	}
-	@rows = splice @rows,0,$count;
+	@rows = splice(@rows,0,$count);
 	#print Data::Dumper::Dumper \@rows;
 	@processes = main::get_memory_data_full('process') if !$b_mem;
 	$j = scalar @rows;
@@ -15380,6 +15372,7 @@ sub dmidecode_data {
 	my ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
 	my ($i,$j,$k) = (0,0,0);
 	my $check = main::row_defaults('note-check');
+	#print Data::Dumper::Dumper \@dmi;
 	foreach my $entry (@dmi){
 		## NOTE: do NOT reset these values, that causes failures
 		# ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
@@ -17696,9 +17689,8 @@ sub slot_data {
 		if ($entry->[0] == 9){
 			my ($designation,$id,$length,$type,$usage) = ('','','','','');
 			# skip first two row, we don't need that data
-			splice @$entry, 0, 2 if @$entry;
 			my $j = scalar @rows;
-			foreach my $item (@$entry){
+			foreach my $item (@$entry[3 .. $#$entry]){
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Type'){
@@ -21801,7 +21793,7 @@ sub set_dmidecode_data {
 	# but we do want to preserve the indentation. Empty lines
 	# won't matter, they will be skipped, so no need to handle them.
 	# some dmidecodes do not use empty line separators
-	splice @data, 0, 5 if @data;
+	splice(@data, 0, 5) if @data;
 	my $j = 0;
 	my $b_skip = 1;
 	foreach (@data){
@@ -21838,9 +21830,7 @@ sub set_dmidecode_data {
 	}
 	if (@working && $working[0] != 32 && $working[0] != 127){
 		$j = scalar @dmi;
-		$dmi[$j] = (
-		[@working],
-		);
+		$dmi[$j] = \@working;
 	}
 	# last by not least, sort it by dmi type, now we don't have to worry
 	# about random dmi type ordering in the data, which happens. Also sort 
