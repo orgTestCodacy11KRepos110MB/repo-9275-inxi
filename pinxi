@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.01';
-my $self_date='2020-12-17';
-my $self_patch='01';
+my $self_date='2020-12-20';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -11617,7 +11617,7 @@ sub create_recursive_components {
 		#print "inside: -n", Data::Dumper::Dumper $component->[$i];
 		$$j = scalar @$rows if $b_admin;
 		my $id;
-		if ($component->[0][0] =~ /^(bcache|dm-|md)[0-9]/){
+		if ($component->[0] =~ /^(bcache|dm-|md)[0-9]/){
 			$id = $c .'-' . $m;
 			$m++;
 		}
@@ -11625,16 +11625,16 @@ sub create_recursive_components {
 			$id = $p . '-' . $l;
 			$l++;
 		}
-		$$rows[$$j]->{main::key($$num++,1,$l2,$id)} = $component->[0][0];
+		$$rows[$$j]->{main::key($$num++,1,$l2,$id)} = $component->[0];
 		if ($extra > 1){
 			if ($b_admin){
-				$$rows[$$j]->{main::key($$num++,0,$l3,'maj-min')} = $component->[0][1];
-				$$rows[$$j]->{main::key($$num++,0,$l3,'mapped')} = $component->[0][3] if $component->[0][3];
-				$size = main::get_size($component->[0][2],'string','N/A');
+				$$rows[$$j]->{main::key($$num++,0,$l3,'maj-min')} = $component->[1];
+				$$rows[$$j]->{main::key($$num++,0,$l3,'mapped')} = $component->[3] if $component->[3];
+				$size = main::get_size($component->[2],'string','N/A');
 				$$rows[$$j]->{main::key($$num++,0,$l3,'size')} = $size;
 			}
 			#next if !$component->[$i][4];
-			for (my $i = 1; $i < scalar @$component; $i++){
+			for (my $i = 4; $i < scalar @$component; $i++){
 				create_recursive_components($type,$j,$num,$rows,$component->[$i],$indent+1,$c.'c',$p.'p');
 			}
 		}
@@ -11802,10 +11802,10 @@ sub recursive_component_data {
 		if ($device =~ /^(bcache|dm-|md)[0-9]+$/){
 			$mapped = $dmmapper{$device};
 			$raw_logical[1] += $part[2] if $mapped && $mapped =~ /_(cdata|cmeta)$/;
-			push(@components, [[$device,$mm2,$part[2],$mapped],[recursive_component_data($mm2)]]);
+			push(@components, [$device,$mm2,$part[2],$mapped,[recursive_component_data($mm2)]]);
 		}
 		else {
-			push(@components,[[$device,$mm2,$part[2]]]);
+			push(@components,[$device,$mm2,$part[2]]);
 		}
 	}
 	eval $end if $b_log;
@@ -18869,6 +18869,7 @@ sub get_compiler_version_linux {
 		#$result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
 		# $result='Linux version 5.8.9-fw1 (fst@x86_64.frugalware.org) (gcc (Frugalware Linux) 9.2.1 20200215, GNU ld (GNU Binutils) 2.35) #1 SMP PREEMPT Tue Sep 15 16:38:57 CEST 2020';
 		# $result='Linux version 5.8.0-2-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.0-9) 10.2.0, GNU ld (GNU Binutils for Debian) 2.35) #1 SMP Debian 5.8.10-1 (2020-09-19)';
+		 $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
 		if ($result =~ /(gcc|clang).*version\s([\S]+)/){
 			$version = $2;
 			$version ||= 'N/A'; 
