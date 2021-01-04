@@ -132,7 +132,7 @@ my %size = (
 # Default indentation level. NOTE: actual indent is 1 greater to allow for 
 # spacing
 'indent' => 11,
-'indent-min' => 90,
+'wrap-width' => 90,
 'irc' => 100, # shorter because IRC clients have nick  lists etc
 'max' => 0,
 'no-display' => 130,
@@ -1175,7 +1175,7 @@ sub get_config_item {
 	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = $val if is_int($val)}
 	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = $val if is_int($val)}
 	elsif ($key eq 'INDENT') {$size{'indent'} = $val if is_int($val)}
-	elsif ($key eq 'INDENT_MIN') {$size{'indent-min'} = $val if is_int($val)}
+	elsif ($key eq 'WRAP_WIDTH' || $key eq 'INDENT_MIN') {$size{'wrap-width'} = $val if is_int($val)}
 	#  print "mc: key: $key val: $val\n";
 	# print Dumper (keys %size) . "\n";
 }
@@ -1684,9 +1684,9 @@ sub display_data {
 	'clutter-backend' => $ENV{'CLUTTER_BACKEND'},
 	'sdl-videodriver' => $ENV{'SDL_VIDEODRIVER'},
 	# program display values
-	'size-indent' => $size{'indent'},
-	'size-indent-min' => $size{'indent-min'},
 	'size-cols-max' => $size{'max'},
+	'size-indent' => $size{'indent'},
+	'size-wrap-width' => $size{'wrap-width'},
 	);
 	write_data(\%data,'display');
 	my @cmds = (
@@ -4575,14 +4575,6 @@ sub get_options {
 		$show{'no-host'} = 0},
 	'html-wan' => sub {
 		$b_no_html_wan = 0; },
-	'indent-min:i' => sub {
-		my ($opt,$arg) = @_;
-		if ($arg =~ /^\d+$/){
-			$size{'indent-min'} = $arg;
-		}
-		else {
-			error_handler('bad-arg', $opt, $arg);
-		}},
 	'irc' => sub {
 		$b_irc = 1; },
 	'man' => sub {
@@ -4709,6 +4701,14 @@ sub get_options {
 		}},
 	'wm' => sub { 
 		$b_wmctrl = 1 },
+	'wrap-width|indent-min:i' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^\d+$/){
+			$size{'wrap-width'} = $arg;
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}},
 	'<>' => sub {
 		my ($opt) = @_;
 		error_handler('unknown-option', "$opt", "" ); }
@@ -5134,7 +5134,6 @@ sub show_options {
 	['1', '', '--hddtemp', "Force use of hddtemp for disk temps." ],
 	['1', '', '--host', "Turn on hostname for -S." ],
 	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to default)." ],
-	['1', '', '--indent-min', "Set point where $self_name autowraps line starters." ],
 	['1', '', '--limit', "[-1; 1-x] Set max output limit of IP addresses for -i 
 	(default 10; -1 removes limit)." ],
 	);
@@ -5183,6 +5182,8 @@ sub show_options {
 	URL output must end in the IP address. See man. 
 	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php" ],
 	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps." ],
+	['1', '', '--wrap-width', "Set width where $self_name autowraps line starters 
+	(previously --indent-min)." ],
 	['0', '', '', $line ],
 	['0', '', '', "Debugging Options:" ],
 	['1', '', '--dbg', "Specific debuggers, change often. Only 1 is constant:" ],
@@ -6159,7 +6160,7 @@ sub print_data {
 	my ($b_container,$indent_use,$indentx) = (0,0,0);
 	# $size{'max'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
-	if ($size{'max'} < $size{'indent-min'} || $size{'indent'} < 11 ){
+	if ($size{'max'} < $size{'wrap-width'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
 	#foreach my $key1 (sort { (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$data) {
