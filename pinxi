@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.02';
-my $self_date='2021-01-10';
-my $self_patch='01';
+my $self_date='2021-01-17';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14314,6 +14314,7 @@ sub throttled {
 {
 package RaidData;
 # debugger switches
+my $b_hw = 0;
 my $b_lvm = 0;
 my $b_md = 0;
 my $b_zfs = 0;
@@ -14322,7 +14323,7 @@ sub get {
 	eval $start if $b_log;
 	my (@data,@hardware_raid,@rows,$key1,$val1);
 	my $num = 0;
-	@hardware_raid = hw_data() if $b_hardware_raid;
+	@hardware_raid = hw_data() if $b_hardware_raid || $b_hw;
 	raid_data() if !$b_raid;
 	#print 'get: ', Data::Dumper::Dumper \@lvm_raid;
 	#print 'get: ', Data::Dumper::Dumper \@md_raid;
@@ -14461,7 +14462,7 @@ sub create_output_lvm {
 }
 sub create_output_md {
 	eval $start if $b_log;
-	my (@components,@components_good,@failed,@rows,@spare,@temp);
+	my (@components,@components_good,@failed,@inactive,@rows,@spare,@temp);
 	my ($blocks,$chunk,$level,$report,$size,$status);
 	my ($j,$num) = (0,0);
 	#print Data::Dumper::Dumper \@md_raid;
@@ -14528,22 +14529,28 @@ sub create_output_md {
 		@spare = ();
 		@components_good = ();
 		# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
+		# print Data::Dumper::Dumper \@components;
 		foreach my $item (sort { $a->[1] <=> $b->[1]} @components){
-			if (defined $item->[2] && $item->[2] =~ /^(F|DEGRADED|FAULTED|UNAVAIL)$/){
+			if (defined $item->[2] && $item->[2] =~ /^(F)$/){
 				push(@failed, $item);
 			}
-			elsif (defined $item->[2] && $item->[2] =~ /(S|OFFLINE)$/){
+			elsif (defined $item->[2] && $item->[2] =~ /(S)$/){
 				push(@spare, $item);
+			}
+			elsif (!defined $item->[1] && $row->{'status'} && $row->{'status'} eq 'inactive' ){
+				push(@inactive, $item);
 			}
 			else {
 				push(@components_good, $item);
 			}
+			
 		}
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
 		my $b_bump;
 		create_components_output('mdraid','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
 		create_components_output('mdraid','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
+		create_components_output('mdraid','Inactive',\@rows,\@inactive,\$j,\$num,\$b_bump);
 		create_components_output('mdraid','Spare',\@rows,\@spare,\$j,\$num,\$b_bump);
 		if ($row->{'recovery-percent'}){
 			$j = scalar @rows;
@@ -14690,15 +14697,18 @@ sub create_components_output {
 	elsif ($type eq 'mdraid'){
 		($f1,$f2,$f3,$f4,$k1,$l1,$l2,$l3) = (3,4,5,6,1,3,4,5);
 		$extra1 = 'mapped';
+		$k = 1 if $item eq 'Inactive';
 	}
 	elsif ($type eq 'zfs'){
 		($f1,$f2,$f3,$l1,$l2,$l3) = (1,2,3,4,5,6);
 		$k = 1;
 	}
+	#print "item: $item\n";
 	$$j_ref++ if $$b_bump_ref;
 	$$b_bump_ref = 0;
 	my $good = ($item eq 'Online' && !@$array_ref ) ? 'N/A' : '';
 	$$rows_ref[$$j_ref]->{main::key($$num_ref++,1,$l1,$item)} = $good;
+	#print Data::Dumper::Dumper $array_ref;
 	foreach my $device (@$array_ref){
 		next if ref $device ne 'ARRAY';
 		if ($b_admin && $device->[$f1] && $device->[$f2]){
@@ -14706,7 +14716,7 @@ sub create_components_output {
 			$$b_bump_ref = 1;
 			$$num_ref = 1;
 		}
-		$key1 = (defined $k1) ? $device->[$k1] : $k++;
+		$key1 = (defined $k1 && defined $device->[$k1]) ? $device->[$k1] : $k++;
 		$$rows_ref[$$j_ref]->{main::key($$num_ref++,1,$l2,$key1)} = $device->[0];
 		if ($b_admin && $device->[$f2]){
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'maj-min')} = $device->[$f2];
@@ -14855,6 +14865,7 @@ sub md_data {
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
+		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-weird-syntax.txt";
 	}
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
@@ -14865,25 +14876,35 @@ sub md_data {
 		$system =~ s/\[|\]//g if $system;
 		shift @working;
 	}
-	if ($working[-1] && $working[-1] =~ /^used\sdevices/){
-		$unused = ( split(/:\s*/, $working[0]))[1];
+	if ($working[-1] && $working[-1] =~ /^unused\sdevices/){
+		$unused = ( split(/:\s*/, $working[-1]))[1];
 		$unused =~ s/<|>|none//g if $unused;
 		pop @working;
 	}
 	foreach (@working){
 		$_ =~ s/\s*:\s*/:/;
 		# print "$_\n";
-		#md126 : active (auto-read-only) raid1 sdq1[0]
-		if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
-			my $id = $1;
-			my $status = $2;
-			my $level = $4;
-			my $component_string = $5;
-			my (@components,%details,%device,$maj_min,@part,$size);
+		# md0 : active raid1 sdb1[2] sda1[0]
+		# md126 : active (auto-read-only) raid1 sdq1[0]
+		# md127 : inactive sda0
+		# if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
+		if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?/){
+			my ($component_string,$id,$level,$maj_min,@part,$size,$status);
+			my (@components,%details,%device);
+			$id = $1;
+			$status = $2;
+			if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
+				$level = $4;
+				$component_string = $5;
+				$level =~ s/^raid1$/mirror/;
+				$level =~ s/^raid/raid-/; 
+				$level = 'mirror' if $level eq '1';
+			}
+			elsif (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s(.*)/){
+				$component_string = $4;
+				$level = 'N/A';
+			}
 			@temp = ();
-			$level =~ s/^raid1$/mirror/;
-			$level =~ s/^raid/raid-/; 
-			$level = 'mirror' if $level eq '1';
 			# cascade of tests, light to cpu intense
 			if ((!$maj_min || !$size) && @proc_partitions){
 				@part = main::get_proc_partition($id);
@@ -14907,6 +14928,9 @@ sub md_data {
 				my (%data,$maj_min,$name,$number,$info,$mapped,$part_size,$state);
 				if ($component =~ /([\S]+)\[([0-9]+)\]\(?([SF])?\)?/){
 					($name,$number,$info) = ($1,$2,$3);
+				}
+				elsif ($component =~ /([\S]+)/){
+					$name = $1;
 				}
 				next if !$name;
 				if ($details{'devices'} && ref $details{'devices'} eq 'HASH'){
