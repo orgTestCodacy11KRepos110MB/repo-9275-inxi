@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.02';
 my $self_date='2021-01-17';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -14525,9 +14525,10 @@ sub create_output_md {
 			}
 		}
 		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
-		@failed = ();
-		@spare = ();
 		@components_good = ();
+		@failed = ();
+		@inactive = ();
+		@spare = ();
 		# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
 		# print Data::Dumper::Dumper \@components;
 		foreach my $item (sort { $a->[1] <=> $b->[1]} @components){
@@ -14537,13 +14538,12 @@ sub create_output_md {
 			elsif (defined $item->[2] && $item->[2] =~ /(S)$/){
 				push(@spare, $item);
 			}
-			elsif (!defined $item->[1] && $row->{'status'} && $row->{'status'} eq 'inactive' ){
+			elsif ($row->{'status'} && $row->{'status'} eq 'inactive' ){
 				push(@inactive, $item);
 			}
 			else {
 				push(@components_good, $item);
 			}
-			
 		}
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
@@ -14686,8 +14686,8 @@ sub create_output_zfs {
 sub create_components_output {
 	eval $start if $b_log;
 	my ($type,$item,$rows_ref,$array_ref,$j_ref,$num_ref,$b_bump_ref) = @_;
-	my ($extra1,$extra2,$f1,$f2,$f3,$f4,$f5,$k,$k1,$key1,$l1,$l2,$l3);
 	return if !@$array_ref && $item ne 'Online';
+	my ($extra1,$extra2,$f1,$f2,$f3,$f4,$f5,$k,$k1,$key1,$l1,$l2,$l3);
 	if ($type eq 'lvm'){
 		($f1,$f2,$f3,$f4,$f5,$l1,$l2,$l3) = (1,2,3,4,5,3,4,5);
 		$k = 1;
@@ -14708,10 +14708,12 @@ sub create_components_output {
 	$$b_bump_ref = 0;
 	my $good = ($item eq 'Online' && !@$array_ref ) ? 'N/A' : '';
 	$$rows_ref[$$j_ref]->{main::key($$num_ref++,1,$l1,$item)} = $good;
+	$$j_ref++ if $b_admin; 
 	#print Data::Dumper::Dumper $array_ref;
 	foreach my $device (@$array_ref){
 		next if ref $device ne 'ARRAY';
-		if ($b_admin && $device->[$f1] && $device->[$f2]){
+		#if ($b_admin && $device->[$f1] && $device->[$f2]){
+		if ($b_admin && $device->[$f1]){
 			$$j_ref++;
 			$$b_bump_ref = 1;
 			$$num_ref = 1;
@@ -14866,6 +14868,7 @@ sub md_data {
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-weird-syntax.txt";
+		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-active-syntax.txt";
 	}
 	my @working = main::reader($mdstat,'strip');
 	#print Data::Dumper::Dumper \@working;
@@ -14887,20 +14890,21 @@ sub md_data {
 		# md0 : active raid1 sdb1[2] sda1[0]
 		# md126 : active (auto-read-only) raid1 sdq1[0]
 		# md127 : inactive sda0
+		# md1 : inactive sda1[0] sdd1[3] sdc1[2] sdb1[1]
 		# if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
-		if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?/){
+		if (/^(md[0-9]+)\s*:\s*([\S]+)(\s\([^)]+\))?/){
 			my ($component_string,$id,$level,$maj_min,@part,$size,$status);
 			my (@components,%details,%device);
 			$id = $1;
 			$status = $2;
-			if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
+			if (/^(md[0-9]+)\s*:\s*([\S]+)(\s\([^)]+\))?\s(raid[\S]+)\s(.*)/){
 				$level = $4;
 				$component_string = $5;
 				$level =~ s/^raid1$/mirror/;
 				$level =~ s/^raid/raid-/; 
 				$level = 'mirror' if $level eq '1';
 			}
-			elsif (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s(.*)/){
+			elsif (/^(md[0-9]+)\s*:\s*([\S]+)(\s\([^)]+\))?\s(.*)/){
 				$component_string = $4;
 				$level = 'N/A';
 			}
