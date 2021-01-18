@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.02';
 my $self_date='2021-01-18';
-my $self_patch='04';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -66,8 +66,8 @@ my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,
 
 ## Arrays
 # ps_aux is full output, ps_cmd is only the last 10 columns to last
-my (@app,@dmesg_boot,@devices_audio,@devices_graphics,@devices_network,
-@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
+my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
+@devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
 @paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
 ## Disk arrays 
@@ -85,7 +85,7 @@ $b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lv
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
-$b_slot_tool,$b_soc_audio,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
+$b_slot_tool,$b_soc_audio,$b_soc_bluetooth,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
 $b_wmctrl);
 ## Disk checks
@@ -242,13 +242,18 @@ sub check_tools {
 	}
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
-	if ($b_lvm || $b_pci || $b_sysctl){
+	if ($b_lvm || $b_pci || $b_sysctl || $show{'bluetooth'}){
 		if (!$bsd_type){
 			if ($b_pci ){
 				$commands{'lspci'} = '-n';
 			}
 			if ($b_lvm){
 				$commands{'lvs'} = '';
+			}
+			if ($show{'bluetooth'}){
+				$commands{'bt-adapter'} = '-l';
+				# hangs endlessly
+				#$commands{'bluetoothctl'} = 'list';
 			}
 		}
 		else {
@@ -1392,6 +1397,7 @@ sub run_debugger {
 	print $line3;
 	if (!$b_debug){
 		audio_data();
+		bluetooth_data();
 		disk_data();
 		display_data();
 		network_data();
@@ -1507,6 +1513,19 @@ sub audio_data {
 	push(@files,@files2) if @files2;
 	copy_files(\@files,'audio');
 }
+sub bluetooth_data {
+	print "Collecting bluetooth data...\n";
+# 	no warnings 'uninitialized';
+	my @cmds = (
+	# ['bluetoothctl','list'], # do not use, hangs!!
+	['bt-adapter','-l'],
+	['hciconfig','-a'],
+	['hcidump',''],
+	['hcitool','dev'],
+	);
+	run_commands(\@cmds,'bluetooth');
+}
+
 ## NOTE: >/dev/null 2>&1 is sh, and &>/dev/null is bash, fix this
 # ls -w 1 /sysrs > tester 2>&1
 sub disk_data {
@@ -1836,7 +1855,6 @@ sub system_data {
 	['dmidecode',''],
 	['dmesg',''],
 	['gcc','--version'],
-	['hciconfig','-a'],
 	['initctl','list'],
 	['ipmi-sensors',''],
 	['ipmi-sensors','--output-sensor-thresholds'],
@@ -4120,6 +4138,9 @@ sub get_options {
 	'D|disk' => sub {
 		$show{'short'} = 0;
 		$show{'disk'} = 1; },
+	'E|bluetooth' => sub {
+		$show{'short'} = 0;
+		$show{'bluetooth'} = 1; },
 	'f|flags|flag' => sub {
 		$show{'short'} = 0;
 		$show{'cpu'} = 1;
@@ -4775,7 +4796,7 @@ sub get_options {
 	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} || $show{'raid-forced'} ){
 		$b_pci = 1;
 	}
-	if ($show{'usb'} || $show{'audio'} || $show{'graphic'} || $show{'network'} ){
+	if ($show{'usb'} || $show{'audio'} || $show{'bluetooth'} || $show{'graphic'} || $show{'network'} ){
 		$b_usb = 1;
 	}
 	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'battery'} || $show{'cpu'} || $show{'cpu-basic'} || 
@@ -7022,6 +7043,129 @@ sub upower_data {
 	return %data;
 }
 
+}
+
+## BluetoothData 
+{
+package BluetoothData;
+
+sub get {
+	eval $start if $b_log;
+	my (@data,@rows);
+	my $num = 0;
+	if (($b_arm || $b_mips) && !$b_soc_bluetooth && !$b_pci_tool){
+		my $type = ($b_arm) ? 'arm' : 'mips';
+		my $key = 'Message';
+		push(@rows,{
+		main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+		},);
+	}
+	else {
+		@data = card_data();
+		push(@rows,@data);
+	}
+	@data = usb_data();
+	push(@rows,@data);
+	if (!@rows){
+		my $key = 'Message';
+		my $type = 'pci-card-data';
+		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
+			$type = 'pci-card-data-root';
+		}
+		push(@rows,{
+		main::key($num++,0,1,$key) => main::row_defaults($type,''),
+		},);
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+
+sub card_data {
+	eval $start if $b_log;
+	my (@rows);
+	my ($j,$num) = (0,1);
+	foreach my $row (@devices_bluetooth){
+		$num = 1;
+		$j = scalar @rows;
+		my $driver = $row->[9];
+		$driver ||= 'N/A';
+		my $card = $row->[4];
+		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
+		# have seen absurdly verbose card descriptions, with non related data etc
+		if (length($card) > 85 || $size{'max'} < 110){
+			$card = main::pci_long_filter($card);
+		}
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $card,
+		},);
+		if ($extra > 0 && $b_pci_tool && $row->[12]){
+			my $item = main::get_pci_vendor($row->[4],$row->[12]);
+			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
+		}
+		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
+		if ($extra > 0 && !$bsd_type){
+			if ($row->[9] ){
+				my $version = main::get_module_version($row->[9]);
+				$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
+			}
+		}
+		if ($b_admin && $row->[10]){
+			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
+			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
+		}
+		if ($extra > 0){
+			$rows[$j]->{main::key($num++,0,2,'bus ID')} = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
+		}
+		if ($extra > 1){
+			my $chip_id = 'N/A';
+			if ($row->[5] && $row->[6]){
+				$chip_id = "$row->[5]:$row->[6]";
+			}
+			elsif ($row->[6]){
+				$chip_id = $row->[6];
+			}
+			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $chip_id;
+		}
+		#print "$row->[0]\n";
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub usb_data {
+	eval $start if $b_log;
+	return if !@usb;
+	my (@rows,$driver,$path_id,$product);
+	my ($j,$num) = (0,1);
+	foreach my $row (@usb){
+		if ($row->[14] && $row->[14] eq 'Bluetooth'){
+			$num = 1;
+			# makre sure to reset, or second device trips last flag
+			($driver,$path_id,$product) = ('','','');
+			$product = main::cleaner($row->[13]) if $row->[13];
+			$driver = $row->[15] if $row->[15];
+			$path_id = $row->[2] if $row->[2];
+			$product ||= 'N/A';
+			$driver ||= 'N/A';
+			push(@rows, {
+			main::key($num++,1,1,'Device') => $product,
+			main::key($num++,0,2,'type') => 'USB',
+			main::key($num++,0,2,'driver') => $driver,
+			},);
+			if ($extra > 0){
+				$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
+			}
+			if ($extra > 1){
+				$row->[7] ||= 'N/A';
+				$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+			}
+			if ($extra > 2 && $row->[16]){
+				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+			}
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
 }
 
 ## CpuData
@@ -21676,6 +21820,10 @@ sub assign_data {
 		push(@devices_audio,[@$data]);
 		$b_soc_audio = 1 if $tool eq 'soc';
 	}
+	if (check_bluetooth($data->[0],$data->[1])){
+		push(@devices_bluetooth,[@$data]);
+		$b_soc_bluetooth = 1 if $tool eq 'soc';
+	}
 	elsif (check_hwraid($data->[0],$data->[1])){
 		push(@devices_hwraid,[@$data]);
 		$b_soc_net = 1 if $tool eq 'soc';
@@ -21694,16 +21842,24 @@ sub assign_data {
 }
 # note: for soc, these have been converted in soc_type()
 sub check_audio {
-	if ( ( $_[1] && length($_[1]) == 4 && $_[1] =~/^04/ ) ||
+	if ( ( $_[1] && length($_[1]) == 4 && $_[1] =~ /^04/ ) ||
 		( $_[0] && $_[0] =~ /^(audio|hdmi|multimedia|sound)$/i )){
+		return 1;
+	}
+	else {return 0}
+}
+sub check_bluetooth {
+	if ( ( $_[1] && length($_[1]) == 4 && $_[1] eq '0d11' ) ||
+		( $_[0] && $_[0] =~ /^(bluetooth)$/i )){
 		return 1;
 	}
 	else {return 0}
 }
 sub check_graphics {
 	# note: multimedia class 04 is viddeo if 0400. 'tv' is risky I think
-	if ( ( $_[1] && length($_[1]) == 4 &&  ($_[1] =~/^03/ || $_[1] eq '0400' ) ) ||
-	( $_[0] && $_[0] =~ /^(vga|display|hdmi|3d|video|tv|television)$/i)){
+	if ( ( $_[1] && length($_[1]) == 4 &&  ($_[1] =~ /^03/ || $_[1] eq '0400' || 
+	 $_[1] eq '0d80' ) ) || 
+	 ( $_[0] && $_[0] =~ /^(vga|display|hdmi|3d|video|tv|television)$/i)){
 		return 1;
 	}
 	else {return 0}
@@ -21713,8 +21869,9 @@ sub check_hwraid {
 }
 # NOTE: class 06 subclass 80 
 # https://www-s.acm.illinois.edu/sigops/2007/roll_your_own/7.c.1.html
+# 0d20: 802.11a 0d21: 802.11b 0d80: other wireless
 sub check_network {
-	if ( ( $_[1] && length($_[1]) == 4 && ($_[1] =~/^02/ || $_[1] eq '0680' ) ) ||
+	if ( ( $_[1] && length($_[1]) == 4 && ($_[1] =~/^02/ || $_[1] =~ /^0d2/ || $_[1] eq '0680' ) ) ||
 		( $_[0] && $_[0] =~  /^(ethernet|network|wifi|wlan)$/i ) ){
 		return 1;
 	}
@@ -22781,7 +22938,6 @@ sub device_type {
 			elsif ($types[2] eq '3'){$type = 'Device Wire Adapter';}
 		}
 	}
-	
 	return $type;
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
@@ -22883,6 +23039,12 @@ sub generate_lines {
 			%row = line_handler('Network','network');
 			assign_data(\%row);
 		}
+		if ( $show{'bluetooth'} ){
+			USBData::set() if !$b_usb_check;
+			DeviceData::set($b_pci_check) if !$b_pci_check; 
+			%row = line_handler('Bluetooth','bluetooth');
+			assign_data(\%row);
+		}
 		if ( $show{'logical'} ){
 			%row = line_handler('Logical','logical');
 			assign_data(\%row);
@@ -22947,6 +23109,7 @@ sub line_handler {
 	my %subs = (
 	'audio' => \&AudioData::get,
 	'battery' => \&BatteryData::get,
+	'bluetooth' => \&BluetoothData::get,
 	'cpu' => \&CpuData::get,
 	'disk' => \&DiskData::get,
 	'graphic' => \&GraphicData::get,
