@@ -18271,7 +18271,7 @@ sub unmounted_filesystem {
 }
 }
 
-## UsbData$base_arch_distro$base_arch_distro
+## UsbData
 {
 package UsbData;
 
@@ -22517,6 +22517,7 @@ my ($b_hub,$addr_id,$bus_id,$bus_id_alpha,$chip_id,$class_id,
 $device_id,$driver,$ids,$interfaces,$name,$path,$path_id,$product,
 $protocol_id,$serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id,);
 my $b_live = 1; # debugger file data
+
 sub set {
 	eval $start if $b_log;
 	$b_usb_check = 1;
@@ -22733,6 +22734,7 @@ sub sys_data {
 			$bus_id_alpha = bus_id_alpha($path_id);
 			$device_id = int($working[3]);
 			$class_id = sys_item("$_/bDeviceClass");
+			# $subclass_id = sys_item("$_/bDeviceSubClass");
 			$class_id = hex($class_id) if $class_id;
 			@drivers = uevent_data("$_/[0-9]*/uevent");
 			push(@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
@@ -22749,6 +22751,7 @@ sub sys_data {
 			if ($source eq 'lsusb'){
 				for ($i = 0; $i < scalar @usb; $i++){
 					if ($usb[$i]->[0] eq $bus_id && $usb[$i]->[1] == $device_id){
+						$type = check_type($usb[$i]->[13],$driver) if !$type && !$b_hub && $usb[$i]->[13];
 						#print $type,"\n";
 						$usb[$i]->[0] = $bus_id_alpha;
 						$usb[$i]->[2] = $path_id;
@@ -22796,6 +22799,7 @@ sub sys_data {
 					$name = $type;
 				}
 				$name = main::remove_duplicates($name) if $name;
+				$type = check_type($name,$driver) if !$type && !$b_hub && $name;
 				# this isn't that useful, but save in case something shows up
 				#if ($configuration){
 				#	$name = ($name) ? "$name $configuration" : $configuration;
@@ -22872,7 +22876,7 @@ sub uevent_data {
 		main::uniq(\@interfaces);
 		# clear out values like: <vendor defined>,Printer
 		if ( scalar @interfaces > 1 && (grep {/^<vendor/} @interfaces) && (grep {!/^<vendor/} @interfaces) ){
-			@interfaces = grep {/^<vendor/} @interfaces;
+			@interfaces = grep {!/^<vendor/} @interfaces;
 		}
 		$type = join(',', @interfaces);
 		# print "type:$type\n";
@@ -22940,6 +22944,25 @@ sub device_type {
 			elsif ($types[2] eq '3'){$type = 'Device Wire Adapter';}
 		}
 	}
+	# print "$data: $type\n";
+	return $type;
+}
+# device name string based test
+sub check_type {
+	my ($name,$driver) = @_;
+	my ($type);
+	$name = lc($name);
+	# ntoe used but if we want to add in bsd usb audio support could be good
+	if ($name =~ /(audio|hifi|sound)/){
+		$type = 'Audio';
+	}
+	elsif ($name =~ /(bluetooth)/ || ($driver && $driver =~ /btusb/)){
+		$type = 'Bluetooth';
+	}
+	elsif ($name =~ /(display|video|camera)/|| ($driver && $driver =~ /uvcvideo/)){
+		$type = 'Video';
+	}
+	# ethernet/wifi test not needed because NetworkData runs its own tests on the data
 	return $type;
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
