@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.02';
-my $self_date='2021-01-20';
-my $self_patch='08';
+my $self_date='2021-01-21';
+my $self_patch='09';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4142,7 +4142,8 @@ sub get_options {
 		$show{'disk'} = 1; },
 	'E|bluetooth' => sub {
 		$show{'short'} = 0;
-		$show{'bluetooth'} = 1; },
+		$show{'bluetooth'} = 1; 
+		$show{'bluetooth-forced'} = 1;},
 	'f|flags|flag' => sub {
 		$show{'short'} = 0;
 		$show{'cpu'} = 1;
@@ -4151,6 +4152,7 @@ sub get_options {
 		$show{'short'} = 0;
 		$show{'audio'} = 1;
 		$show{'battery'} = 1;
+		$show{'bluetooth'} = 1;
 		$show{'cpu'} = 1;
 		$show{'disk'} = 1;
 		$show{'graphic'} = 1;
@@ -4320,6 +4322,7 @@ sub get_options {
 			}
 			if ($arg >= 5 ){
 				$show{'audio'} = 1;
+				$show{'bluetooth'} = 1;
 				$show{'ram'} = 1;
 				$show{'label'} = 1;
 				$show{'optical-basic'} = 1;
@@ -4338,6 +4341,7 @@ sub get_options {
 			}
 			if ($arg >= 7 ){
 				$b_downloader = 1 if ! check_program('dig');
+				$show{'bluetooth-forced'} = 1;
 				$show{'cpu-flag'} = 1;
 				$show{'ip'} = 1;
 				$show{'raid-forced'} = 1;
@@ -4795,7 +4799,7 @@ sub get_options {
 	     ( ( $bsd_type || $b_dmidecode_force ) && ($show{'machine'} || $show{'battery'}) ) ){
 		$b_dmi = 1;
 	}
-	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} || $show{'raid-forced'} ){
+	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} ){
 		$b_pci = 1;
 	}
 	if ($show{'usb'} || $show{'audio'} || $show{'bluetooth'} || $show{'graphic'} || $show{'network'} ){
@@ -4864,8 +4868,8 @@ sub show_options {
 	['1', '-f', '--flags', "All CPU $flags. Triggers -C. Not shown with -F to 
 	avoid spamming." ],
 	['1', '-F', '--full', "Full output. Includes all Upper Case line letters 
-	except -W, plus --swap, -s and -n. Does not show extra verbose options such 
-	as -d -f -i -l -m -o -p -r -t -u -x, unless specified." ],
+	(except -J, -W) plus --swap, -s and -n. Does not show extra verbose options such 
+	as -d -f -i -J -l -m -o -p -r -t -u -x, unless specified." ],
 	['1', '-G', '--graphics', "Graphics info (devices(s), drivers, display protocol 
 	(if available), display server/Wayland compositor, resolution, renderer, 
 	OpenGL version)." ],
@@ -7070,14 +7074,16 @@ sub get {
 	@data = usb_data();
 	push(@rows,@data);
 	if (!@rows){
-		my $key = 'Message';
-		my $type = 'pci-card-data';
-		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
-			$type = 'pci-card-data-root';
+		if ($show{'bluetooth-forced'}){
+			my $key = 'Message';
+			my $type = 'pci-card-data';
+			if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
+				$type = 'pci-card-data-root';
+			}
+			push(@rows,{
+			main::key($num++,0,1,$key) => main::row_defaults($type,''),
+			},);
 		}
-		push(@rows,{
-		main::key($num++,0,1,$key) => main::row_defaults($type,''),
-		},);
 	}
 	eval $end if $b_log;
 	return @rows;
