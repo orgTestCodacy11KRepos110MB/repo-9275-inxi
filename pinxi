@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.02';
-my $self_date='2021-01-21';
-my $self_patch='09';
+my $self_date='2021-01-22';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5100,11 +5100,13 @@ sub show_options {
 	['0', '', '', ''],
 	['1', '-xxx', '--extra 3', "Show extra, extra, extra data (only works 
 	with verbose or line output, not short form):" ],
-	['2', '-A', '', "Serial number." ],
+	['2', '-A', '', "Serial number, class ID." ],
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
 	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode installed)." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
 	rotation speed (if detected)." ],
+	['2', '-E', '', "Serial number, class ID." ],
+	['2', '-G', '', "Serial number, class ID." ],
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
 	adds wakeups: (from suspend) to Uptime." ],
@@ -5112,7 +5114,7 @@ sub show_options {
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
 	number." ],
-	['2', '-N', '', "Serial number." ],
+	['2', '-N', '', "Serial number, class ID." ],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
 	Hardware RAID rev, ports, specific vendor/product information." ],
@@ -6503,6 +6505,9 @@ sub card_data {
 				$chip_id = $row->[6];
 			}
 			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $chip_id;
+			if ($extra > 2 && $row->[1]){
+				$rows[$j]->{main::key($num++,0,2,'class ID')} = $row->[1];
+			}
 		}
 		#print "$row->[0]\n";
 	}
@@ -6572,6 +6577,7 @@ sub usb_data {
 			foreach my $row (@usb){
 				# a device will always be the second or > device on the bus
 				if ($row->[1] > 1 && $row->[7] eq $id){
+					# print Data::Dumper::Dumper $row;
 					$num = 1;
 					# makre sure to reset, or second device trips last flag
 					($driver,$path_id,$product) = ('','','');
@@ -6591,6 +6597,9 @@ sub usb_data {
 					if ($extra > 1){
 						$row->[7] ||= 'N/A';
 						$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+					}
+					if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+						$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
 					}
 					if ($extra > 2 && $row->[16]){
 						$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
@@ -7134,6 +7143,9 @@ sub card_data {
 				$chip_id = $row->[6];
 			}
 			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $chip_id;
+			if ($extra > 2 && $row->[1]){
+				$rows[$j]->{main::key($num++,0,2,'class ID')} = $row->[1];
+			}
 		}
 		#print "$row->[0]\n";
 	}
@@ -7166,6 +7178,9 @@ sub usb_data {
 			if ($extra > 1){
 				$row->[7] ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+			}
+			if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+				$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
 			}
 			if ($extra > 2 && $row->[16]){
 				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
@@ -10773,6 +10788,9 @@ sub card_data {
 		if ($extra > 1){
 			$rows[$j]->{main::key($num++,0,2,'chip ID')} = ($row->[5]) ? "$row->[5]:$row->[6]" : $row->[6];
 		}
+		if ($extra > 2 && $row->[1]){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = $row->[1];
+		}
 		#print "$row->[0]\n";
 	}
 	eval $end if $b_log;
@@ -10814,6 +10832,9 @@ sub usb_data {
 			if ($extra > 1){
 				$row->[7] ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+			}
+			if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+				$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
 			}
 			if ($extra > 2 && $row->[16]){
 				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
@@ -12780,6 +12801,9 @@ sub card_data {
 		if ($extra > 1){
 			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $chip_id;
 		}
+		if ($extra > 2 && $row->[1]){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = $row->[1];
+		}
 		if ($show{'network-advanced'}){
 			my @data;
 			if (!$bsd_type){
@@ -12816,7 +12840,7 @@ sub usb_data {
 	foreach my $row (@usb){
 		# a device will always be the second or > device on the bus, except for 
 		# daisychained hubs
-		if ($row->[1] > 1 && $row->[4] ne '9'){
+		if ($row->[1] > 1 && $row->[4] ne '09'){
 			$num = 1;
 			($driver,$path,$path_id,$product,$test,$type) = ('','','','','','');
 			$product = main::cleaner($row->[13]) if $row->[13];
@@ -12838,6 +12862,9 @@ sub usb_data {
 				}
 				if ($extra > 1){
 					$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+				}
+				if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+					$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
 				}
 				if ($extra > 2 && $row->[16]){
 					$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
@@ -18334,7 +18361,7 @@ sub usb_data {
 		$path_id = $id->[2] if $id->[2];
 		$bus_id = "$path_id:$id->[1]";
 		# it's a hub
-		if ($id->[4] eq '9'){
+		if ($id->[4] eq '09'){
 			$ports = $id->[10] if $id->[10];
 			$ports ||= 'N/A';
 			#print "pt0:$protocol\n";
@@ -18366,7 +18393,7 @@ sub usb_data {
 			$rows[$j]->{main::key($num++,0,3,'rev')} = $speed;
 		}
 		# for either hub or device
-		if ($extra > 2 && main::is_numeric($id->[17])){
+		if ($extra > 1 && main::is_numeric($id->[17])){
 			my $speed = $id->[17];
 			if ($speed >= 1000) {$speed = ($id->[17] / 1000 ) . " Gb/s"}
 			else {$speed = $id->[17] . " Mb/s"}
@@ -18374,6 +18401,10 @@ sub usb_data {
 		}
 		if ($extra > 1){
 			$rows[$j]->{main::key($num++,0,$ind_sc,'chip ID')} = $chip_id;
+		}
+		if ($extra > 2 && defined $id->[5] && $id->[5] ne ''){
+			my $id = sprintf("%02s",$id->[4]) . sprintf("%02s", $id->[5]);
+			$rows[$j]->{main::key($num++,0,$ind_sc,'class ID')} = $id;
 		}
 		if (!$b_hub && $extra > 2){
 			if ($serial){
@@ -22566,7 +22597,7 @@ sub lsusb_data {
 		$working[1] = $addr_id;
 		$working[2] = $path_id;
 		$working[3] = '';
-		$working[4] = 0;
+		$working[4] = '00';
 		$working[5] = '';
 		$working[6] = '';
 		$working[7] = $chip_id;
@@ -22623,7 +22654,7 @@ sub usbdevs_data {
 			$working[1] = $addr_id;
 			$working[2] = $path;
 			$working[3] = '';
-			$working[4] = 9;
+			$working[4] = '09';
 			$working[5] = '';
 			$working[6] = '';
 			$working[7] = $chip_id;
@@ -22653,7 +22684,7 @@ sub usbdevs_data {
 			$working[1] = $addr_id;
 			$working[2] = $path_id;
 			$working[3] = '';
-			$working[4] = 1;
+			$working[4] = '01';
 			$working[5] = '';
 			$working[6] = '';
 			$working[7] = $chip_id;
@@ -22741,9 +22772,11 @@ sub sys_data {
 			$bus_id = int($working[2]);
 			$bus_id_alpha = bus_id_alpha($path_id);
 			$device_id = int($working[3]);
+			# this will be a hex number
 			$class_id = sys_item("$_/bDeviceClass");
 			# $subclass_id = sys_item("$_/bDeviceSubClass");
 			$class_id = hex($class_id) if $class_id;
+			# this populates class, subclass, and protocol id with decimal numbers
 			@drivers = uevent_data("$_/[0-9]*/uevent");
 			push(@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
 			$ports = sys_item("$_/maxchild") if $b_hub;
@@ -22756,6 +22789,8 @@ sub sys_data {
 			$usb_version = sys_item("$_/version");
 			$speed = sys_item("$_/speed");
 			$configuration = sys_item("$_/configuration");
+			$class_id = sprintf("%02x", $class_id) if defined $class_id && $class_id ne '';
+			$subclass_id = sprintf("%02x", $subclass_id) if defined $subclass_id && $subclass_id ne '';
 			if ($source eq 'lsusb'){
 				for ($i = 0; $i < scalar @usb; $i++){
 					if ($usb[$i]->[0] eq $bus_id && $usb[$i]->[1] == $device_id){
@@ -22903,6 +22938,7 @@ sub sys_item {
 sub device_type {
 	my ($data) = @_;
 	my ($type);
+	# note: the 3/0/0 value passed will be decimal, not hex
 	my @types = split('/', $data) if $data;
 	#print @types,"\n";
 	if (scalar @types == 3){
