@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.2.02';
-my $self_date='2021-01-22';
-my $self_patch='10';
+my $self_date='2021-01-23';
+my $self_patch='11';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -79,8 +79,9 @@ my @test = (0,0,0,0,0);
 my ($b_active_general,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
-$b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,$b_fake_logical,$b_fake_pciconf,
-$b_fake_raid,$b_fake_sensors,$b_fake_sysctl,$b_fake_usbdevs,$b_force_display,
+$b_fake_bluetooth,$b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,
+$b_fake_logical,$b_fake_pciconf,$b_fake_raid,$b_fake_sensors,$b_fake_sysctl,
+$b_fake_usbdevs,$b_force_display,
 $b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
@@ -250,12 +251,6 @@ sub check_tools {
 			if ($b_lvm){
 				$commands{'lvs'} = '';
 			}
-			if ($show{'bluetooth'}){
-				# hangs when bluetooth service is enabled
-				# $commands{'bt-adapter'} = '-l';
-				# hangs endlessly
-				# $commands{'bluetoothctl'} = 'list';
-			}
 		}
 		else {
 			if ($b_pci ){
@@ -289,6 +284,13 @@ sub check_tools {
 		}
 	}
 	%commands = ();
+	if ($show{'bluetooth'}){
+		# hangs when bluetooth service is enabled
+		# $commands{'bt-adapter'} = '-l';
+		# hangs endlessly
+		# $commands{'bluetoothctl'} = 'list';
+		$commands{'hciconfig'} = 'linux';
+	}
 	if ($show{'sensor'}){
 		$commands{'sensors'} = 'linux';
 	}
@@ -7065,7 +7067,7 @@ sub upower_data {
 ## BluetoothData 
 {
 package BluetoothData;
-
+my ($b_hci,%hci);
 sub get {
 	eval $start if $b_log;
 	my (@data,@rows);
@@ -7159,7 +7161,7 @@ sub usb_data {
 	my (@rows,$driver,$path_id,$product);
 	my ($j,$num) = (0,1);
 	foreach my $row (@usb){
-		if ($row->[14] && $row->[14] eq 'Bluetooth'){
+		if ($row->[14] && $row->[14] eq 'Mouse'){
 			$num = 1;
 			# makre sure to reset, or second device trips last flag
 			($driver,$path_id,$product) = ('','','');
@@ -7186,10 +7188,80 @@ sub usb_data {
 			if ($extra > 2 && $row->[16]){
 				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
 			}
+			push(@rows,advanced_data("$path_id:$row->[1]")) if $path_id;
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
+}
+sub advanced_data {
+	my $bus_id = $_[0];
+	eval $start if $b_log;
+	$bus_id =~ s/\.[0-9]+$//; # trime off trailing .x, we want .0 always
+	my (@rows);
+	my ($j,$num) = (0,1);
+	my $path = "/sys/bus/usb/devices/$bus_id.0/bluetooth/";
+	if (-e $path && (my @temp = main::globber("$path/*") && $alerts{'hciconfig'}->{'action'} eq 'use') ){
+		hci_data() if !$b_hci;
+		foreach my $item (@temp){
+			$item =~ s|^/.*/||;
+			if (%hci && $hci{$item}){
+				$j = scalar @rows;
+				push(@rows,{
+				main::key($num++,1,1,'HCI') => $hci{$item}->{'id'},
+				main::key($num++,0,2,'state') => $hci{$item}->{'state'},
+				},);
+				$rows[$j]->{main::key($num++,0,2,'address')} = main::apply_filter($hci{$item}->{'address'});
+			}
+		}
+	}
+	elsif ($alerts{'hciconfig'}->{'action'} ne 'use'){
+		my $key = 'Message';
+		push(@rows,{
+		main::key($num++,0,1,$key) => $alerts{'hciconfig'}->{$alerts{'hciconfig'}->{'action'}},
+		},);
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub hci_data {
+	eval $start if $b_log;
+	$b_hci = 1;
+	my (@data,$id);
+	if ($b_fake_bluetooth){
+		my $file;
+		$file = "";
+		@data = main::reader($file,'strip');
+	}
+	else {
+		my $cmd = "$alerts{'hciconfig'}->{'path'} -a 2>/dev/null";
+		@data = main::grabber($cmd,'', 'strip');
+	}
+	# print Data::Dumper::dumper \@hci;
+	main::log_data('dump','@data', \@data) if $b_log;
+	return if !$data[0] || $data[0] !~ /^(hci[0-9]+):/;
+	$id = $1;
+	$data[0] =~ /^hci[0-9]+:\s+Type:\s+(.*)\s+Bus:\s+([\S]+)/;
+	$hci{$id} = {
+	'type'=> $2,
+	'bus' => $3,
+	};
+	shift @data;
+	$data[0] =~ /^BD Address:\s+([0-9A-F:]*)\s+ACL\s+MTU:\s+([0-9:]+)\s+SCO MTU:\s+([0-9:]+)/;
+	$hci{$id}->{'address'} = $1;
+	$hci{$id}->{'acl-mtu'} = $2;
+	$hci{$id}->{'sco-mtu'} = $3;
+	shift @data if $hci{$id}->{'address'};
+	$data[0] =~ /^(UP.*|DOWN.*)/;
+	$hci{$id}->{'state'} = $1;
+	shift @data if $hci{$id}->{'state'};
+	
+	foreach (@data){
+		
+	}
+	# print Data::Dumper::dumper \@hci;
+	main::log_data('dump','%hci', \%hci) if $b_log;
+	eval $end if $b_log;
 }
 }
 
@@ -23001,10 +23073,11 @@ sub check_type {
 	if ($name =~ /(audio|hifi|sound)/){
 		$type = 'Audio';
 	}
-	elsif ($name =~ /(bluetooth)/ || ($driver && $driver =~ /btusb/)){
+	# Broadcom HP Portable SoftSailing
+	elsif (($driver && $driver =~ /btusb/) || $name =~ /(bluetooth)/){
 		$type = 'Bluetooth';
 	}
-	elsif ($name =~ /(display|video|camera)/|| ($driver && $driver =~ /uvcvideo/)){
+	elsif (($driver && $driver =~ /uvcvideo/) || $name =~ /(display|video|camera)/){
 		$type = 'Video';
 	}
 	# ethernet/wifi test not needed because NetworkData runs its own tests on the data
