@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.02';
 my $self_date='2021-01-24';
-my $self_patch='17';
+my $self_patch='187';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7097,6 +7097,10 @@ sub get {
 			},);
 		}
 	}
+	# if there are any unhandled hci items print them out
+	if (%hci){
+		push(@rows,advanced_data('check',''));
+	}
 	eval $end if $b_log;
 	return @rows;
 }
@@ -7198,22 +7202,29 @@ sub usb_data {
 sub advanced_data {
 	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
-	my ($path,@rows);
-	my ($j,$num) = (0,1);
+	my ($path,@rows,@temp);
+	my ($j,$num,$idhci) = (0,1,'');
+	hci_data() if !$b_hci && $alerts{'hciconfig'}->{'action'} eq 'use';
 	if ($type eq 'usb'){
 		$path = "/sys/bus/usb/devices/$bus_id:*/bluetooth";
 	}
-	else {
+	elsif ($type eq 'pci') {
 		$path = "/sys/bus/pci/devices/0000:$bus_id/bluetooth";
 	}
-	hci_data() if !$b_hci;
-	if ((my @temp = main::globber("$path/*")) && $alerts{'hciconfig'}->{'action'} eq 'use'){
+	if ($type ne 'check'){
+		@temp = main::globber("$path/*") if $path;
+		@temp = map {$_ =~ s|^/.*/||;$_;} @temp if @temp;
+	}
+	elsif ($type eq 'check' && %hci){
+		@temp = keys %hci;
+		$idhci = '-ID';
+	}
+	if (@temp){
 		foreach my $item (@temp){
-			$item =~ s|^/.*/||;
 			if (%hci && $hci{$item}){
 				$j = scalar @rows;
 				push(@rows,{
-				main::key($num++,1,1,'HCI') => $item,
+				main::key($num++,1,1,'HCI' . $idhci) => $item,
 				main::key($num++,0,2,'state') => $hci{$item}->{'state'},
 				},);
 				if ($extra > 0 && $hci{$item}->{'hci-version'}){
