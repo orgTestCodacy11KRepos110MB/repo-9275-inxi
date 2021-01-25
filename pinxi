@@ -7188,19 +7188,24 @@ sub usb_data {
 			if ($extra > 2 && $row->[16]){
 				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
 			}
-			push(@rows,advanced_data("$path_id:$row->[1]")) if $path_id;
+			push(@rows,advanced_data('usb',$path_id)) if $path_id;
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
 sub advanced_data {
-	my $bus_id = $_[0];
+	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
 	$bus_id =~ s/\.[0-9]+$//; # trime off trailing .x, we want .0 always
-	my (@rows);
+	my ($path,@rows);
 	my ($j,$num) = (0,1);
-	my $path = "/sys/bus/usb/devices/$bus_id.0/bluetooth/";
+	if ($type eq 'usb'){
+		$path = "/sys/bus/usb/devices/$bus_id/*.0/bluetooth/";
+	}
+	else {
+		$path = "/sys/unknown/bluetooth/";
+	}
 	if (-e $path && (my @temp = main::globber("$path/*") && $alerts{'hciconfig'}->{'action'} eq 'use') ){
 		hci_data() if !$b_hci;
 		foreach my $item (@temp){
