@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.02';
 my $self_date='2021-01-25';
-my $self_patch='24';
+my $self_patch='25';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7240,11 +7240,22 @@ sub advanced_data {
 				main::key($num++,1,$k,'HCI' . $idhci) => $item,
 				main::key($num++,0,$l,'state') => $hci{$item}->{'state'},
 				},);
-				if ($extra > 0 && $hci{$item}->{'hci-version'}){
-					$rows[$j]->{main::key($num++,0,$l,'v')} = $hci{$item}->{'hci-version'};
+				if ($extra > 0 && $hci{$item}->{'lmp-version'}){
+					$rows[$j]->{main::key($num++,0,$l,'v')} = $hci{$item}->{'lmp-version'};
+					if (my $btv = bluetooth_version($hci{$item}->{'lmp-version'})){
+						$rows[$j]->{main::key($num++,0,$l,'bt')} = $btv;
+					}
+					if ($extra > 1 && $hci{$item}->{'lmp-subversion'}){
+						$rows[$j]->{main::key($num++,0,$m,'sub-v')} = $hci{$item}->{'lmp-subversion'};
+					}
+					
 				}
-				if ($extra > 1 && $hci{$item}->{'hci-revision'}){
-					$rows[$j]->{main::key($num++,0,$l,'rev')} = $hci{$item}->{'hci-revision'};
+				if ($extra > 0 && $hci{$item}->{'hci-version'} && ($extra > 2 || !$hci{$item}->{'lmp-version'} || 
+				 ($hci{$item}->{'lmp-version'} && $hci{$item}->{'lmp-version'} ne $hci{$item}->{'hci-version'}))){
+					$rows[$j]->{main::key($num++,0,$l,'hci-v')} = $hci{$item}->{'hci-version'};
+					if ($extra > 1 && $hci{$item}->{'hci-revision'}){
+						$rows[$j]->{main::key($num++,0,$m,'rev')} = $hci{$item}->{'hci-revision'};
+					}
 				}
 				$rows[$j]->{main::key($num++,0,$l,'address')} = main::apply_filter($hci{$item}->{'address'});
 				if ($b_admin && 
@@ -7334,6 +7345,15 @@ sub hci_data {
 	}
 	# print Data::Dumper::Dumper \%hci;
 	main::log_data('dump','%hci', \%hci) if $b_log;
+	eval $end if $b_log;
+}
+sub bluetooth_version {
+	eval $start if $b_log;
+	my ($lmp) = @_;
+	return if !main::is_numeric($lmp);
+	$lmp = int($lmp);
+	my @bt = qw(1.0b 1.1 1.2 2.0 2.1 3.0 4.0 4.1 4.2 5.0 5.1 5.2);
+	return $bt[$lmp];
 	eval $end if $b_log;
 }
 }
