@@ -7121,8 +7121,7 @@ sub card_data {
 	foreach my $row (@devices_bluetooth){
 		$num = 1;
 		$j = scalar @rows;
-		my $driver = $row->[9];
-		$driver ||= 'N/A';
+		my $driver = ($row->[9]) ? $row->[9] : 'N/A';
 		my $card = $row->[4];
 		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
@@ -7181,10 +7180,9 @@ sub usb_data {
 			# makre sure to reset, or second device trips last flag
 			($driver,$path_id,$product) = ('','','');
 			$product = main::cleaner($row->[13]) if $row->[13];
-			$driver = $row->[15] if $row->[15];
+			$driver = ($row->[15]) ? $row->[15] : 'N/A';
 			$path_id = $row->[2] if $row->[2];
-			$product ||= 'N/A';
-			$driver ||= 'N/A';
+# 			$product ||= 'N/A';
 			push(@rows, {
 			main::key($num++,1,1,'Device') => $product,
 			main::key($num++,0,2,'type') => 'USB',
@@ -23115,14 +23113,13 @@ sub device_type {
 	# note: the 3/0/0 value passed will be decimal, not hex
 	my @types = split('/', $data) if $data;
 	#print @types,"\n";
+	if (!@types || $types[0] eq '0' || scalar @types != 3) {return '';}
+	elsif ($types[0] eq '255') { return '<vendor specific>';}
 	if (scalar @types == 3){
 		$class_id = $types[0];
 		$subclass_id = $types[1];
 		$protocol_id = $types[2];
 	}
-	if (!@types || $types[0] eq '0' || scalar @types != 3) {return '';}
-	elsif ($types[0] eq '255') { return '<vendor specific>';}
-	
 	if ($types[0] eq '1'){$type = 'Audio';}
 	elsif ($types[0] eq '2'){
 		if ($types[1] eq '2'){$type = 'Abstract (modem)';}
