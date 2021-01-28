@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.2.02';
 my $self_date='2021-01-27';
-my $self_patch='29';
+my $self_patch='30';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7177,6 +7177,7 @@ sub usb_data {
 		if ($row->[14] && $row->[14] eq 'Bluetooth'){
 			#print Data::Dumper::Dumper $row;
 			$num = 1;
+			$j = scalar @rows;
 			# makre sure to reset, or second device trips last flag
 			($driver,$path_id,$product) = ('','','');
 			$product = main::cleaner($row->[13]) if $row->[13];
@@ -7216,7 +7217,7 @@ sub advanced_data {
 	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
 	my ($path,@rows,@temp);
-	my ($j,$num,$k,$l,$m,$id) = (0,1,2,3,4,'');
+	my ($j,$num,$k,$l,$m,$id,$id2) = (0,1,2,3,4,'','');
 	hci_data() if !$b_hci && $alerts{'hciconfig'}->{'action'} eq 'use';
 	if ($type eq 'usb'){
 		$path = "/sys/bus/usb/devices/$bus_id:*/bluetooth";
@@ -7236,9 +7237,10 @@ sub advanced_data {
 	if (@temp && %hci){
 		foreach my $item (@temp){
 			if ($hci{$item}){
+				$id2 = $item if $id;
 				$j = scalar @rows;
 				push(@rows,{
-				main::key($num++,1,$k,'Report' . $id) => '',
+				main::key($num++,1,$k,'Report' . $id) => $id2,
 				},);
 				$rows[$j]->{main::key($num++,0,$l,'ID')} = $item if !$id;
 				$rows[$j]->{main::key($num++,0,$l,'state')} = $hci{$item}->{'state'};
