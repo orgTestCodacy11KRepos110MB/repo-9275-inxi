@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.00';
-my $self_date='2021-02-03';
-my $self_patch='03';
+my $self_date='2021-02-04';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -1377,19 +1377,19 @@ sub run_debugger {
 	print "Loading required debugger Perl File:: modules... \n";
 	# Fedora/Redhat doesn't include File::Find File::Copy in 
 	# core modules!! why? Or rather, they deliberately removed them!!
-	if (main::check_module('File::Find')){
+	if (main::check_perl_module('File::Find')){
 		File::Find->import('find');
 	}
 	else {
 		main::error_handler('required-module', 'File', 'File::Find');
 	}
-	if (main::check_module('File::Copy')){
+	if (main::check_perl_module('File::Copy')){
 		File::Copy->import;
 	}
 	else {
 		main::error_handler('required-module', 'File', 'File::Copy');
 	}
-	if (main::check_module('File::Spec::Functions')){
+	if (main::check_perl_module('File::Spec::Functions')){
 		File::Spec::Functions->import;
 	}
 	else {
@@ -2413,7 +2413,7 @@ sub set_downloader {
 	# It is NOT part of core modules. IO::Socket::SSL is also required 
 	# For some https connections so only use tiny as option if both present
 	if ($dl{'tiny'}){
-		if (check_module('HTTP::Tiny') && check_module('IO::Socket::SSL')){
+		if (check_perl_module('HTTP::Tiny') && check_perl_module('IO::Socket::SSL')){
 			HTTP::Tiny->import;
 			IO::Socket::SSL->import;
 			$dl{'tiny'} = 1;
@@ -2582,6 +2582,7 @@ sub error_defaults {
 ## CheckRecommends
 {
 package CheckRecommends;
+my (@modules);
 sub run {
 	main::error_handler('not-in-irc', 'recommends') if $b_irc;
 	my (@data,@rows);
@@ -2598,6 +2599,8 @@ sub run {
 	@data = check_items('recommended display information programs',$line,$pm);
 	push(@rows, @data);
 	@data = check_items('recommended downloader programs',$line,$pm);
+	push(@rows, @data);
+	@data = check_items('recommended kernel modules',$line,$pm);
 	push(@rows, @data);
 	@data = check_items('recommended Perl modules',$line,$pm);
 	push(@rows, @data);
@@ -2649,7 +2652,7 @@ sub basic_data {
 sub check_items {
 	my ($type,$line,$pm) = @_;
 	my (@data,%info,@missing,$row,@rows,$result,@unreadable);
-	my ($b_dir,$b_file,$b_module,$b_program,$item);
+	my ($b_dir,$b_file,$b_kernel_module,$b_perl_module,$b_program,$item);
 	my ($about,$extra,$extra2,$extra3,$extra4,$info_os,$install) = ('','','','','','info','');
 	if ($type eq 'required system directories'){
 		@data = qw(/proc /sys);
@@ -2704,7 +2707,7 @@ sub check_items {
 	elsif ($type eq 'recommended Perl modules'){
 		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
 		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
-		$b_module = 1;
+		$b_perl_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
 		$extra2 = "None of these are strictly required, but if you have them all, you can 
@@ -2713,6 +2716,18 @@ sub check_items {
 		For json export Cpanel::JSON::XS is preferred over JSON::XS. To run --debug 20-22 File::Copy,
 		File::Find, and File::Spec::Functions must be present (most distros have these in Core Modules).
 		";
+	}
+	elsif ($type eq 'recommended kernel modules'){
+		return if $bsd_type;
+		@data = qw(amdgpu drivetemp nouveau);
+		@modules = main::lister('/sys/module/');
+		$b_kernel_module = 1;
+		$extra2 = "Graphics modules are only needed if applicable. NVMe drives do not need drivetemp 
+		but other types do.";
+		$extra3 = "To load a module: modprobe <module-name> - To  permanently load
+		add to /etc/modules or /etc/modules-load.d/modules.conf (check your system
+		paths for exact file/directory names).";
+		$item = 'Kernel Module';
 	}
 	elsif ($type eq 'recommended directories'){
 		if ($bsd_type){
@@ -2752,28 +2767,30 @@ sub check_items {
 		$rows[scalar @rows] = (['0', '', '', $extra3]);
 		$rows[scalar @rows] = (['0', '', '', ' ']);
 	}
-	foreach (@data){
+	foreach my $item (@data){
 		$install = '';
 		$about = '';
-		%info = item_data($_);
+		%info = item_data($item);
 		$about = $info{$info_os};
-		if ( ( $b_dir && -d $_ ) || ( $b_file && -r $_ ) ||
-		     ($b_program && main::check_program($_) ) || ($b_module && main::check_module($_)) ){
+		if ( ( $b_dir && -d $item ) || ( $b_file && -r $item ) ||
+		     ($b_program && main::check_program($item) ) || 
+		     ($b_perl_module && main::check_perl_module($item)) ||
+		     ($b_kernel_module && @modules && (grep {/^$item$/} @modules))){
 			$result = 'Present';
 		}
-		elsif ($b_file && -f $_){
+		elsif ($b_file && -f $item){
 			$result = 'Unreadable';
-			push(@unreadable, "$_");
+			push(@unreadable, "$item");
 		}
 		else {
 			$result = 'Missing';
-			if (($b_program || $b_module) && $pm){
+			if (($b_program || $b_perl_module) && $pm){
 				$info{$pm} ||= 'N/A';
 				$install = " ~ Install package: $info{$pm}";
 			}
-			push(@missing, "$_$install");
+			push(@missing, "$item$install");
 		}
-		$row = make_row($_,$about,$result);
+		$row = make_row($item,$about,$result);
 		$rows[scalar @rows] = (['0', '', '', $row]);
 	}
 	$rows[scalar @rows] = (['0', '', '', " "]);
@@ -2859,6 +2876,19 @@ sub item_data {
 	},
 	'/var/run/dmesg.boot' => {
 	'info' => '-D,-d disk data',
+	},
+	## Kernel Module Data
+	'amdgpu' => {
+	'info' => '-s AMD graphics sensor data.',
+	'info-bsd' => '',
+	},
+	'drivetemp' => {
+	'info' => '-Dx drive temperature (kernel >= 5.8)',
+	'info-bsd' => '',
+	},
+	'nouveau' => {
+	'info' => '-s Nvidia graphics sensor data (if using free driver)',
+	'info-bsd' => '',
 	},
 	## START PACKAGE MANAGER BLOCK ##
 	# Note: see inxi-perl branch for details: docs/recommends-package-manager.txt
@@ -2948,7 +2978,7 @@ sub item_data {
 	'rpm' => 'bluez-utils',
 	},
 	'hddtemp' => {
-	'info' => '-Dx show hdd temp, if no /sys drive temp',
+	'info' => '-Dx show hdd temp, if no drivetemp module',
 	'info-bsd' => '-Dx show hdd temp',
 	'apt' => 'hddtemp',
 	'pacman' => 'hddtemp',
@@ -3274,7 +3304,7 @@ sub awk {
 }
 
 # $1 - Perl module to check
-sub check_module {
+sub check_perl_module {
 	my ($module) = @_;
 	my $b_present = 0;
 	eval "require $module";
@@ -3404,6 +3434,16 @@ sub joiner {
 		}
 	}
 	return $string;
+}
+
+# gets directory file list
+sub lister {
+	return if ! -d $_[0];
+	opendir my $dir, $_[0] or return;
+	my @list = readdir $dir;
+	@list = grep {!/^(\.|\.\.)$/} @list if @list;
+	closedir $dir;
+	return @list;
 }
 
 # returns array of: 0: program print name 1: program version
@@ -4558,7 +4598,7 @@ sub get_options {
 		my ($opt,$arg) = @_;
 		$arg = lc($arg);
 		if ($arg =~ /^(curl|fetch|ftp|perl|wget)$/){
-			if ($arg eq 'perl' && (!check_module('HTTP::Tiny') || !check_module('IO::Socket::SSL') )){
+			if ($arg eq 'perl' && (!check_perl_module('HTTP::Tiny') || !check_perl_module('IO::Socket::SSL') )){
 				error_handler('missing-perl-downloader', $opt, $arg);
 			}
 			elsif ( !check_program($arg)) {
@@ -6049,11 +6089,11 @@ sub generate_json {
 	my ($b_cpanel,$b_valid);
 	error_handler('not-in-irc', 'help') if $b_irc;
 	print Dumper $data if $b_debug;
-	if (check_module('Cpanel::JSON::XS')){
+	if (check_perl_module('Cpanel::JSON::XS')){
 		Cpanel::JSON::XS->import;
 		$json = Cpanel::JSON::XS::encode_json($data);
 	}
-	elsif (check_module('JSON::XS')){
+	elsif (check_perl_module('JSON::XS')){
 		JSON::XS->import;
 		$json = JSON::XS::encode_json($data);
 	}
@@ -6087,7 +6127,7 @@ sub generate_xml {
 	my $b_debug = 0;
 	error_handler('not-in-irc', 'help') if $b_irc;
 	#print Dumper $data if $b_debug;
-	if (check_module('XML::Dumper')){
+	if (check_perl_module('XML::Dumper')){
 		XML::Dumper->import;
 		$xml = XML::Dumper::pl2xml($data);
 		#$xml =~ s/"[0-9]+#/"/g;
@@ -20653,7 +20693,7 @@ sub get_hostname {
 	}
 	# puppy removed this from core modules, sigh
 	# this is faster than subshell of hostname
-	elsif (check_module('Sys::Hostname')){
+	elsif (check_perl_module('Sys::Hostname')){
 		Sys::Hostname->import;
 		$hostname = Sys::Hostname::hostname();
 	}
