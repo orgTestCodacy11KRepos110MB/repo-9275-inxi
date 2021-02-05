@@ -9233,8 +9233,7 @@ sub create_output_drives {
 	eval $start if $b_log;
 	my ($disks) = @_;
 	#print Data::Dumper::Dumper $disks;
-	my ($b_oldage,$b_prefail,$b_smart,$b_smart_permissions,@rows,
-	$smart_age,$smart_basic,$smart_fail);
+	my ($b_smart_permissions,@rows,$smart_age,$smart_basic,$smart_fail);
 	my ($num,$j) = (0,0);
 	my ($id,$logical_total,$logical_used,$model,$size,$size_value,$used,$percent,
 	$size_holder,$used_holder) = ('','','','','','','','','','');
@@ -9247,7 +9246,7 @@ sub create_output_drives {
 		($smart_age,$smart_basic,$smart_fail) = smartctl_fields();
 	}
 	foreach my $row (sort { $a->{'id'} cmp $b->{'id'} } @$disks){
-		($b_oldage,$b_prefail,$b_smart,$id,$model,$size) = (0,0,0,'','','');
+		($id,$model,$size) = ('','','');
 		$num = 1;
 		$model = ($row->{'model'}) ? $row->{'model'}: 'N/A';
 		$id =  ($row->{'id'}) ? "/dev/$row->{'id'}":'N/A';
@@ -9325,43 +9324,12 @@ sub create_output_drives {
 			create_smartctl_data('age',$smart_age,$row,$j,\$num,\@rows) if @$smart_age;
 			## Pre-Fail errors ##
 			create_smartctl_data('fail',$smart_fail,$row,$j,\$num,\@rows) if @$smart_fail;
-# 			## Basic SMART and drive info ##
-# 			for (my $i = 0; $i < scalar @$smart_basic;$i++){
-# 				if ($row->{$smart_basic->[$i][0]}){
-# 					if (!$b_smart){
-# 						my $support = ($row->{'smart'}) ? $row->{'smart'}: $row->{'smart-error'};
-# 						$rows[$j]->{main::key($num++,1,2,$smart_basic->[$i][1])} = $support;
-# 						$b_smart = 1;
-# 						next;
-# 					}
-# 					$rows[$j]->{main::key($num++,0,3,$smart_basic->[$i][1])} = $row->{$smart_basic->[$i][0]};
-# 				}
-# 			}
-# 			## Old-Age errors ##
-# 			for (my $i = 0; $i < scalar @$smart_age;$i++){
-# 				if ($row->{$smart_age->[$i][0]}){
-# 					if (!$b_oldage){
-# 						$rows[$j]->{main::key($num++,1,3,'Old-Age')} = '';
-# 						$b_oldage = 1;
-# 					}
-# 					$rows[$j]->{main::key($num++,0,4,$smart_age->[$i][1])} = $row->{$smart_age->[$i][0]};
-# 				}
-# 			}
-# 			## Pre-Fail errors ##
-# 			for (my $i = 0; $i < scalar @$smart_fail;$i++){
-# 				if ($row->{$smart_fail->[$i][0]}){
-# 					if (!$b_prefail){
-# 						$rows[$j]->{main::key($num++,1,3,'Pre-Fail')} = '';
-# 						$b_prefail = 1;
-# 					}
-# 					$rows[$j]->{main::key($num++,0,4,$smart_fail->[$i][1])} = $row->{$smart_fail->[$i][0]};
-# 				}
-# 			}
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
+# $num and $rows passed by reference
 sub create_smartctl_data {
 	eval $start if $b_log;
 	my ($type,$smart_data,$row,$j,$num,$rows) = @_;
@@ -9386,86 +9354,7 @@ sub create_smartctl_data {
 	}
 	eval $end if $b_log;
 }
-# return indexes: 0 - age; 1 - basic; 2 - fail
-sub smartctl_fields {
-	eval $start if $b_log;
-	my @data = ([ # age
-	['smart-gsense-error-rate-r','g-sense error rate'],
-	['smart-media-wearout-v','media wearout'],
-	['smart-media-wearout-t','threshold'],
-	['smart-media-wearout-f','alert'],
-	['smart-multizone-errors-v','write error rate'],
-	['smart-multizone-errors-t','threshold'],
-	['smart-udma-crc-errors-r','UDMA CRC errors'],
-	['smart-udma-crc-errors-f','alert'],
-	],
-	[ # basic
-	['smart','SMART'],
-	['smart-error','SMART Message'],
-	['smart-support','state'],
-	['smart-status','health'],
-	['smart-power-on-hours','on'],
-	['smart-cycles','cycles'],
-	['smart-units-read','read-units'],
-	['smart-units-written','written-units'],
-	['smart-read','read'],
-	['smart-written','written'],
-	],
-	[ # fail
-	['smart-end-to-end-v','end-to-end'],
-	['smart-end-to-end-t','threshold'],
-	['smart-end-to-end-f','alert'],
-	['smart-raw-read-error-rate-v','read error rate'],
-	['smart-raw-read-error-rate-t','threshold'],
-	['smart-raw-read-error-rate-f','alert'],
-	['smart-reallocated-sectors-v','reallocated sector'],
-	['smart-reallocated-sectors-t','threshold'],
-	['smart-reallocated-sectors-f','alert'],
-	['smart-retired-blocks-v','retired block'],
-	['smart-retired-blocks-t','threshold'],
-	['smart-retired-blocks-f','alert'],
-	['smart-runtime-bad-block-v','runtime bad block'],
-	['smart-runtime-bad-block-t','threshold'],
-	['smart-runtime-bad-block-f','alert'],
-	['smart-seek-error-rate-v', 'seek error rate'],
-	['smart-seek-error-rate-t', 'threshold'],
-	['smart-seek-error-rate-f', 'alert'],
-	['smart-spinup-time-v','spin-up time'],
-	['smart-spinup-time-t','threshold'],
-	['smart-spinup-time-f','alert'],
-	['smart-ssd-life-left-v','life left'],
-	['smart-ssd-life-left-t','threshold'],
-	['smart-ssd-life-left-f','alert'],
-	['smart-unused-reserve-block-v','unused reserve block'],
-	['smart-unused-reserve-block-t','threshold'],
-	['smart-unused-reserve-blockf','alert'],
-	['smart-used-reserve-block-v','used reserve block'],
-	['smart-used-reserve-block-t','threshold'],
-	['smart-used-reserve-block-f','alert'],
-	['smart-unknown-1-a','attribute'],
-	['smart-unknown-1-v','value'],
-	['smart-unknown-1-w','worst'],
-	['smart-unknown-1-t','threshold'],
-	['smart-unknown-1-f','alert'],
-	['smart-unknown-2-a','attribute'],
-	['smart-unknown-2-v','value'],
-	['smart-unknown-2-w','worst'],
-	['smart-unknown-2-t','threshold'],
-	['smart-unknown-2-f','alert'],
-	['smart-unknown-3-a','attribute'],
-	['smart-unknown-3-v','value'],
-	['smart-unknown-3-w','worst'],
-	['smart-unknown-3-t','threshold'],
-	['smart-unknown-4-f','alert'],
-	['smart-unknown-4-a','attribute'],
-	['smart-unknown-4-v','value'],
-	['smart-unknown-4-w','worst'],
-	['smart-unknown-4-t','threshold'],
-	['smart-unknown-4-f','alert'],
-	]);
-	eval $end if $b_log;
-	return @data;
-}
+
 sub disk_data {
 	eval $start if $b_log;
 	my ($type) = @_;
@@ -9823,6 +9712,88 @@ sub dmesg_boot_data {
 		# print 'drives:', Data::Dumper::Dumper \@drives;
 	}
 	# print Data::Dumper::Dumper \@data;
+	eval $end if $b_log;
+	return @data;
+}
+
+# return indexes: 0 - age; 1 - basic; 2 - fail
+# make sure to update if fields added in smartctl_data()
+sub smartctl_fields {
+	eval $start if $b_log;
+	my @data = ([ # age
+	['smart-gsense-error-rate-r','g-sense error rate'],
+	['smart-media-wearout-v','media wearout'],
+	['smart-media-wearout-t','threshold'],
+	['smart-media-wearout-f','alert'],
+	['smart-multizone-errors-v','write error rate'],
+	['smart-multizone-errors-t','threshold'],
+	['smart-udma-crc-errors-r','UDMA CRC errors'],
+	['smart-udma-crc-errors-f','alert'],
+	],
+	[ # basic
+	['smart','SMART'],
+	['smart-error','SMART Message'],
+	['smart-support','state'],
+	['smart-status','health'],
+	['smart-power-on-hours','on'],
+	['smart-cycles','cycles'],
+	['smart-units-read','read-units'],
+	['smart-units-written','written-units'],
+	['smart-read','read'],
+	['smart-written','written'],
+	],
+	[ # fail
+	['smart-end-to-end-v','end-to-end'],
+	['smart-end-to-end-t','threshold'],
+	['smart-end-to-end-f','alert'],
+	['smart-raw-read-error-rate-v','read error rate'],
+	['smart-raw-read-error-rate-t','threshold'],
+	['smart-raw-read-error-rate-f','alert'],
+	['smart-reallocated-sectors-v','reallocated sector'],
+	['smart-reallocated-sectors-t','threshold'],
+	['smart-reallocated-sectors-f','alert'],
+	['smart-retired-blocks-v','retired block'],
+	['smart-retired-blocks-t','threshold'],
+	['smart-retired-blocks-f','alert'],
+	['smart-runtime-bad-block-v','runtime bad block'],
+	['smart-runtime-bad-block-t','threshold'],
+	['smart-runtime-bad-block-f','alert'],
+	['smart-seek-error-rate-v', 'seek error rate'],
+	['smart-seek-error-rate-t', 'threshold'],
+	['smart-seek-error-rate-f', 'alert'],
+	['smart-spinup-time-v','spin-up time'],
+	['smart-spinup-time-t','threshold'],
+	['smart-spinup-time-f','alert'],
+	['smart-ssd-life-left-v','life left'],
+	['smart-ssd-life-left-t','threshold'],
+	['smart-ssd-life-left-f','alert'],
+	['smart-unused-reserve-block-v','unused reserve block'],
+	['smart-unused-reserve-block-t','threshold'],
+	['smart-unused-reserve-blockf','alert'],
+	['smart-used-reserve-block-v','used reserve block'],
+	['smart-used-reserve-block-t','threshold'],
+	['smart-used-reserve-block-f','alert'],
+	['smart-unknown-1-a','attribute'],
+	['smart-unknown-1-v','value'],
+	['smart-unknown-1-w','worst'],
+	['smart-unknown-1-t','threshold'],
+	['smart-unknown-1-f','alert'],
+	['smart-unknown-2-a','attribute'],
+	['smart-unknown-2-v','value'],
+	['smart-unknown-2-w','worst'],
+	['smart-unknown-2-t','threshold'],
+	['smart-unknown-2-f','alert'],
+	['smart-unknown-3-a','attribute'],
+	['smart-unknown-3-v','value'],
+	['smart-unknown-3-w','worst'],
+	['smart-unknown-3-t','threshold'],
+	['smart-unknown-4-f','alert'],
+	['smart-unknown-4-a','attribute'],
+	['smart-unknown-4-v','value'],
+	['smart-unknown-4-w','worst'],
+	['smart-unknown-4-t','threshold'],
+	['smart-unknown-4-f','alert'],
+	]);
 	eval $end if $b_log;
 	return @data;
 }
