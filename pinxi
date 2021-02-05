@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.00';
-my $self_date='2021-02-04';
-my $self_patch='04';
+my $self_date='2021-02-05';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -2600,8 +2600,10 @@ sub run {
 	push(@rows, @data);
 	@data = check_items('recommended downloader programs',$line,$pm);
 	push(@rows, @data);
-	@data = check_items('recommended kernel modules',$line,$pm);
-	push(@rows, @data);
+	if (!$bsd_type){
+		@data = check_items('recommended kernel modules',$line,$pm);
+		push(@rows, @data);
+	}
 	@data = check_items('recommended Perl modules',$line,$pm);
 	push(@rows, @data);
 	@data = check_items('recommended directories',$line,'');
@@ -2718,7 +2720,6 @@ sub check_items {
 		";
 	}
 	elsif ($type eq 'recommended kernel modules'){
-		return if $bsd_type;
 		@data = qw(amdgpu drivetemp nouveau);
 		@modules = main::lister('/sys/module/');
 		$b_kernel_module = 1;
@@ -9147,8 +9148,8 @@ sub get {
 	# NOTE: 
 	if (@data){
 		if ($type eq 'standard'){
-			@data = create_output(\@data);
-			push(@rows,@data);
+			push(@rows,create_output_totals(\@data));
+			push(@rows,create_output_drives(\@data)) if $show{'disk'} && @data;
 			if ($bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
 				my $file = main::system_files('dmesg-boot');
@@ -9191,15 +9192,214 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub create_output_totals {
+	eval $start if $b_log;
+	my ($disks) = @_;
+	my (@rows);
+	my ($num,$j) = (0,0);
+	my ($size,$size_value,$used) = ('','','');
+	push(@rows, {
+	main::key($num++,1,1,'Local Storage') => '',
+	});
+	#print Data::Dumper::Dumper $disks;
+	$size = main::get_size($disks->[0]{'size'},'string','N/A');
+	if ($disks->[0]{'logical-size'}){
+		$rows[$j]->{main::key($num++,1,2,'total')} = '';
+		$rows[$j]->{main::key($num++,0,3,'raw')} = $size;
+		$size = main::get_size($disks->[0]{'logical-size'},'string');
+		$size_value = $disks->[0]{'logical-size'};
+		#print Data::Dumper::Dumper $disks;
+		$rows[$j]->{main::key($num++,1,3,'usable')} = $size;
+	}
+	else {
+		$size_value = $disks->[0]{'size'} if $disks->[0]{'size'};
+		$rows[$j]->{main::key($num++,0,2,'total')} = $size;
+	}
+	$used = main::get_size($disks->[0]{'used'},'string','N/A');
+	if ($extra > 0 && $disks->[0]{'logical-free'}){
+		$size = main::get_size($disks->[0]{'logical-free'},'string');
+		$rows[$j]->{main::key($num++,0,4,'lvm-free')} = $size;
+	}
+	if (($size_value && $size_value =~ /^[0-9]/) && 
+		 ($used && $disks->[0]{'used'} =~ /^[0-9]/ )){
+		$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$size_value*100) . '%)';
+	}
+	$rows[$j]->{main::key($num++,0,2,'used')} = $used;
+	shift @$disks;
+	eval $end if $b_log;
+	return @rows;
+}
+sub create_output_drives {
 	eval $start if $b_log;
 	my ($disks) = @_;
 	#print Data::Dumper::Dumper $disks;
-	my ($b_oldage,$b_prefail,$b_smart,$b_smart_permissions,@rows);
+	my ($b_oldage,$b_prefail,$b_smart,$b_smart_permissions,@rows,
+	$smart_age,$smart_basic,$smart_fail);
 	my ($num,$j) = (0,0);
 	my ($id,$logical_total,$logical_used,$model,$size,$size_value,$used,$percent,
 	$size_holder,$used_holder) = ('','','','','','','','','','');
-	my @smart_basic =(
+	# note: specific smartctl non-missing errors handled inside loop
+	if ($smartctl_missing){
+		$j = scalar @rows;
+		$rows[$j]->{main::key($num++,0,1,'SMART Message')} = $smartctl_missing;
+	}
+	elsif ($b_admin) {
+		($smart_age,$smart_basic,$smart_fail) = smartctl_fields();
+	}
+	foreach my $row (sort { $a->{'id'} cmp $b->{'id'} } @$disks){
+		($b_oldage,$b_prefail,$b_smart,$id,$model,$size) = (0,0,0,'','','');
+		$num = 1;
+		$model = ($row->{'model'}) ? $row->{'model'}: 'N/A';
+		$id =  ($row->{'id'}) ? "/dev/$row->{'id'}":'N/A';
+		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
+		#print Data::Dumper::Dumper $disks;
+		$j = scalar @rows;
+		if (!$b_smart_permissions && $row->{'smart-permissions'}){
+			$b_smart_permissions = 1;
+			$rows[$j]->{main::key($num++,0,1,'SMART Message')} = $row->{'smart-permissions'};
+			$j = scalar @rows;
+		}
+		push(@rows, {
+		main::key($num++,1,1,'ID') => $id,
+		});
+		if ($b_admin && $row->{'maj-min'}){
+			$rows[$j]->{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
+		}
+		if ($row->{'type'}){
+			$rows[$j]->{main::key($num++,0,2,'type')} = $row->{'type'};
+		}
+		if ($row->{'vendor'}){
+			$rows[$j]->{main::key($num++,0,2,'vendor')} = $row->{'vendor'};
+		}
+		$rows[$j]->{main::key($num++,0,2,'model')} = $model;
+		if ($row->{'drive-vendor'}){
+			$rows[$j]->{main::key($num++,0,2,'drive vendor')} = $row->{'drive-vendor'};
+		}
+		if ($row->{'drive-model'}){
+			$rows[$j]->{main::key($num++,0,2,'drive model')} = $row->{'drive-model'};
+		}
+		if ($row->{'family'}){
+			$rows[$j]->{main::key($num++,0,2,'family')} = $row->{'family'};
+		}
+		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
+		if ($b_admin && $row->{'block-physical'}){
+			$rows[$j]->{main::key($num++,1,2,'block size')} = '';
+			$rows[$j]->{main::key($num++,0,3,'physical')} = $row->{'block-physical'} . ' B';
+			$rows[$j]->{main::key($num++,0,3,'logical')} = ($row->{'block-logical'}) ? $row->{'block-logical'} . ' B' : 'N/A';
+		}
+		if ($extra > 1 && $row->{'speed'}){
+			if ($row->{'sata'}){
+				$rows[$j]->{main::key($num++,0,2,'sata')} = $row->{'sata'};
+			}
+			$rows[$j]->{main::key($num++,0,2,'speed')} = $row->{'speed'};
+			$rows[$j]->{main::key($num++,0,2,'lanes')} = $row->{'lanes'} if $row->{'lanes'};
+		}
+		if ($extra > 2 && $row->{'rotation'}){
+			$rows[$j]->{main::key($num++,0,2,'rotation')} = $row->{'rotation'};
+		}
+		if ($extra > 1){
+			my $serial = main::apply_filter($row->{'serial'});
+			$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
+			if ($row->{'drive-serial'}){
+				$rows[$j]->{main::key($num++,0,2,'drive serial')} = main::apply_filter($row->{'drive-serial'});
+			}
+			if ($row->{'firmware'}){
+				$rows[$j]->{main::key($num++,0,2,'rev')} = $row->{'firmware'};
+			}
+			if ($row->{'drive-firmware'}){
+				$rows[$j]->{main::key($num++,0,2,'drive rev')} = $row->{'drive-firmware'};
+			}
+		}
+		if ($extra > 0 && $row->{'temp'}){
+			$rows[$j]->{main::key($num++,0,2,'temp')} = $row->{'temp'} . ' C';
+		}
+		# extra level tests already done
+		if (defined $row->{'partition-table'}){
+			$rows[$j]->{main::key($num++,0,2,'scheme')} = $row->{'partition-table'};
+		}
+		if ($row->{'smart'} || $row->{'smart-error'}){
+			$j = scalar @rows;
+			## Basic SMART and drive info ##
+			create_smartctl_data('basic',$smart_basic,$row,$j,\$num,\@rows) if @$smart_basic;
+			## Old-Age errors ##
+			create_smartctl_data('age',$smart_age,$row,$j,\$num,\@rows) if @$smart_age;
+			## Pre-Fail errors ##
+			create_smartctl_data('fail',$smart_fail,$row,$j,\$num,\@rows) if @$smart_fail;
+# 			## Basic SMART and drive info ##
+# 			for (my $i = 0; $i < scalar @$smart_basic;$i++){
+# 				if ($row->{$smart_basic->[$i][0]}){
+# 					if (!$b_smart){
+# 						my $support = ($row->{'smart'}) ? $row->{'smart'}: $row->{'smart-error'};
+# 						$rows[$j]->{main::key($num++,1,2,$smart_basic->[$i][1])} = $support;
+# 						$b_smart = 1;
+# 						next;
+# 					}
+# 					$rows[$j]->{main::key($num++,0,3,$smart_basic->[$i][1])} = $row->{$smart_basic->[$i][0]};
+# 				}
+# 			}
+# 			## Old-Age errors ##
+# 			for (my $i = 0; $i < scalar @$smart_age;$i++){
+# 				if ($row->{$smart_age->[$i][0]}){
+# 					if (!$b_oldage){
+# 						$rows[$j]->{main::key($num++,1,3,'Old-Age')} = '';
+# 						$b_oldage = 1;
+# 					}
+# 					$rows[$j]->{main::key($num++,0,4,$smart_age->[$i][1])} = $row->{$smart_age->[$i][0]};
+# 				}
+# 			}
+# 			## Pre-Fail errors ##
+# 			for (my $i = 0; $i < scalar @$smart_fail;$i++){
+# 				if ($row->{$smart_fail->[$i][0]}){
+# 					if (!$b_prefail){
+# 						$rows[$j]->{main::key($num++,1,3,'Pre-Fail')} = '';
+# 						$b_prefail = 1;
+# 					}
+# 					$rows[$j]->{main::key($num++,0,4,$smart_fail->[$i][1])} = $row->{$smart_fail->[$i][0]};
+# 				}
+# 			}
+		}
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub create_smartctl_data {
+	eval $start if $b_log;
+	my ($type,$smart_data,$row,$j,$num,$rows) = @_;
+	my ($b_found);
+	my ($l,$m) = ($type eq 'basic') ? (2,3) : (3,4);
+	for (my $i = 0; $i < scalar @$smart_data;$i++){
+		if ($row->{$smart_data->[$i][0]}){
+			if (!$b_found){
+				my ($key,$support) = ('','');
+				if ($type eq 'basic'){
+					$support = ($row->{'smart'}) ? $row->{'smart'}: $row->{'smart-error'};
+					$key = $smart_data->[$i][1];
+				}
+				elsif ($type eq 'age'){$key = 'Old-Age';}
+				elsif ($type eq 'fail'){$key = 'Pre_fail';}
+				$$rows[$j]->{main::key($$num++,1,$l,$key)} = $support;
+				$b_found = 1;
+				next;
+			}
+			$$rows[$j]->{main::key($$num++,0,$m,$smart_data->[$i][1])} = $row->{$smart_data->[$i][0]};
+		}
+	}
+	eval $end if $b_log;
+}
+# return indexes: 0 - age; 1 - basic; 2 - fail
+sub smartctl_fields {
+	eval $start if $b_log;
+	my @data = ([ # age
+	['smart-gsense-error-rate-r','g-sense error rate'],
+	['smart-media-wearout-v','media wearout'],
+	['smart-media-wearout-t','threshold'],
+	['smart-media-wearout-f','alert'],
+	['smart-multizone-errors-v','write error rate'],
+	['smart-multizone-errors-t','threshold'],
+	['smart-udma-crc-errors-r','UDMA CRC errors'],
+	['smart-udma-crc-errors-f','alert'],
+	],
+	[ # basic
 	['smart','SMART'],
 	['smart-error','SMART Message'],
 	['smart-support','state'],
@@ -9210,18 +9410,8 @@ sub create_output {
 	['smart-units-written','written-units'],
 	['smart-read','read'],
 	['smart-written','written'],
-	);
-	my @smart_age =(
-	['smart-gsense-error-rate-r','g-sense error rate'],
-	['smart-media-wearout-v','media wearout'],
-	['smart-media-wearout-t','threshold'],
-	['smart-media-wearout-f','alert'],
-	['smart-multizone-errors-v','write error rate'],
-	['smart-multizone-errors-t','threshold'],
-	['smart-udma-crc-errors-r','UDMA CRC errors'],
-	['smart-udma-crc-errors-f','alert'],
-	);
-	my @smart_fail =(
+	],
+	[ # fail
 	['smart-end-to-end-v','end-to-end'],
 	['smart-end-to-end-t','threshold'],
 	['smart-end-to-end-f','alert'],
@@ -9272,152 +9462,9 @@ sub create_output {
 	['smart-unknown-4-w','worst'],
 	['smart-unknown-4-t','threshold'],
 	['smart-unknown-4-f','alert'],
-	);
-	push(@rows, {
-	main::key($num++,1,1,'Local Storage') => '',
-	});
-	#print Data::Dumper::Dumper $disks;
-	$size = main::get_size($disks->[0]{'size'},'string','N/A');
-	if ($disks->[0]{'logical-size'}){
-		$rows[$j]->{main::key($num++,1,2,'total')} = '';
-		$rows[$j]->{main::key($num++,0,3,'raw')} = $size;
-		$size = main::get_size($disks->[0]{'logical-size'},'string');
-		$size_value = $disks->[0]{'logical-size'};
-		#print Data::Dumper::Dumper $disks;
-		$rows[$j]->{main::key($num++,1,3,'usable')} = $size;
-	}
-	else {
-		$size_value = $disks->[0]{'size'} if $disks->[0]{'size'};
-		$rows[$j]->{main::key($num++,0,2,'total')} = $size;
-		
-	}
-	$used = main::get_size($disks->[0]{'used'},'string','N/A');
-	if ($extra > 0 && $disks->[0]{'logical-free'}){
-		$size = main::get_size($disks->[0]{'logical-free'},'string');
-		$rows[$j]->{main::key($num++,0,4,'lvm-free')} = $size;
-	}
-	if (($size_value && $size_value =~ /^[0-9]/) && 
-		 ($used && $disks->[0]{'used'} =~ /^[0-9]/ )){
-		$used = $used . ' (' . sprintf("%0.1f", $disks->[0]{'used'}/$size_value*100) . '%)';
-	}
-	$rows[$j]->{main::key($num++,0,2,'used')} = $used;
-	shift @$disks;
-	if ($smartctl_missing){
-		$j = scalar @rows;
-		$rows[$j]->{main::key($num++,0,1,'SMART Message')} = $smartctl_missing;
-	}
-	if ($show{'disk'} && @$disks){
-		@$disks = sort { $a->{'id'} cmp $b->{'id'} } @$disks;
-		foreach my $row (@$disks){
-			($b_oldage,$b_prefail,$b_smart,$id,$model,$size) = (0,0,0,'','','');
-			$num = 1;
-			$model = ($row->{'model'}) ? $row->{'model'}: 'N/A';
-			$id =  ($row->{'id'}) ? "/dev/$row->{'id'}":'N/A';
-			$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
-			#print Data::Dumper::Dumper $disks;
-			$j = scalar @rows;
-			if (!$b_smart_permissions && $row->{'smart-permissions'}){
-				$b_smart_permissions = 1;
-				$rows[$j]->{main::key($num++,0,1,'SMART Message')} = $row->{'smart-permissions'};
-				$j = scalar @rows;
-			}
-			push(@rows, {
-			main::key($num++,1,1,'ID') => $id,
-			});
-			if ($b_admin && $row->{'maj-min'}){
-				$rows[$j]->{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
-			}
-			if ($row->{'type'}){
-				$rows[$j]->{main::key($num++,0,2,'type')} = $row->{'type'};
-			}
-			if ($row->{'vendor'}){
-				$rows[$j]->{main::key($num++,0,2,'vendor')} = $row->{'vendor'};
-			}
-			$rows[$j]->{main::key($num++,0,2,'model')} = $model;
-			if ($row->{'drive-vendor'}){
-				$rows[$j]->{main::key($num++,0,2,'drive vendor')} = $row->{'drive-vendor'};
-			}
-			if ($row->{'drive-model'}){
-				$rows[$j]->{main::key($num++,0,2,'drive model')} = $row->{'drive-model'};
-			}
-			if ($row->{'family'}){
-				$rows[$j]->{main::key($num++,0,2,'family')} = $row->{'family'};
-			}
-			$rows[$j]->{main::key($num++,0,2,'size')} = $size;
-			if ($b_admin && $row->{'block-physical'}){
-				$rows[$j]->{main::key($num++,1,2,'block size')} = '';
-				$rows[$j]->{main::key($num++,0,3,'physical')} = $row->{'block-physical'} . ' B';
-				$rows[$j]->{main::key($num++,0,3,'logical')} = ($row->{'block-logical'}) ? $row->{'block-logical'} . ' B' : 'N/A';
-			}
-			if ($extra > 1 && $row->{'speed'}){
-				if ($row->{'sata'}){
-					$rows[$j]->{main::key($num++,0,2,'sata')} = $row->{'sata'};
-				}
-				$rows[$j]->{main::key($num++,0,2,'speed')} = $row->{'speed'};
-				$rows[$j]->{main::key($num++,0,2,'lanes')} = $row->{'lanes'} if $row->{'lanes'};
-			}
-			if ($extra > 2 && $row->{'rotation'}){
-				$rows[$j]->{main::key($num++,0,2,'rotation')} = $row->{'rotation'};
-			}
-			if ($extra > 1){
-				my $serial = main::apply_filter($row->{'serial'});
-				$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
-				if ($row->{'drive-serial'}){
-					$rows[$j]->{main::key($num++,0,2,'drive serial')} = main::apply_filter($row->{'drive-serial'});
-				}
-				if ($row->{'firmware'}){
-					$rows[$j]->{main::key($num++,0,2,'rev')} = $row->{'firmware'};
-				}
-				if ($row->{'drive-firmware'}){
-					$rows[$j]->{main::key($num++,0,2,'drive rev')} = $row->{'drive-firmware'};
-				}
-			}
-			if ($extra > 0 && $row->{'temp'}){
-				$rows[$j]->{main::key($num++,0,2,'temp')} = $row->{'temp'} . ' C';
-			}
-			# extra level tests already done
-			if (defined $row->{'partition-table'}){
-				$rows[$j]->{main::key($num++,0,2,'scheme')} = $row->{'partition-table'};
-			}
-			if ($row->{'smart'} || $row->{'smart-error'}){
-				$j = scalar @rows;
-				## Basic SMART and drive info ##
-				for (my $i = 0; $i < scalar @smart_basic;$i++){
-					if ($row->{$smart_basic[$i][0]}){
-						if (!$b_smart){
-							my $support = ($row->{'smart'}) ? $row->{'smart'}: $row->{'smart-error'};
-							$rows[$j]->{main::key($num++,1,2,$smart_basic[$i][1])} = $support;
-							$b_smart = 1;
-							next;
-						}
-						$rows[$j]->{main::key($num++,0,3,$smart_basic[$i][1])} = $row->{$smart_basic[$i][0]};
-					}
-				}
-				## Old-Age errors ##
-				for (my $i = 0; $i < scalar @smart_age;$i++){
-					if ($row->{$smart_age[$i][0]}){
-						if (!$b_oldage){
-							$rows[$j]->{main::key($num++,1,3,'Old-Age')} = '';
-							$b_oldage = 1;
-						}
-						$rows[$j]->{main::key($num++,0,4,$smart_age[$i][1])} = $row->{$smart_age[$i][0]};
-					}
-				}
-				## Pre-Fail errors ##
-				for (my $i = 0; $i < scalar @smart_fail;$i++){
-					if ($row->{$smart_fail[$i][0]}){
-						if (!$b_prefail){
-							$rows[$j]->{main::key($num++,1,3,'Pre-Fail')} = '';
-							$b_prefail = 1;
-						}
-						$rows[$j]->{main::key($num++,0,4,$smart_fail[$i][1])} = $row->{$smart_fail[$i][0]};
-					}
-				}
-			}
-		}
-	}
+	]);
 	eval $end if $b_log;
-	return @rows;
+	return @data;
 }
 sub disk_data {
 	eval $start if $b_log;
