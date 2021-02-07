@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.00';
 my $self_date='2021-02-07';
-my $self_patch='11';
+my $self_patch='12';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6480,7 +6480,7 @@ package AudioData;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows);
+	my (@rows);
 	my $num = 0;
 	if (($b_arm || $b_mips) && !$b_soc_audio && !$b_pci_tool){
 		my $type = ($b_arm) ? 'arm' : 'mips';
@@ -6490,16 +6490,13 @@ sub get {
 		},);
 	}
 	else {
-		@data = card_data();
-		push(@rows,@data);
+		push(@rows,device_output());
 	}
 	if ( ( (($b_arm || $b_mips) && !$b_soc_audio && !$b_pci_tool) || !@rows ) && 
 	   (my $file = main::system_files('asound-cards') ) ){
-		@data = asound_data($file);
-		push(@rows,@data);
+		push(@rows,asound_output($file));
 	}
-	@data = usb_data();
-	push(@rows,@data);
+	push(@rows,usb_output());
 	if (!@rows){
 		my $key = 'Message';
 		my $type = 'pci-card-data';
@@ -6510,13 +6507,12 @@ sub get {
 		main::key($num++,0,1,$key) => main::row_defaults($type,''),
 		},);
 	}
-	@data = sound_server_data();
-	push(@rows,@data);
+	push(@rows,sound_server_output());
 	eval $end if $b_log;
 	return @rows;
 }
 
-sub card_data {
+sub device_output {
 	eval $start if $b_log;
 	my (@rows);
 	my ($j,$num) = (0,1);
@@ -6573,7 +6569,7 @@ sub card_data {
 # this handles fringe cases where there is no card on pcibus,
 # but there is a card present. I don't know the exact architecture
 # involved but I know this situation exists on at least one old machine.
-sub asound_data {
+sub asound_output {
 	eval $start if $b_log;
 	my ($file) = @_;
 	my (@asound,@rows);
@@ -6608,7 +6604,7 @@ sub asound_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub usb_data {
+sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@ids,$driver,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
@@ -6668,7 +6664,7 @@ sub usb_data {
 	return @rows;
 }
 
-sub sound_server_data {
+sub sound_server_output {
 	eval $start if $b_log;
 	my (@data,$server,$version);
 	my $num = 0;
@@ -6726,7 +6722,7 @@ sub get {
 				}
 			}
 			else {
-				@rows = create_output(\%battery);
+				@rows = battery_output(\%battery);
 			}
 		}
 	}
@@ -6740,7 +6736,7 @@ sub get {
 			}
 		}
 		else {
-			@rows = create_output(\%battery);
+			@rows = battery_output(\%battery);
 		}
 	}
 	else {
@@ -6775,7 +6771,7 @@ sub get {
 # 15 manufacturer
 # 16 serial_number
 # 17 location
-sub create_output {
+sub battery_output {
 	eval $start if $b_log;
 	my ($battery) = @_;
 	my ($key,@rows);
@@ -7123,7 +7119,7 @@ package BluetoothData;
 my ($b_hci_error,$b_hci,%hci);
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows);
+	my (@rows);
 	my $num = 0;
 	if (($b_arm || $b_mips) && !$b_soc_bluetooth && !$b_pci_tool){
 		# do nothing, but keep the test conditions to force 
@@ -7135,11 +7131,9 @@ sub get {
 		#},);
 	}
 	else {
-		@data = card_data();
-		push(@rows,@data);
+		push(@rows,device_output());
 	}
-	@data = usb_data();
-	push(@rows,@data);
+	push(@rows,usb_output());
 	if (!@rows){
 		if ($show{'bluetooth-forced'}){
 			my $key = 'Message';
@@ -7156,7 +7150,7 @@ sub get {
 	return @rows;
 }
 
-sub card_data {
+sub device_output {
 	eval $start if $b_log;
 	my (@rows);
 	my ($j,$num) = (0,1);
@@ -7208,7 +7202,7 @@ sub card_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub usb_data {
+sub usb_output {
 	eval $start if $b_log;
 	return if !@usb;
 	my (@rows,$driver,$path_id,$product);
@@ -7247,13 +7241,13 @@ sub usb_data {
 			if ($extra > 2 && $row->[16]){
 				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
 			}
-			push(@rows,advanced_data('usb',$path_id)) if $path_id;
+			push(@rows,advanced_output('usb',$path_id)) if $path_id;
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub advanced_data {
+sub advanced_output {
 	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
 	my ($path,@rows,@temp);
@@ -7412,15 +7406,15 @@ sub get {
 	my (@data,@rows,$single,$key1,$val1);
 	my $num = 0;
 	if ($type eq 'short' || $type eq 'basic'){
-		@rows = data_short($type);
+		@rows = short_data($type);
 	}
 	else {
-		@rows = create_output_full();
+		@rows = full_output();
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_full {
+sub full_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my ($b_flags,$b_speeds,$core_speeds_value,$flag_key,@flags,%cpu,@rows);
@@ -7432,7 +7426,7 @@ sub create_output_full {
 		select(undef, undef, undef, $cpu_sleep);
 	}
 	if (my $file = main::system_files('cpuinfo')){
-		%cpu = data_cpuinfo($file,'full');
+		%cpu = cpuinfo_data($file,'full');
 	}
 	elsif ($bsd_type ){
 		my ($key1,$val1) = ('','');
@@ -7440,7 +7434,7 @@ sub create_output_full {
 			if ( $alerts{'sysctl'}->{'action'} eq 'use' ){
 # 				$key1 = 'Status';
 # 				$val1 = main::row_defaults('dev');
-				%cpu = data_sysctl('full');
+				%cpu = sysctl_data('full');
 			}
 			else {
 				$key1 = ucfirst($alerts{'sysctl'}->{'action'});
@@ -7624,7 +7618,7 @@ sub create_output_full {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_short {
+sub short_output {
 	eval $start if $b_log;
 	my ($cpu) = @_;
 	my @data;
@@ -7648,7 +7642,7 @@ sub create_output_short {
 	eval $end if $b_log;
 	return @data;
 }
-sub data_short {
+sub short_data {
 	eval $start if $b_log;
 	my ($type) = @_;
 	my $num = 0;
@@ -7664,7 +7658,7 @@ sub data_short {
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
 	if (my $file = main::system_files('cpuinfo')){
-		%cpu = data_cpuinfo($file,$type);
+		%cpu = cpuinfo_data($file,$type);
 	}
 	elsif ($bsd_type ){
 		my ($key1,$val1) = ('','');
@@ -7672,7 +7666,7 @@ sub data_short {
 			if ( $alerts{'sysctl'}->{'action'} eq 'use' ){
 # 				$key1 = 'Status';
 # 				$val1 = main::row_defaults('dev');
-				%cpu = data_sysctl($type);
+				%cpu = sysctl_data($type);
 			}
 			else {
 				$key1 = ucfirst($alerts{'sysctl'}->{'action'});
@@ -7687,7 +7681,7 @@ sub data_short {
 		@data = prep_short_data(\%cpu);
 	}
 	if ($type eq 'basic'){
-		@data = create_output_short(\@data);
+		@data = short_output(\@data);
 	}
 	eval $end if $b_log;
 	return @data;
@@ -7720,7 +7714,7 @@ sub prep_short_data {
 	return @result;
 }
 
-sub data_cpuinfo {
+sub cpuinfo_data {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter);
@@ -8023,7 +8017,7 @@ sub data_cpuinfo {
 	return %cpu;
 }
 
-sub data_sysctl {
+sub sysctl_data {
 	eval $start if $b_log;
 	my ($type) = @_;
 	my %cpu = set_cpu_data();
@@ -9148,8 +9142,8 @@ sub get {
 	# NOTE: 
 	if (@data){
 		if ($type eq 'standard'){
-			push(@rows,create_output_totals(\@data));
-			push(@rows,create_output_drives(\@data)) if $show{'disk'} && @data;
+			push(@rows,totals_output(\@data));
+			push(@rows,drives_output(\@data)) if $show{'disk'} && @data;
 			if ($bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
 				my $file = main::system_files('dmesg-boot');
@@ -9192,7 +9186,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_totals {
+sub totals_output {
 	eval $start if $b_log;
 	my ($disks) = @_;
 	my (@rows);
@@ -9229,7 +9223,7 @@ sub create_output_totals {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_drives {
+sub drives_output {
 	eval $start if $b_log;
 	my ($disks) = @_;
 	#print Data::Dumper::Dumper $disks;
@@ -9318,18 +9312,18 @@ sub create_output_drives {
 		if ($row->{'smart'} || $row->{'smart-error'}){
 			$j = scalar @rows;
 			## Basic SMART and drive info ##
-			create_output_smart('basic',$smart_basic,$row,$j,\$num,\@rows);
+			smart_output('basic',$smart_basic,$row,$j,\$num,\@rows);
 			## Old-Age errors ##
-			create_output_smart('age',$smart_age,$row,$j,\$num,\@rows);
+			smart_output('age',$smart_age,$row,$j,\$num,\@rows);
 			## Pre-Fail errors ##
-			create_output_smart('fail',$smart_fail,$row,$j,\$num,\@rows);
+			smart_output('fail',$smart_fail,$row,$j,\$num,\@rows);
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
 # $num and $rows passed by reference
-sub create_output_smart {
+sub smart_output {
 	eval $start if $b_log;
 	my ($type,$smart_data,$row,$j,$num,$rows) = @_;
 	my ($b_found);
@@ -9517,7 +9511,7 @@ sub proc_data_advanced {
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
 		if ($extra > 2){
-			@data = advanced_disk_data($pt_cmd,$drives->[$i]{'id'});
+			@data = disk_data_advanced($pt_cmd,$drives->[$i]{'id'});
 			$pt_cmd = $data[0];
 			$drives->[$i]{'partition-table'} = uc($data[1]) if $data[1];
 			$drives->[$i]{'rotation'} = "$data[2] rpm" if $data[2];
@@ -10218,7 +10212,7 @@ sub peripheral_data {
 	eval $end if $b_log;
 	return $type;
 }
-sub advanced_disk_data {
+sub disk_data_advanced {
 	eval $start if $b_log;
 	my ($set_cmd,$id) = @_;
 	my ($cmd,$pt,$program,@data,@return);
@@ -10961,7 +10955,7 @@ my $driver = ''; # we need this as a fallback in case no xorg log found
 my %graphics;
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows);
+	my (@rows);
 	my $num = 0;
 	if (($b_arm || $b_mips) && !$b_soc_gfx && !$b_pci_tool){
 		my $type = ($b_arm) ? 'arm' : 'mips';
@@ -10971,8 +10965,7 @@ sub get {
 		},);
 	}
 	else {
-		@data = card_data();
-		push(@rows,@data);
+		push(@rows,device_output());
 		if (!@rows){
 			my $key = 'Message';
 			my $type = 'pci-card-data';
@@ -10985,17 +10978,14 @@ sub get {
 		}
 	}
 	# note: not perfect, but we need usb gfx to show for all types, soc, pci, etc
-	@data = usb_data();
-	push(@rows,@data);
-	@data = display_data();
-	push(@rows,@data);
-	@data = gl_data();
-	push(@rows,@data);
+	push(@rows,usb_output());
+	push(@rows,display_output());
+	push(@rows,gl_output());
 	eval $end if $b_log;
 	return @rows;
 }
 
-sub card_data {
+sub device_output {
 	eval $start if $b_log;
 	my (@rows);
 	my ($j,$num) = (0,1);
@@ -11049,7 +11039,7 @@ sub card_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub usb_data {
+sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@ids,$driver,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
@@ -11097,7 +11087,7 @@ sub usb_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub display_data(){
+sub display_output(){
 	eval $start if $b_log;
 	my (@row);
 	my ($num,$protocol) = (0,'');
@@ -11108,10 +11098,10 @@ sub display_data(){
 		set_compositor($protocol);
 	}
 	if ( $b_display){
-		x_display_data();
+		display_data_x();
 		# currently barebones, wayland needs a lot more work
 		if ($protocol && $protocol eq 'wayland' && !$graphics{'screens'}){
-			wayland_display_data();
+			display_data_wayland();
 			# it worked! we got screen data
 			$graphics{'no-xdpyinfo'} = undef if $graphics{'screens'};
 		}
@@ -11318,7 +11308,7 @@ sub display_data(){
 	return @row;
 }
 
-sub x_display_data {
+sub display_data_x {
 	eval $start if $b_log;
 	# X vendor and version detection.
 	# new method added since radeon and X.org and the disappearance of 
@@ -11490,7 +11480,7 @@ sub x_display_data {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-sub wayland_display_data {
+sub display_data_wayland {
 	eval $start if $b_log;
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
@@ -11546,7 +11536,7 @@ sub get_protocol {
 	eval $end if $b_log;
 	return $protocol;
 }
-sub gl_data(){
+sub gl_output(){
 	eval $start if $b_log;
 	my $num = 0;
 	my (@row,$arg);
@@ -11939,7 +11929,7 @@ sub get {
 			}
 			else {
 				my %processed = process_lvm_data();
-				@rows = create_output_lvm(\%processed);
+				@rows = lvm_output(\%processed);
 			}
 		}
 		elsif ($b_active_lvm && $alerts{'lvs'}->{'action'} eq 'permissions'){
@@ -11965,13 +11955,13 @@ sub get {
 			push(@general_data,general_data());
 		}
 		if (@general_data){
-			push(@rows,create_output_general(\@general_data));
+			push(@rows,general_output(\@general_data));
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_general {
+sub general_output {
 	eval $start if $b_log;
 	my ($general_data) = @_;
 	my ($size,@rows);
@@ -11993,12 +11983,12 @@ sub create_output_general {
 		}
 		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 		my $b_fake;
-		create_components_output('general',\$j,\$num,\@rows,\@{$item->{'components'}},\$b_fake);
+		components_output('general',\$j,\$num,\@rows,\@{$item->{'components'}},\$b_fake);
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_lvm {
+sub lvm_output {
 	eval $start if $b_log;
 	my ($lvm_data) = @_;
 	my (@rows);
@@ -12041,14 +12031,14 @@ sub create_output_lvm {
 				$rows[$j]->{main::key($num++,0,4,'mismatches')} = $lvm_data->{$vg}{'lvs'}{$lv}{'raid'}{'mismatches'};
 				$b_raid = 1;
 			}
-			create_components_output('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},\$b_raid);
+			components_output('lvm',\$j,\$num,\@rows,\@{$lvm_data->{$vg}{'lvs'}{$lv}{'components'}},\$b_raid);
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
 
-sub create_components_output {
+sub components_output {
 	my ($type,$j,$num,$rows,$components,$b_raid) = @_;
 	my ($l1);
 	$$j = scalar @$rows if $$b_raid || $extra > 1;
@@ -12061,9 +12051,9 @@ sub create_components_output {
 	}
 	my $status = (!@$components) ? 'N/A': '';
 	$$rows[$$j]->{main::key($$num++,1,$l1,'Components')} = $status;
-	create_recursive_components($type,$j,$num,$rows,$components,0,'c','p');
+	components_recursive_output($type,$j,$num,$rows,$components,0,'c','p');
 }
-sub create_recursive_components {
+sub components_recursive_output {
 	my ($type,$j,$num,$rows,$components,$indent,$c,$p) = @_;
 	my ($l,$m,$size) = (1,1,0);
 	my ($l2,$l3);
@@ -12096,7 +12086,7 @@ sub create_recursive_components {
 			}
 			#next if !$component->[$i][4];
 			for (my $i = 4; $i < scalar @$component; $i++){
-				create_recursive_components($type,$j,$num,$rows,$component->[$i],$indent+1,$c.'c',$p.'p');
+				components_recursive_output($type,$j,$num,$rows,$component->[$i],$indent+1,$c.'c',$p.'p');
 			}
 		}
 	}
@@ -12246,10 +12236,10 @@ sub process_lvm_data {
 }
 sub component_data {
 	my ($maj_min,$full_components) = @_;
-	push(@$full_components, recursive_component_data($maj_min));
+	push(@$full_components, component_recursive_data($maj_min));
 }
 
-sub recursive_component_data {
+sub component_recursive_data {
 	eval $start if $b_log;
 	my ($maj_min) = @_;
 	my (@components,@devices);
@@ -12263,7 +12253,7 @@ sub recursive_component_data {
 		if ($device =~ /^(bcache|dm-|md)[0-9]+$/){
 			$mapped = $dmmapper{$device};
 			$raw_logical[1] += $part[2] if $mapped && $mapped =~ /_(cdata|cmeta)$/;
-			push(@components, [$device,$mm2,$part[2],$mapped,[recursive_component_data($mm2)]]);
+			push(@components, [$device,$mm2,$part[2],$mapped,[component_recursive_data($mm2)]]);
 		}
 		else {
 			push(@components,[$device,$mm2,$part[2]]);
@@ -12280,11 +12270,11 @@ package MachineData;
 
 sub get {
 	eval $start if $b_log;
-	my (%soc_machine,@data,@rows,$key1,$val1,$which);
+	my (%soc_machine,%data,@rows,$key1,$val1,$which);
 	my $num = 0;
 	if ($bsd_type && @sysctl_machine && !$b_dmidecode_force ){
-		@data = machine_data_sysctl();
-		if (!@data && !$key1){
+		%data = machine_data_sysctl();
+		if (!%data && !$key1){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('machine-data-force-dmidecode','');
 		}
@@ -12296,16 +12286,16 @@ sub get {
 			$key1 = ucfirst($key1);
 		}
 		else {
-			@data = machine_data_dmi();
-			if (!@data && !$key1){
+			%data = machine_data_dmi();
+			if (!%data && !$key1){
 				$key1 = 'Message';
 				$val1 = main::row_defaults('machine-data','');
 			}
 		}
 	}
 	elsif (-d '/sys/class/dmi/id/') {
-		@data = machine_data_sys();
-		if (!@data){
+		%data = machine_data_sys();
+		if (!%data){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('machine-data-dmidecode','');
 		}
@@ -12313,20 +12303,23 @@ sub get {
 	elsif (!$bsd_type) {
 		# this uses /proc/cpuinfo so only GNU/Linux
 		if ($b_arm || $b_mips || $b_ppc){
-			%soc_machine = machine_data_soc();
-			@data = create_output_soc(%soc_machine) if %soc_machine;
+			%data = machine_data_soc();
+			@rows = machine_soc_output(\%data) if %data;
 		}
-		if (!@data){
+		if (!%data){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('machine-data-force-dmidecode','');
 		}
 	}
 	# if error case, null data, whatever
 	if ($key1) {
-		@data = ({main::key($num++,0,1,$key1) => $val1,});
+		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+	}
+	elsif (%data && !@rows) {
+		@rows = machine_output(\%data);
 	}
 	eval $end if $b_log;
-	return @data;
+	return @rows;
 }
 ## keys for machine data are:
 # 0-sys_vendor 1-product_name 2-product_version 3-product_serial 4-product_uuid 
@@ -12335,7 +12328,7 @@ sub get {
 ## with extra data: 
 # 12-chassis_vendor 13-chassis_type 14-chassis_version 15-chassis_serial
 ## unused: 16-bios_rev  17-bios_romsize 18 - firmware type
-sub create_output {
+sub machine_output {
 	eval $start if $b_log;
 	my ($data) = @_;
 	my (@rows);
@@ -12462,39 +12455,39 @@ sub create_output {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output_soc {
-	my (%soc_machine) = @_;
-	my ($key,%data,@row,@rows);
+sub machine_soc_output {
+	my ($soc_machine) = @_;
+	my ($key,@rows);
 	my ($cont_sys,$ind_sys,$j,$num) = (1,1,0,0);
 	#print Data::Dumper::Dumper \%soc_machine;
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
-	if ($soc_machine{'device'} || $soc_machine{'model'}){
+	if ($soc_machine->{'device'} || $soc_machine->{'model'}){
 		if ($b_arm){$key = 'ARM Device'}
 		elsif ($b_mips){$key = 'MIPS Device'}
 		elsif ($b_ppc){$key = 'PowerPC Device'}
 		$rows[$j]->{main::key($num++,0,1,'Type')} = $key;
 		my $system = 'System';
-		if (defined $soc_machine{'model'}){
-			$rows[$j]->{main::key($num++,1,1,'System')} = $soc_machine{'model'};
+		if (defined $soc_machine->{'model'}){
+			$rows[$j]->{main::key($num++,1,1,'System')} = $soc_machine->{'model'};
 			$system = 'details';
 			($cont_sys,$ind_sys) = (0,2);
 		}
-		$soc_machine{'device'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,$cont_sys,$ind_sys,$system)} = $soc_machine{'device'};
+		$soc_machine->{'device'} ||= 'N/A';
+		$rows[$j]->{main::key($num++,$cont_sys,$ind_sys,$system)} = $soc_machine->{'device'};
 	}
 	# we're going to print N/A for 0000 values sine the item was there.
-	if ($soc_machine{'firmware'}){
+	if ($soc_machine->{'firmware'}){
 		# most samples I've seen are like: 0000
-		$soc_machine{'firmware'} =~ s/^[0]+$//;
-		$soc_machine{'firmware'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,0,2,'rev')} = $soc_machine{'firmware'};
+		$soc_machine->{'firmware'} =~ s/^[0]+$//;
+		$soc_machine->{'firmware'} ||= 'N/A';
+		$rows[$j]->{main::key($num++,0,2,'rev')} = $soc_machine->{'firmware'};
 	}
 	# sometimes has value like: 0000
-	if (defined $soc_machine{'serial'}){
+	if (defined $soc_machine->{'serial'}){
 		# most samples I've seen are like: 0000
-		$soc_machine{'serial'} =~ s/^[0]+$//;
-		$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($soc_machine{'serial'});
+		$soc_machine->{'serial'} =~ s/^[0]+$//;
+		$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($soc_machine->{'serial'});
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -12555,9 +12548,8 @@ sub machine_data_sys {
 # 		print "$_: $data{$_}\n";
 # 	}
 	main::log_data('dump','%data',\%data) if $b_log;
-	my @rows = create_output(\%data);
 	eval $end if $b_log;
-	return @rows;
+	return %data;
 }
 # this will create an alternate machine data source
 # which will be used for alt ARM machine data in cases 
@@ -12565,7 +12557,7 @@ sub machine_data_sys {
 # certain actions for arm only.
 sub machine_data_soc {
 	eval $end if $b_log;
-	my (%soc_machine,@temp);
+	my (%data,@temp);
 	if (my $file = main::system_files('cpuinfo')){
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
 		my @data = main::reader($file);
@@ -12574,24 +12566,24 @@ sub machine_data_soc {
 				@temp = split(/\s*:\s*/, $_, 2);
 				$temp[1] = main::arm_cleaner($temp[1]);
 				$temp[1] = main::dmi_cleaner($temp[1]);
-				$soc_machine{'device'} = main::cleaner($temp[1]);
+				$data{'device'} = main::cleaner($temp[1]);
 			}
 			elsif (/^(system type|model)\s*:/i){
 				@temp = split(/\s*:\s*/, $_, 2);
 				$temp[1] = main::dmi_cleaner($temp[1]);
-				$soc_machine{'model'} = main::cleaner($temp[1]);
+				$data{'model'} = main::cleaner($temp[1]);
 			}
 			elsif (/^Revision/i){
 				@temp = split(/\s*:\s*/, $_, 2);
-				$soc_machine{'firmware'} = $temp[1];
+				$data{'firmware'} = $temp[1];
 			}
 			elsif (/^Serial/i){
 				@temp = split(/\s*:\s*/, $_, 2);
-				$soc_machine{'serial'} = $temp[1];
+				$data{'serial'} = $temp[1];
 			}
 		}
 	}
-	if (!$soc_machine{'model'} && $b_android){
+	if (!$data{'model'} && $b_android){
 		main::set_build_prop() if !$b_build_prop;
 		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
 			my $brand = '';
@@ -12599,38 +12591,38 @@ sub machine_data_soc {
 			 $build_prop{'product-brand'} ne $build_prop{'product-manufacturer'}) { 
 				$brand = $build_prop{'product-brand'} . ' ';
 			}
-			$soc_machine{'model'} = $brand . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'};
+			$data{'model'} = $brand . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'};
 		}
 		elsif ($build_prop{'product-device'} ){
-			$soc_machine{'model'} = $build_prop{'product-device'};
+			$data{'model'} = $build_prop{'product-device'};
 		}
 		elsif ($build_prop{'product-name'} ){
-			$soc_machine{'model'} = $build_prop{'product-name'};
+			$data{'model'} = $build_prop{'product-name'};
 		}
 	}
-	if (!$soc_machine{'model'} && -r '/proc/device-tree/model'){
+	if (!$data{'model'} && -r '/proc/device-tree/model'){
 		my $model  = main::reader('/proc/device-tree/model','',0);
 		main::log_data('data',"device-tree-model: $model") if $b_log;
 		if ($model){
 			$model = main::dmi_cleaner($model);
 			$model = (split(/\x01|\x02|\x03|\x00/, $model))[0] if $model;
-			my $device_temp = main::regex_cleaner($soc_machine{'device'});
-			if ( !$soc_machine{'device'} || ($model && $model !~ /\Q$device_temp\E/i) ){
+			my $device_temp = main::regex_cleaner($data{'device'});
+			if ( !$data{'device'} || ($model && $model !~ /\Q$device_temp\E/i) ){
 				$model = main::arm_cleaner($model);
-				$soc_machine{'model'} = $model;
+				$data{'model'} = $model;
 			}
 		}
 	}
-	if (!$soc_machine{'serial'} && -f '/proc/device-tree/serial-number'){
+	if (!$data{'serial'} && -f '/proc/device-tree/serial-number'){
 		my $serial  = main::reader('/proc/device-tree/serial-number','',0);
 		$serial = (split(/\x01|\x02|\x03|\x00/, $serial))[0] if $serial;
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
-		$soc_machine{'serial'} = $serial if $serial;
+		$data{'serial'} = $serial if $serial;
 	}
 	
-	#print Data::Dumper::Dumper \%soc_machine;
+	#print Data::Dumper::Dumper \%data;
 	eval $end if $b_log;
-	return %soc_machine;
+	return %data;
 }
 
 # bios_date: 09/07/2010
@@ -12770,9 +12762,8 @@ sub machine_data_dmi {
 # 	}
 	#print Data::Dumper::Dumper \%data;
 	main::log_data('dump','%data',\%data) if $b_log;
-	my @rows = create_output(\%data);
 	eval $end if $b_log;
-	return @rows;
+	return %data;
 }
 # As far as I know, only OpenBSD supports this method.
 # it uses hw. info from sysctl -a and bios info from dmesg.boot
@@ -12817,9 +12808,8 @@ sub machine_data_sysctl {
 			}
 		}
 	}
-	my @rows = create_output(\%data);
 	eval $end if $b_log;
-	return @rows;
+	return %data;
 }
 
 sub get_device_sys {
@@ -12961,10 +12951,10 @@ sub get {
 		# the non arm case to always run
 	}
 	else {
-		@data = card_data();
+		@data = device_output();
 		push(@rows,@data) if @data;
 	}
-	@data = usb_data();
+	@data = usb_output();
 	push(@rows,@data) if @data;
 	# note: rasberry pi uses usb networking only 
 	if (!@rows && ($b_arm || $b_mips)){
@@ -12995,7 +12985,7 @@ sub get {
 	return @rows;
 }
 
-sub card_data {
+sub device_output {
 	eval $start if $b_log;
 	my ($b_wifi,@rows,%holder);
 	my ($j,$num) = (0,1);
@@ -13084,7 +13074,7 @@ sub card_data {
 	eval $end if $b_log;
 	return @rows;
 }
-sub usb_data {
+sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@temp2,$b_wifi,$driver,
 	$path,$path_id,$product,$test,$type);
@@ -13885,12 +13875,12 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
  	}
  	else {
-		@rows = create_output();
+		@rows = partition_output();
  	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub partition_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
@@ -14573,26 +14563,23 @@ package ProcessData;
 sub get {
 	eval $start if $b_log;
 	my $num = 0;
-	my (@processes,@rows);
+	my (@rows);
 	if (@ps_aux){
 		if ($show{'ps-cpu'}){
-			@rows = cpu_processes();
-			push(@processes,@rows);
+			push(@rows,cpu_processes());
 		}
 		if ($show{'ps-mem'}){
-			@rows = mem_processes();
-			push(@processes,@rows);
+			push(@rows,mem_processes());
 		}
 	}
 	else {
 		my $key = 'Message';
-		@rows = ({
+		push(@rows, ({
 		main::key($num++,0,1,$key) => main::row_defaults('ps-data-null',''),
-		},);
-		push(@processes,@rows);
+		},) );
 	}
 	eval $end if $b_log;
-	return @processes;
+	return @rows;
 }
 sub cpu_processes {
 	eval $start if $b_log;
@@ -14755,7 +14742,7 @@ my $b_zfs = 0;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@hardware_raid,@rows,$key1,$val1);
+	my (@hardware_raid,@rows,$key1,$val1);
 	my $num = 0;
 	@hardware_raid = hw_data() if $b_hardware_raid || $b_hw;
 	raid_data() if !$b_raid;
@@ -14770,20 +14757,16 @@ sub get {
 	}
 	else {
 		if (@hardware_raid){
-			@data = create_output_hw(\@hardware_raid) ;
-			push(@rows,@data);
+			push(@rows,hw_output(\@hardware_raid));
 		}
 		if (@lvm_raid){
-			@data = create_output_lvm() ;
-			push(@rows,@data);
+			push(@rows,lvm_output());
 		}
 		if (@md_raid){
-			@data = create_output_md() ;
-			push(@rows,@data);
+			push(@rows,md_output());
 		}
 		if (@zfs_raid){
-			@data = create_output_zfs() ;
-			push(@rows,@data);
+			push(@rows,zfs_output());
 		}
 	}
 	if (!@rows && $key1){
@@ -14793,7 +14776,7 @@ sub get {
 	($b_md,$b_zfs) = undef;
 	return @rows;
 }
-sub create_output_hw {
+sub hw_output {
 	eval $start if $b_log;
 	my ($hardware_raid) = @_;
 	my (@rows);
@@ -14831,7 +14814,7 @@ sub create_output_hw {
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
-sub create_output_lvm {
+sub lvm_output {
 	eval $start if $b_log;
 	my (@components,@components_good,@components_meta,@rows);
 	my ($size);
@@ -14887,14 +14870,14 @@ sub create_output_lvm {
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
 		my $b_bump;
-		create_components_output('lvm','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
-		create_components_output('lvm','Meta',\@rows,\@components_meta,\$j,\$num,\$b_bump);
+		components_output('lvm','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+		components_output('lvm','Meta',\@rows,\@components_meta,\$j,\$num,\$b_bump);
 	}
 	eval $end if $b_log;
 	#print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
-sub create_output_md {
+sub md_output {
 	eval $start if $b_log;
 	my (@components,@components_good,@failed,@inactive,@rows,@spare,@temp);
 	my ($blocks,$chunk,$level,$report,$size,$status);
@@ -14982,10 +14965,10 @@ sub create_output_md {
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
 		my $b_bump;
-		create_components_output('mdraid','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
-		create_components_output('mdraid','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
-		create_components_output('mdraid','Inactive',\@rows,\@inactive,\$j,\$num,\$b_bump);
-		create_components_output('mdraid','Spare',\@rows,\@spare,\$j,\$num,\$b_bump);
+		components_output('mdraid','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+		components_output('mdraid','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
+		components_output('mdraid','Inactive',\@rows,\@inactive,\$j,\$num,\$b_bump);
+		components_output('mdraid','Spare',\@rows,\@spare,\$j,\$num,\$b_bump);
 		if ($row->{'recovery-percent'}){
 			$j = scalar @rows;
 			$num = 1;
@@ -15011,7 +14994,7 @@ sub create_output_md {
 	return @rows;
 }
 
-sub create_output_zfs {
+sub zfs_output {
 		eval $start if $b_log;
 	my (@arrays,@arrays_holder,@components,@components_good,@failed,@rows,@spare);
 	my ($allocated,$available,$level,$size,$status);
@@ -15109,9 +15092,9 @@ sub create_output_zfs {
 			$j = scalar @rows;
 			$rows[$j]->{main::key($num++,1,3,'Components')} = '';
 			my $b_bump;
-			create_components_output('zfs','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
-			create_components_output('zfs','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
-			create_components_output('zfs','Available',\@rows,\@spare,\$j,\$num,\$b_bump);
+			components_output('zfs','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+			components_output('zfs','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
+			components_output('zfs','Available',\@rows,\@spare,\$j,\$num,\$b_bump);
 		}
 	}
 	eval $end if $b_log;
@@ -15120,7 +15103,7 @@ sub create_output_zfs {
 }
 
 ## Most key stuff passed by ref, and is changed on the fly
-sub create_components_output {
+sub components_output {
 	eval $start if $b_log;
 	my ($type,$item,$rows_ref,$array_ref,$j_ref,$num_ref,$b_bump_ref) = @_;
 	return if !@$array_ref && $item ne 'Online';
@@ -17165,7 +17148,7 @@ sub get {
 	    ( $program = main::check_program('ipmitool') ) ) ) ){
 		if ($b_ipmi || $b_root){
 			%sensors = ipmi_data($program);
-			@data = create_output('ipmi',\%sensors);
+			@data = sensors_output('ipmi',\%sensors);
 			if (!@data) {
 				$key1 = 'Message';
 				$val1 = main::row_defaults('sensors-data-ipmi');
@@ -17192,7 +17175,7 @@ sub get {
 	}
 	else {
 		%sensors = lm_sensors_data();
-		@data = create_output($source,\%sensors);
+		@data = sensors_output($source,\%sensors);
 		#print "here 2\n";
 		if (!@data) {
 			$key1 = 'Message';
@@ -17204,7 +17187,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub sensors_output {
 	eval $start if $b_log;
 	my ($source,$sensors) = @_;
 	# note: might revisit this, since gpu sensors data might be present
@@ -18190,7 +18173,7 @@ sub get {
 	my (@data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($b_fake_dmidecode || ( $alerts{'dmidecode'}->{'action'} eq 'use' && (!$b_arm || $b_slot_tool ) )){
-		@rows = slot_data();
+		@rows = slot_output();
 	}
 	elsif ($b_arm && !$b_slot_tool){
 		$key1 = 'ARM';
@@ -18206,7 +18189,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub slot_data {
+sub slot_output {
 	eval $start if $b_log;
 	my (@rows);
 	my $num = 0;
@@ -18275,7 +18258,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	@rows = create_output();
+	@rows = swap_output();
 	if (!@rows){
 		push(@rows, 
 		{main::key($num++,0,1,'Alert') => main::row_defaults('swap-data')},
@@ -18284,7 +18267,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub swap_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
@@ -18384,7 +18367,7 @@ sub get {
 				$val1 = main::row_defaults('unmounted-data');
 			}
 			else {
-				@rows = create_output(\@data);
+				@rows = unmounted_output(\@data);
 			}
 		}
 		else {
@@ -18398,7 +18381,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub unmounted_output {
 	eval $start if $b_log;
 	my ($unmounted) = @_;
 	my (@rows,$fs);
@@ -18583,7 +18566,7 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	else {
-		@rows = usb_data();
+		@rows = usb_output();
 		if (!@rows){
 			my $key = 'Message';
 			push(@rows, {
@@ -18594,7 +18577,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub usb_data {
+sub usb_output {
 	eval $start if $b_log;
 	return if ! @usb;
 	my (@rows);
@@ -18683,11 +18666,11 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	@rows = create_output();
+	@rows = weather_output();
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub weather_output {
 	eval $start if $b_log;
 	my ($j,$num) = (0,0);
 	my (@location,@rows,$value,%weather,);
@@ -18730,7 +18713,7 @@ sub create_output {
 		});
 	}
 	$conditions = "$weather{'weather'}";
-	my $temp = unit_output($weather{'temp'},$weather{'temp-c'},'C',$weather{'temp-f'},'F');
+	my $temp = process_unit($weather{'temp'},$weather{'temp-c'},'C',$weather{'temp-f'},'F');
 	$j = scalar @rows;
 	push(@rows, {
 	main::key($num++,1,1,'Report') => '',
@@ -18738,8 +18721,8 @@ sub create_output {
 	main::key($num++,0,2,'conditions') => $conditions,
 	},);
 	if ($extra > 0){
-		my $pressure = unit_output($weather{'pressure'},$weather{'pressure-mb'},'mb',$weather{'pressure-in'},'in');
-		my $wind = wind_output($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
+		my $pressure = process_unit($weather{'pressure'},$weather{'pressure-mb'},'mb',$weather{'pressure-in'},'in');
+		my $wind = process_wind($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
 		$weather{'wind-gust-mph'},$weather{'wind-gust-ms'});
 		$rows[$j]->{main::key($num++,0,2,'wind')} = $wind;
 		if ($extra > 1){
@@ -18747,22 +18730,22 @@ sub create_output {
 				$rows[$j]->{main::key($num++,0,2,'cloud cover')} = $weather{'cloud-cover'} . '%';
 			}
 			if ($weather{'precip-1h-mm'} && defined $weather{'precip-1h-in'} ){
-				$value = unit_output('',$weather{'precip-1h-mm'},'mm',$weather{'precip-1h-in'},'in');
+				$value = process_unit('',$weather{'precip-1h-mm'},'mm',$weather{'precip-1h-in'},'in');
 				$rows[$j]->{main::key($num++,0,2,'precipitation')} = $value;
 			}
 			if ($weather{'rain-1h-mm'} && defined $weather{'rain-1h-in'} ){
-				$value = unit_output('',$weather{'rain-1h-mm'},'mm',$weather{'rain-1h-in'},'in');
+				$value = process_unit('',$weather{'rain-1h-mm'},'mm',$weather{'rain-1h-in'},'in');
 				$rows[$j]->{main::key($num++,0,2,'rain')} = $value;
 			}
 			if ($weather{'snow-1h-mm'} && defined $weather{'snow-1h-in'} ){
-				$value = unit_output('',$weather{'snow-1h-mm'},'mm',$weather{'snow-1h-in'},'in');
+				$value = process_unit('',$weather{'snow-1h-mm'},'mm',$weather{'snow-1h-in'},'in');
 				$rows[$j]->{main::key($num++,0,2,'snow')} = $value;
 			}
 		}
 		$rows[$j]->{main::key($num++,0,2,'humidity')} = $weather{'humidity'} . '%';
 		if ($extra > 1){
 			if ($weather{'dewpoint'} || (defined $weather{'dewpoint-c'} && defined $weather{'dewpoint-f'})){
-				$value = unit_output($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
+				$value = process_unit($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
 				$rows[$j]->{main::key($num++,0,2,'dew point')} = $value;
 			}
 		}
@@ -18770,11 +18753,11 @@ sub create_output {
 	}
 	if ($extra > 1){
 		if ($weather{'heat-index'} || (defined $weather{'heat-index-c'} && defined $weather{'heat-index-f'})){
-			$value = unit_output($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
+			$value = process_unit($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
 			$rows[$j]->{main::key($num++,0,2,'heat index')} = $value;
 		}
 		if ($weather{'windchill'} || (defined $weather{'windchill-c'} && defined $weather{'windchill-f'})){
-			$value = unit_output($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
+			$value = process_unit($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
 			$rows[$j]->{main::key($num++,0,2,'wind chill')} = $value;
 		}
 		if ($extra > 2){
@@ -18795,7 +18778,7 @@ sub create_output {
 	main::key($num++,1,1,'Locale') => $location,
 	},);
 	if ($extra > 2 && !$use{'filter'} && ($weather{'elevation-m'} || $weather{'elevation-ft'} )){
-		$rows[$j]->{main::key($num++,0,2,'altitude')} = elevation_output($weather{'elevation-m'},$weather{'elevation-ft'});
+		$rows[$j]->{main::key($num++,0,2,'altitude')} = process_elevation($weather{'elevation-m'},$weather{'elevation-ft'});
 	}
 	$rows[$j]->{main::key($num++,0,2,'current time')} = $weather{'date-time'},;
 	if ($extra > 2){
@@ -18819,7 +18802,7 @@ sub create_output {
 	eval $end if $b_log;
 	return @rows;
 }
-sub elevation_output {
+sub process_elevation {
 	eval $start if $b_log;
 	my ($meters,$feet) = @_;
 	my ($result,$i_unit,$m_unit) = ('','ft','m');
@@ -18844,7 +18827,7 @@ sub elevation_output {
 	eval $end if $b_log;
 	return $result;
 }
-sub unit_output {
+sub process_unit {
 	eval $start if $b_log;
 	my ($primary,$metric,$m_unit,$imperial,$i_unit) = @_;
 	my $result = '';
@@ -18869,7 +18852,7 @@ sub unit_output {
 	eval $end if $b_log;
 	return $result;
 }
-sub wind_output {
+sub process_wind {
 	eval $start if $b_log;
 	my ($primary,$direction,$mph,$ms,$gust_mph,$gust_ms) = @_;
 	my ($result,$gust_kmh,$kmh,$i_unit,$m_unit,$km_unit) = ('','','','mph','m/s','km/h');
