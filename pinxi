@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.00';
 my $self_date='2021-02-07';
-my $self_patch='12';
+my $self_patch='13';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7144,7 +7144,7 @@ sub get {
 	}
 	# if there are any unhandled hci items print them out
 	if (%hci){
-		push(@rows,advanced_data('check',''));
+		push(@rows,advanced_output('check',''));
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -7196,7 +7196,7 @@ sub device_output {
 				$rows[$j]->{main::key($num++,0,2,'class ID')} = $row->[1];
 			}
 		}
-		push(@rows,advanced_data('pci',"$row->[2].$row->[3]")) if defined $row->[2] && defined $row->[3];
+		push(@rows,advanced_output('pci',"$row->[2].$row->[3]")) if defined $row->[2] && defined $row->[3];
 		#print "$row->[0]\n";
 	}
 	eval $end if $b_log;
@@ -7403,10 +7403,13 @@ package CpuData;
 sub get {
 	eval $start if $b_log;
 	my ($type) = @_;
-	my (@data,@rows,$single,$key1,$val1);
-	my $num = 0;
+	my (@rows);
 	if ($type eq 'short' || $type eq 'basic'){
+		# note, for short form, just return the raw data, not the processed output
 		@rows = short_data($type);
+		if ($type eq 'basic'){
+			@rows = short_output(\@rows);
+		}
 	}
 	else {
 		@rows = full_output();
@@ -7677,12 +7680,7 @@ sub short_data {
 		}
 	}
 	# $cpu{'cur-freq'} = $cpu[0]->{'core-id'}[0]{'speed'};
-	if ($type eq 'short' || $type eq 'basic'){
-		@data = prep_short_data(\%cpu);
-	}
-	if ($type eq 'basic'){
-		@data = short_output(\@data);
-	}
+	@data = prep_short_data(\%cpu);
 	eval $end if $b_log;
 	return @data;
 }
@@ -12944,18 +12942,16 @@ package NetworkData;
 my ($b_ip_run,@ifs_found);
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows);
+	my (@rows);
 	my $num = 0;
 	if (($b_arm || $b_mips) && !$b_soc_net && !$b_pci_tool){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
 	}
 	else {
-		@data = device_output();
-		push(@rows,@data) if @data;
+		push(@rows,device_output());
 	}
-	@data = usb_output();
-	push(@rows,@data) if @data;
+	push(@rows,usb_output());
 	# note: rasberry pi uses usb networking only 
 	if (!@rows && ($b_arm || $b_mips)){
 		my $type = ($b_arm) ? 'arm' : 'mips';
@@ -12969,17 +12965,14 @@ sub get {
 		# shift @ifs_found;
 		# pop @ifs_found;
 		if (!$bsd_type){
-			@data = advanced_data_sys('check','',0,'','','');
-			push(@rows,@data) if @data;
+			push(@rows,advanced_data_sys('check','',0,'','',''));
 		}
 		else {
-			@data = advanced_data_bsd('check');
-			push(@rows,@data) if @data;
+			push(@rows,advanced_data_bsd('check'));
 		}
 	}
 	if ($show{'ip'}){
-		@data = wan_ip();
-		push(@rows,@data) if @data;
+		push(@rows,wan_ip());
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -13533,15 +13526,15 @@ package OpticalData;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows,$key1,$val1);
+	my (%data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
-		#@data = optical_data_bsd();
+		#%data = optical_data_bsd();
 		$key1 = 'Optical Report';
 		$val1 = main::row_defaults('optical-data-bsd');
-		@data = ({main::key($num++,0,1,$key1) => $val1,});
+		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		if ( @dm_boot_optical){
-			@data = optical_data_bsd();
+			%data = optical_data_bsd();
 		}
 		else{
 			my $file = main::system_files('dmesg-boot');
@@ -13555,86 +13548,86 @@ sub get {
 				$val1 = main::row_defaults('optical-data-bsd');
 			}
 			$key1 = 'Optical Report';
-			@data = ({main::key($num++,0,1,$key1) => $val1,});
+			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 	}
 	else {
-		@data = optical_data_linux();
+		%data = optical_data_linux();
 	}
-	if (!@data){
+	@rows = optical_output(\%data) if %data;
+	if (!@rows){
 		$key1 = 'Message';
 		$val1 = main::row_defaults('optical-data');
-		@data = ({main::key($num++,0,1,$key1) => $val1,});
+		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
-	push(@rows,@data);
 	eval $end if $b_log;
 	return @rows;
 }
-sub create_output {
+sub optical_output {
 	eval $start if $b_log;
-	my (%devices) = @_;
+	my ($devices) = @_;
 	my (@rows);
 	my $num = 0;
 	my $j = 0;
 	# build floppy if any
-	foreach my $key (sort keys %devices){
-		if ($devices{$key}->{'type'} eq 'floppy'){
+	foreach my $key (sort keys %$devices){
+		if ($devices->{$key}{'type'} eq 'floppy'){
 			push(@rows, {
-			main::key($num++,0,1,ucfirst($devices{$key}->{'type'})) => "/dev/$key",
+			main::key($num++,0,1,ucfirst($devices->{$key}{'type'})) => "/dev/$key",
 			});
-			delete $devices{$key};
+			delete $devices->{$key};
 		}
 	}
-	foreach my $key (sort keys %devices){
+	foreach my $key (sort keys %$devices){
 		$j = scalar @rows;
 		$num = 1;
-		my $vendor = $devices{$key}->{'vendor'};
+		my $vendor = $devices->{$key}{'vendor'};
 		$vendor ||= 'N/A';
-		my $model = $devices{$key}->{'model'};
+		my $model = $devices->{$key}{'model'};
 		$model ||= 'N/A';
 		push(@rows, { 
-		main::key($num++,1,1,ucfirst($devices{$key}->{'type'})) => "/dev/$key",
+		main::key($num++,1,1,ucfirst($devices->{$key}{'type'})) => "/dev/$key",
 		main::key($num++,0,2,'vendor') => $vendor,
 		main::key($num++,0,2,'model') => $model,
 		});
 		if ($extra > 0){
-			my $rev = $devices{$key}->{'rev'};
+			my $rev = $devices->{$key}{'rev'};
 			$rev ||= 'N/A';
 			$rows[$j]->{ main::key($num++,0,2,'rev')} = $rev;
 		}
-		if ($extra > 1 && $devices{$key}->{'serial'}){
-			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::apply_filter($devices{$key}->{'serial'});
+		if ($extra > 1 && $devices->{$key}{'serial'}){
+			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::apply_filter($devices->{$key}{'serial'});
 		}
-		my $links = (@{$devices{$key}->{'links'}}) ? join(',', sort @{$devices{$key}->{'links'}}) : 'N/A' ;
+		my $links = (@{$devices->{$key}{'links'}}) ? join(',', sort @{$devices->{$key}{'links'}}) : 'N/A' ;
 		$rows[$j]->{ main::key($num++,0,2,'dev-links')} = $links;
 		if ($show{'optical'}){
 			$j = scalar @rows;
-			my $speed = $devices{$key}->{'speed'};
+			my $speed = $devices->{$key}{'speed'};
 			$speed ||= 'N/A';
 			my ($audio,$multisession) = ('','');
-			if (defined $devices{$key}->{'multisession'}){
-				$multisession = ( $devices{$key}->{'multisession'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $devices->{$key}{'multisession'}){
+				$multisession = ( $devices->{$key}{'multisession'} == 1 ) ? 'yes' : 'no' ;
 			}
 			$multisession ||= 'N/A';
-			if (defined $devices{$key}->{'audio'}){
-				$audio = ( $devices{$key}->{'audio'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $devices->{$key}{'audio'}){
+				$audio = ( $devices->{$key}{'audio'} == 1 ) ? 'yes' : 'no' ;
 			}
 			$audio ||= 'N/A';
 			my $dvd = 'N/A';
 			my (@rw,$rws);
-			if (defined $devices{$key}->{'dvd'}){
-				$dvd = ( $devices{$key}->{'dvd'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $devices->{$key}{'dvd'}){
+				$dvd = ( $devices->{$key}{'dvd'} == 1 ) ? 'yes' : 'no' ;
 			}
-			if ($devices{$key}->{'cdr'}){
+			if ($devices->{$key}{'cdr'}){
 				push(@rw, 'cd-r');
 			}
-			if ($devices{$key}->{'cdrw'}){
+			if ($devices->{$key}{'cdrw'}){
 				push(@rw, 'cd-rw');
 			}
-			if ($devices{$key}->{'dvdr'}){
+			if ($devices->{$key}{'dvdr'}){
 				push(@rw, 'dvd-r');
 			}
-			if ($devices{$key}->{'dvdram'}){
+			if ($devices->{$key}{'dvdram'}){
 				push(@rw, 'dvd-ram');
 			}
 			$rws = (@rw) ? join(',', @rw) : 'none' ;
@@ -13647,7 +13640,7 @@ sub create_output {
 			main::key($num++,0,3,'rw') => $rws,
 			});
 			if ($extra > 0 ){
-				my $state = $devices{$key}->{'state'};
+				my $state = $devices->{$key}{'state'};
 				$state ||= 'N/A';
 				$rows[$j]->{ main::key($num++,0,3,'state')} = $state;
 			}
@@ -13758,9 +13751,8 @@ sub optical_data_bsd {
 	
 	main::log_data('dump','%devices',\%devices) if $b_log;
 	#print Data::Dumper::Dumper \%devices;
-	@rows = create_output(%devices) if %devices;
 	eval $end if $b_log;
-	return @rows;
+	return %devices;
 }
 sub optical_data_linux {
 	eval $start if $b_log;
@@ -13851,9 +13843,8 @@ sub optical_data_linux {
 	}
 	main::log_data('dump','%devices',\%devices) if $b_log;
 	#print Data::Dumper::Dumper \%devices;
-	@rows = create_output(%devices) if %devices;
 	eval $end if $b_log;
-	return @rows;
+	return %devices;
 }
 
 }
@@ -15730,7 +15721,7 @@ sub get {
 	else {
 		@ram = dmidecode_data();
 		if (@ram){
-			@data = create_output(\@ram);
+			@data = ram_output(\@ram);
 		}
 		else {
 			$key1 = 'message';
@@ -15746,7 +15737,7 @@ sub get {
 	return @rows;
 }
 
-sub create_output {
+sub ram_output {
 	eval $start if $b_log;
 	my ($ram) = @_;
 	return if !@$ram;
