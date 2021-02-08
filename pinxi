@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.00';
 my $self_date='2021-02-07';
-my $self_patch='13';
+my $self_patch='14';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9154,10 +9154,10 @@ sub get {
 				else {
 					$val1 = main::row_defaults('disk-data-bsd');
 				}
-				@data = ({main::key($num++,0,1,$key1) => $val1,});
-				push(@rows,@data);
+				push(@rows,{main::key($num++,0,1,$key1) => $val1,});
 			}
 		}
+		# used by short form, raw data returned
 		else {
 			@rows = @data;
 			# print Data::Dumper::Dumper \@rows;
@@ -9174,10 +9174,8 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	#push(@rows,@data);
-	@data = ();
 	if ($show{'optical'} || $show{'optical-basic'}){
-		@data = OpticalData::get();
-		push(@rows,@data);
+		push(@rows,OpticalData::get());
 	}
 	($b_hddtemp,$b_nvme,$hddtemp,$nvme) = (undef,undef,undef,undef);
 	(@by_id,@by_path) = (undef,undef);
@@ -11906,7 +11904,7 @@ package LogicalData;
 
 sub get {
 	eval $start if $b_log;
-	my (@general_data,@rows,$key1,$val1);
+	my (@rows,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
@@ -11950,10 +11948,8 @@ sub get {
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 		if ($b_active_general){
-			push(@general_data,general_data());
-		}
-		if (@general_data){
-			push(@rows,general_output(\@general_data));
+			my @general_data = general_data();
+			push(@rows,general_output(\@general_data)) if @general_data;
 		}
 	}
 	eval $end if $b_log;
@@ -12272,7 +12268,10 @@ sub get {
 	my $num = 0;
 	if ($bsd_type && @sysctl_machine && !$b_dmidecode_force ){
 		%data = machine_data_sysctl();
-		if (!%data && !$key1){
+		if (%data){
+			@rows = machine_output(\%data);
+		}
+		elsif (!$key1){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('machine-data-force-dmidecode','');
 		}
@@ -12285,7 +12284,10 @@ sub get {
 		}
 		else {
 			%data = machine_data_dmi();
-			if (!%data && !$key1){
+			if (%data){
+				@rows = machine_output(\%data);
+			}
+			elsif (!$key1){
 				$key1 = 'Message';
 				$val1 = main::row_defaults('machine-data','');
 			}
@@ -12293,7 +12295,10 @@ sub get {
 	}
 	elsif (-d '/sys/class/dmi/id/') {
 		%data = machine_data_sys();
-		if (!%data){
+		if (%data){
+			@rows = machine_output(\%data);
+		}
+		else {
 			$key1 = 'Message';
 			$val1 = main::row_defaults('machine-data-dmidecode','');
 		}
@@ -12311,10 +12316,7 @@ sub get {
 	}
 	# if error case, null data, whatever
 	if ($key1) {
-		@rows = ({main::key($num++,0,1,$key1) => $val1,});
-	}
-	elsif (%data && !@rows) {
-		@rows = machine_output(\%data);
+		push(@rows,{main::key($num++,0,1,$key1) => $val1,});
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -13408,7 +13410,6 @@ sub wan_ip {
 	# dig +short @ns1-1.akamaitech.net ANY whoami.akamai.net
 	# this one can take forever, and sometimes requires explicit -4 or -6
 	# dig -4 TXT +short o-o.myaddr.l.google.com @ns1.google.com
-
 	if (!$b_skip_dig && (my $program = main::check_program('dig') )){
 		$ip = (main::grabber("$program +short +time=1 +tries=1 \@ns1-1.akamaitech.net ANY whoami.akamai.net 2>/dev/null"))[0];
 		$b_dig = 1;
@@ -13535,6 +13536,7 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		if ( @dm_boot_optical){
 			%data = optical_data_bsd();
+			@rows = optical_output(\%data) if %data;
 		}
 		else{
 			my $file = main::system_files('dmesg-boot');
@@ -13553,8 +13555,8 @@ sub get {
 	}
 	else {
 		%data = optical_data_linux();
+		@rows = optical_output(\%data) if %data;
 	}
-	@rows = optical_output(\%data) if %data;
 	if (!@rows){
 		$key1 = 'Message';
 		$val1 = main::row_defaults('optical-data');
@@ -18161,7 +18163,7 @@ package SlotData;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows,$key1,$val1);
+	my (@rows,$key1,$val1);
 	my $num = 0;
 	if ($b_fake_dmidecode || ( $alerts{'dmidecode'}->{'action'} eq 'use' && (!$b_arm || $b_slot_tool ) )){
 		@rows = slot_output();
@@ -18247,7 +18249,7 @@ package SwapData;
 
 sub get {
 	eval $start if $b_log;
-	my (@rows,$key1,$val1);
+	my (@rows);
 	my $num = 0;
 	@rows = swap_output();
 	if (!@rows){
@@ -18655,7 +18657,7 @@ package WeatherData;
 
 sub get {
 	eval $start if $b_log;
-	my (@rows,$key1,$val1);
+	my (@rows);
 	my $num = 0;
 	@rows = weather_output();
 	eval $end if $b_log;
