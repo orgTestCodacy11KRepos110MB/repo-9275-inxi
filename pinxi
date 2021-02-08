@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.00';
 my $self_date='2021-02-08';
-my $self_patch='16';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -9282,7 +9282,8 @@ sub drives_output {
 			$rows[$j]->{main::key($num++,0,2,'speed')} = $row->{'speed'};
 			$rows[$j]->{main::key($num++,0,2,'lanes')} = $row->{'lanes'} if $row->{'lanes'};
 		}
-		if ($extra > 2 && $row->{'rotation'}){
+		if ($extra > 2 && ($row->{'rotation'} || $row->{'drive-type'})){
+			$row->{'rotation'} = $row->{'drive-type'} if !$row->{'rotation'};
 			$rows[$j]->{main::key($num++,0,2,'rotation')} = $row->{'rotation'};
 		}
 		if ($extra > 1){
@@ -9506,12 +9507,6 @@ sub proc_data_advanced {
 		#next if $drives->[$i]{'id'} =~ /^hd[a-z]/;
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
-		if ($extra > 2){
-			@data = disk_data_advanced($pt_cmd,$drives->[$i]{'id'});
-			$pt_cmd = $data[0];
-			$drives->[$i]{'partition-table'} = uc($data[1]) if $data[1];
-			$drives->[$i]{'rotation'} = "$data[2] rpm" if $data[2];
-		}
 		#print "$drives->[$i]{'id'}\n";
 		@disk_data = disk_data_by_id("/dev/$drives->[$i]{'id'}");
 		main::log_data('dump','@disk_data', \@disk_data) if $b_log;
@@ -9616,6 +9611,21 @@ sub proc_data_advanced {
 						}
 					}
 				}
+			}
+		}
+		if ($extra > 2){
+			@data = disk_data_advanced($pt_cmd,$drives->[$i]{'id'});
+			$pt_cmd = $data[0];
+			$drives->[$i]{'partition-table'} = uc($data[1]) if $data[1];
+			if ($data[2]){
+				$drives->[$i]{'rotation'} = "$data[2] rpm";
+				$drives->[$i]{'drive-type'} = 'HDD';
+			}
+			elsif (($drives->[$i]{'model'} && $drives->[$i]{'model'} =~ /(ssd|flash|nvme|mmc|\bm[\.-]?2\b)/i) ||
+			       ($block_type && ($block_type eq 'mmc' || $block_type eq 'nvme')) ||
+			       # note: this last case could conceivabley be wrong for a spun down HDD
+			       (defined $data[2] && $data[2] eq '0') ){
+				$drives->[$i]{'drive-type'} = 'SSD';
 			}
 		}
 	}
@@ -9882,7 +9892,13 @@ sub smartctl_data {
 					}
 				}
 				elsif ($split[$a] eq 'Rotation Rate'){
-					$data->[$i]{'rotation'} = $split[$r] if $split[$r] !~ /^Solid/;
+					if ($split[$r] !~ /^Solid/){
+						$data->[$i]{'rotation'} = $split[$r];
+						$data->[$i]{'drive-type'} = 'HDD';
+					}
+					else {
+						$data->[$i]{'drive-type'} = 'SSD';
+					}
 				}
 				elsif ($split[$a] eq 'Serial Number'){
 					if ( !$data->[$i]{'serial'}){
