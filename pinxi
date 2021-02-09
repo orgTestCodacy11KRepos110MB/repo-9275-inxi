@@ -3924,7 +3924,7 @@ sub writer {
 
 #### -------------------------------------------------------------------
 #### UPDATER
-##### -------------------------------------------------------------------
+#### -------------------------------------------------------------------
 
 # arg 1: type to return
 sub get_defaults {
@@ -3980,8 +3980,9 @@ sub update_me {
 	$file_contents = download_file('stdout', $self_download);
 	
 	# then do the actual download
-	if (  $file_contents ){
+	if ($file_contents){
 		# make sure the whole file got downloaded and is in the variable
+		print "Validating downloaded data...\n";
 		if ( $file_contents =~ /###\*\*EOF\*\*###/ ){
 			open(my $fh, '>', $full_self_path);
 			print $fh $file_contents or error_handler('write', "$full_self_path", "$!" );
@@ -4019,8 +4020,7 @@ sub update_man {
 	my ($download_id) = @_;
 	my $man_file_location=set_man_location();
 	my $man_file_path="$man_file_location/$self_name.1" ;
-	my ($man_file_url,$output) = ('','');
-	
+	my ($file_contents,$man_file_url,$output) = ('','','');
 	my $b_downloaded = 0;
 	if ( ! -d $man_file_location ){
 		print "The required man directory was not detected on your system.\n";
@@ -4039,34 +4039,38 @@ sub update_man {
 			system( 'mandb' );
 		}
 	}
-	 # first choice is inxi.1/pinxi.1 from gh, second gz from smxi.org
-	if ( $download_id ne 'dev server' && (my $program = check_program('gzip'))){
-		$man_file_url=get_defaults($self_name . '-man-gh'); 
-		print "Downloading Man page file...\n";
-		$b_downloaded = download_file('file', $man_file_url, $man_file_path);
-		if ($b_downloaded){
-			print "Download successful. Compressing file...\n";
-			system("$program -9 -f $man_file_path > $man_file_path.gz");
+	 # first choice is inxi.1/pinxi.1 from gh, second from smxi.org
+	if ($download_id ne 'dev server'){
+		$man_file_url = get_defaults($self_name . '-man-gh'); 
+	}
+	else {
+		$man_file_url = get_defaults($self_name . '-man'); 
+	}
+	print "Downloading Man page file from $man_file_url...\n";
+	$file_contents = download_file('stdout', $man_file_url);
+	if ($file_contents && (my $program = check_program('gzip'))){
+		# make sure the whole file got downloaded and is in the variable
+		print "Validating downloaded man file data...\n";
+		if ( $file_contents =~ m|\.\\" EOF|) {
+			print "Download successful. Contents validated. Compressing file...\n";
+			system("echo \"$file_contents\" | $program -9 -f > $man_file_path.gz");
 			my $err = $?;
 			if ($err > 0){
 				print "Oh no! Something went wrong compressing the manfile:\n";
 				print "Local path: $man_file_path Error: $err\n";
 			}
 			else {
+				$b_downloaded = 1;
 				print "Download and install of man page successful.\nCheck to make sure it works: man $self_name\n";
 			}
 		}
-	}
-	else {
-		$man_file_url = get_defaults($self_name . '-man'); 
-		# used to use spider tests, but only wget supports that, so no need
-		print "Downloading Man page file gz...\n";
-		$man_file_path .= '.gz';
-		# returns perl, 1 for true, 0 for false, even when using shell tool returns
-		$b_downloaded = download_file('file', $man_file_url,  $man_file_path );
-		if ($b_downloaded) {
-			print "Download and install of man page successful.\nCheck to make sure it works: man $self_name\n";
+		else {
+			error_handler('file-corrupt', "$self_name.1");
 		}
+	}
+	# now run the error handlers on any downloader failure
+	else {
+		error_handler('download-error', $man_file_url, $download_id);
 	}
 	if ( !$b_downloaded ){
 		print "Oh no! Something went wrong downloading the Man file at:\n$man_file_url\n";
