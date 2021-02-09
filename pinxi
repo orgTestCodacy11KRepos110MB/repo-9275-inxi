@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-09';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4019,9 +4019,8 @@ sub update_me {
 sub update_man {
 	my ($download_id) = @_;
 	my $man_file_location = set_man_location();
-	my $man_file_path = "$man_file_location/$self_name.1.gz" ;
-	my ($file_contents,$man_file_url,$output) = ('','','');
-	my $b_downloaded = 0;
+	my $man_file_path = "$man_file_location/$self_name.1" ;
+	my ($file_contents,$man_file_url,$output,$program) = ('','','','');
 	if ( ! -d $man_file_location ){
 		print "The required man directory was not detected on your system.\n";
 		print "Unable to continue: $man_file_location\n";
@@ -4039,6 +4038,10 @@ sub update_man {
 			system( 'mandb' );
 		}
 	}
+	if (!($program = check_program('gzip'))){
+		print "Required program gzip not found. Unable to install man page.\n";
+		return 0;
+	}
 	 # first choice is inxi.1/pinxi.1 from gh, second from smxi.org
 	if ($download_id ne 'dev server'){
 		$man_file_url = get_defaults($self_name . '-man-gh'); 
@@ -4048,23 +4051,23 @@ sub update_man {
 	}
 	print "Downloading Man page file from:\n$man_file_url...\n";
 	$file_contents = download_file('stdout', $man_file_url);
-	if ($file_contents && (my $program = check_program('gzip'))){
+	if ($file_contents){
 		# make sure the whole file got downloaded and is in the variable
 		print "Download successful. Validating downloaded man file data...\n";
 		if ( $file_contents =~ m|\.\\" EOF|) {
-			$b_downloaded = 1;
-			print "Contents validated.\n";
-			#system("echo -n \"$file_contents\" | $program -9 -f > $man_file_path");
-			my $gzipped = qx($program -9 -f <<< "$file_contents");
+			print "Contents validated. Writing to man location...\n";
+			open(my $fh, '>', $man_file_path);
+			print $fh $file_contents or error_handler('write', $man_file_path, "$!" );
+			close $fh;
+			print "Written to man file location:\n$man_file_path\n";
+			print "Compressing file now...\n";
+			system("$program -9 -f $man_file_path > $man_file_path.gz");
 			my $err = $?;
 			if ($err > 0){
 				print "Oh no! Something went wrong compressing the manfile!\n";
 				print "Error: $err\n";
 			}
 			else {
-				open(my $fh, '>', $man_file_path);
-				print $fh $gzipped or error_handler('write', $man_file_path, "$!" );
-				close $fh;
 				print "Download, compression, and install of man page successful.\n";
 				print "Check to make sure it works: man $self_name\n";
 			}
@@ -4076,10 +4079,6 @@ sub update_man {
 	# now run the error handlers on any downloader failure
 	else {
 		error_handler('download-error', $man_file_url, $download_id);
-	}
-	if ( !$b_downloaded ){
-		print "Oh no! Something went wrong downloading the Man file at:\n$man_file_url\n";
-		print "Try -U with --dbg 1 for more information on the failure.\n";
 	}
 }
 
