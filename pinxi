@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-09';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3985,7 +3985,7 @@ sub update_me {
 		print "Validating downloaded data...\n";
 		if ( $file_contents =~ /###\*\*EOF\*\*###/ ){
 			open(my $fh, '>', $full_self_path);
-			print $fh $file_contents or error_handler('write', "$full_self_path", "$!" );
+			print $fh $file_contents or error_handler('write', $full_self_path, "$!" );
 			close $fh;
 			qx( chmod +x '$self_path/$self_name' );
 			set_version_data();
@@ -4018,8 +4018,8 @@ sub update_me {
 
 sub update_man {
 	my ($download_id) = @_;
-	my $man_file_location=set_man_location();
-	my $man_file_path="$man_file_location/$self_name.1" ;
+	my $man_file_location = set_man_location();
+	my $man_file_path = "$man_file_location/$self_name.1.gz" ;
 	my ($file_contents,$man_file_url,$output) = ('','','');
 	my $b_downloaded = 0;
 	if ( ! -d $man_file_location ){
@@ -4050,18 +4050,23 @@ sub update_man {
 	$file_contents = download_file('stdout', $man_file_url);
 	if ($file_contents && (my $program = check_program('gzip'))){
 		# make sure the whole file got downloaded and is in the variable
-		print "Validating downloaded man file data...\n";
+		print "Download successful. Validating downloaded man file data...\n";
 		if ( $file_contents =~ m|\.\\" EOF|) {
 			$b_downloaded = 1;
-			print "Download successful. Contents validated. Compressing file...\n";
-			system("echo -n \"$file_contents\" | $program -9 -f > $man_file_path.gz");
+			print "Contents validated.\n";
+			#system("echo -n \"$file_contents\" | $program -9 -f > $man_file_path");
+			my $gzipped = qx(echo -n "$file_contents" | $program -9 -f);
 			my $err = $?;
 			if ($err > 0){
-				print "Oh no! Something went wrong compressing the manfile to:\n";
-				print "Error: $err\nPath: $man_file_path.gz\n";
+				print "Oh no! Something went wrong compressing the manfile!\n";
+				print "Error: $err\n";
 			}
 			else {
-				print "Download and install of man page successful.\nCheck to make sure it works: man $self_name\n";
+				open(my $fh, '>', $man_file_path);
+				print $fh $gzipped or error_handler('write', $man_file_path, "$!" );
+				close $fh;
+				print "Download, compression, and install of man page successful.\n";
+				print "Check to make sure it works: man $self_name\n";
 			}
 		}
 		else {
