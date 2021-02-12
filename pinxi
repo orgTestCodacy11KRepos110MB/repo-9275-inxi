@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-09';
-my $self_patch='08';
+my $self_date='2021-02-11';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3621,7 +3621,7 @@ sub set_program_values {
 	'unagi' => ['^\S',1,'--version','unagi',0,1,0,'',''],
 	'unity' => ['^unity',2,'--version','Unity',0,1,0,'',''],
 	'unity-system-compositor' => ['^unity-system-compositor',2,'--version',
-	 'unity-system-compositor (mir)',0,0,0,'',''],
+	'unity-system-compositor (mir)',0,0,0,'',''],
 	'wavy' => ['^wavy',0,'0','wavy',0,1,0,'',''], # unverified
 	'waycooler' => ['^way',3,'--version','way-cooler',0,1,0,'',''],
 	'way-cooler' => ['^way',3,'--version','way-cooler',0,1,0,'',''],
@@ -9634,10 +9634,10 @@ sub proc_data_advanced {
 				$drives->[$i]{'drive-type'} = 'HDD';
 			}
 			elsif (($block_type && $block_type ne 'sdx') ||
+			       # note: this case could conceivabley be wrong for a spun down HDD
+			       (defined $data[2] && $data[2] eq '0') ||
 			       ($drives->[$i]{'model'} && 
-			        $drives->[$i]{'model'} =~ /(ssd|solid\s?state|flash|mmc|msata|\bm[\.-]?2\b)/i) ||
-			       # note: this last case could conceivabley be wrong for a spun down HDD
-			       (defined $data[2] && $data[2] eq '0') ){
+			        $drives->[$i]{'model'} =~ /(flash|mmc|msata|\bm[\.-]?2\b|nvme|ssd|solid\s?state)/i)){
 				$drives->[$i]{'drive-type'} = 'SSD';
 			}
 		}
@@ -13516,20 +13516,16 @@ sub network_device {
 	my ($device_string) = @_;
 	my ($b_network);
 	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
-	# Atmel makes other stuff. NOTE: exclude 'networks': IMC Networks
-	my @tests = qw(wifi Wi-Fi.*Adapter Ethernet \bLAN\b WLAN Network\b Networking\b 
-	802\.1[15] 802\.3
-	Wireless.*Adapter 54\sMbps 100\/1000 NBase-T Mobile\sBroadband Atheros D-Link.*Adapter 
-	Dell.*Wireless D-Link.*Wireless Linksys Netgea Ralink Realtek.*Network Realtek.*Wireless
-	Belkin.*Wireless Actiontec.*Wireless AirLink.*Wireless Asus.*Wireless 
-	Buffalo.*Wireless Davicom DWA-.*RangeBooster DWA-.*Wireless
-	ENUWI-.*Wireless LG.*Wi-Fi Rosewill.*Wireless RNX-.*Wireless Samsung.*LinkStick 
-	Samsung.*Wireless Sony.*Wireless TEW-.*Wireless TP-Link.*Wireless 
-	WG[0-9][0-9][0-9].*Wireless WNA[0-9][0-9][0-9] WNDA[0-9][0-9][0-9] 
-	Zonet.*ZEW.*Wireless 050d:935b 0bda:8189 0bda:8197
+	# Atmel, Atheros make other stuff. NOTE: exclude 'networks': IMC Networks
+	my @tests = qw((Ethernet|\bLAN\b|Network(ing)?\b|NBase-T|wi-?fi|WLAN|802\.(1[15]|3)|54\sMbps|100\/1000) 
+	(Actiontec|AirLink|Asus|Belkin|Buffalo|Dell|D-Link|DWA-|ENUWI-|Realtek|Rosewill|RNX-|Samsung|Sony|TEW-|TP-Link|Zonet.*ZEW.*).*Wireless 
+	(D-Link|Wireless).*Adapter Mobile\sBroadband
+	(Linksys|Netgea|Ralink|Realtek.*Network|Davicom) DWA-.*RangeBooster 
+	Samsung.*LinkStick (WG|WNA|WNDA)[0-9][0-9][0-9] 
+	(050d:935b|0bda:8189|0bda:8197)
 	);
 	foreach (@tests){
-		if ($device_string =~ /$_/i ){
+		if ($device_string =~ /$_/i){
 			$b_network = 1;
 			last;
 		}
@@ -20183,14 +20179,14 @@ sub get_linux_distro {
 	$b_issue = 1 if -f $issue;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
 	# and then made that resulting file 700 permissions, which is obviously a mistake
-	$etc_issue = main::reader($issue,'',0) if -r $issue;
-	$etc_issue = main::clean_characters($etc_issue);
+	$etc_issue = main::reader($issue,'strip',0) if -r $issue;
+	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
 	my $os_release = '/etc/os-release';
 	@osr = main::reader($os_release) if -r $os_release;
 	# debian issue can end with weird escapes like \n \l 
 	# antergos: Antergos Linux \r (\l)
 	if ($etc_issue){
-		$lc_issue = lc($etc_issue) if $etc_issue;
+		$lc_issue = lc($etc_issue);
 		if ($lc_issue =~ /(antergos|grml|linux lite)/){
 			$distro_id = $1;
 			$b_use_issue = 1;
@@ -20203,7 +20199,7 @@ sub get_linux_distro {
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
-	if ( @osr && ( grep {/(manjaro|antergos|chakra|pclinuxos|zorin)/i} @osr ) ){
+	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|zorin)/i} @osr ) ){
 		$distro_file = $os_release;
 	}
 	$distro_id = 'armbian' if grep {/armbian/} @distro_files;
@@ -20219,7 +20215,6 @@ sub get_linux_distro {
 			# antergos should use /etc/issue. We've already checked os-release above
 			if ($distro_id eq 'antergos' || (grep {/antergos|chakra|manjaro/} @distro_files )){
 				@distro_files = grep {!/arch-release/} @distro_files;
-				#$system_base = 'Arch Linux';
 			}
 			my $distro_files_s = join('|', @distro_files);
 			@working = (@derived,@primary);
@@ -20288,11 +20283,20 @@ sub get_linux_distro {
 		}
 		$distro = main::clean_characters($distro) if $distro;
 	}
-	# otherwise try  the default debian/ubuntu /etc/issue file
+	# otherwise try  the default debian/ubuntu/distro /etc/issue file
 	elsif ($b_issue){
-		if ( !$distro_id && $etc_issue && $lc_issue =~ /(mint|lmde)/ ){
-			$distro_id = $1;
-			$b_use_issue = 1;
+		if ( !$distro_id && $lc_issue){
+			if ($lc_issue =~ /(mint|lmde)/){
+				$distro_id = $1;
+				$b_use_issue = 1;
+			}
+			elsif (-d '/etc/guix' && $lc_issue =~ /^this is the gnu system./){
+				$distro_id = 'Guix';
+				# they didn't use any standard paths or files for os data, sigh, use pm version
+				my $version = program_version('guix', '^guix', '4','--version',1);
+				$distro_id .= " $version" if $version;
+				$b_use_issue = 1;
+			}
 		}
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
@@ -20769,10 +20773,10 @@ sub get_init_data {
 		if ( $comm =~ /systemd/ ){
 			$init = 'systemd';
 			if ( $program = check_program('systemd')){
-				$init_version = program_version($program,'^systemd','2','--version');
+				$init_version = program_version($program,'^systemd','2','--version',1);
 			}
 			if (!$init_version && ($program = check_program('systemctl') ) ){
-				$init_version = program_version($program,'^systemd','2','--version');
+				$init_version = program_version($program,'^systemd','2','--version',1);
 			}
 		}
 		# epoch version == Epoch Init System 1.0.1 "Sage"
@@ -20786,6 +20790,10 @@ sub get_init_data {
 		# will need more datas
 		elsif ($comm =~ /runit/){
 			$init = 'runit';
+		}
+		elsif ($comm =~ /shepherd/){
+			$init = 'Shepherd';
+			$init_version = program_version('shepherd', '^shepherd', '4','--version',1);
 		}
 		elsif ($comm =~ /^s6/){
 			$init = 's6';
