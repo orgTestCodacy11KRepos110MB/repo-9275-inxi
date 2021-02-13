@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-13';
-my $self_patch='12';
+my $self_patch='13';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4963,8 +4963,8 @@ sub show_options {
 	${partition_string}s show if --swap is not used. Use -p to see all 
 	mounted ${partition_string}s." ],
 	['1', '-r', '--repos', "Distro repository data. Supported repo types: APK, 
-	APT, CARDS, EOPKG, PACMAN, PACMAN-G2, PISI, PORTAGE, PORTS (BSDs), SLACKPKG,
-	TCE, URPMQ, XBPS, YUM/ZYPP." ],
+	APT, CARDS, EOPKG, PACMAN, PACMAN-G2, PISI, PORTAGE, PORTS (BSDs), SCRATCHPKG,
+	SLACKPKG, TCE, URPMQ, XBPS, YUM/ZYPP." ],
 	['1', '-R', '--raid', "RAID data. Shows RAID devices, states, levels, array sizes,
 	and components. md-raid: If device is resyncing, also shows resync progress line." ],
 	['1', '-s', '--sensors', "Sensors output (if sensors installed/configured): 
@@ -20507,7 +20507,10 @@ sub get_lsb_release {
 		$distro = $description;
 	}
 	else {
-		$distro = "$id $release $codename";
+		# avoid duplicates
+		$distro = $id;
+		$distro .= " $release" if $distro !~ /$release/;
+		$distro .= " $codename" if $distro !~ /$codename/;
 		$distro =~ s/^\s+|\s\s+|\s+$//g; # get rid of double and trailing spaces 
 	}
 	eval $end if $b_log;
@@ -21239,6 +21242,8 @@ sub package_counts {
 	['pacman-g2','pacman-g2','p','-Q',1,0,''],
 	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
 	['pkg_info','pkg_info','p','',1,0,''],
+	# like cards, avoid pkginfo directly due to python pm being so slow
+	['pkgutils','pkginfo','p','-i',1,0,'main::check_program(\'pkgadd\')'],
 	# slack 15 will move packages to /var/lib/pkgtools/
 	['pkgtool','pkgtool','d',"${slack_packages}*",1,4,'\\/'],
 	# way too slow without nodigest/sig!! confirms packages exist
@@ -21251,7 +21256,7 @@ sub package_counts {
 	# note: I believe mageia uses rpm internally but confirm
 	# ['urpmi','urpmq','p','??',1,0,''], 
 	['xbps','xbps-query','p','-l',1,1,''],
-	['xxx-brew','brew','p','--cellar',0,0,''],
+	# ['xxx-brew','brew','p','--cellar',0,0,''], # verify how this works
 	['zzz-flatpak','flatpak','p','list',0,0,''],
 	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
 	);
