@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-17';
-my $self_patch='22';
+my $self_date='2021-02-18';
+my $self_patch='23';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13919,7 +13919,7 @@ sub partition_output {
 		next if $row->{'swap-type'} && $row->{'swap-type'} ne 'partition';
 		if (!$row->{'hidden'}){
 			$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
-			$used = ($row->{'used'}) ? main::get_size($row->{'used'},'string') : 'N/A';
+			$used = main::get_size($row->{'used'},'string','N/A'); # used can be 0
 			$percent = (defined $row->{'percent-used'}) ? ' (' . $row->{'percent-used'} . '%)' : '';
 		}
 		else {
@@ -19777,8 +19777,12 @@ sub get_ps_de_data {
 	my ($program,@version_data);
 	main::set_ps_gui() if !$b_ps_gui;
 	if (@ps_gui){
+		# the sequence here matters, some desktops like icewm, razor, let you set different
+		# wm, so we want to get the main controlling desktop first
 		# 1 check program; 2 ps_gui search; 3 data; 4: trigger alternate values/version
 		my @desktops =(
+		['icewm','icewm','icewm'],
+		['WindowMaker','WindowMaker','wmaker',''],
 		['9wm','9wm','9wm',''],
 		['afterstep','afterstep','afterstep',''],
 		['aewm++','aewm\+\+','aewm++',''],
@@ -19807,6 +19811,7 @@ sub get_ps_de_data {
 		['fvwm','fvwm','fvwm',''],
 		['glass','glass','glass',''],
 		['hackedbox','hackedbox','hackedbox',''],
+		['herbstluftwm','herbstluftwm','herbstluftwm'],
 		['instantwm','instantwm','instantwm',''],
 		['i3','i3','i3',''],
 		['ion3','ion3','ion3',''],
@@ -19838,7 +19843,6 @@ sub get_ps_de_data {
 		['twm','twm','twm',''],
 		['waycooler','waycooler','way-cooler',''],
 		['way-cooler','way-cooler','way-cooler',''],
-		['WindowMaker','WindowMaker','wmaker',''],
 		['windowlab','windowlab','windowlab',''],
 		# not in debian apt, current is wmii, version 3
 		['wmii2','wmii2','wmii2',''],
@@ -21213,13 +21217,6 @@ sub package_counts {
 	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
 	# 5: lib slice; 6: lib splitter; 7 - optional eval test
 	# needed: cards [nutyx], urpmq [mageia]
-	my $slack_packages = '/var/log/packages/';
-	my $slack_index = 4;
-	# no elegant way to get this, slack 15 will move package location
-	if (-d '/var/lib/pkgtools/packages' && main::check_program('pkgtool')){
-		$slack_packages = '/var/lib/pkgtools/packages/';
-		$slack_index = 5;
-	}
 	my @pkg_managers = (
 	['alps','alps','p','showinstalled',1,0,''],
 	['apk','apk','p','info',1,0,''],
@@ -21233,20 +21230,23 @@ sub package_counts {
 	['guix-sys','guix','p','package -p "/run/current-system/profile" -I',1,0,''],
 	['guix-usr','guix','p','package -I',1,0,''],
 	['kiss','kiss','p','list',1,0,''],
-	['pacman','pacman','p','-Qq --color never',1,0,''],
+	['pacman','pacman','p','-Qq --color never',1,0,'!main::check_program(\'pacman-g2\')'],
 	['pacman-g2','pacman-g2','p','-Q',1,0,''],
 	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
 	['pkg_info','pkg_info','p','',1,0,''],
 	# like cards, avoid pkginfo directly due to python pm being so slow
 	# but pkgadd is also found in scratch
 	['pkgutils','pkginfo','p','-i',1,0,'main::check_program(\'pkgadd\')'],
-	# slack 15 will move packages to /var/lib/pkgtools/
-	['pkgtool','pkgtool','d',"${slack_packages}*",1,$slack_index,'\\/'],
+	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
+	['pkgtool','pkgtool','d','/var/lib/pkgtools/packages',1,4,'\\/',
+	 '-d \'/var/lib/pkgtools/packages\''],
+	['pkgtool','pkgtool','d','/var/log/packages/',1,5,'\\/',
+	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\''],
 	# way too slow without nodigest/sig!! confirms packages exist
 	['rpm','rpm','p','-qa --nodigest --nosignature',1,0,''],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
-	'-d \'/var/lib/scratchpkg\''],
+	 '-d \'/var/lib/scratchpkg\''],
 	# note',' slapt-get, spkg, and pkgtool all return the same count
 	#['slapt-get','slapt-get','p','--installed',1,0,''],
 	#['spkg','spkg','p','--installed',1,0,''],
@@ -22738,7 +22738,7 @@ sub set_ps_gui {
 		blackbox bspwm 
 		cagebreak calmwm (sh|c?lisp).*clfswm (openbsd-)?cwm dwm evilwm 
 		fluxbox flwm flwm_topside fvwm.*-crystal fvwm1 fvwm2 fvwm3 fvwm95 fvwm 
-		i3 instantwm ion3 jbwm jwm larswm lwm 
+		herbstluftwm i3 icewm instantwm ion3 jbwm jwm larswm lwm 
 		matchbox-window-manager mini musca mwm nawm notion 
 		openbox orbital pekwm perceptia python.*qtile qtile qvwm ratpoison 
 		sawfish scrotwm spectrwm (sh|c?lisp).*stumpwm sway 
