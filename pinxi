@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-18';
-my $self_patch='25';
+my $self_date='2021-02-21';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -10381,7 +10381,8 @@ sub set_vendors {
 	# rare cases WDC is in middle of string
 	['(\bWDC\b)','','Western Digital',''],
 	## THEN BETTER KNOWN ONESs ##
-	['^(A-?DATA|AX[MN]|CH11|HV[1-9]|IM2|HD[1-9]|HDD\s?CH|IUM)','^A-?DATA','A-Data',''],
+	# A-Data can be in middle of string
+	['(\bA-?DATA|^AX[MN]|^CH11|^HV[1-9]|^IM2|^HD[1-9]|^HDD\s?CH|^IUM)','A-?DATA','A-Data',''],
 	['^ASUS','^ASUS','ASUS',''],
 	# ATCS05 can be hitachi travelstar but not sure
 	['^ATP','^ATP\b','ATP',''],
@@ -20196,6 +20197,7 @@ sub get_linux_distro {
 			$distro_id = $1;
 			$b_use_issue = 1;
 		}
+		# this raspbian detection fails for rasberry pi os
 		elsif ($lc_issue =~ /(raspbian|peppermint)/){
 			$distro_id = $1;
 			$distro_file = $os_release if @osr;
@@ -20207,7 +20209,13 @@ sub get_linux_distro {
 	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|zorin)/i} @osr ) ){
 		$distro_file = $os_release;
 	}
-	$distro_id = 'armbian' if grep {/armbian/} @distro_files;
+	if (grep {/armbian/} @distro_files){
+		$distro_id = 'armbian' ;
+	}
+	elsif ( -e '/etc/apt/sources.list.d/raspi.list' && 
+	 (grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
+		$distro_id = 'raspberrypios' ;
+	}
 	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
 	main::log_data('data',"distro_file-1: $distro_file") if $b_log;
 	if (!$distro_file){
@@ -20433,6 +20441,10 @@ sub get_linux_distro {
 	if ($distro){
 		if ($distro_id eq 'armbian'){
 			$distro =~ s/Debian/Armbian/;
+		}
+		elsif ($distro_id eq 'raspberrypios'){
+			$system_base = $distro;
+			$distro =~ s/Debian GNU\/Linux/Raspberry Pi OS/;
 		}
 		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
 			$distro =~ s/Slackware/Salix/;
