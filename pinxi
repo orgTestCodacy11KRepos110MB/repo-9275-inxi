@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-21';
-my $self_patch='27';
+my $self_patch='28';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -20123,7 +20123,9 @@ sub get_display_manager {
 ## Get DistroData
 {
 package DistroData;
-my (@distro_data,@osr);
+my (@distro_files,@osr,@working);
+my ($distro,$distro_file,$distro_id,$system_base) = ('','','','');
+my ($etc_issue,$lc_issue) = ('','');
 sub get {
 	eval $start if $b_log;
 	if ($bsd_type){
@@ -20133,33 +20135,28 @@ sub get {
 		get_linux_distro();
 	}
 	eval $end if $b_log;
-	return @distro_data;
+	return ($distro,$system_base);
 }
 
 sub get_bsd_os {
 	eval $start if $b_log;
-	my ($distro) = ('');
 	if ($bsd_type eq 'darwin'){
-		my $file = '/System/Library/CoreServices/SystemVersion.plist';
-		if (-f $file){
-			my @data = main::reader($file);
-			@data = grep {/(ProductName|ProductVersion)/} @data if @data;
-			@data = grep {/<string>/} @data if @data;
-			@data = map {s/<[\/]?string>//g; } @data if @data;
-			$distro = join(' ', @data);
+		$distro_file = '/System/Library/CoreServices/SystemVersion.plist';
+		if (-f $distro_file){
+			@working = main::reader($distro_file);
+			@working = grep {/(ProductName|ProductVersion)/} @working if @working;
+			@working = grep {/<string>/} @working if @working;
+			@working = map {s/<[\/]?string>//g; } @working if @working;
+			$distro = join(' ', @working);
 		}
 	}
 	# seen a case without osx file, or was it permissions?
 	# this covers all the other bsds anyway, no problem.
 	$distro = "$uname[0] $uname[2]" if !$distro;
-	@distro_data = ($distro,'');
 	eval $end if $b_log;
 }
 
 sub get_linux_distro {
-	eval $start if $b_log;
-	my ($distro,$distro_id,$distro_file,$system_base) = ('','','','');
-	my ($b_issue,$b_osr,$b_use_issue,@working);
 	# order matters!
 	my @derived = qw(antix-version aptosid-version bodhibuilder.conf kanotix-version 
 	knoppix-version pclinuxos-release mandrake-release manjaro-release mx-version 
@@ -20173,29 +20170,21 @@ sub get_linux_distro {
 	# note, pclinuxos has all these mandrake/mandriva files, careful!
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
 	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
-	# note: always exceptions, so wild card after release/version: 
-	# /etc/lsb-release-crunchbang
-	# wait to handle since crunchbang file is one of the few in the world that 
-	# uses this method
-	my @distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
-	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
-	my $lsb_release = '/etc/lsb-release';
-	my $b_lsb = 1 if -f $lsb_release;
-	my ($etc_issue,$issue,$lc_issue) = ('','/etc/issue','');
+ 	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
+	my ($issue,$lsb_release,$os_release) = ('/etc/issue','/etc/lsb-release','/etc/os-release');
 	$b_issue = 1 if -f $issue;
+	$b_lsb = 1 if -f $lsb_release;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
 	# and then made that resulting file 700 permissions, which is obviously a mistake
 	$etc_issue = main::reader($issue,'strip',0) if -r $issue;
-	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
-	my $os_release = '/etc/os-release';
-	@osr = main::reader($os_release) if -r $os_release;
 	# debian issue can end with weird escapes like \n \l 
 	# antergos: Antergos Linux \r (\l)
+	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
 	if ($etc_issue){
 		$lc_issue = lc($etc_issue);
 		if ($lc_issue =~ /(antergos|grml|linux lite)/){
 			$distro_id = $1;
-			$b_use_issue = 1;
+			$b_skip_issue = 1;
 		}
 		# this raspbian detection fails for rasberry pi os
 		elsif ($lc_issue =~ /(raspbian|peppermint)/){
@@ -20203,16 +20192,23 @@ sub get_linux_distro {
 			$distro_file = $os_release if @osr;
 		}
 	}
+	# note: always exceptions, so wild card after release/version: 
+	# /etc/lsb-release-crunchbang
+	# wait to handle since crunchbang file is one of the few in the world that 
+	# uses this method
+	@distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
+	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
+	@osr = main::reader($os_release) if -r $os_release;
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
-	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|zorin)/i} @osr ) ){
+	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|zorin)/i} @osr ) ){
 		$distro_file = $os_release;
 	}
 	if (grep {/armbian/} @distro_files){
 		$distro_id = 'armbian' ;
 	}
-	elsif ( -e '/etc/apt/sources.list.d/raspi.list' && 
+	elsif ( !$distro_file && -e '/etc/apt/sources.list.d/raspi.list' && 
 	 (grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
 		$distro_id = 'raspberrypios' ;
 	}
@@ -20267,7 +20263,7 @@ sub get_linux_distro {
 	}
 	elsif ($distro_file && $distro_file eq $os_release){
 		$distro = get_os_release();
-		$b_osr = 1;
+		$b_skip_osr = 1;
 	}
 	# if distro id file was found and it's not in the exluded primary distro file list, read it
 	elsif ( $distro_file && -s $distro_file && $distro_file !~ /\/etc\/($exclude_s)$/){
@@ -20300,15 +20296,15 @@ sub get_linux_distro {
 	elsif ($b_issue){
 		if ( !$distro_id && $lc_issue && $lc_issue =~ /(mint|lmde)/){
 			$distro_id = $1;
-			$b_use_issue = 1;
+			$b_skip_issue = 1;
 		}
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
-		if (!$b_use_issue && @osr){
+		if (!$b_skip_issue && @osr){
 			$distro = get_os_release();
-			$b_osr = 1;
+			$b_skip_osr = 1;
 		}
-		elsif (!$b_use_issue && $b_lsb){
+		elsif (!$b_skip_issue && $b_lsb){
 			$distro = get_lsb_release();
 		}
 		elsif ($etc_issue) {
@@ -20317,7 +20313,7 @@ sub get_linux_distro {
 				# they didn't use any standard paths or files for os data, sigh, use pm version
 				my $version = main::program_version('guix', '^guix', '4','--version',1);
 				$distro .= " $version" if $version;
-				$b_use_issue = 1;
+				$b_skip_issue = 1;
 			}
 			else {
 				$distro =  $etc_issue;
@@ -20334,18 +20330,18 @@ sub get_linux_distro {
 	# exists then let's use that if it wasn't tried already. Maybe that will be better.
 	# not handling the corrupt data, maybe later if needed. 10 + distro: (8) + string
 	if ($distro && length($distro) > 60 ){
-		if (!$b_osr && @osr){
+		if (!$b_skip_osr && @osr){
 			$distro = get_os_release();
-			$b_osr = 1;
+			$b_skip_osr = 1;
 		}
 	}
 	# test for /etc/lsb-release as a backup in case of failure, in cases 
 	# where > one version/release file were found but the above resulted 
 	# in null distro value. 
 	if (!$distro){
-		if (!$b_osr && @osr){
+		if (!$b_skip_osr && @osr){
 			$distro = get_os_release();
-			$b_osr = 1;
+			$b_skip_osr = 1;
 		}
 		elsif ($b_lsb){
 			$distro = get_lsb_release();
@@ -20361,83 +20357,8 @@ sub get_linux_distro {
 			$distro = $distro_file;
 		}
 	}
-	if ($extra > 0){
-		my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
-		# note: arch linux derived distro page claims kaos as arch derived but it is NOT
-		$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
-		$base_arch_distro .= '|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
-		$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
-		my $base_debian_version_distro = 'sidux';
-		my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
-		my $base_default = 'antix-version|mx-version'; # osr has base ids
-		my $base_issue = 'bunsen'; # base only found in issue
-		my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
-		my $base_osr = 'aptosid|grml|q4os|siduction|bodhi'; # osr base, distro id in list of distro files
-		my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
-		# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
-		my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
-		my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
-		my $base_upstream_osr = '/etc/upstream-release/os-release';
-		# first: try, some distros have upstream-release, elementary, new mint
-		# and anyone else who uses this method for fallback ID
-		if ( -r $base_upstream_osr){
-			my @osr_working = main::reader($base_upstream_osr);
-			if ( @osr_working){
-				my (@osr_temp);
-				@osr_temp = @osr;
-				@osr = @osr_working;
-				$system_base = get_os_release();
-				@osr = @osr_temp if !$system_base;
-				(@osr_temp,@osr_working) = (undef,undef);
-			}
-		}
-		elsif ( -r $base_upstream_lsb){
-			$system_base = get_lsb_release($base_upstream_lsb);
-		}
-		if (!$system_base && @osr){
-			my ($base_type) = ('');
-			if ($etc_issue && (grep {/($base_issue)/i} @osr)){
-				$system_base = $etc_issue;
-			}
-			# more tests added here for other ubuntu derived distros
-			elsif ( @distro_files && (grep {/($base_default)/} @distro_files) ){
-				$base_type = 'default';
-			}
-			# must go before base_osr_ubuntu test
-			elsif ( grep {/($base_debian_version_osr)/i} @osr ){
-				$system_base = debian_id();
-			}
-			elsif ( grep {/($base_osr_ubuntu)/i} @osr ){
-				$base_type = 'ubuntu';
-			}
-			elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
-			      (@distro_files && (grep {/($base_osr)/} @distro_files) ) ) && 
-			      !(grep {/($base_osr)/i} @osr)){
-				$system_base = get_os_release();
-			}
-			if (!$system_base && $base_type){
-				$system_base = get_os_release($base_type);
-			}
-		}
-		if (!$system_base && @distro_files && ( grep {/($base_debian_version_distro)/i} @distro_files ) ){
-			$system_base = debian_id();
-		}
-		if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
-			my $id = $1;
-			my %manual = (
-			'blankon' => 'Debian unstable',
-			'deepin' => 'Debian unstable',
-			'kali' => 'Debian testing',
-			);
-			$system_base = $manual{$id};
-		}
-		if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
-			$system_base = 'Arch Linux';
-		}
-		if ($distro && -d '/etc/salixtools/' && $distro =~ /Slackware/i){
-			$system_base = $distro;
-		}
-	}
+	get_system_base() if $extra > 0;
+	# some last customized changes, double check if possible to verify still valid
 	if ($distro){
 		if ($distro_id eq 'armbian'){
 			$distro =~ s/Debian/Armbian/;
@@ -20445,7 +20366,7 @@ sub get_linux_distro {
 		elsif ($distro_id eq 'raspberrypios'){
 			$system_base = $distro;
 			# no need to repeat the debian version info if base:
-			if ($extra == 0){$distro =~ s/Debian GNU\/Linux/Raspberry Pi OS/;}
+			if ($extra == 0){$distro =~ s/Debian\s*GNU\/Linux/Raspberry Pi OS/;}
 			else {$distro = 'Raspberry Pi OS';}
 		}
 		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
@@ -20454,27 +20375,110 @@ sub get_linux_distro {
 	}
 	else {
 		# android fallback, sometimes requires root, sometimes doesn't
-		if ($b_android) {
-			main::set_build_prop() if !$b_build_prop;;
-			$distro = 'Android';
-			$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
-			$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
-			if (!$show{'machine'}){
-				if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
-					$distro .= ' (' . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'} . ')';
-				}
-				elsif ($build_prop{'product-device'}){
-					$distro .= ' (' . $build_prop{'product-device'} . ')';
-				}
-				elsif ($build_prop{'product-name'}){
-					$distro .= ' (' . $build_prop{'product-name'} . ')';
-				}
-			}
-		}
+		get_android() if $b_android;
 	}
 	## finally, if all else has failed, give up
 	$distro ||= 'unknown';
-	@distro_data = ($distro,$system_base);
+	eval $end if $b_log;
+}
+
+sub get_android {
+	eval $start if $b_log;
+	main::set_build_prop() if !$b_build_prop;;
+	$distro = 'Android';
+	$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
+	$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
+	if (!$show{'machine'}){
+		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
+			$distro .= ' (' . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'} . ')';
+		}
+		elsif ($build_prop{'product-device'}){
+			$distro .= ' (' . $build_prop{'product-device'} . ')';
+		}
+		elsif ($build_prop{'product-name'}){
+			$distro .= ' (' . $build_prop{'product-name'} . ')';
+		}
+	}
+	eval $end if $b_log;
+}
+
+sub get_system_base {
+	eval $start if $b_log;
+	my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
+	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
+	$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
+	$base_arch_distro .= '|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
+	$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
+	my $base_debian_version_distro = 'sidux';
+	my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
+	my $base_default = 'antix-version|mx-version'; # osr has base ids
+	my $base_issue = 'bunsen'; # base only found in issue
+	my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
+	my $base_osr = 'aptosid|grml|q4os|siduction|bodhi'; # osr base, distro id in list of distro files
+	my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
+	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
+	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
+	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
+	my $base_upstream_osr = '/etc/upstream-release/os-release';
+	# first: try, some distros have upstream-release, elementary, new mint
+	# and anyone else who uses this method for fallback ID
+	if ( -r $base_upstream_osr){
+		my @osr_working = main::reader($base_upstream_osr);
+		if ( @osr_working){
+			my (@osr_temp);
+			@osr_temp = @osr;
+			@osr = @osr_working;
+			$system_base = get_os_release();
+			@osr = @osr_temp if !$system_base;
+			(@osr_temp,@osr_working) = (undef,undef);
+		}
+	}
+	elsif ( -r $base_upstream_lsb){
+		$system_base = get_lsb_release($base_upstream_lsb);
+	}
+	if (!$system_base && @osr){
+		my ($base_type) = ('');
+		if ($etc_issue && (grep {/($base_issue)/i} @osr)){
+			$system_base = $etc_issue;
+		}
+		# more tests added here for other ubuntu derived distros
+		elsif ( @distro_files && (grep {/($base_default)/} @distro_files) ){
+			$base_type = 'default';
+		}
+		# must go before base_osr_ubuntu test
+		elsif ( grep {/($base_debian_version_osr)/i} @osr ){
+			$system_base = debian_id();
+		}
+		elsif ( grep {/($base_osr_ubuntu)/i} @osr ){
+			$base_type = 'ubuntu';
+		}
+		elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
+				(@distro_files && (grep {/($base_osr)/} @distro_files) ) ) && 
+				!(grep {/($base_osr)/i} @osr)){
+			$system_base = get_os_release();
+		}
+		if (!$system_base && $base_type){
+			$system_base = get_os_release($base_type);
+		}
+	}
+	if (!$system_base && @distro_files && ( grep {/($base_debian_version_distro)/i} @distro_files ) ){
+		$system_base = debian_id();
+	}
+	if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
+		my $id = $1;
+		my %manual = (
+		'blankon' => 'Debian unstable',
+		'deepin' => 'Debian unstable',
+		'kali' => 'Debian testing',
+		);
+		$system_base = $manual{$id};
+	}
+	if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
+		$system_base = 'Arch Linux';
+	}
+	if ($distro && -d '/etc/salixtools/' && $distro =~ /Slackware/i){
+		$system_base = $distro;
+	}
 	eval $end if $b_log;
 }
 
