@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-21';
-my $self_patch='28';
+my $self_date='2021-02-22';
+my $self_patch='29';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -20180,6 +20180,13 @@ sub get_linux_distro {
 	# debian issue can end with weird escapes like \n \l 
 	# antergos: Antergos Linux \r (\l)
 	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
+	# note: always exceptions, so wild card after release/version: 
+	# /etc/lsb-release-crunchbang
+	# wait to handle since crunchbang file is one of the few in the world that 
+	# uses this method
+	@distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
+	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
+	@osr = main::reader($os_release) if -r $os_release;
 	if ($etc_issue){
 		$lc_issue = lc($etc_issue);
 		if ($lc_issue =~ /(antergos|grml|linux lite)/){
@@ -20191,14 +20198,11 @@ sub get_linux_distro {
 			$distro_id = $1;
 			$distro_file = $os_release if @osr;
 		}
+		elsif (-e '/etc/apt/sources.list.d/raspi.list' && 
+		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
+			$distro_id = 'raspberrypios' ;
+		}
 	}
-	# note: always exceptions, so wild card after release/version: 
-	# /etc/lsb-release-crunchbang
-	# wait to handle since crunchbang file is one of the few in the world that 
-	# uses this method
-	@distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
-	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
-	@osr = main::reader($os_release) if -r $os_release;
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
@@ -20207,10 +20211,6 @@ sub get_linux_distro {
 	}
 	if (grep {/armbian/} @distro_files){
 		$distro_id = 'armbian' ;
-	}
-	elsif ( !$distro_file && -e '/etc/apt/sources.list.d/raspi.list' && 
-	 (grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
-		$distro_id = 'raspberrypios' ;
 	}
 	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
 	main::log_data('data',"distro_file-1: $distro_file") if $b_log;
@@ -20642,7 +20642,7 @@ sub debian_id {
 	'13' => 'trixie', 
 	);
 	if (main::is_numeric($debian_version)){
-		$id .= " $debian_version $debians{int($debian_version)}";
+		$id .= " $debian_version " . $debians{int($debian_version)};
 	}
 	elsif ($codename) {
 		my %by_value = reverse %debians;
