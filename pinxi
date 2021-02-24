@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-24';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6619,59 +6619,37 @@ sub asound_output {
 }
 sub usb_output {
 	eval $start if $b_log;
-	my (@rows,@ids,$driver,$path_id,$product,@temp2);
+	my (@rows,@ids,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
-	if (-d '/proc/asound') {
-		# note: this will double the data, but it's easier this way.
-		# inxi tested for -L in the /proc/asound files, and used only those.
-		my @files = main::globber('/proc/asound/*/usbid');
-		foreach (@files){
-			my $id = main::reader($_,'',0);
-			push(@ids, $id) if ($id && ! grep {/$id/} @ids);
+	return if !@usb_audio;
+	foreach my $row (@usb_audio){
+		# print Data::Dumper::Dumper $row;
+		$num = 1;
+		# makre sure to reset, or second device trips last flag
+		($path_id,$product) = ('','');
+		$product = main::cleaner($row->[13]) if $row->[13];
+		$path_id = $row->[2] if $row->[2];
+		$product ||= 'N/A';
+		$row->[15] ||= 'N/A';
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $product,
+		main::key($num++,0,2,'type') => 'USB',
+		main::key($num++,0,2,'driver') => $row->[15],
+		},);
+		if ($extra > 0){
+			$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
 		}
-		# lsusb is a very expensive operation
-		if (@ids){
-			if (!$bsd_type && !$b_usb_check){
-				main::USBData::set();
-			}
+		if ($extra > 1){
+			$row->[7] ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
 		}
-		main::log_data('dump','@ids',\@ids) if $b_log;
-		return if !@usb;
-		foreach my $id (@ids){
-			$j = scalar @rows;
-			foreach my $row (@usb){
-				# a device will always be the second or > device on the bus
-				if ($row->[1] > 1 && $row->[7] eq $id){
-					# print Data::Dumper::Dumper $row;
-					$num = 1;
-					# makre sure to reset, or second device trips last flag
-					($driver,$path_id,$product) = ('','','');
-					$product = main::cleaner($row->[13]) if $row->[13];
-					$driver = $row->[15] if $row->[15];
-					$path_id = $row->[2] if $row->[2];
-					$product ||= 'N/A';
-					$driver ||= 'snd-usb-audio';
-					push(@rows, {
-					main::key($num++,1,1,'Device') => $product,
-					main::key($num++,0,2,'type') => 'USB',
-					main::key($num++,0,2,'driver') => $driver,
-					},);
-					if ($extra > 0){
-						$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
-					}
-					if ($extra > 1){
-						$row->[7] ||= 'N/A';
-						$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
-					}
-					if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-						$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
-					}
-					if ($extra > 2 && $row->[16]){
-						$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
-					}
-				}
-			}
+		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
 		}
+		if ($extra > 2 && $row->[16]){
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+		}
+		$j = scalar @rows;
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -6800,6 +6778,10 @@ sub battery_output {
 		# we need to handle cases where charge or energy full is 0
 		if (defined $battery->{$key}{'energy_now'} && $battery->{$key}{'energy_now'} ne ''){
 			$charge = "$battery->{$key}{'energy_now'} Wh";
+			if ($battery->{$key}{'energy_full'} && main::is_numeric($battery->{$key}{'energy_full'})){
+				my $percent = sprintf("%01d", $battery->{$key}{'energy_now'}/$battery->{$key}{'energy_full'});
+				$charge .= ' (' . $percent  . '%)';
+			}
 		}
 		# better than nothing, shows the charged percent
 		elsif (defined $battery->{$key}{'capacity'} && $battery->{$key}{'capacity'} ne ''){
@@ -7214,45 +7196,42 @@ sub device_output {
 }
 sub usb_output {
 	eval $start if $b_log;
-	return if !@usb;
-	my (@rows,$driver,$path_id,$product);
+	return if !@usb_bluetooth;
+	my (@rows,$path_id,$product);
 	my ($j,$num) = (0,1);
-	foreach my $row (@usb){
+	foreach my $row (@usb_bluetooth){
 		#print Data::Dumper::Dumper $row;
-		if ($row->[14] && $row->[14] eq 'Bluetooth'){
-			#print Data::Dumper::Dumper $row;
-			$num = 1;
-			$j = scalar @rows;
-			# makre sure to reset, or second device trips last flag
-			($driver,$path_id,$product) = ('','','');
-			$product = main::cleaner($row->[13]) if $row->[13];
-			$driver = ($row->[15]) ? $row->[15] : 'N/A';
-			$path_id = $row->[2] if $row->[2];
-# 			$product ||= 'N/A';
-			push(@rows, {
-			main::key($num++,1,1,'Device') => $product,
-			main::key($num++,0,2,'type') => 'USB',
-			main::key($num++,1,2,'driver') => $driver,
-			},);
-			if ($extra > 0 && $row->[15] && !$bsd_type){
-				my $version = main::get_module_version($row->[15]);
-				$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
-			}
-			if ($extra > 0){
-				$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
-			}
-			if ($extra > 1){
-				$row->[7] ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
-			}
-			if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-				$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
-			}
-			if ($extra > 2 && $row->[16]){
-				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
-			}
-			push(@rows,advanced_output('usb',$path_id)) if $path_id;
+		$num = 1;
+		$j = scalar @rows;
+		# makre sure to reset, or second device trips last flag
+		($path_id,$product) = ('','');
+		$product = main::cleaner($row->[13]) if $row->[13];
+		$product ||= 'N/A';
+		$row->[15] ||= 'N/A';
+		$path_id = $row->[2] if $row->[2];
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $product,
+		main::key($num++,0,2,'type') => 'USB',
+		main::key($num++,1,2,'driver') => $row->[15],
+		},);
+		if ($extra > 0 && $row->[15] && !$bsd_type){
+			my $version = main::get_module_version($row->[15]);
+			$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
 		}
+		if ($extra > 0){
+			$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
+		}
+		if ($extra > 1){
+			$row->[7] ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+		}
+		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
+		}
+		if ($extra > 2 && $row->[16]){
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+		}
+		push(@rows,advanced_output('usb',$path_id)) if $path_id;
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -11077,45 +11056,43 @@ sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@ids,$driver,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
-	return if !@usb;
-	foreach my $row (@usb){
+	return if !@usb_graphics;
+	foreach my $row (@usb_graphics){
 		# these tests only work for /sys based usb data for now
-		if ($row->[14] && ($row->[14] eq 'Audio-Video' || $row->[14] eq 'Video' ) ){
-			$num = 1;
-			$j = scalar @rows;
-			# makre sure to reset, or second device trips last flag
-			($driver,$path_id,$product) = ('','','');
-			$product = main::cleaner($row->[13]) if $row->[13];
-			$driver = $row->[15] if $row->[15];
-			$path_id = $row->[2] if $row->[2];
-			$product ||= 'N/A';
-			# note: for real usb video out, no generic drivers? webcams may have one though
-			if (!$driver){
-				if ($row->[14] eq 'Audio-Video'){
-					$driver = 'N/A';
-				}
-				else {
-					$driver = 'N/A';
-				}
+		$num = 1;
+		$j = scalar @rows;
+		# makre sure to reset, or second device trips last flag
+		($driver,$path_id,$product) = ('','','');
+		$product = main::cleaner($row->[13]) if $row->[13];
+		$driver = $row->[15] if $row->[15];
+		$path_id = $row->[2] if $row->[2];
+		$product ||= 'N/A';
+		# note: for real usb video out, no generic drivers? webcams may have one though
+		if (!$driver){
+			if ($row->[14] eq 'Audio-Video'){
+				$driver = 'N/A';
 			}
-			push(@rows, {
-			main::key($num++,1,1,'Device') => $product,
-			main::key($num++,0,2,'type') => 'USB',
-			main::key($num++,0,2,'driver') => $driver,
-			},);
-			if ($extra > 0){
-				$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
+			else {
+				$driver = 'N/A';
 			}
-			if ($extra > 1){
-				$row->[7] ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
-			}
-			if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-				$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
-			}
-			if ($extra > 2 && $row->[16]){
-				$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
-			}
+		}
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $product,
+		main::key($num++,0,2,'type') => 'USB',
+		main::key($num++,0,2,'driver') => $driver,
+		},);
+		if ($extra > 0){
+			$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
+		}
+		if ($extra > 1){
+			$row->[7] ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+		}
+		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
+		}
+		if ($extra > 2 && $row->[16]){
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
 		}
 	}
 	eval $end if $b_log;
@@ -13109,61 +13086,53 @@ sub device_output {
 }
 sub usb_output {
 	eval $start if $b_log;
-	my (@rows,@temp2,$b_wifi,$driver,
-	$path,$path_id,$product,$test,$type);
+	return if !@usb_network;
+	my (@rows,@temp2,$b_wifi,$driver,$path,$path_id,$product,$type);
 	my ($j,$num) = (0,1);
-	return if !@usb;
-	foreach my $row (@usb){
-		# a device will always be the second or > device on the bus, except for 
-		# daisychained hubs
-		if ($row->[1] > 1 && $row->[4] ne '09'){
-			$num = 1;
-			($driver,$path,$path_id,$product,$test,$type) = ('','','','','','');
-			$product = main::cleaner($row->[13]) if $row->[13];
-			$driver = $row->[15] if $row->[15];
-			$path = $row->[3] if $row->[3];
-			$path_id = $row->[2] if $row->[2];
-			$type = $row->[14] if $row->[14];
-			$test = "$driver $product $type";
-			if ($product && network_device($test)){
-				$driver ||= 'usb-network';
-				push(@rows, {
-				main::key($num++,1,1,'Device') => $product,
-				main::key($num++,0,2,'type') => 'USB',
-				main::key($num++,0,2,'driver') => $driver,
-				},);
-				$b_wifi = check_wifi($product);
-				if ($extra > 0){
-					$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
-				}
-				if ($extra > 1){
-					$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
-				}
-				if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-					$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
-				}
-				if ($extra > 2 && $row->[16]){
-					$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
-				}
-				if ($show{'network-advanced'}){
-					my @data;
-					if (!$bsd_type){
-						my (@temp,$vendor,$chip);
-						@temp = split(':', $row->[7]) if $row->[7];
-						($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
-						@data = advanced_data_sys($vendor,$chip,0,$b_wifi,$path,'');
-					}
-					# NOTE: we need the driver.number, like wlp0 to get a match, and 
-					# we can't get that from usb data, so we have to let it fall back down 
-					# to the check function for BSDs.
-					#else {
-					#	@data = advanced_data_bsd($row->[2],$b_wifi);
-					#}
-					push(@rows,@data) if @data;
-				}
-				$j = scalar @rows;
-			}
+	foreach my $row (@usb_network){
+		$num = 1;
+		($driver,$path,$path_id,$product,$type) = ('','','','','');
+		$product = main::cleaner($row->[13]) if $row->[13];
+		$driver = $row->[15] if $row->[15];
+		$path = $row->[3] if $row->[3];
+		$path_id = $row->[2] if $row->[2];
+		$type = $row->[14] if $row->[14];
+		$driver ||= 'N/A';
+		push(@rows, {
+		main::key($num++,1,1,'Device') => $product,
+		main::key($num++,0,2,'type') => 'USB',
+		main::key($num++,0,2,'driver') => $driver,
+		},);
+		$b_wifi = check_wifi($product);
+		if ($extra > 0){
+			$rows[$j]->{main::key($num++,0,2,'bus ID')} = "$path_id:$row->[1]";
 		}
+		if ($extra > 1){
+			$rows[$j]->{main::key($num++,0,2,'chip ID')} = $row->[7];
+		}
+		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
+			$rows[$j]->{main::key($num++,0,2,'class ID')} = "$row->[4]$row->[5]";
+		}
+		if ($extra > 2 && $row->[16]){
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+		}
+		if ($show{'network-advanced'}){
+			my @data;
+			if (!$bsd_type){
+				my (@temp,$vendor,$chip);
+				@temp = split(':', $row->[7]) if $row->[7];
+				($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
+				@data = advanced_data_sys($vendor,$chip,0,$b_wifi,$path,'');
+			}
+			# NOTE: we need the driver.number, like wlp0 to get a match, and 
+			# we can't get that from usb data, so we have to let it fall back down 
+			# to the check function for BSDs.
+			#else {
+			#	@data = advanced_data_bsd($row->[2],$b_wifi);
+			#}
+			push(@rows,@data) if @data;
+		}
+		$j = scalar @rows;
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -13495,34 +13464,6 @@ sub wan_ip {
 	},);
 	eval $end if $b_log;
 	return @data;
-}
-
-### USB networking search string data, because some brands can have other products than
-### wifi/nic cards, they need further identifiers, with wildcards.
-### putting the most common and likely first, then the less common, then some specifics
-sub network_device {
-	eval $start if $b_log;
-	my ($device_string) = @_;
-	my ($b_network);
-	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
-	# Atmel, Atheros make other stuff. NOTE: exclude 'networks': IMC Networks
-	# ralink has bluetooth as well as networking; (WG|WND?A)[0-9][0-9][0-9] netgear IDs
-	my @tests = qw((Ethernet|gigabit|\bISDN|\bLAN\b|Mobile\s?Broadband|\bNIC\b|wi-?fi|Wireless[\s-][GN]\b|WLAN)
-	(802\.(1[15]|3)|(10|11|54|108|240)\s?Mbps|\b54g\b|100?\/1000?|(100?|N)Base-?T)
-	(Actiontec|AirLink|Asus|Belkin|Buffalo|Dell|D-Link|DWA-|ENUWI-|Ralink|Realtek|Rosewill|RNX-|Samsung|Sony|TEW-|TP-Link|Zonet.*ZEW.*).*Wireless 
-	(\bD-Link|Network(ing)?|Wireless).*(Adapter|Interface) 
-	(Linksys|Netgear|Davicom) Range(Booster|Max) 
-	Samsung.*LinkStick \b(WG|WND?A)[0-9][0-9][0-9] 
-	(050d:935b|0bda:8189|0bda:8197)
-	);
-	foreach (@tests){
-		if ($device_string =~ /$_/i){
-			$b_network = 1;
-			last;
-		}
-	}
-	eval $end if $b_log;
-	return $b_network;
 }
 sub check_bus_id {
 	eval $start if $b_log;
@@ -22878,9 +22819,10 @@ sub set_sysctl_data {
 {
 package USBData;
 my (@working);
-my ($b_hub,$addr_id,$bus_id,$bus_id_alpha,$chip_id,$class_id,
-$device_id,$driver,$ids,$interfaces,$name,$path,$path_id,$product,
-$protocol_id,$serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id,);
+my (@asound_ids,$b_asound,$b_hub,$addr_id,$bus_id,$bus_id_alpha,
+$chip_id,$class_id,$device_id,$driver,$ids,$interfaces,
+$name,$network_regex,$path,$path_id,$product,$protocol_id,
+$serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id);
 my $b_live = 1; # debugger file data
 
 sub set {
@@ -22918,6 +22860,8 @@ sub lsusb_data {
 		@temp = @working[6..$#working];
 		$name = main::remove_duplicates(join(' ', @temp));
 		$name = $name;
+		$type = check_type($name,'','');
+		$type ||= '';
 		#print "$name\n";
 		$working[0] = $bus_id;
 		$working[1] = $addr_id;
@@ -22933,7 +22877,7 @@ sub lsusb_data {
 		$working[11] = '';
 		$working[12] = '';
 		$working[13] = $name;
-		$working[14] = '';
+		$working[14] = $type;
 		$working[15] = '';
 		$working[16] = '';
 		$working[17] = '';
@@ -23003,6 +22947,8 @@ sub usbdevs_data {
 			$speed = "$3";
 			$chip_id = "$5:$7";
 			$name = main::remove_duplicates("$6 $4");
+			$type = check_type($name,'','');
+			$type ||= '';
 			#print "p2:$protocol\n";
 			$ports++;
 			$path_id = "$bus_id-$hub_id.$port";
@@ -23020,12 +22966,13 @@ sub usbdevs_data {
 			$working[11] = '';
 			$working[12] = '';
 			$working[13] = $name;
-			$working[14] = '';
+			$working[14] = $type;
 			$working[15] = '';
 			$working[16] = '';
 			$working[17] = '';
 			$working[18] = '';
 			$usb[$j] = ([@working],);
+			assign_usb_type(\@working);
 			$usb[$k]->[10] = $ports;
 			@working = ();
 		}
@@ -23039,6 +22986,7 @@ sub usbdevs_data {
 		$usb[$j] = (
 		[@working],
 		);
+		assign_usb_type(\@working);
 	}
 	main::log_data('dump','@usb: usbdevs',\@usb) if $b_log;
 	print Data::Dumper::Dumper \@usb if $test[6];
@@ -23081,7 +23029,7 @@ sub sys_data {
 	foreach (@files){
 		@uevent = main::reader("$_/uevent") if -r "$_/uevent";
 		$ids = main::awk(\@uevent,'^(DEVNAME|DEVICE\b)',2,'=');
-		if ( $ids){
+		if ($ids){
 			@drivers = ();
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
 			($configuration,$driver,$interfaces,$name,$ports,$product,$serial,$speed,
@@ -23141,6 +23089,7 @@ sub sys_data {
 						$usb[$i]->[16] = $serial if $serial;
 						$usb[$i]->[17] = $speed if $speed;
 						$usb[$i]->[18] = $configuration;
+						assign_usb_type($usb[$i]);
 						#print join("\n",@{$usb[$i]}),"\n\n";# if !$b_hub; 
 						last;
 					}
@@ -23197,6 +23146,7 @@ sub sys_data {
 				$usb[$i]->[16] = $serial;
 				$usb[$i]->[17] = $speed;
 				$usb[$i]->[18] = $configuration;
+				assign_usb_type($usb[$i]);
 				$i++;
 			}
 			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $test[6];;
@@ -23264,6 +23214,70 @@ sub sys_item {
 	$item = main::trimmer($item) if $item;
 	return $item;
 }
+sub assign_usb_type {
+	my ($row) = @_;
+	# it's a hub
+	# a device will always be the second or > device on the bus, although
+	# nested hubs of course can be > 1 too.
+	if (($row->[4] && $row->[4] eq '09') || 
+	    ($row->[14] && $row->[14] eq 'Hub') ||
+	    $row->[1] <= 1){
+		return;
+	}
+	$row->[13] = '' if !defined $row->[13]; # product
+	$row->[14] = '' if !defined $row->[14]; # type
+	$row->[15] = '' if !defined $row->[15]; # driver
+	set_asound_ids() if !$b_asound;
+	set_network_regex() if !$network_regex;
+	if ((@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
+		($row->[14] =~ /Audio/) || ($row->[15] && $row->[15] =~ /snd-usb-audio/)){
+		push(@usb_audio,$row);
+	}
+	if ($row->[14] && $row->[14] eq 'Bluetooth' || ($row->[15] && $row->[15] =~ /btusb/)){
+		push(@usb_bluetooth,$row);
+	}
+	elsif ($row->[14] && ($row->[14] eq 'Audio-Video' || $row->[14] eq 'Video' ) ||
+		($row->[15] && $row->[15] =~ /uvcvideo/)){
+		push(@usb_graphics,$row);
+	}
+	elsif ("$row->[13] $row->[14] $row->[15]" =~ /($network_regex)/i){
+		#print "$1\n";
+		push(@usb_network,$row);
+	}
+}
+# linux only, will create a positive match to sound devices
+sub set_asound_ids {
+	$b_asound = 1;
+	if (-d '/proc/asound') {
+		# note: this will double the data, but it's easier this way.
+		# inxi tested for -L in the /proc/asound files, and used only those.
+		my @files = main::globber('/proc/asound/*/usbid');
+		foreach (@files){
+			my $id = main::reader($_,'',0);
+			push(@asound_ids, $id) if ($id && !(grep {/$id/} @asound_ids));
+		}
+	}
+	main::log_data('dump','@asound_ids',\@asound_ids) if $b_log;
+}
+### USB networking search string data, because some brands can have other products than
+### wifi/nic cards, they need further identifiers, with wildcards.
+### putting the most common and likely first, then the less common, then some specifics
+sub set_network_regex {
+	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
+	# Atmel, Atheros make other stuff. NOTE: exclude 'networks': IMC Networks
+	# ralink has bluetooth as well as networking; (WG|WND?A)[0-9][0-9][0-9] netgear IDs
+	$network_regex = 'Ethernet|gigabit|\bISDN|\bLAN\b|Mobile\s?Broadband|';
+	$network_regex .= '\bNIC\b|wi-?fi|Wireless[\s-][GN]\b|WLAN|';
+	$network_regex .= '802\.(1[15]|3)|(10|11|54|108|240|300|450|1300)\s?Mbps|(11|54|108|240)g\b|100?\/1000?|';
+	$network_regex .= '(100?|N)Base-?T\b|';
+	$network_regex .= '(Actiontec|AirLink|Asus|Belkin|Buffalo|Dell|D-Link|DWA-|ENUWI-|';
+	$network_regex .= 'Ralink|Realtek|Rosewill|RNX-|Samsung|Sony|TEW-|TP-Link';
+	$network_regex .= 'Zonet.*ZEW.*).*Wireless|';
+	$network_regex .= '(\bD-Link|Network(ing)?|Wireless).*(Adapter|Interface)|';
+	$network_regex .= '(Linksys|Netgear|Davicom)|';
+	$network_regex .= 'Range(Booster|Max)|Samsung.*LinkStick|\b(WG|WND?A)[0-9][0-9][0-9]|';
+	$network_regex .= '\b(050d:935b|0bda:8189|0bda:8197)\b';
+}
 
 sub device_type {
 	my ($data) = @_;
@@ -23324,7 +23338,6 @@ sub device_type {
 sub check_type {
 	my ($name,$driver,$type) = @_;
 	$name = lc($name);
-	# ntoe used but if we want to add in bsd usb audio support could be good
 	if ($name =~ /(audio|hifi|sound)/){
 		$type = 'Audio';
 	}
@@ -23332,10 +23345,15 @@ sub check_type {
 	elsif (($driver && $driver =~ /btusb/) || $name =~ /(bluetooth)/){
 		$type = 'Bluetooth';
 	}
+	elsif ($name =~ /(WLAN|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?Mbps|(11|54|108|240)g\b|Wireless[\s-][GN]\b)/i){
+		$type = 'WiFi';
+	}
+	elsif ($name =~ /(Ethernet|\bLAN|802\.3|100?\/1000?|gigabit)/i){
+		$type = 'Ethernet';
+	}
 	elsif (($driver && $driver =~ /uvcvideo/) || $name =~ /(display|video|camera)/){
 		$type = 'Video';
 	}
-	# ethernet/wifi test not needed because NetworkData runs its own tests on the data
 	return $type;
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
@@ -23425,7 +23443,7 @@ sub generate_lines {
 			assign_data(\%row);
 		}
 		if ( $show{'audio'} ){
-			# Note: USBData is set internally in AudioData because it's only run in one case
+			USBData::set() if !$b_usb_check;
 			DeviceData::set($b_pci_check) if !$b_pci_check; 
 			%row = line_handler('Audio','audio');
 			assign_data(\%row);
