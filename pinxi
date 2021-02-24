@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-22';
-my $self_patch='29';
+my $self_date='2021-02-24';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -69,7 +69,8 @@ my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,
 my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
 @paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
-@sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb);
+@sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb,@usb_audio,
+@usb_bluetooth,@usb_graphics,@usb_network);
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 @lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
@@ -4896,8 +4897,8 @@ sub show_options {
 	['0', '', '', "Output Control Options (see Extra Data Options to extend output):" ],
 	['1', '-A', '--audio', "Audio/sound devices(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
-	['1', '-B', '--battery', "System battery info, including charge and condition, plus 
-	extra info (if battery present)." ],
+	['1', '-B', '--battery', "System battery info, including charge, condition
+	voltage, plus extra info (if battery present)." ],
 	['1', '-c', '--color', "Set color scheme (0-42). For piped or redirected output,
 	you must use an explicit color selector. Example:^$self_name^-c^11" ],
 	['1', '', '', "Color selectors let you set the config file value for the 
@@ -5120,7 +5121,7 @@ sub show_options {
 	['1', '-xx', '--extra 2', "Show extra, extra data (only works with verbose 
 	or line output, not short form):" ],
 	['2', '-A', '', "Chip vendor:product ID for each audio device." ],
-	['2', '-B', '', "Serial number, voltage now/minimum (if available)." ],
+	['2', '-B', '', "Serial number." ],
 	['2', '-C', '', "L1/L3 cache (if root and dmidecode installed)." ],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available)." ],
@@ -6792,7 +6793,7 @@ sub battery_output {
 	# print Data::Dumper::Dumper $battery;
 	foreach $key (sort keys %$battery){
 		$num = 0;
-		my ($charge,$condition,$model,$serial,$status,$volts) = ('','','','','','');
+		my ($charge,$condition,$model,$serial,$status) = ('','','','','');
 		my ($chemistry,$cycles,$location) = ('','','');
 		next if !$battery->{$key}{'purpose'} || $battery->{$key}{'purpose'} ne 'primary';
 		# $battery->{$key}{''};
@@ -6822,16 +6823,13 @@ sub battery_output {
 		main::key($num++,0,2,'charge') => $charge,
 		main::key($num++,0,2,'condition') => $condition,
 		},);
+		$battery->{$key}{'voltage_now'} ||= 'N/A';
+		$rows[$j]->{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
+		if ($battery->{$key}{'voltage_now'} ne 'N/A' || $battery->{$key}{'voltage_min_design'}){
+			$battery->{$key}{'voltage_min_design'} ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,3,'min')} = $battery->{$key}{'voltage_min_design'};
+		}
 		if ($extra > 0){
-			if ($extra > 1){
-				if ($battery->{$key}{'voltage_min_design'} || $battery->{$key}{'voltage_now'}){
-					$battery->{$key}{'voltage_min_design'} ||= 'N/A';
-					$battery->{$key}{'voltage_now'} ||= 'N/A';
-					$volts = "$battery->{$key}{'voltage_now'}/$battery->{$key}{'voltage_min_design'}";
-				}
-				$volts ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'volts')} = $volts;
-			}
 			if ($battery->{$key}{'manufacturer'} || $battery->{$key}{'model_name'}) {
 				if ($battery->{$key}{'manufacturer'} && $battery->{$key}{'model_name'}){
 					$model = "$battery->{$key}{'manufacturer'} $battery->{$key}{'model_name'}";
@@ -20198,6 +20196,7 @@ sub get_linux_distro {
 			$distro_id = $1;
 			$distro_file = $os_release if @osr;
 		}
+		# note: wrong fix, applies to both raspbian and raspberry pi os
 		elsif (-e '/etc/apt/sources.list.d/raspi.list' && 
 		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
 			$distro_id = 'raspberrypios' ;
