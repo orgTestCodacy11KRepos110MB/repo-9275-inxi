@@ -23218,67 +23218,41 @@ sub assign_usb_type {
 	my ($row) = @_;
 	# it's a hub
 	# a device will always be the second or > device on the bus, although
-	# nested hubs of course can be > 1 too.
+	# nested hubs of course can be > 1 too. No need to build these if none of 
+	# lines are showing.
 	if (($row->[4] && $row->[4] eq '09') || 
 	    ($row->[14] && $row->[14] eq 'Hub') ||
-	    $row->[1] <= 1){
+	    $row->[1] <= 1 ||
+	    (!$show{'audio'} && $show{'bluetooth'} && !$show{'graphics'} && !$show{'network'})){
 		return;
 	}
 	$row->[13] = '' if !defined $row->[13]; # product
 	$row->[14] = '' if !defined $row->[14]; # type
 	$row->[15] = '' if !defined $row->[15]; # driver
-	set_asound_ids() if !$b_asound;
-	set_network_regex() if !$network_regex;
-	if ((@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
-		($row->[14] =~ /Audio/) || ($row->[15] && $row->[15] =~ /snd-usb-audio/)){
+	set_asound_ids() if $show{'audio'} && !$b_asound;
+	set_network_regex() if $show{'network'} && !$network_regex;
+	if ($show{'audio'} && (
+	    (@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
+		 ($row->[14] =~ /Audio/) || ($row->[15] && $row->[15] =~ /audio/))){
 		push(@usb_audio,$row);
 	}
-	if ($row->[14] && $row->[14] eq 'Bluetooth' || ($row->[15] && $row->[15] =~ /btusb/)){
+	elsif ($show{'bluetooth'} && (
+	       $row->[14] && $row->[14] =~ /Bluetooth/ || ($row->[15] && $row->[15] =~ /btusb/))){
 		push(@usb_bluetooth,$row);
 	}
-	elsif ($row->[14] && ($row->[14] eq 'Audio-Video' || $row->[14] eq 'Video' ) ||
-		($row->[15] && $row->[15] =~ /uvcvideo/)){
+	elsif ($show{'graphics'} && (
+	   $row->[14] && ($row->[14] =~ /Video/ ) ||
+		($row->[15] && $row->[15] =~ /video/) || 
+		($row->[13] && lc($row->[13]) =~ /(camera|video|\b(pc)?tv\b|webcam)/))){
 		push(@usb_graphics,$row);
 	}
-	elsif ("$row->[13] $row->[14] $row->[15]" =~ /($network_regex)/i){
+	elsif ($show{'network'} && (
+	       ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
+	       ($row->[13] =~ /($network_regex)/i))){
 		#print "$1\n";
 		push(@usb_network,$row);
 	}
 }
-# linux only, will create a positive match to sound devices
-sub set_asound_ids {
-	$b_asound = 1;
-	if (-d '/proc/asound') {
-		# note: this will double the data, but it's easier this way.
-		# inxi tested for -L in the /proc/asound files, and used only those.
-		my @files = main::globber('/proc/asound/*/usbid');
-		foreach (@files){
-			my $id = main::reader($_,'',0);
-			push(@asound_ids, $id) if ($id && !(grep {/$id/} @asound_ids));
-		}
-	}
-	main::log_data('dump','@asound_ids',\@asound_ids) if $b_log;
-}
-### USB networking search string data, because some brands can have other products than
-### wifi/nic cards, they need further identifiers, with wildcards.
-### putting the most common and likely first, then the less common, then some specifics
-sub set_network_regex {
-	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
-	# Atmel, Atheros make other stuff. NOTE: exclude 'networks': IMC Networks
-	# ralink has bluetooth as well as networking; (WG|WND?A)[0-9][0-9][0-9] netgear IDs
-	$network_regex = 'Ethernet|gigabit|\bISDN|\bLAN\b|Mobile\s?Broadband|';
-	$network_regex .= '\bNIC\b|wi-?fi|Wireless[\s-][GN]\b|WLAN|';
-	$network_regex .= '802\.(1[15]|3)|(10|11|54|108|240|300|450|1300)\s?Mbps|(11|54|108|240)g\b|100?\/1000?|';
-	$network_regex .= '(100?|N)Base-?T\b|';
-	$network_regex .= '(Actiontec|AirLink|Asus|Belkin|Buffalo|Dell|D-Link|DWA-|ENUWI-|';
-	$network_regex .= 'Ralink|Realtek|Rosewill|RNX-|Samsung|Sony|TEW-|TP-Link';
-	$network_regex .= 'Zonet.*ZEW.*).*Wireless|';
-	$network_regex .= '(\bD-Link|Network(ing)?|Wireless).*(Adapter|Interface)|';
-	$network_regex .= '(Linksys|Netgear|Davicom)|';
-	$network_regex .= 'Range(Booster|Max)|Samsung.*LinkStick|\b(WG|WND?A)[0-9][0-9][0-9]|';
-	$network_regex .= '\b(050d:935b|0bda:8189|0bda:8197)\b';
-}
-
 sub device_type {
 	my ($data) = @_;
 	my ($type);
@@ -23335,26 +23309,60 @@ sub device_type {
 	return $type;
 }
 # device name/driver string based test, return <vendor specific> if not detected
+# for linux based tests
 sub check_type {
 	my ($name,$driver,$type) = @_;
 	$name = lc($name);
-	if ($name =~ /(audio|hifi|sound)/){
+	if ($name =~ /(audio|hifi|\bmidi\b|sound)/){
 		$type = 'Audio';
 	}
 	# Broadcom HP Portable SoftSailing
 	elsif (($driver && $driver =~ /btusb/) || $name =~ /(bluetooth)/){
-		$type = 'Bluetooth';
+		$type = 'Bluetooth'
 	}
-	elsif ($name =~ /(WLAN|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?Mbps|(11|54|108|240)g\b|Wireless[\s-][GN]\b)/i){
-		$type = 'WiFi';
-	}
-	elsif ($name =~ /(Ethernet|\bLAN|802\.3|100?\/1000?|gigabit)/i){
-		$type = 'Ethernet';
-	}
-	elsif (($driver && $driver =~ /uvcvideo/) || $name =~ /(display|video|camera)/){
+	elsif (($driver && $driver =~ /video/) || $name =~ /(camera|display|\b(pc)?tv\bvideo|webcam)/){
 		$type = 'Video';
 	}
+	elsif ($name =~ /(wlan|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?mbps|(11|54|108|240)g\b|wireless[\s-][gn]\b)/){
+		$type = 'WiFi';
+	}
+	elsif ($name =~ /(ethernet|\blan|802\.3|100?\/1000?|gigabit)/){
+		$type = 'Ethernet';
+	}
 	return $type;
+}
+# linux only, will create a positive match to sound devices
+sub set_asound_ids {
+	$b_asound = 1;
+	if (-d '/proc/asound') {
+		# note: this will double the data, but it's easier this way.
+		# inxi tested for -L in the /proc/asound files, and used only those.
+		my @files = main::globber('/proc/asound/*/usbid');
+		foreach (@files){
+			my $id = main::reader($_,'',0);
+			push(@asound_ids, $id) if ($id && !(grep {/$id/} @asound_ids));
+		}
+	}
+	main::log_data('dump','@asound_ids',\@asound_ids) if $b_log;
+}
+### USB networking search string data, because some brands can have other products than
+### wifi/nic cards, they need further identifiers, with wildcards.
+### putting the most common and likely first, then the less common, then some specifics
+sub set_network_regex {
+	# belkin=050d; d-link=07d1; netgear=0846; ralink=148f; realtek=0bda; 
+	# Atmel, Atheros make other stuff. NOTE: exclude 'networks': IMC Networks
+	# ralink has bluetooth as well as networking; (WG|WND?A)[0-9][0-9][0-9] netgear IDs
+	$network_regex = 'Ethernet|gigabit|\bISDN|\bLAN\b|Mobile\s?Broadband|';
+	$network_regex .= '\bNIC\b|wi-?fi|Wireless[\s-][GN]\b|WLAN|';
+	$network_regex .= '802\.(1[15]|3)|(10|11|54|108|240|300|450|1300)\s?Mbps|(11|54|108|240)g\b|100?\/1000?|';
+	$network_regex .= '(100?|N)Base-?T\b|';
+	$network_regex .= '(Actiontec|AirLink|Asus|Belkin|Buffalo|Dell|D-Link|DWA-|ENUWI-|';
+	$network_regex .= 'Ralink|Realtek|Rosewill|RNX-|Samsung|Sony|TEW-|TP-Link';
+	$network_regex .= 'Zonet.*ZEW.*).*Wireless|';
+	$network_regex .= '(\bD-Link|Network(ing)?|Wireless).*(Adapter|Interface)|';
+	$network_regex .= '(Linksys|Netgear|Davicom)|';
+	$network_regex .= 'Range(Booster|Max)|Samsung.*LinkStick|\b(WG|WND?A)[0-9][0-9][0-9]|';
+	$network_regex .= '\b(050d:935b|0bda:8189|0bda:8197)\b';
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
 sub bus_id_alpha {
