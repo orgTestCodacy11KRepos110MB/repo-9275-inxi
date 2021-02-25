@@ -22838,6 +22838,10 @@ sub set {
 	elsif ( $alerts{'usbdevs'}->{'action'} eq 'use'){
 		usbdevs_data();
 	}
+	main::log_data('dump','@usb_audio: ',\@usb_audio) if $b_log;
+	main::log_data('dump','@usb_bluetooth: ',\@usb_bluetooth) if $b_log;
+	main::log_data('dump','@usb_graphics: ',\@usb_graphics) if $b_log;
+	main::log_data('dump','@usb_network: ',\@usb_network) if $b_log;
 	eval $end if $b_log;
 }
 
@@ -23221,9 +23225,9 @@ sub assign_usb_type {
 	# nested hubs of course can be > 1 too. No need to build these if none of 
 	# lines are showing.
 	if (($row->[4] && $row->[4] eq '09') || 
-	    ($row->[14] && $row->[14] eq 'Hub') ||
-	    $row->[1] <= 1 ||
-	    (!$show{'audio'} && $show{'bluetooth'} && !$show{'graphic'} && !$show{'network'})){
+	  ($row->[14] && $row->[14] eq 'Hub') ||
+	  $row->[1] <= 1 ||
+	  (!$show{'audio'} && !$show{'bluetooth'} && !$show{'graphic'} && !$show{'network'})){
 		return;
 	}
 	$row->[13] = '' if !defined $row->[13]; # product
@@ -23232,23 +23236,27 @@ sub assign_usb_type {
 	set_asound_ids() if $show{'audio'} && !$b_asound;
 	set_network_regex() if $show{'network'} && !$network_regex;
 	if ($show{'audio'} && (
-	    (@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
-		 ($row->[14] =~ /Audio/) || ($row->[15] && $row->[15] =~ /audio/))){
+	  (@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
+	  ($row->[14] =~ /Audio/) || 
+	  ($row->[15] && $row->[15] =~ /audio/) ||
+	  ($row->[13] && lc($row->[13]) =~ /(audio|\bdac[0-9]*\b|\bmic(rophone)?\b)/))){
 		push(@usb_audio,$row);
 	}
 	elsif ($show{'bluetooth'} && (
-	       $row->[14] && $row->[14] =~ /Bluetooth/ || ($row->[15] && $row->[15] =~ /btusb/))){
+	  $row->[14] && $row->[14] =~ /Bluetooth/ || 
+	  ($row->[15] && $row->[15] =~ /btusb/))){
 		push(@usb_bluetooth,$row);
 	}
 	elsif ($show{'graphic'} && (
-	   $row->[14] && ($row->[14] =~ /Video/ ) ||
-		($row->[15] && $row->[15] =~ /video/) || 
-		($row->[13] && lc($row->[13]) =~ /(camera|video|\b(pc)?tv\b|webcam)/))){
+	  $row->[14] && ($row->[14] =~ /Video/ ) ||
+	  ($row->[15] && $row->[15] =~ /video/) || 
+	  ($row->[13] && lc($row->[13]) =~ /(camera|\bdvb-t|\b(pc)?tv\b|video|webcam)/))){
 		push(@usb_graphics,$row);
 	}
 	elsif ($show{'network'} && (
-	       ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
-	       ($row->[13] =~ /($network_regex)/i))){
+	   ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
+	   ($row->[15] && $row->[15] =~ /(^ipw|^iwl|wifi)/) || 
+	   ($row->[13] && $row->[13] =~ /($network_regex)/i))){
 		#print "$1\n";
 		push(@usb_network,$row);
 	}
@@ -23309,18 +23317,19 @@ sub device_type {
 	return $type;
 }
 # device name/driver string based test, return <vendor specific> if not detected
-# for linux based tests
+# for linux based tests, and empty for bsd tests
 sub check_type {
 	my ($name,$driver,$type) = @_;
 	$name = lc($name);
-	if ($name =~ /(audio|hifi|\bmidi\b|sound)/){
+	if ($name =~ /(audio|\bdac[0-9]*\b|hifi|\bmidi\b|\bmic(rophone)?\b|sound)/){
 		$type = 'Audio';
 	}
 	# Broadcom HP Portable SoftSailing
 	elsif (($driver && $driver =~ /btusb/) || $name =~ /(bluetooth)/){
 		$type = 'Bluetooth'
 	}
-	elsif (($driver && $driver =~ /video/) || $name =~ /(camera|display|\b(pc)?tv\bvideo|webcam)/){
+	elsif (($driver && $driver =~ /video/) || 
+	  $name =~ /(camera|display|\bdvb-t|\b(pc)?tv\bvideo|webcam)/){
 		$type = 'Video';
 	}
 	elsif ($name =~ /(wlan|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?mbps|(11|54|108|240)g\b|wireless[\s-][gn]\b)/){
@@ -23336,7 +23345,7 @@ sub set_asound_ids {
 	$b_asound = 1;
 	if (-d '/proc/asound') {
 		# note: this will double the data, but it's easier this way.
-		# inxi tested for -L in the /proc/asound files, and used only those.
+		# binxi tested for -L in the /proc/asound files, and used only those.
 		my @files = main::globber('/proc/asound/*/usbid');
 		foreach (@files){
 			my $id = main::reader($_,'',0);
