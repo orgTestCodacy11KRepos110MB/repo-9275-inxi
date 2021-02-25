@@ -4898,7 +4898,7 @@ sub show_options {
 	['1', '-A', '--audio', "Audio/sound devices(s), driver, sound server." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge, condition
-	voltage, plus extra info (if battery present)." ],
+	voltage (if critical), plus extra info (if battery present)." ],
 	['1', '-c', '--color', "Set color scheme (0-42). For piped or redirected output,
 	you must use an explicit color selector. Example:^$self_name^-c^11" ],
 	['1', '', '', "Color selectors let you set the config file value for the 
@@ -5070,8 +5070,8 @@ sub show_options {
 	verbose or line output, not short form):" ],
 	['2', '-A', '', "Specific vendor/product information (if relevant); 
 	PCI/USB ID of device; Version/port(s)/driver version (if available)." ],
-	['2', '-B', '', "Vendor/model, status (if available); attached devices 
-	(e.g. wireless mouse, keyboard, if present)." ],
+	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
+	attached devices (e.g. wireless mouse, keyboard, if present)." ],
 	['2', '-C', '', "CPU $flags (short list, use -f to see full list);
 	CPU boost (turbo) enabled/disabled, if present; 
 	Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
@@ -6805,11 +6805,14 @@ sub battery_output {
 		main::key($num++,0,2,'charge') => $charge,
 		main::key($num++,0,2,'condition') => $condition,
 		},);
-		$battery->{$key}{'voltage_now'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
-		if ($battery->{$key}{'voltage_now'} ne 'N/A' || $battery->{$key}{'voltage_min_design'}){
-			$battery->{$key}{'voltage_min_design'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,3,'min')} = $battery->{$key}{'voltage_min_design'};
+		if ($extra > 0 || ($battery->{$key}{'voltage_now'} && $battery->{$key}{'voltage_min_design'} && 
+		 ($battery->{$key}{'voltage_now'} - $battery->{$key}{'voltage_min_design'}) < 0.5)){
+			$battery->{$key}{'voltage_now'} ||= 'N/A';
+			$rows[$j]->{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
+			if ($battery->{$key}{'voltage_now'} ne 'N/A' || $battery->{$key}{'voltage_min_design'}){
+				$battery->{$key}{'voltage_min_design'} ||= 'N/A';
+				$rows[$j]->{main::key($num++,0,3,'min')} = $battery->{$key}{'voltage_min_design'};
+			}
 		}
 		if ($extra > 0){
 			if ($battery->{$key}{'manufacturer'} || $battery->{$key}{'model_name'}) {
