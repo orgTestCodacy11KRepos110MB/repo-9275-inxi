@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-26';
-my $self_patch='47';
+my $self_patch='48';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -21025,7 +21025,7 @@ sub get_memory_data_bsd {
 	eval $start if $b_log;
 	my ($type) = @_;
 	my $memory = '';
-	my ($avm,$av_pages,$cnt,$fre,$free_mem,$mult,$real_mem,$total) = (3,0,0,4,0,0,0,0);
+	my ($avm,$av_pages,$cnt,$fre,$free_mem,$mult,$real_mem,$total) = (0,0,0,0,0,0,0,0);
 	my (@data,$message);
 	my $arg = ($bsd_type ne 'openbsd' && $bsd_type ne 'dragonfly') ? '-H' : '';
 	if (my $program = check_program('vmstat')){
@@ -21043,20 +21043,19 @@ sub get_memory_data_bsd {
 		if ( $row ){
 			@data = split(/\s+/, $row);
 			# 6.3 introduced an M character, sigh.
-			if ($data[$avm] && $data[$avm] =~ /^([0-9]+)([GM])$/){
+			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9]+)([GM])$/){
 				$mult = ($2 eq 'G') ? 1024 * 1024: 1024;
 				$data[$avm] = $1 * $mult;
 			}
-			
-			if ($data[$fre] && $data[$fre] =~ /^([0-9]+)([GM])$/){
+			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9]+)([GM])$/){
 				$mult = ($2 eq 'G') ? 1024 * 1024: 1024;
 				$data[$fre] = $1 * $mult;
 			}
-			# dragonfly can have 0 avg, but they may fix that so make test dynamic
-			if ($data[$avm] != 0){
+			# dragonfly can have 0 avg, or no avm, sigh, but they may fix that so make test dynamic
+			if ($avm > 0 && $data[$avm] != 0){
 				$av_pages = ($bsd_type ne 'openbsd') ? sprintf('%.1f',$data[$avm]/1024) : $data[$avm];
 			}
-			elsif ($data[$fre] != 0){
+			elsif ($fre > 0 && $data[$fre] != 0){
 				$free_mem = sprintf('%.1f',$data[$fre]);
 			}
 		}
