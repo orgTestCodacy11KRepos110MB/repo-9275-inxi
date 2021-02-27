@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-26';
-my $self_patch='52';
+my $self_date='2021-02-27';
+my $self_patch='53';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -420,8 +420,9 @@ sub set_fake_bsd_tools {
 	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $fake{'dboot'};
 	$alerts{'pciconf'}->{'action'} = 'use' if $fake{'pciconf'};
 	$alerts{'sysctl'}->{'action'} = 'use' if $fake{'sysctl'};
-	if ($fake{'usbdevs'}){
-		$alerts{'usbdevs'}->{'action'} = 'use';
+	if ($fake{'usbconfig'} || $fake{'usbdevs'}){
+		$alerts{'usbconfig'}->{'action'} = 'use' if $fake{'usbconfig'};
+		$alerts{'usbdevs'}->{'action'} = 'use' if $fake{'usbdevs'};
 		$alerts{'lsusb'} = {
 		'action' => 'missing',
 		'missing' => 'Required program lsusb not available',
@@ -1840,6 +1841,7 @@ sub system_data {
 	['pciconf','-l -cv'],
 	['pciconf','-vl'],
 	['pciconf','-l'],
+	['usbconfig','list'], # needs root, sigh... why?
 	# openbsd
 	['pcidump',''],
 	['pcidump','-v'],
@@ -4532,18 +4534,6 @@ sub get_options {
 			error_handler('bad-arg', $opt, $arg);
 		}
 	},
-	'bsd-data:s' => sub { 
-		my ($opt,$arg) = @_;
-		if ($arg =~ /^(dboot|pciconf|sysctl|usbdevs)$/i){
-			$fake{'dboot'} = 1 if $arg eq 'dboot';
-			$fake{'pciconf'} = 1 if $arg eq 'pciconf';
-			$fake{'sysctl'} = 1 if $arg eq 'sysctl';
-			$fake{'usbdevs'} = 1 if $arg eq 'usbdevs';
-		}
-		else {
-			error_handler('bad-arg', $opt, $arg);
-		}
-	},
 	'dbg:i' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg > 0) {
@@ -4627,18 +4617,23 @@ sub get_options {
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
-	'fake-compiler' => sub {
-		$fake{'compiler'} = 1 },
-	'fake-cpu' => sub {
-		$fake{'cpu'} = 1 },
-	'fake-dmi' => sub {
-		$fake{'dmidecode'} = 1 },
-	'fake-logical' => sub {
-		$fake{'logical'} = 1 },
-	'fake-raid' => sub {
-		$fake{'raid'} = 1 },
-	'fake-sensors' => sub {
-		$fake{'sensors'} = 1 },
+	'fake:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg){
+			my $fakes = 'bluetooth|compiler|cpu|dboot|dmidecode|logical|';
+			$fakes .= 'pciconf|raid|sensors|sysctl|usbconfig|usbdevs';
+			for (split(',',$arg)){
+				if ($_ =~ /\b($fakes)\b/){
+					$fake{$1} = 1;
+				}
+				else {
+					error_handler('bad-arg', $opt, $_);
+				}
+			}
+		}
+		else {
+			error_handler('bad-arg', $opt, $arg);
+		}},
 	'ftp:s'  => sub { 
 		my ($opt,$arg) = @_;
 		# pattern: ftp.x.x/x
@@ -22870,15 +22865,16 @@ my $b_live = 1; # debugger file data
 sub set {
 	eval $start if $b_log;
 	$b_usb_check = 1;
+	# note: bsd package usbutils has lsusb in it, but we dont' want it for default
+	if ( $alerts{'usbdevs'}->{'action'} eq 'use'){
+		usbdevs_data();
+	}
 	# if user config sets USB_SYS you can override with --usb-tool
-	if ((!$b_usb_sys || $b_usb_tool) && $alerts{'lsusb'}->{'action'} eq 'use' ){
+	elsif ((!$b_usb_sys || $b_usb_tool) && $alerts{'lsusb'}->{'action'} eq 'use' ){
 		lsusb_data();
 	}
 	elsif (-d '/sys/bus/usb/devices'){
 		sys_data('main');
-	}
-	elsif ( $alerts{'usbdevs'}->{'action'} eq 'use'){
-		usbdevs_data();
 	}
 	main::log_data('dump','@usb_audio: ',\@usb_audio) if $b_log;
 	main::log_data('dump','@usb_bluetooth: ',\@usb_bluetooth) if $b_log;
