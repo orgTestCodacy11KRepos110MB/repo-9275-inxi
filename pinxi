@@ -21122,7 +21122,6 @@ sub get_gpu_ram {
 	eval $end if $b_log;
 	return $gpu_ram;
 }
-
 }
 
 sub get_module_version {
@@ -21695,7 +21694,7 @@ sub get_wakeups {
 }
 
 #### -------------------------------------------------------------------
-#### SET DATA VALUES
+#### SET DATA VALUES - used to set data for program features
 #### -------------------------------------------------------------------
 
 # android only, for distro / OS id and machine data
@@ -22443,7 +22442,10 @@ sub set_dmidecode_data {
 	eval $end if $b_log;
 }
 
-sub set_ip_data {
+# Set IpData
+{
+package IpData;
+sub set {
 	eval $start if $b_log;
 	if ($alerts{'ip'}->{'action'} eq 'use' ){
 		set_ip_addr();
@@ -22456,7 +22458,7 @@ sub set_ip_data {
 
 sub set_ip_addr {
 	eval $start if $b_log;
-	my @data = grabber($alerts{'ip'}->{'path'} . " addr 2>/dev/null",'\n','strip');
+	my @data = main::grabber($alerts{'ip'}->{'path'} . " addr 2>/dev/null",'\n','strip');
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/if/scope-ipaddr-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/networking/ip-addr-blue-advance.txt";
 	#my @data = reader($file,'strip') or die $!;
@@ -22495,22 +22497,22 @@ sub set_ip_addr {
 			}
 			@temp = ($type,$ip,$broadcast,$scope,$if_id);
 			push(@ips,[@temp]);
-			#print Dumper \@ips;
+			#print Data::Dumper::Dumper \@ips;
 		}
 	}
-	#print Dumper \@ips if $test[4];
+	#print Data::Dumper::Dumper \@ips if $test[4];
 	if (@ips){
 		@temp = ($if,[@ips]);
 		push(@ifs,@temp);
 	}
-	log_data('dump','@ifs',\@ifs) if $b_log;
-	print Dumper \@ifs if $test[3];
+	main::log_data('dump','@ifs',\@ifs) if $b_log;
+	print Data::Dumper::Dumper \@ifs if $test[3];
 	eval $end if $b_log;
 }
 
 sub set_ifconfig {
 	eval $start if $b_log;
-	my @data = grabber($alerts{'ifconfig'}->{'path'} . " 2>/dev/null",'\n','');
+	my @data = main::grabber($alerts{'ifconfig'}->{'path'} . " 2>/dev/null",'\n','');
 	#my @data = reader("$ENV{'HOME'}/bin/scripts/inxi/data/if/vps-ifconfig-1.txt",'') or die $!;
 	my ($b_skip,$broadcast,$if,@ips_bsd,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	my ($state,$speed,$duplex,$mac);
@@ -22589,7 +22591,7 @@ sub set_ifconfig {
 			$scope = 'link' if $ip =~ /^fe80/;
 			@temp = ($type,$ip,$broadcast,$scope,$if_id);
 			push(@ips,[@temp]);
-			#print Dumper \@ips;
+			#print Data::Dumper::Dumper \@ips;
 		}
 	}
 	if (@ips){
@@ -22601,11 +22603,12 @@ sub set_ifconfig {
 		push(@ifs_bsd,@temp);
 		($state,$speed,$duplex,$mac) = ('','','','');
 	}
-	print Dumper \@ifs if $test[3];
-	print Dumper \@ifs_bsd if $test[3];
-	log_data('dump','@ifs',\@ifs) if $b_log;
-	log_data('dump','@ifs_bsd',\@ifs_bsd) if $b_log;
+	print Data::Dumper::Dumper \@ifs if $test[3];
+	print Data::Dumper::Dumper \@ifs_bsd if $test[3];
+	main::log_data('dump','@ifs',\@ifs) if $b_log;
+	main::log_data('dump','@ifs_bsd',\@ifs_bsd) if $b_log;
 	eval $end if $b_log;
+}
 }
 
 sub set_lsblk {
@@ -22723,7 +22726,6 @@ sub set_ps_aux {
 	print Dumper \@ps_cmd if $test[5];
 	eval $end if $b_log;
 }
-
 sub set_ps_gui {
 	eval $start if $b_log;
 	$b_ps_gui = 1;
@@ -22855,7 +22857,7 @@ sub set_sysctl_data {
 # 16 - serial
 # 17 - speed
 # 18 - configuration - not used
-## USBData
+## Set USBData
 {
 package USBData;
 my (@working);
@@ -23566,7 +23568,7 @@ sub generate_lines {
 		if ( $show{'network'} ){
 			USBData::set() if !$b_usb_check;
 			DeviceData::set($b_pci_check) if !$b_pci_check; 
-			set_ip_data() if ($show{'ip'} || ($bsd_type && $show{'network-advanced'}));
+			IpData::set() if ($show{'ip'} || ($bsd_type && $show{'network-advanced'}));
 			%row = line_handler('Network','network');
 			assign_data(\%row);
 		}
