@@ -19303,20 +19303,23 @@ sub complete_location {
 #### UTILITIES FOR DATA LINES - GET
 #### -------------------------------------------------------------------
 
-sub get_compiler_version {
+# Get CompilerVersion
+{
+package CompilerVersion;
+sub get {
 	eval $start if $b_log;
 	my (@compiler);
-	if (my $file = system_files('version') ) {
-		@compiler = get_compiler_version_linux($file);
+	if (my $file = main::system_files('version') ) {
+		@compiler = version_linux($file);
 	}
 	elsif ($bsd_type) {
-		@compiler = get_compiler_version_bsd();
+		@compiler = version_bsd();
 	}
 	eval $end if $b_log;
 	return @compiler;
 }
 
-sub get_compiler_version_bsd {
+sub version_bsd {
 	eval $start if $b_log;
 	my (@compiler,@working);
 	if ($alerts{'sysctl'}->{'action'} && $alerts{'sysctl'}->{'action'} eq 'use'){
@@ -19335,16 +19338,15 @@ sub get_compiler_version_bsd {
 			}
 		}
 	}
-	log_data('dump','@compiler',\@compiler) if $b_log;
+	main::log_data('dump','@compiler',\@compiler) if $b_log;
 	eval $end if $b_log;
 	return @compiler;
 }
-
-sub get_compiler_version_linux {
+sub version_linux {
 	eval $start if $b_log;
 	my ($file) = @_;
 	my (@compiler,$version);
-	my @data = reader($file);
+	my @data = main::reader($file);
 	my $result = $data[0] if @data;
 	if ($result){
 		# $result = $result =~ /\*(gcc|clang)\*eval\*/;
@@ -19353,7 +19355,7 @@ sub get_compiler_version_linux {
 		#$result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
 		# $result='Linux version 5.8.9-fw1 (fst@x86_64.frugalware.org) (gcc (Frugalware Linux) 9.2.1 20200215, GNU ld (GNU Binutils) 2.35) #1 SMP PREEMPT Tue Sep 15 16:38:57 CEST 2020';
 		# $result='Linux version 5.8.0-2-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.0-9) 10.2.0, GNU ld (GNU Binutils for Debian) 2.35) #1 SMP Debian 5.8.10-1 (2020-09-19)';
-		 $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
+		# $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
 		if ($result =~ /(gcc|clang).*version\s([\S]+)/){
 			$version = $2;
 			$version ||= 'N/A'; 
@@ -19365,9 +19367,10 @@ sub get_compiler_version_linux {
 			@compiler = ($1,$version);
 		}
 	}
-	log_data('dump','@compiler',\@compiler) if $b_log;
+	main::log_data('dump','@compiler',\@compiler) if $b_log;
 	eval $end if $b_log;
 	return @compiler;
+}
 }
 
 ## Get DesktopEnvironment
@@ -20706,15 +20709,6 @@ sub get_gcc_data {
 	eval $end if $b_log;
 	return @gccs;
 }
-
-# standard systems
-sub get_gpu_ram {
-	eval $start if $b_log;
-	my ($gpu_ram) = (0);
-	eval $end if $b_log;
-	return $gpu_ram;
-}
-
 sub get_hostname {
 	eval $start if $b_log;
 	my $hostname = '';
@@ -21121,6 +21115,14 @@ sub gpu_ram_arm {
 	eval $end if $b_log;
 	return $gpu_ram;
 }
+# standard systems, not used currently, but maybe one day?
+sub get_gpu_ram {
+	eval $start if $b_log;
+	my ($gpu_ram) = (0);
+	eval $end if $b_log;
+	return $gpu_ram;
+}
+
 }
 
 sub get_module_version {
@@ -23920,7 +23922,7 @@ sub generate_system_data {
 	$data{$data_name}->[$index]{main::key($num++,1,1,'Kernel')} = get_kernel_data();
 	$data{$data_name}->[$index]{main::key($num++,0,2,'bits')} = get_kernel_bits();
 	if ($extra > 0){
-		my @compiler = get_compiler_version(); # get compiler data
+		my @compiler = CompilerVersion::get(); # get compiler data
 		if (scalar @compiler != 2){
 			@compiler = ('N/A', '');
 		}
