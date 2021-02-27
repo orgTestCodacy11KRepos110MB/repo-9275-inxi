@@ -54,6 +54,7 @@ my ($self_path, $user_config_dir, $user_config_file,$user_data_dir);
 my $debug=0;
 my (@t0,$end,$start,$fh_l,$log_file); # log file handle, file
 my ($b_hires,$t1,$t2,$t3) = (0,0,0,0);
+my (%fake,@test);
 # NOTE: redhat removed HiRes from Perl Core Modules. 
 if (eval {require Time::HiRes}){
 	Time::HiRes->import('gettimeofday','tv_interval','usleep');
@@ -71,18 +72,15 @@ my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_battery,@sysctl_sensors,@sysctl_machine,@uname,@usb,@usb_audio,
 @usb_bluetooth,@usb_graphics,@usb_network);
+
 ## Disk arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
 @lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
-my @test = (0,0,0,0,0);
 
 ## Booleans
 my ($b_active_general,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
-$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,
-$b_fake_bluetooth,$b_fake_bsd,$b_fake_cpu,$b_fake_dboot,$b_fake_dmidecode,
-$b_fake_logical,$b_fake_pciconf,$b_fake_raid,$b_fake_sensors,$b_fake_sysctl,
-$b_fake_usbdevs,$b_force_display,
+$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,$b_force_display,
 $b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
@@ -335,7 +333,7 @@ sub check_tools {
 		};
 	}
 	# print Dumper \%alerts;
-	set_fake_bsd_tools() if $b_fake_bsd;
+	set_fake_bsd_tools() if $fake{'bsd'};
 }
 # args: 1 - desktop/app command for --version; 2 - search string; 
 # 3 - space print number; 4 - [optional] version arg: -v, version, etc
@@ -419,10 +417,10 @@ sub set_display_width {
 
 # only for dev/debugging BSD 
 sub set_fake_bsd_tools {
-	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $b_fake_dboot;
-	$alerts{'pciconf'}->{'action'} = 'use' if $b_fake_pciconf;
-	$alerts{'sysctl'}->{'action'} = 'use' if $b_fake_sysctl;
-	if ($b_fake_usbdevs){
+	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $fake{'dboot'};
+	$alerts{'pciconf'}->{'action'} = 'use' if $fake{'pciconf'};
+	$alerts{'sysctl'}->{'action'} = 'use' if $fake{'sysctl'};
+	if ($fake{'usbdevs'}){
 		$alerts{'usbdevs'}->{'action'} = 'use';
 		$alerts{'lsusb'} = {
 		'action' => 'missing',
@@ -4528,7 +4526,7 @@ sub get_options {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(darwin|dragonfly|freebsd|openbsd|netbsd)$/i){
 			$bsd_type = lc($arg);
-			$b_fake_bsd = 1;
+			$fake{'bsd'} = 1;
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
@@ -4537,10 +4535,10 @@ sub get_options {
 	'bsd-data:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(dboot|pciconf|sysctl|usbdevs)$/i){
-			$b_fake_dboot = 1 if $arg eq 'dboot';
-			$b_fake_pciconf = 1 if $arg eq 'pciconf';
-			$b_fake_sysctl = 1 if $arg eq 'sysctl';
-			$b_fake_usbdevs = 1 if $arg eq 'usbdevs';
+			$fake{'dboot'} = 1 if $arg eq 'dboot';
+			$fake{'pciconf'} = 1 if $arg eq 'pciconf';
+			$fake{'sysctl'} = 1 if $arg eq 'sysctl';
+			$fake{'usbdevs'} = 1 if $arg eq 'usbdevs';
 		}
 		else {
 			error_handler('bad-arg', $opt, $arg);
@@ -4629,16 +4627,18 @@ sub get_options {
 		else {
 			error_handler('bad-arg', $opt, $arg);
 		} },
+	'fake-compiler' => sub {
+		$fake{'compiler'} = 1 },
 	'fake-cpu' => sub {
-		$b_fake_cpu = 1 },
+		$fake{'cpu'} = 1 },
 	'fake-dmi' => sub {
-		$b_fake_dmidecode = 1 },
+		$fake{'dmidecode'} = 1 },
 	'fake-logical' => sub {
-		$b_fake_logical = 1 },
+		$fake{'logical'} = 1 },
 	'fake-raid' => sub {
-		$b_fake_raid = 1 },
+		$fake{'raid'} = 1 },
 	'fake-sensors' => sub {
-		$b_fake_sensors = 1 },
+		$fake{'sensors'} = 1 },
 	'ftp:s'  => sub { 
 		my ($opt,$arg) = @_;
 		# pattern: ftp.x.x/x
@@ -7332,7 +7332,7 @@ sub hci_data {
 	eval $start if $b_log;
 	$b_hci = 1;
 	my (@data,$id);
-	if ($b_fake_bluetooth){
+	if ($fake{'bluetooth'}){
 		my $file;
 		$file = "";
 		@data = main::reader($file,'strip');
@@ -7717,7 +7717,7 @@ sub cpuinfo_data {
 	my %cpu =  set_cpu_data();
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
-	if ($b_fake_cpu){
+	if ($fake{'cpu'}){
 		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
@@ -11936,7 +11936,7 @@ sub get {
 	}
  	else {
 		main::set_lsblk() if !$b_lsblk;
-		if ($b_fake_logical || $alerts{'lvs'}->{'action'} eq 'use'){
+		if ($fake{'logical'} || $alerts{'lvs'}->{'action'} eq 'use'){
 			lvm_data() if !$b_lvm_data;
 			if (!@lvm){
 				my $key = 'Message';
@@ -12179,7 +12179,7 @@ sub lvm_data {
 	stripes devices raid_mismatch_count raid_sync_action raid_write_behind
 	copy_percent);
 	my $num = 0;
-	if ($b_fake_logical){
+	if ($fake{'logical'}){
 		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
 		@data = main::reader($file,'strip');
 	}
@@ -12300,7 +12300,7 @@ sub get {
 		}
 	}
 	elsif ($bsd_type || $b_dmidecode_force){
-		if ( !$b_fake_dmidecode && $alerts{'dmidecode'}->{'action'} ne 'use'){
+		if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{$key1};
 			$key1 = ucfirst($key1);
@@ -15135,14 +15135,14 @@ sub raid_data {
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	my (@data);
 	$b_raid = 1;
-	if (($b_fake_raid && $b_lvm) || 
+	if (($fake{'raid'} && $b_lvm) || 
 	    ($alerts{'lvs'}->{'action'} && $alerts{'lvs'}->{'action'} eq 'use')){
 		@lvm_raid = lvm_data();
 	}
-	if (($b_fake_raid && $b_md) || (my $file = main::system_files('mdstat') )){
+	if (($fake{'raid'} && $b_md) || (my $file = main::system_files('mdstat') )){
 		@md_raid = md_data($file);
 	}
-	if (($b_fake_raid && $b_zfs) || (my $path = main::check_program('zpool') )){
+	if (($fake{'raid'} && $b_zfs) || (my $path = main::check_program('zpool') )){
 		@zfs_raid = zfs_data($path);
 	}
 	eval $end if $b_log;
@@ -15249,7 +15249,7 @@ sub md_data {
 	eval $start if $b_log;
 	my ($mdstat) = @_;
 	my $j = 0;
-	if ($b_fake_raid) {
+	if ($fake{'raid'}) {
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-4-device-1.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
@@ -15472,7 +15472,7 @@ sub zfs_data {
 	my ($allocated,$free,$size,$size_holder,$size_logical,$status,@working);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
-	if ($b_fake_raid){
+	if ($fake{'raid'}){
 		#my $file;
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-1-mirror-main-solestar.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
@@ -15618,7 +15618,7 @@ sub zfs_status {
 	foreach my $row (@$zfs){
 		$i = 0;
 		$k = 0;
-		if ($b_fake_raid){
+		if ($fake{'raid'}){
 			my $file;
 			#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-1-mirror-main-solestar.txt";
 			#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
@@ -15687,7 +15687,7 @@ sub get {
 	my (@data,@rows,$key1,@ram,$val1);
 	my $num = 0;
 	@rows = MemoryData::full('ram') if !$b_mem;
-	if ( !$b_fake_dmidecode && $alerts{'dmidecode'}->{'action'} ne 'use'){
+	if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
 		$key1 = $alerts{'dmidecode'}->{'action'};
 		$val1 = $alerts{'dmidecode'}->{$key1};
 		push(@rows, {
@@ -17685,7 +17685,7 @@ sub process_lm_sensors {
 	eval $start if $b_log;
 	my (@data,@sensors_data,@values);
 	my ($adapter,$holder,$type) = ('','','');
-	if ($b_fake_sensors){
+	if ($fake{'sensors'}){
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
@@ -18169,7 +18169,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	if ($b_fake_dmidecode || ( $alerts{'dmidecode'}->{'action'} eq 'use' && (!$b_arm || $b_slot_tool ) )){
+	if ($fake{'dmidecode'} || ( $alerts{'dmidecode'}->{'action'} eq 'use' && (!$b_arm || $b_slot_tool ) )){
 		@rows = slot_output();
 	}
 	elsif ($b_arm && !$b_slot_tool){
@@ -19323,10 +19323,8 @@ sub version_bsd {
 	eval $start if $b_log;
 	my (@compiler,@working);
 	if ($alerts{'sysctl'}->{'action'} && $alerts{'sysctl'}->{'action'} eq 'use'){
-		# for dragonfly, we will use free mem, not used because free is 0
 		my @working;
 		foreach (@sysctl){
-			# freebsd seems to use bytes here
 			# Not every line will have a : separator though the processor should make 
 			# most have it. This appears to be 10.x late feature add, I don't see it
 			# on earlier BSDs
@@ -19349,13 +19347,15 @@ sub version_linux {
 	my @data = main::reader($file);
 	my $result = $data[0] if @data;
 	if ($result){
-		# $result = $result =~ /\*(gcc|clang)\*eval\*/;
-		# $result='Linux version 5.4.0-rc1 (sourav@archlinux-pc) (clang version 9.0.0 (tags/RELEASE_900/final)) #1 SMP PREEMPT Sun Oct 6 18:02:41 IST 2019';
-		#$result='Linux version 5.8.3-fw1 (fst@x86_64.frugalware.org) ( OpenMandriva 11.0.0-0.20200819.1 clang version 11.0.0 (/builddir/build/BUILD/llvm-project-release-11.x/clang 2a0076812cf106fcc34376d9d967dc5f2847693a), LLD 11.0.0)';
-		#$result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
-		# $result='Linux version 5.8.9-fw1 (fst@x86_64.frugalware.org) (gcc (Frugalware Linux) 9.2.1 20200215, GNU ld (GNU Binutils) 2.35) #1 SMP PREEMPT Tue Sep 15 16:38:57 CEST 2020';
-		# $result='Linux version 5.8.0-2-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.0-9) 10.2.0, GNU ld (GNU Binutils for Debian) 2.35) #1 SMP Debian 5.8.10-1 (2020-09-19)';
-		# $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
+		if ($fake{'compiler'}){
+			# $result = $result =~ /\*(gcc|clang)\*eval\*/;
+			# $result='Linux version 5.4.0-rc1 (sourav@archlinux-pc) (clang version 9.0.0 (tags/RELEASE_900/final)) #1 SMP PREEMPT Sun Oct 6 18:02:41 IST 2019';
+			#$result='Linux version 5.8.3-fw1 (fst@x86_64.frugalware.org) ( OpenMandriva 11.0.0-0.20200819.1 clang version 11.0.0 (/builddir/build/BUILD/llvm-project-release-11.x/clang 2a0076812cf106fcc34376d9d967dc5f2847693a), LLD 11.0.0)';
+			#$result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
+			# $result='Linux version 5.8.9-fw1 (fst@x86_64.frugalware.org) (gcc (Frugalware Linux) 9.2.1 20200215, GNU ld (GNU Binutils) 2.35) #1 SMP PREEMPT Tue Sep 15 16:38:57 CEST 2020';
+			# $result='Linux version 5.8.0-2-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.0-9) 10.2.0, GNU ld (GNU Binutils for Debian) 2.35) #1 SMP Debian 5.8.10-1 (2020-09-19)';
+			# $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
+		}
 		if ($result =~ /(gcc|clang).*version\s([\S]+)/){
 			$version = $2;
 			$version ||= 'N/A'; 
@@ -22308,7 +22308,7 @@ sub set_dmesg_boot_data {
 	my ($file,@temp);
 	my ($counter) = (0);
 	$b_dmesg_boot_check = 1;
-	if (!$b_fake_dboot){
+	if (!$fake{'dboot'}){
 		$file = system_files('dmesg-boot');
 	}
 	else {
@@ -22364,7 +22364,7 @@ sub set_dmesg_boot_data {
 sub set_dmi_data {
 	eval $start if $b_log;
 	$_[0] = 1; # check boolean passed by reference
-	if ($b_fake_dmidecode || $alerts{'dmidecode'}->{'action'} eq 'use' ){
+	if ($fake{'dmidecode'} || $alerts{'dmidecode'}->{'action'} eq 'use' ){
 		set_dmidecode_data();
 	}
 	eval $end if $b_log;
@@ -22373,7 +22373,7 @@ sub set_dmi_data {
 sub set_dmidecode_data {
 	eval $start if $b_log;
 	my ($content,@data,@working,$type,$handle);
-	if ($b_fake_dmidecode){
+	if ($fake{'dmidecode'}){
 		my $file;
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
@@ -22801,7 +22801,7 @@ sub set_sysctl_data {
 	return if !$alerts{'sysctl'} || $alerts{'sysctl'}->{'action'} ne 'use';
 	my (@temp);
 	# darwin sysctl has BOTH = and : separators, and repeats data. Why? 
-	if (!$b_fake_sysctl){
+	if (!$fake{'sysctl'}){
 		@temp = grabber($alerts{'sysctl'}->{'path'} . " -a 2>/dev/null");
 	}
 	else {
@@ -23098,12 +23098,12 @@ sub data_grabber {
 	my ($program) = @_;
 	my %args = ('lsusb' => '', 'usbdevs' => '-v');
 	my (@data);
-	if ($b_live && !$b_fake_usbdevs){
+	if ($b_live && !$fake{'usbdevs'}){
 		@data = main::grabber($alerts{$program}->{'path'} . " $args{$program} 2>/dev/null");
 	}
 	else {
 		my $file;
-		if ($b_fake_usbdevs){
+		if ($fake{'usbdevs'}){
 			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/bsd-usbdevs-v-1.txt";
 		}
 		else {
