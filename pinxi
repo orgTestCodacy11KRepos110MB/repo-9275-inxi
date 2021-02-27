@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-26';
-my $self_patch='51';
+my $self_patch='52';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -20912,7 +20912,7 @@ sub get_lsblk {
 	return %device;
 }
 
-# MemoryData
+# Get MemoryData
 {
 package MemoryData;
 
@@ -20995,7 +20995,7 @@ sub linux_data {
 # procs    memory       page                    disks    traps          cpu
 # r b w    avm     fre  flt  re  pi  po  fr  sr wd0 wd1  int   sys   cs us sy id
 # 0 0 0  55256 1484092  171   0   0   0   0   0   2   0   12   460   39  3  1 96
-## openbsd 6.3? added in M, sigh...
+## openbsd 6.3? added in M/G/T etc, sigh...
 # 2 57 55M 590M 789 0 0 0...
 ## freebsd:
 # procs      memory      page                    disks     faults         cpu
@@ -21003,11 +21003,11 @@ sub linux_data {
 # 0 0 0  21880M  6444M   924  32  11   0   822 827   0   0  853  832  463  8  3 88
 # with -H
 # 2 0 0 14925812  936448    36  13  10   0    84  35   0   0   84   30   42 11  3 86
-## dragonfly: V1
+## dragonfly: V1, supported -H
 #  procs      memory      page                    disks     faults      cpu
 #  r b w     avm    fre  flt  re  pi  po  fr  sr ad0 ad1   in   sy  cs us sy id
 #  0 0 0       0  84060 30273993 2845 12742 1164 407498171 320960902   0   0 ....
-## dragonfly: V2
+## dragonfly: V2, no avm, no -H support
 
 sub bsd_data {
 	eval $start if $b_log;
@@ -21015,11 +21015,12 @@ sub bsd_data {
 	my $memory = '';
 	my ($avm,$av_pages,$cnt,$fre,$free_mem,$mult,$real_mem,$total) = (0,0,0,0,0,0,0,0);
 	my (@data,$message);
-	my $arg = ($bsd_type ne 'openbsd' && $bsd_type ne 'dragonfly') ? '-H' : '';
+	# my $arg = ($bsd_type ne 'openbsd' && $bsd_type ne 'dragonfly') ? '-H' : '';
 	if (my $program = main::check_program('vmstat')){
 		# see above, it's the last line. -H makes it hopefully all in kB so no need 
-		# for K/M/G tests
-		my @vmstat = main::grabber("vmstat $arg 2>/dev/null",'\n','strip');
+		# for K/M/G tests, note that -H not consistently supported, so don't use.
+		my @vmstat = main::grabber("vmstat 2>/dev/null",'\n','strip');
+		main::log_data('dump','@vmstat',\@vmstat) if $b_log;
 		my @header = split(/\s+/, $vmstat[1]);
 		foreach ( @header){
 			if ($_ eq 'avm'){$avm = $cnt}
@@ -21030,11 +21031,11 @@ sub bsd_data {
 		my $row = $vmstat[-1];
 		if ( $row ){
 			@data = split(/\s+/, $row);
-			# openbsd 6.3 introduced an M / G character, sigh.
-			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[GMT])$/){
+			# openbsd 6.3, dragonfly 5.x introduced an M / G character, sigh.
+			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[KGMT])$/){
 				$data[$avm] = main::translate_size($1);
 			}
-			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[GMT])$/){
+			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[KGMT])$/){
 				$data[$fre] = main::translate_size($1);;
 			}
 			# dragonfly can have 0 avg, or no avm, sigh, but they may fix that so make test dynamic
