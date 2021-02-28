@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-27';
-my $self_patch='55';
+my $self_patch='56';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -18605,7 +18605,8 @@ sub usb_output {
 	foreach my $id (@usb){
 		$j = scalar @rows;
 		($b_hub,$ind_sc,$num) = (0,3,1);
-		$chip_id = $id->[7];
+		
+		
 		($driver,$path_id,$ports,$product,
 		$serial,$speed,$type) = ('','','','','','','');
 		$speed  = ( main::is_numeric($id->[8]) ) ? sprintf("%1.1f",$id->[8]) : $id->[8] if $id->[8];
@@ -18654,7 +18655,12 @@ sub usb_output {
 			else {$speed = $id->[17] . " Mb/s"}
 			$rows[$j]->{main::key($num++,0,$ind_sc,'speed')} = $speed;
 		}
+		if ($extra > 2 && $id->[19]){
+			$rows[$j]->{main::key($num++,0,$ind_sc,'power')} = $id->[19];
+		}
 		if ($extra > 1){
+			$chip_id = $id->[7];
+			$chip_id ||= 'N/A';
 			$rows[$j]->{main::key($num++,0,$ind_sc,'chip ID')} = $chip_id;
 		}
 		if ($extra > 2 && defined $id->[5] && $id->[5] ne ''){
@@ -22876,6 +22882,8 @@ sub set_sysctl_data {
 # 16 - serial
 # 17 - speed
 # 18 - configuration - not used
+# 19 - power mW bsd only, not used yet
+# 20 - product rev number
 ## Set USBData
 {
 package USBData;
@@ -22892,6 +22900,9 @@ sub set {
 	# note: bsd package usbutils has lsusb in it, but we dont' want it for default
 	if ($alerts{'usbdevs'}->{'action'} eq 'use'){
 		usbdevs_data();
+	}
+	elsif ($alerts{'usbconfig'}->{'action'} eq 'use'){
+		usbconfig_data();
 	}
 	# if user config sets USB_SYS you can override with --usb-tool
 	elsif ((!$b_usb_sys || $b_usb_tool) && $alerts{'lsusb'}->{'action'} eq 'use' ){
@@ -22948,6 +22959,8 @@ sub lsusb_data {
 		$working[16] = '';
 		$working[17] = '';
 		$working[18] = '';
+		$working[19] = '';
+		$working[20] = '';
 		push(@usb,[@working]);
 		#print join("\n",@working),"\n\n=====\n";
 	}
@@ -22955,6 +22968,58 @@ sub lsusb_data {
 	sys_data('lsusb') if @usb;
 	print Data::Dumper::Dumper \@usb if $test[6];
 	main::log_data('dump','@usb: plain',\@usb) if $b_log;
+	eval $end if $b_log;
+}
+#ugen0.1: <Apple OHCI root HUB> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=SAVE (0mA)
+#ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
+sub usbconfig_data {
+	eval $start if $b_log;
+	my ($b_multi,$class,$config,$hub_id,$power,$rev);
+	my ($ports,$j,$k) = (0,0,0);
+	my @data = data_grabber('usbdevs');
+	push (@data,'END') if @data;
+	foreach (@data){
+		# note that bsd spd=FULL has no meaning
+		if (/^ugen([0-9]+)\.([0-9]+):\s+<([^>]+)>\s+at usbus([0-9]+),\s+cfg=([0-9]+)\s+md=([^\s]+)\s+spd=([^\s]+)\s+\(([^\)]+)\)\s+pwr=([^\s]+)\s+\(([0-9]+mA)\)/){
+			$hub_id = $1;
+			$addr_id = $2;
+			$bus_id = $4;
+			$name = main::remove_duplicates($3);
+			$type = check_type($name,'','');
+			$config = $5;
+			$speed = $8;
+			$power = $10;
+			$class = ($type && $type eq 'Hub') ? '09': '01';
+			$j = scalar @usb;
+			$path_id = "$bus_id-$hub_id.$addr_id";
+			$working[0] = $bus_id;
+			$working[1] = $addr_id;
+			$working[2] = $path_id;
+			$working[3] = '';
+			$working[4] = $class;
+			$working[5] = '';
+			$working[6] = '';
+			$working[7] = '';
+			$working[8] = $speed;
+			$working[9] = '';
+			$working[10] = 0;
+			$working[11] = '';
+			$working[12] = '';
+			$working[13] = $name;
+			$working[14] = $type;
+			$working[15] = '';
+			$working[16] = '';
+			$working[17] = '';
+			$working[18] = '';
+			$working[19] = $power;
+			$working[20] = '';
+			$usb[$j] = ([@working],);
+			assign_usb_type($usb[$j]);
+			@working = ();
+		}
+	}
+	main::log_data('dump','@usb: usbconfig',\@usb) if $b_log;
+	print Data::Dumper::Dumper \@usb if $test[6];
 	eval $end if $b_log;
 }
 
@@ -22967,7 +23032,7 @@ sub usbdevs_data {
 	my ($b_multi,$class,$config,$hub_id,$power,$port,$port_value,$rev);
 	my ($ports,$j,$k) = (0,0,0);
 	my @data = data_grabber('usbdevs');
-	push (@data,'END');
+	push (@data,'END') if @data;
 	foreach (@data){
 		if (/^Controller\s\/dev\/usb([0-9]+)/){
 			$bus_id = $1;
@@ -23008,6 +23073,8 @@ sub usbdevs_data {
 			$working[16] = '';
 			$working[17] = '';
 			$working[18] = '';
+			$working[19] = '';
+			$working[20] = '';
 			$usb[$j] = ([@working],);
 			@working = ();
 		}
@@ -23042,6 +23109,8 @@ sub usbdevs_data {
 			$working[16] = '';
 			$working[17] = '';
 			$working[18] = '';
+			$working[19] = '';
+			$working[20] = '';
 			$usb[$j] = ([@working],);
 			assign_usb_type($usb[$j]);
 			$usb[$k]->[10] = $ports;
@@ -23088,10 +23157,12 @@ sub usbdevs_data {
 			$working[16] = '';
 			$working[17] = '';
 			$working[18] = '';
+			$working[19] = '';
+			$working[20] = '';
 		}
 		elsif ($b_multi && /^\s+([^,]+),\s+power\s+([0-9]+\s+mA),\s+config\s([0-9]+),\s+rev\s+([0-9\.]+)/){
-			$working[8] = $1;
-			$power = $2;
+			$working[8] = $1; # speed
+			$working[19] = $2; # power
 			$config = $3;
 			$rev = $4;
 		}
@@ -23099,8 +23170,8 @@ sub usbdevs_data {
 		elsif ($b_multi && /^\s+driver:\s*([^,]+)$/){
 			my $temp = $1;
 			$temp =~ s/[0-9]+$//;
-			$working[15] = ($working[15]) ? "$working[15],$temp" : $temp;
 			$working[4] = '09' if $temp =~ /hub[0-9]/;
+			$working[15] = ($working[15]) ? "$working[15],$temp" : $temp; # drivers
 		}
 		elsif ($_ eq 'END' && @working){
 			$j = scalar @usb;
@@ -23116,15 +23187,18 @@ sub usbdevs_data {
 sub data_grabber {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my %args = ('lsusb' => '', 'usbdevs' => '-v');
+	my %args = ('lsusb' => '', 'usbconfig' => '', 'usbdevs' => '-v');
 	my (@data);
-	if ($b_live && !$fake{'usbdevs'}){
+	if ($b_live && !$fake{'usbdevs'} && !$fake{'usbconfig'}){
 		@data = main::grabber($alerts{$program}->{'path'} . " $args{$program} 2>/dev/null");
 	}
 	else {
 		my $file;
 		if ($fake{'usbdevs'}){
 			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/bsd-usbdevs-v-1.txt";
+		}
+		elsif ($fake{'usbconfig'}){
+			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/bsd-usbconfig-list-v-1.txt";
 		}
 		else {
 			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/mdmarmer-lsusb.txt";
@@ -23266,6 +23340,8 @@ sub sys_data {
 				$usb[$i]->[16] = $serial;
 				$usb[$i]->[17] = $speed;
 				$usb[$i]->[18] = $configuration;
+				$usb[$i]->[19] = '';
+				$usb[$i]->[20] = '';
 				assign_usb_type($usb[$i]);
 				$i++;
 			}
@@ -23437,7 +23513,10 @@ sub device_type {
 sub check_type {
 	my ($name,$driver,$type) = @_;
 	$name = lc($name);
-	if ($name =~ /(audio|\bdac[0-9]*\b|headphone|hifi|\bmidi\b|\bmic(rophone)?\b|sound)/){
+	if ($name =~ /\b(hub)/i){
+		$type = 'Hub';
+	}
+	elsif ($name =~ /(audio|\bdac[0-9]*\b|headphone|hifi|\bmidi\b|\bmic(rophone)?\b|sound)/){
 		$type = 'Audio';
 	}
 	# Broadcom HP Portable SoftSailing
