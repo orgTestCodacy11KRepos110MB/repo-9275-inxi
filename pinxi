@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-27';
-my $self_patch='54';
+my $self_patch='55';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -167,7 +167,7 @@ sub main {
 	# print_line( Dumper \%client);
 	get_options();
 	set_debugger(); # right after so it's set
-	check_tools();
+	CheckTools::check();
 	set_colors();
 	set_sep();
 	# print download_file('stdout','https://') . "\n";
@@ -194,53 +194,102 @@ sub initialize {
 	set_display_width('live');
 }
 
-sub check_tools {
-	my ($action,$program,$message,@data,%commands);
-	# dmidecode errors are so specific it gets its own section
-	if ($b_dmi){
-		$action = 'use';
-		if ($program = check_program('dmidecode')) {
-			@data = grabber("$program -t chassis -t baseboard -t processor 2>&1");
-			if (scalar @data < 15){
-				if ($b_root) {
-					foreach (@data){
-						if ($_ =~ /No SMBIOS/i){
-							$action = 'smbios';
-							last;
-						}
-						elsif ($_ =~ /^\/dev\/mem: Operation/i){
-							$action = 'no-data';
-							last;
-						}
-						else {
-							$action = 'unknown-error';
-							last;
-						}
-					}
+# CheckTools
+{
+package CheckTools;
+my (%commands);
+sub check {
+	eval $start if $b_log;
+	set_commands();
+	my ($action,$program,$message,@data);
+	foreach my $test ( keys %commands ){
+		($action,$program) = ('use','');
+		$message = main::row_defaults('tool-present');
+		if ($commands{$test}->[1] && (
+			($commands{$test}->[1] eq 'linux' && $os ne 'linux' ) || 
+			($commands{$test}->[1] eq 'bsd' && $os eq 'linux' ) ) ){
+			$action = 'platform';
+		}
+		elsif ($program = main::check_program($test)) {
+			# > 0 means error in shell
+			#my $cmd = "$program $commands{$test} >/dev/null";
+			#print "$cmd\n";
+			$pci_tool = $test if $test =~ /pci/;
+			if ($commands{$test}->[0] eq 'exec-sys'){
+				$action = 'permissions' if system("$program $commands{$test}->[2] >/dev/null 2>&1");
+			}
+			elsif ($commands{$test}->[0] eq 'exec-string'){
+				@data = main::grabber("$program $commands{$test}->[2] 2>&1");
+				# dmidecode errors are so specific it gets its own section
+				# also sets custom dmidecode error messages
+				if ($test eq 'dmidecode'){
+					$action = check_dmidecode(\@data) if scalar @data < 15;
 				}
-				else {
-					if (grep { $_ =~ /^\/dev\/mem: Permission/i } @data){
-						$action = 'permissions';
-					}
-					else {
-						$action = 'unknown-error';
-					}
+				elsif (grep { $_ =~ /$commands{$test}->[3]/i } @data){
+					$action = 'permissions';
 				}
 			}
 		}
 		else {
 			$action = 'missing';
 		}
-		$alerts{'dmidecode'} = {
-		'action' => $action,
-		'missing' => row_defaults('tool-missing-required','dmidecode'),
-		'permissions' => row_defaults('tool-permissions','dmidecode'),
-		'path' => $program,
-		'smbios' => row_defaults('dmidecode-smbios'),
-		'no-data' => row_defaults('dmidecode-dev-mem'),
-		'unknown-error' => row_defaults('tool-unknown-error','dmidecode'),
-		};
+		$alerts{$test}->{'action'} = $action;
+		$alerts{$test}->{'path'} = $program;
+		if ($action eq 'missing'){
+			$alerts{$test}->{'message'} = main::row_defaults('tool-missing-recommends',"$test");
+		}
+		elsif ($action eq 'permissions'){
+			$alerts{$test}->{'message'} = main::row_defaults('tool-permissions',"$test");
+		}
+		elsif ($action eq 'platform'){
+			$alerts{$test}->{'message'} = main::row_defaults('tool-missing-os', ucfirst($os) . " $test");
+		}
 	}
+	print Data::Dumper::Dumper \%alerts if $test[25];
+	set_fake_bsd_tools() if $fake{'bsd'};
+	eval $end if $b_log;
+}
+sub check_dmidecode {
+	my ($data) = @_;
+	my $action = 'use';
+	if ($b_root) {
+		foreach (@$data){
+			if ($_ =~ /No SMBIOS/i){
+				$action = 'smbios';
+				last;
+			}
+			elsif ($_ =~ /^\/dev\/mem: Operation/i){
+				$action = 'no-data';
+				last;
+			}
+			else {
+				$action = 'unknown-error';
+				last;
+			}
+		}
+	}
+	else {
+		if (grep { $_ =~ /^\/dev\/mem: Permission/i } @$data){
+			$action = 'permissions';
+		}
+		else {
+			$action = 'unknown-error';
+		}
+	}
+	if ($action ne 'use' && $action ne 'permissions'){
+		if ($action eq 'smbios'){
+			$alerts{'dmidecode'}->{'message'} = rmain::ow_defaults('dmidecode-smbios');
+		}
+		elsif ($action eq 'no-data'){
+			$alerts{'dmidecode'}->{'message'} = main::row_defaults('dmidecode-dev-mem');
+		}
+		elsif ($action eq 'unknown-error'){
+			$alerts{'dmidecode'}->{'message'} = main::row_defaults('tool-unknown-error','dmidecode');
+		}
+	}
+	return $action;
+}
+sub set_commands {
 	# note: gnu/linux has sysctl so it may be used that for something if present
 	# there is lspci for bsds so doesn't hurt to check it
 	if (!$bsd_type){
@@ -261,10 +310,16 @@ sub check_tools {
 			# note: there is a case of kernel.osrelease but it's a linux distro
 			$commands{'sysctl'} = ['exec-sys','','kern.osrelease'];
 		}
-		if ($b_usb){
-			$commands{'usbconfig'} = ['exec-string','','list','permissions'];
-			$commands{'usbdevs'} = ['missing','','',''];
-		}
+	}
+	if ($b_dmi){
+		$commands{'dmidecode'} = ['exec-string','','-t chassis -t baseboard -t processor',''];
+	}
+	if ($b_usb){
+		# note: lsusb ships in FreeBSD ports sysutils/usbutils
+		$commands{'lsusb'} = ['missing','','',''];
+		# we want these set for various null bsd data tests
+		$commands{'usbconfig'} = ['exec-string','bsd','list','permissions'];
+		$commands{'usbdevs'} = ['missing','bsd','',''];
 	}
 	if ($show{'bluetooth'}){
 		# hangs when bluetooth service is enabled
@@ -276,10 +331,7 @@ sub check_tools {
 	if ($show{'sensor'}){
 		$commands{'sensors'} = ['missing','linux','',''];
 	}
-	# note: lsusb ships in FreeBSD ports sysutils/usbutils
-	if ($b_usb){
-		$commands{'lsusb'} = ['missing','','',''];
-	}
+	
 	if ($show{'ip'} || ($bsd_type && $show{'network-advanced'})){
 		$commands{'ip'} = ['missing','linux','',''];
 		$commands{'ifconfig'} = ['missing','','',''];
@@ -295,42 +347,6 @@ sub check_tools {
 	if ($b_smartctl){
 		$commands{'smartctl'} = ['missing','','',''];
 	}
-	foreach my $test ( keys %commands ){
-		($action,$program) = ('use','');
-		$message = row_defaults('tool-present');
-		if ($commands{$test}->[1] && (
-			($commands{$test}->[1] eq 'linux' && $os ne 'linux' ) || 
-			($commands{$test}->[1] eq 'bsd' && $os eq 'linux' ) ) ){
-			$action = 'platform';
-		}
-		elsif ($program = check_program($test)) {
-			# > 0 means error in shell
-			#my $cmd = "$program $commands{$test} >/dev/null";
-			#print "$cmd\n";
-			$pci_tool = $test if $test =~ /pci/;
-			if ($commands{$test}->[0] eq 'exec-sys'){
-				$action = 'permissions' if system("$program $commands{$test}->[2] >/dev/null 2>&1");
-			}
-			elsif ($commands{$test}->[0] eq 'exec-string'){
-				@data = grabber("$program $commands{$test}->[2] 2>&1");
-				if (grep { $_ =~ /$commands{$test}->[3]/i } @data){
-					$action = 'permissions';
-				}
-			}
-		}
-		else {
-			$action = 'missing';
-		}
-		$alerts{$test} = {
-		'action' => $action,
-		'missing' => row_defaults('tool-missing-recommends',"$test"),
-		'path' => $program,
-		'permissions' => row_defaults('tool-permissions',"$test"),
-		'platform' => row_defaults('tool-missing-os', ucfirst($os) . " $test"),
-		};
-	}
-	print Dumper \%alerts if $test[25];
-	set_fake_bsd_tools() if $fake{'bsd'};
 }
 # only for dev/debugging BSD 
 sub set_fake_bsd_tools {
@@ -342,9 +358,10 @@ sub set_fake_bsd_tools {
 		$alerts{'usbdevs'}->{'action'} = 'use' if $fake{'usbdevs'};
 		$alerts{'lsusb'} = {
 		'action' => 'missing',
-		'missing' => 'Required program lsusb not available',
+		'message' => 'Required program lsusb not available',
 		};
 	}
+}
 }
 # args: 1 - desktop/app command for --version; 2 - search string; 
 # 3 - space print number; 4 - [optional] version arg: -v, version, etc
@@ -2661,7 +2678,7 @@ sub check_items {
 	elsif ($type eq 'recommended system programs'){
 		if ($bsd_type){
 			@data = qw(camcontrol dig dmidecode fdisk file glabel gpart ifconfig ipmi-sensors 
-			ipmitool lsusb sudo smartctl sysctl tree upower uptime usbdevs);
+			ipmitool lsusb sudo smartctl sysctl tree upower uptime usbconfig usbdevs);
 			$info_os = 'info-bsd';
 		}
 		else {
@@ -3108,9 +3125,16 @@ sub item_data {
 	'pacman' => 'procps',
 	'rpm' => 'procps',
 	},
+	'usbconfig' => {
+	'info' => '',
+	'info-bsd' => '-A; -E; -G; -J; -N; (alternate: usbdevs)',
+	'apt' => 'usbutils',
+	'pacman' => 'usbutils',
+	'rpm' => 'usbutils',
+	},
 	'usbdevs' => {
 	'info' => '',
-	'info-bsd' => '-A; -J; -N;',
+	'info-bsd' => '-A; -E; -G; -J; -N; (alternate: usbconfig)',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
@@ -6695,7 +6719,7 @@ sub get {
 	if ($bsd_type || $b_dmidecode_force){
 		if ($alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
-			$val1 = $alerts{'dmidecode'}->{$key1};
+			$val1 = $alerts{'dmidecode'}->{'message'};
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
@@ -7312,7 +7336,7 @@ sub advanced_output {
 	if ($alerts{'hciconfig'}->{'action'} ne 'use' && !$b_hci_error){
 		my $key = 'Message';
 		push(@rows,{
-		main::key($num++,0,1,$key) => $alerts{'hciconfig'}->{$alerts{'hciconfig'}->{'action'}},
+		main::key($num++,0,1,$key) => $alerts{'hciconfig'}->{'message'},
 		},);
 		$b_hci_error = 1;
 	}
@@ -9381,7 +9405,7 @@ sub disk_data {
 			@data = smartctl_data(\@data);
 		}
 		else {
-			$smartctl_missing = $alerts{'smartctl'}->{'missing'};
+			$smartctl_missing = $alerts{'smartctl'}->{'message'};
 		}
 	}
 	print Data::Dumper::Dumper \@data if $test[13];;
@@ -11932,7 +11956,7 @@ sub get {
 			if (!@lvm){
 				my $key = 'Message';
 				# note: arch linux has a bug where lvs returns 0 if non root start
-				my $message = ($b_active_lvm) ? $alerts{'lvs'}->{'permissions'} : main::row_defaults('lvm-data','');
+				my $message = ($b_active_lvm) ? main::row_defaults('tool-permissions','lvs') : main::row_defaults('lvm-data','');
 				push(@rows, {
 				main::key($num++,0,1,$key) => $message,
 				},);
@@ -11945,7 +11969,7 @@ sub get {
 		elsif ($b_active_lvm && $alerts{'lvs'}->{'action'} eq 'permissions'){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => $alerts{'lvs'}->{'permissions'},
+			main::key($num++,0,1,$key) => $alerts{'lvs'}->{'message'},
 			},);
 		}
 		elsif (@lsblk && !$b_active_lvm && ($alerts{'lvs'}->{'action'} eq 'permissions' || 
@@ -11957,7 +11981,7 @@ sub get {
 		}
 		elsif ($alerts{'lvs'}->{'action'} ne 'use'){
 			$key1 = $alerts{'lvs'}->{'action'};
-			$val1 = $alerts{'lvs'}->{$key1};
+			$val1 = $alerts{'lvs'}->{'message'};
 			$key1 = ucfirst($key1);
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
@@ -12293,7 +12317,7 @@ sub get {
 	elsif ($bsd_type || $b_dmidecode_force){
 		if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
-			$val1 = $alerts{'dmidecode'}->{$key1};
+			$val1 = $alerts{'dmidecode'}->{'message'};
 			$key1 = ucfirst($key1);
 		}
 		else {
@@ -15680,7 +15704,7 @@ sub get {
 	@rows = MemoryData::full('ram') if !$b_mem;
 	if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
 		$key1 = $alerts{'dmidecode'}->{'action'};
-		$val1 = $alerts{'dmidecode'}->{$key1};
+		$val1 = $alerts{'dmidecode'}->{'message'};
 		push(@rows, {
 		main::key($num++,1,1,'RAM Report') => '',
 		main::key($num++,0,2,$key1) => $val1,
@@ -17156,7 +17180,7 @@ sub get {
 	if ( $alerts{'sensors'}->{'action'} ne 'use'){
 		#print "here 1\n";
 		$key1 = $alerts{'sensors'}->{'action'};
-		$val1 = $alerts{'sensors'}->{$key1};
+		$val1 = $alerts{'sensors'}->{'message'};
 		$key1 = ucfirst($key1);
 		@data = ({main::key($num++,0,1,$key1) => $val1,});
 		push(@rows,@data);
@@ -18160,7 +18184,8 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	if ($fake{'dmidecode'} || ( $alerts{'dmidecode'}->{'action'} eq 'use' && (!$b_arm || $b_slot_tool ) )){
+	if ($fake{'dmidecode'} || ( $alerts{'dmidecode'}->{'action'} eq 'use' && 
+	 (!$b_arm || $b_slot_tool ) )){
 		@rows = slot_output();
 	}
 	elsif ($b_arm && !$b_slot_tool){
@@ -18170,7 +18195,7 @@ sub get {
 	}
 	elsif ( $alerts{'dmidecode'}->{'action'} ne 'use'){
 		$key1 = $alerts{'dmidecode'}->{'action'};
-		$val1 = $alerts{'dmidecode'}->{$key1};
+		$val1 = $alerts{'dmidecode'}->{'message'};
 		$key1 = ucfirst($key1);
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
@@ -18541,14 +18566,16 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	if ( !@usb && $alerts{'lsusb'}->{'action'} ne 'use' && $alerts{'usbdevs'}->{'action'} ne 'use'){
+	if (!@usb && $alerts{'lsusb'}->{'action'} ne 'use' && 
+	 $alerts{'usbdevs'}->{'action'} ne 'use' &&
+	 $alerts{'usbconfig'}->{'action'} ne 'use' ){
 		if ($os eq 'linux' ){
 			$key1 = $alerts{'lsusb'}->{'action'};
-			$val1 = $alerts{'lsusb'}->{$key1};
+			$val1 = $alerts{'lsusb'}->{'message'};
 		}
 		else {
 			$key1 = $alerts{'usbdevs'}->{'action'};
-			$val1 = $alerts{'usbdevs'}->{$key1};
+			$val1 = $alerts{'usbdevs'}->{'message'};
 		}
 		$key1 = ucfirst($key1);
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
@@ -22862,12 +22889,11 @@ sub set {
 	eval $start if $b_log;
 	$b_usb_check = 1;
 	# note: bsd package usbutils has lsusb in it, but we dont' want it for default
-	if ( $alerts{'usbdevs'} && $alerts{'usbdevs'}->{'action'} eq 'use'){
+	if ($alerts{'usbdevs'}->{'action'} eq 'use'){
 		usbdevs_data();
 	}
 	# if user config sets USB_SYS you can override with --usb-tool
-	elsif ((!$b_usb_sys || $b_usb_tool) && 
-	  $alerts{'lsusb'} && $alerts{'lsusb'}->{'action'} eq 'use' ){
+	elsif ((!$b_usb_sys || $b_usb_tool) && $alerts{'lsusb'}->{'action'} eq 'use' ){
 		lsusb_data();
 	}
 	elsif (-d '/sys/bus/usb/devices'){
