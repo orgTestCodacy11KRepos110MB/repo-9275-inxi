@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-27';
-my $self_patch='60';
+my $self_date='2021-02-28';
+my $self_patch='61';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6038,6 +6038,7 @@ sub row_defaults {
 	'tool-permissions' => "Unable to run $id. Root privileges required.",
 	'tool-present' => 'Present and working',
 	'tool-unknown-error' => "Unknown $id error. Unable to generate data.",
+	'tools-missing-bsd' => "This feature requires one of these BSD tools: $id",
 	'unmounted-data' => 'No Unmounted partitions found.',
 	'unmounted-data-bsd' => 'No Unmounted partition data found for this BSD system.',
 	'unmounted-file' => 'No /proc/partitions file found.',
@@ -18576,8 +18577,17 @@ sub get {
 			$val1 = $alerts{'lsusb'}->{'message'};
 		}
 		else {
-			$key1 = $alerts{'usbdevs'}->{'action'};
-			$val1 = $alerts{'usbdevs'}->{'message'};
+			# note: usbdevs only has 'missing', usbconfig has missing/permissions
+			# both have platform, but irrelevant since testing for linux here
+			if ($alerts{'usbdevs'}->{'action'} eq 'missing' && 
+			 $alerts{'usbconfig'}->{'action'} eq 'missing'){
+				$key1 = $alerts{'usbdevs'}->{'action'};
+				$val1 = main::row_defaults('tools-missing-bsd','usbdevs/usbconfig');
+			}
+			elsif ($alerts{'usbconfig'}->{'action'} eq 'permissions'){
+				$key1 = $alerts{'usbconfig'}->{'action'};
+				$val1 = $alerts{'usbconfig'}->{'message'};
+			}
 		}
 		$key1 = ucfirst($key1);
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
@@ -18606,8 +18616,6 @@ sub usb_output {
 	foreach my $id (@usb){
 		$j = scalar @rows;
 		($b_hub,$ind_sc,$num) = (0,3,1);
-		
-		
 		($driver,$path_id,$ports,$product,
 		$serial,$speed,$type) = ('','','','','','','');
 		$speed  = ( main::is_numeric($id->[8]) ) ? sprintf("%1.1f",$id->[8]) : $id->[8] if $id->[8];
@@ -22899,9 +22907,11 @@ sub set {
 	eval $start if $b_log;
 	$b_usb_check = 1;
 	# note: bsd package usbutils has lsusb in it, but we dont' want it for default
+	# usbdevs is best, has most data, and runs as user
 	if ($alerts{'usbdevs'}->{'action'} eq 'use'){
 		usbdevs_data();
 	}
+	# usbconfig has weak/poor output, and requires root, only fallback
 	elsif ($alerts{'usbconfig'}->{'action'} eq 'use'){
 		usbconfig_data();
 	}
@@ -22992,13 +23002,16 @@ sub usbconfig_data {
 			$speed = $9;
 			$power = $11;
 			($product,$vendor) = ('','');
-			if ($name =~ /vendor (0x)?[0-9a-f]{4}/){
-				$name =~ s/vendor (0x)?([0-9a-f]{4})\s?//;
-				$vendor = ($2) ? $2 : '';
-			}
-			if ($name =~ /product (0x)?[0-9a-f]{4}/){
-				$name =~ s/product (0x)?([0-9a-f]{4})\s?//;
-				$product = ($2) ? $2 : '';
+			# leave the ugly vendor/product ids unless chip ID shows!
+			if ($extra > 1){
+				if ($name =~ /vendor (0x)?[0-9a-f]{4}/){
+					$name =~ s/vendor (0x)?([0-9a-f]{4})\s?//;
+					$vendor = ($2) ? $2 : '';
+				}
+				if ($name =~ /product (0x)?[0-9a-f]{4}/){
+					$name =~ s/product (0x)?([0-9a-f]{4})\s?//;
+					$product = ($2) ? $2 : '';
+				}
 			}
 			$chip_id = ($vendor || $product) ? "$vendor:$product" : '';
 			$class = ($type && $type eq 'Hub') ? '09': '01';
