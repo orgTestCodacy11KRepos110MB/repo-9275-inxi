@@ -22907,7 +22907,6 @@ $chip_id,$class_id,$device_id,$driver,$ids,$interfaces,
 $name,$network_regex,$path,$path_id,$power,$product,$protocol_id,$rev,
 $serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id);
 my $b_live = 1; # debugger file data
-
 sub set {
 	eval $start if $b_log;
 	$b_usb_check = 1;
@@ -22959,11 +22958,11 @@ sub lsusb_data {
 		@temp = @working[6..$#working];
 		$name = main::remove_duplicates(join(' ', @temp));
 		$name = $name;
-		$type = check_type($name,'','');
+		# $type = check_type($name,'','');
 		$type ||= '';
-		$bus_id_alpha = bus_id_alpha($path_id);
+		# do NOT set bus_id_alpha here!!
 		#print "$name\n";
-		$working[0] = $bus_id_alpha;
+		$working[0] = $bus_id;
 		$working[1] = $addr_id;
 		$working[2] = $path_id;
 		$working[3] = '';
@@ -22977,7 +22976,7 @@ sub lsusb_data {
 		$working[11] = '';
 		$working[12] = '';
 		$working[13] = $name;
-		$working[14] = $type;
+		$working[14] = '';# $type;
 		$working[15] = '';
 		$working[16] = '';
 		$working[17] = '';
@@ -23011,7 +23010,7 @@ sub usbconfig_data {
 			$name = main::remove_duplicates($4);
 			$type = check_type($name,'','');
 			$config = $6;
-			$speed = prep_speed($9) if $9;
+			$speed = prep_speed($9);
 			$power = $11;
 			($product,$vendor) = ('','');
 			# leave the ugly vendor/product ids unless chip ID shows!
@@ -23312,6 +23311,8 @@ sub sys_data {
 			$usb_version = sys_item("$_/version");
 			$speed = sys_item("$_/speed");
 			$configuration = sys_item("$_/configuration");
+			$power = sys_item("$_/bMaxPower");
+			process_power(\$power) if $power;
 			$class_id = sprintf("%02x", $class_id) if defined $class_id && $class_id ne '';
 			$subclass_id = sprintf("%02x", $subclass_id) if defined $subclass_id && $subclass_id ne '';
 			if ($source eq 'lsusb'){
@@ -23353,8 +23354,6 @@ sub sys_data {
 				next if !$vendor_id && !$chip_id;
 				$product = sys_item("$_/product");
 				$product = main::cleaner($product) if $product;
-				$power = sys_item("$_/bMaxPower");
-				process_power(\$power) if $power;
 				$vendor = sys_item("$_/manufacturer");
 				$vendor = main::cleaner($vendor) if $vendor;
 				if (!$b_hub && ($product || $vendor )){
@@ -23575,7 +23574,7 @@ sub check_type {
 	if ($name =~ /\b(hub)/i){
 		$type = 'Hub';
 	}
-	elsif ($name =~ /(audio|\bdac[0-9]*\b|headphone|hifi|\bmidi\b|\bmic(rophone)?\b|sound)/){
+	elsif ($name =~ /(audio|\bdac[0-9]*\b|(head|micro|tele)phone|hifi|\bmidi\b|\bmic\b|sound)/){
 		$type = 'Audio';
 	}
 	# Broadcom HP Portable SoftSailing
@@ -23586,7 +23585,7 @@ sub check_type {
 	  $name =~ /(camera|display|\bdvb-t|\b(pc)?tv\bvideo|webcam)/){
 		$type = 'Video';
 	}
-	elsif ($name =~ /(wlan|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?mbps|(11|54|108|240)g\b|wireless[\s-][gn]\b)/){
+	elsif ($name =~ /(wlan|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?mbps|(11|54|108|240)g\b|wireless[\s-][gn]\b|wireless.*adapter)/){
 		$type = 'WiFi';
 	}
 	elsif ($name =~ /(ethernet|\blan|802\.3|100?\/1000?|gigabit)/){
