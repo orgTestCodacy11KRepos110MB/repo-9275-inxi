@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-02-28';
-my $self_patch='64';
+my $self_date='2021-03-01';
+my $self_patch='65';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5188,7 +5188,7 @@ sub show_options {
 	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
 	adds wakeups: (from suspend) to Uptime." ],
-	['2', '-J', '', "For Device: serial number (if present), interface count; USB speed." ],
+	['2', '-J', '', "If present: Devices: serial number, interface count; USB speed; max power." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
 	number." ],
@@ -18588,6 +18588,10 @@ sub get {
 				$key1 = $alerts{'usbconfig'}->{'action'};
 				$val1 = $alerts{'usbconfig'}->{'message'};
 			}
+# 			elsif ($alerts{'lsusb'}->{'action'} eq 'missing'){
+# 				$key1 = $alerts{'lsusb'}->{'action'};
+# 				$val1 = $alerts{'lsusb'}->{'message'};
+# 			}
 		}
 		$key1 = ucfirst($key1);
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
@@ -18664,7 +18668,7 @@ sub usb_output {
 			else {$speed = $id->[17] . " Mb/s"}
 			$rows[$j]->{main::key($num++,0,$ind_sc,'speed')} = $speed;
 		}
-		if ($extra > 2 && $id->[19]){
+		if ($extra > 2 && $id->[19] && $id->[19] ne '0mA'){
 			$rows[$j]->{main::key($num++,0,$ind_sc,'power')} = $id->[19];
 		}
 		if ($extra > 1){
@@ -20204,9 +20208,10 @@ sub get_linux_distro {
 			$distro_file = $os_release if @osr;
 		}
 		# note: wrong fix, applies to both raspbian and raspberry pi os
-		elsif (-e '/etc/apt/sources.list.d/raspi.list' && 
+		# assumption here is that r pi os fixes this before stable release
+		elsif ($lc_issue !~ /^debian/ && -e '/etc/apt/sources.list.d/raspi.list' && 
 		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
-			$distro_id = 'raspberrypios' ;
+			$distro_id = 'raspios' ;
 		}
 	}
 	# Note that antergos changed this around 	# 2018-05, and now lists 
@@ -20369,7 +20374,7 @@ sub get_linux_distro {
 		if ($distro_id eq 'armbian'){
 			$distro =~ s/Debian/Armbian/;
 		}
-		elsif ($distro_id eq 'raspberrypios'){
+		elsif ($distro_id eq 'raspios'){
 			$system_base = $distro;
 			# no need to repeat the debian version info if base:
 			if ($extra == 0){$distro =~ s/Debian\s*GNU\/Linux/Raspberry Pi OS/;}
@@ -22899,7 +22904,7 @@ package USBData;
 my (@working);
 my (@asound_ids,$b_asound,$b_hub,$addr_id,$bus_id,$bus_id_alpha,
 $chip_id,$class_id,$device_id,$driver,$ids,$interfaces,
-$name,$network_regex,$path,$path_id,$product,$protocol_id,
+$name,$network_regex,$path,$path_id,$power,$product,$protocol_id,$rev,
 $serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id);
 my $b_live = 1; # debugger file data
 
@@ -22940,6 +22945,12 @@ sub lsusb_data {
 		$working[3] =~ s/:$//;
 		# Seen FreeBSD lsusb with: 
 		# Bus /dev/usb Device /dev/ugen0.3: ID 24ae:1003 Shenzhen Rapoo Technology Co., Ltd. 
+		# linux: 
+		# Bus 005 Device 007: ID 0d8c:000c C-Media Electronics, Inc. Audio Adapter
+		if ($working[3] =~ m|^/dev/ugen([0-9]+)\.([0-9]+)|){
+			$working[1] = $1;
+			$working[3] = $2;
+		}
 		next unless main::is_numeric($working[1]) && main::is_numeric($working[3]);
 		$addr_id = int($working[3]);
 		$bus_id = int($working[1]);
@@ -22985,7 +22996,7 @@ sub lsusb_data {
 #ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
 sub usbconfig_data {
 	eval $start if $b_log;
-	my ($b_multi,$class,$config,$hub_id,$power,$rev);
+	my ($b_multi,$class,$config,$hub_id);
 	my ($ports,$j,$k) = (0,0,0);
 	my @data = data_grabber('usbconfig');
 	push (@data,'END') if @data;
@@ -23015,6 +23026,7 @@ sub usbconfig_data {
 			}
 			$chip_id = ($vendor || $product) ? "$vendor:$product" : '';
 			$class = ($type && $type eq 'Hub') ? '09': '01';
+			process_power(\$power) if $power;
 			$j = scalar @usb;
 			$path_id = "$bus_id-$hub_id.$addr_id";
 			$working[0] = $bus_id;
@@ -23035,7 +23047,7 @@ sub usbconfig_data {
 			$working[15] = $driver;
 			$working[16] = '';
 			$working[17] = $speed;
-			$working[18] = '';
+			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
 			$usb[$j] = ([@working],);
@@ -23054,7 +23066,7 @@ sub usbconfig_data {
 #  port 2 powered
 sub usbdevs_data {
 	eval $start if $b_log;
-	my ($b_multi,$class,$config,$hub_id,$power,$port,$port_value,$product_rev,$rev);
+	my ($b_multi,$class,$config,$hub_id,$port,$port_value,$product_rev);
 	my ($ports,$j,$k) = (0,0,0);
 	my @data = data_grabber('usbdevs');
 	push (@data,'END') if @data;
@@ -23082,6 +23094,7 @@ sub usbdevs_data {
 			$name = main::remove_duplicates("$7 $5");
 			#print "p1:$protocol\n";
 			$path_id = "$bus_id-$hub_id";
+			process_power(\$power) if $power;
 			$port_value = '';
 			$working[0] = $bus_id;
 			$working[1] = $addr_id;
@@ -23105,7 +23118,7 @@ sub usbdevs_data {
 			$usb[$j] = ([@working],);
 			@working = ();
 		}
-		elsif (/^\s+port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,0-9]+([0-9]+ mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
+		elsif (/^\s+port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,0-9]*([0-9]+\s?mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
 			$j = scalar @usb;
 			$port = $1;
 			$addr_id = "$2";
@@ -23119,6 +23132,7 @@ sub usbdevs_data {
 			#print "p2:$protocol\n";
 			$ports++;
 			$path_id = "$bus_id-$hub_id.$port";
+			process_power(\$power) if $power;
 			$working[0] = $bus_id;
 			$working[1] = $addr_id;
 			$working[2] = $path_id;
@@ -23192,10 +23206,12 @@ sub usbdevs_data {
 		elsif ($b_multi && /^\s+([^,]+),\s+power\s+([0-9]+\s+mA),\s+config\s([0-9]+),\s+rev\s+([0-9\.]+)/){
 			$speed = prep_speed($1);
 			$rev = usb_rev($speed);
+			$power = $2;
+			process_power(\$power) if $power;
 			$working[8] = $rev;
 			$working[17] = $speed;
 			$working[18] = $3; # config number
-			$working[19] = $2; # power
+			$working[19] = $power; 
 			$working[20] = $4; # product rev
 		}
 		# 1 or more drivers supported
@@ -23276,6 +23292,8 @@ sub sys_data {
 			$class_id = sys_item("$_/bDeviceClass");
 			# $subclass_id = sys_item("$_/bDeviceSubClass");
 			$class_id = hex($class_id) if $class_id;
+			$power = sys_item("$_/bMaxPower");
+			process_power(\$power) if $power;
 			# this populates class, subclass, and protocol id with decimal numbers
 			@drivers = uevent_data("$_/[0-9]*/uevent");
 			push(@drivers, uevent_data("$_/[0-9]*/*/uevent")) if !$b_hub;
@@ -23315,6 +23333,8 @@ sub sys_data {
 						$usb[$i]->[16] = $serial if $serial;
 						$usb[$i]->[17] = $speed if $speed;
 						$usb[$i]->[18] = $configuration;
+						$usb[$i]->[19] = $power;
+						$usb[$i]->[20] = '';
 						assign_usb_type($usb[$i]);
 						#print join("\n",@{$usb[$i]}),"\n\n";# if !$b_hub; 
 						last;
@@ -23328,6 +23348,8 @@ sub sys_data {
 				next if !$vendor_id && !$chip_id;
 				$product = sys_item("$_/product");
 				$product = main::cleaner($product) if $product;
+				$power = sys_item("$_/bMaxPower");
+				process_power(\$power) if $power;
 				$vendor = sys_item("$_/manufacturer");
 				$vendor = main::cleaner($vendor) if $vendor;
 				if (!$b_hub && ($product || $vendor )){
@@ -23372,7 +23394,7 @@ sub sys_data {
 				$usb[$i]->[16] = $serial;
 				$usb[$i]->[17] = $speed;
 				$usb[$i]->[18] = $configuration;
-				$usb[$i]->[19] = '';
+				$usb[$i]->[19] = $power;
 				$usb[$i]->[20] = '';
 				assign_usb_type($usb[$i]);
 				$i++;
@@ -23643,6 +23665,11 @@ sub prep_speed {
 		$speed = 1.5; # 1.5 - could be 1.0, or low speed 1.1/2.0
 	}
 	return $speed;
+}
+sub process_power {
+	return if !${$_[0]};
+	${$_[0]} =~ s/\s//g;
+	# ${$_[0]} = '' if ${$_[0]} eq '0mA'; # better to handle on output
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
 sub bus_id_alpha {
