@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-02-28';
-my $self_patch='61';
+my $self_patch='62';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -22999,7 +22999,7 @@ sub usbconfig_data {
 			$name = main::remove_duplicates($4);
 			$type = check_type($name,'','');
 			$config = $6;
-			$speed = $9;
+			$speed = prep_speed($9) if $9;
 			$power = $11;
 			($product,$vendor) = ('','');
 			# leave the ugly vendor/product ids unless chip ID shows!
@@ -23025,7 +23025,7 @@ sub usbconfig_data {
 			$working[5] = '';
 			$working[6] = '';
 			$working[7] = $chip_id;
-			$working[8] = $speed;
+			$working[8] = usb_rev($speed);
 			$working[9] = '';
 			$working[10] = 0;
 			$working[11] = '';
@@ -23034,7 +23034,7 @@ sub usbconfig_data {
 			$working[14] = $type;
 			$working[15] = $driver;
 			$working[16] = '';
-			$working[17] = '';
+			$working[17] = $speed;
 			$working[18] = '';
 			$working[19] = $power;
 			$working[20] = '';
@@ -23054,7 +23054,7 @@ sub usbconfig_data {
 #  port 2 powered
 sub usbdevs_data {
 	eval $start if $b_log;
-	my ($b_multi,$class,$config,$hub_id,$power,$port,$port_value,$rev);
+	my ($b_multi,$class,$config,$hub_id,$power,$port,$port_value,$product_rev,$rev);
 	my ($ports,$j,$k) = (0,0,0);
 	my @data = data_grabber('usbdevs');
 	push (@data,'END') if @data;
@@ -23075,7 +23075,7 @@ sub usbdevs_data {
 			$k = $j;
 			$hub_id = $1;
 			$addr_id = $1;
-			$speed = $2;
+			$speed = prep_speed($2);
 			$chip_id = "$4:$6";
 			$name = main::remove_duplicates("$5 $3");
 			#print "p1:$protocol\n";
@@ -23089,14 +23089,14 @@ sub usbdevs_data {
 			$working[5] = '';
 			$working[6] = '';
 			$working[7] = $chip_id;
-			$working[8] = $speed;
+			$working[8] = usb_rev($speed);
 			$working[9] = '';
 			$working[10] = 0;
 			$working[13] = $name;
 			$working[14] = 'Hub';
 			$working[15] = '';
 			$working[16] = '';
-			$working[17] = '';
+			$working[17] = $speed;
 			$working[18] = '';
 			$working[19] = '';
 			$working[20] = '';
@@ -23107,7 +23107,7 @@ sub usbdevs_data {
 			$j = scalar @usb;
 			$port = $1;
 			$addr_id = "$2";
-			$speed = "$3";
+			$speed = prep_speed($3);
 			$chip_id = "$5:$7";
 			$name = main::remove_duplicates("$6 $4");
 			$type = check_type($name,'','');
@@ -23123,7 +23123,7 @@ sub usbdevs_data {
 			$working[5] = '';
 			$working[6] = '';
 			$working[7] = $chip_id;
-			$working[8] = $speed;
+			$working[8] = usb_rev($speed);
 			$working[9] = '';
 			$working[10] = 0;
 			$working[11] = '';
@@ -23132,7 +23132,7 @@ sub usbdevs_data {
 			$working[14] = $type;
 			$working[15] = '';
 			$working[16] = '';
-			$working[17] = '';
+			$working[17] = $speed;
 			$working[18] = '';
 			$working[19] = '';
 			$working[20] = '';
@@ -23186,10 +23186,13 @@ sub usbdevs_data {
 			$working[20] = '';
 		}
 		elsif ($b_multi && /^\s+([^,]+),\s+power\s+([0-9]+\s+mA),\s+config\s([0-9]+),\s+rev\s+([0-9\.]+)/){
-			$working[8] = $1; # speed
+			$speed = prep_speed($1);
+			$rev = usb_rev($speed);
+			$working[8] = $rev;
+			$working[17] = $speed;
+			$working[18] = $3; # config number
 			$working[19] = $2; # power
-			$config = $3;
-			$rev = $4;
+			$working[20] = $4; # product rev
 		}
 		# 1 or more drivers supported
 		elsif ($b_multi && /^\s+driver:\s*([^,]+)$/){
@@ -23596,6 +23599,46 @@ sub set_network_regex {
 	$network_regex .= '(Linksys|Netgear|Davicom)|';
 	$network_regex .= 'Range(Booster|Max)|Samsung.*LinkStick|\b(WG|WND?A)[0-9][0-9][0-9]|';
 	$network_regex .= '\b(050d:935b|0bda:8189|0bda:8197)\b';
+}
+# try to guess at usb rev version from speeds
+sub usb_rev {
+	return if !$_[0] || ! main::is_numeric($_[0]);
+	my $rev;
+	if ($_[0] < 2){$rev = '1.0';}
+	elsif ($_[0] < 13){$rev = '1.1';}
+	elsif ($_[0] < 481){$rev = '2.0';}
+	elsif ($_[0] < 5001){$rev = '3.0';}
+	elsif ($_[0] < 10001){$rev = '3.1';}
+	elsif ($_[0] < 20001){$rev = '3.2';}
+	elsif ($_[0] < 40001){$rev = '4.0';}
+	return $rev;
+}
+sub prep_speed {
+	return if !$_[0];
+	my $speed = $_[0];
+	if ($_[0] =~ /^([0-9\.]+)\s*Mb/){
+		$speed = $1;
+	}
+	elsif ($_[0] =~ /^([0-9\.]+)+\s*Gb/){
+		$speed = $1 * 1000;
+	}
+	# could be 3.2, 20000 too, also superspeed+
+	elsif ($_[0] =~ /super[\s-]?speed\s?(\+|plus)/i){
+		$speed = 10000;# 3.1; # can't trust bsds to use superspeed+ but we'll hope
+	}
+	elsif ($_[0] =~ /super[\s-]?speed/i){
+		$speed = 5000;# 3.0; 
+	}
+	elsif ($_[0] =~ /hi[\s-]?speed/i){
+		$speed = 480; # 2.0, 
+	}
+	elsif ($_[0] =~ /full[\s-]?speed/i){
+		$speed = 12; # 1.1 - could be full speed 1.1/2.0
+	}
+	elsif ($_[0] =~ /low[\s-]?speed/i){
+		$speed = 1.5; # 1.5 - could be 1.0, or low speed 1.1/2.0
+	}
+	return $speed;
 }
 # this is used to create an alpha sortable bus id for main $usb[0]
 sub bus_id_alpha {
