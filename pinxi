@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-01';
-my $self_patch='68';
+my $self_patch='69';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6710,13 +6710,14 @@ sub sound_server_data {
 		push(@servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
-	# this is a guess re the sndstat file
-	if (-e '/dev/sndstat' || ($program = main::check_program('oss'))){
+	# sndstat file may be removed in linux oss
+	if (-e '/dev/sndstat' || ($program = main::check_program('ossinfo'))){
 		$server = 'OSS';
 		#$version = main::program_version('oss','\S',2);
 		$version = (grep {/^hw.snd.version:/} @sysctl_audio)[0] if @sysctl_audio;
 		$version = (split(/:\s*/,$version),1)[1] if $version;
 		$version =~ s|/.*$|| if $version;
+		# not a great test, but ok for now
 		$running = (-e '/dev/sndstat') ? 'yes' : 'no?';
 		push(@servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
@@ -20209,6 +20210,14 @@ sub get_bsd_os {
 	# seen a case without osx file, or was it permissions?
 	# this covers all the other bsds anyway, no problem.
 	$distro = "$uname[0] $uname[2]" if !$distro;
+	if ((-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') 
+	&& $distro =~ /freebsd/i){
+		$system_base = $distro;
+		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
+		$distro = 'GhostBSD';
+		$distro .= " $version" if $version;
+	}
+	system_base_bsd() if $extra > 0;
 	eval $end if $b_log;
 }
 
@@ -20415,7 +20424,7 @@ sub get_linux_distro {
 			$distro = $distro_file;
 		}
 	}
-	get_system_base() if $extra > 0;
+	system_base() if $extra > 0;
 	# some last customized changes, double check if possible to verify still valid
 	if ($distro){
 		if ($distro_id eq 'armbian'){
@@ -20433,14 +20442,14 @@ sub get_linux_distro {
 	}
 	else {
 		# android fallback, sometimes requires root, sometimes doesn't
-		get_android() if $b_android;
+		android_info() if $b_android;
 	}
 	## finally, if all else has failed, give up
 	$distro ||= 'unknown';
 	eval $end if $b_log;
 }
 
-sub get_android {
+sub android_info {
 	eval $start if $b_log;
 	main::set_build_prop() if !$b_build_prop;;
 	$distro = 'Android';
@@ -20460,7 +20469,13 @@ sub get_android {
 	eval $end if $b_log;
 }
 
-sub get_system_base {
+sub system_base_bsd {
+	eval $start if $b_log;
+	# ghostbsd is handled in main bsd section
+	eval $end if $b_log;
+}
+
+sub system_base {
 	eval $start if $b_log;
 	my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
 	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
