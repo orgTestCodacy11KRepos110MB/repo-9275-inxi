@@ -2,8 +2,8 @@
 INXI VALUES
 ================================================================================
 FILE:    inxi-values.txt
-VERSION: 4.6
-DATE:    2021-03-01
+VERSION: 4.7
+DATE:    2021-03-02
 
 ----------------------------------------
 Docs:
@@ -377,16 +377,17 @@ Sets: @test indexes to 1, true, or sets various flags for testing in the system.
 26. Dumper sound server data
 
 ========================================
+SYNTHETID DATA SWITCHES
+----------------------------------------
+
+----------------------------------------
 EMULATTION SWITCHES (MISC)
 ----------------------------------------
 
 ----------------------------------------
---irc
+--irc - Set $b_irc = 1
+
 ----------------------------------------
-
-Set $b_irc = 1
-
-========================================
 FAKE OS SWITCHES
 ----------------------------------------
 
@@ -394,30 +395,22 @@ Used in conjuction with other switches to emulate as far as
 possible the os type.
 
 ----------------------------------------
---arm
-----------------------------------------
-Set $b_arm = 1
+--arm - Set $b_arm = 1
 
 ----------------------------------------
---bsd [darwin|dragonfly|freebsd|openbsd|netbsd]
-----------------------------------------
-Force $bsd_type
+--bsd [variant] - Force $bsd_type
 
-Values: darwin|dragonfly|freebsd|openbsd|netbsd
+Values: [darwin|dragonfly|freebsd|openbsd|netbsd]
 
 Sets: $fake{'bsd'} = 1
 
 See --fake for specific fake bsd tools
 
 ----------------------------------------
---mips
-----------------------------------------
-Set $b_mips = 1
+--mips - Set $b_mips = 1
 
 ----------------------------------------
---ppc
-----------------------------------------
-Set $b_ppc = 1
+--ppc - Set $b_ppc = 1
 
 ========================================
 FAKE DATA SWITCHES
@@ -509,61 +502,51 @@ collection.
 ========================================
 ALERTS / WARNINGS
 ----------------------------------------
-my (%alerts,%hash);
+hash: %alerts
 
-%hash = (
-'dmidecode' => {
-'action' => 'use', # use: true, else missing|permissions|smbios error
-'missing' => 'Required program dmidecode not available.',
-'permissions' => 'Required program dmidecode not available.',
-'smbios' => 'No SMBIOS data for dmidecode to process.',
-},
-);
-%alerts = (%alerts, %hash);
-%hash = (
-[xrandr xdpyinfo glxinfo] => {
-'action' => $action,
-'missing' => "Missing: $_ - continuing in non desktop mode. Check --recommends",
-'in-console' => 'See --display option to get graphics data',
-},
-);
-%alerts = (%alerts, %hash);
+Used to test to use/not used tools, to avoid having to retest them all
+over internally, these just get tested initially.
 
-[pciconf sysctl] => {
-'action' => $action,
-'missing' => "Missing system tool: $_. Output will be incomplete",
-'permissions' => "Unable to run $_. Root required?",
-},
-);
-%alerts = (%alerts, %hash);
+----------------------------------------
+key: action - [use|missing|permissions|platform]
 
-%hash = (
-[lspci] => {
-'action' => $action,
-'missing' => "Missing system tool: $_. Output will be incomplete",
-'permissions' => "Unable to run $_. Root required?",
-},
-);
-%alerts = (%alerts, %hash);
+platform is for tools that only are found on either bsd or linux, and
+are used just to determin $alerts{tool}->{action} ne use 
+
+key: action - [no-data|smbios|unknown-error]
+For dmidecode, further possible values due to complexity of dmidecode
+output possible scenarios.
+
+----------------------------------------
+key: path - from check_program, is undef or the path
+
+----------------------------------------
+key: message - if action ne use, a message that can be used to print
+out messages to user, if required.
 
 ========================================
 CLIENT
 ----------------------------------------
 
 %client = (
-'console'     => [01],
-'console-irc' => [01],
-'dcop'        => [01],
-'dobject'     => [default|konversation]
-'dport'       => '',
-'dserver'     => '',
-'dtarget'     => '',
-'konvi'       => [0123], # level of konvi for internal use. 2 is /cmd start
-'name'        => [lower case client name]
-'name-print'  => [Display version of name]
-'native'      => [01], # konvi: /cmd = 0; /pinxi = 1
-'qdbus'       => [01],
-'version'     => [client version],
+'console'          => [01],
+'console-irc'      => [01],
+'dcop'             => [01],
+'default-shell'    => [shell name],
+'default-shell-v'  => [default shell version],
+'dobject'          => [default|konversation]
+'dport'            => '',
+'dserver'          => '',
+'dtarget'          => '',
+'konvi'            => [0123], # level of konvi for internal use. 2 is /cmd start
+'name'             => [lower case client name]
+'name-print'       => [Display version of name]
+'native'           => [01], # konvi: /cmd = 0; /pinxi = 1
+'ppid'             => [ppid],
+'qdbus'            => [01],
+'su-start'         => [01],
+'test-konvi'       => [01], # debugging switch
+'version'          => [client version],
 );
 
 ========================================
@@ -579,7 +562,6 @@ See also --no-ssl
 'ftp'        => [01],
 'perl'       => [01],
 'wget'       => [01],
-
 # options
 'dl'         => [|curl|fetch|ftp|perl|wget] null means no downloader found or used.
 'file'       => [arguments for downloader type for file download]
@@ -686,10 +668,12 @@ $size{'term-lines'}=100;
 OUTPUT SCALARS
 ----------------------------------------
 
+----------------------------------------
 $cpu_sleep = 0.3 # time cpu sleeps before inxi gets the speed, inxi itself
 spikes the cpu when it runs so it's good to let it spin down a bit before 
 losting the speed. CPU_SLEEP config item or --sleep overrides it.
 
+----------------------------------------
 $limit = 10 # for large IP output, allows users to set the limit, either in
  config file LIMIT= or with --limit switch. -1 means no limit
  
@@ -775,15 +759,17 @@ DeviceData
 ----------------------------------------
 
 For -A, -C, -E, -G, -N, -R
-@devices_audio
-@devices_bluetooth
-@devices_graphics
-@devices_hwraid
-@devices_network
-@devices_timer - arm cpu variant
+
+@devices
+ - @devices_audio
+ - @devices_bluetooth
+ - @devices_graphics
+ - @devices_hwraid
+ - @devices_network
+ - @devices_timer - arm cpu variant
 
 For DeviceData internal use, logging, debugging:
-@devices
+----------------------------------------
 
 0 - type
 1 - type_id
@@ -812,6 +798,8 @@ For -A, -E, -G, -J, -N
  - @usb_bluetooth
  - @usb_graphics
  - @usb_network
+ 
+----------------------------------------
 
 0 - bus id / sort id
 1 - device id
