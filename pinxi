@@ -4642,7 +4642,7 @@ sub get_options {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $fakes = 'bluetooth|compiler|cpu|dboot|dmidecode|logical|';
-			$fakes .= 'pciconf|raid|sensors|sysctl|usbconfig|usbdevs';
+			$fakes .= 'pciconf|raid|sensors|sysctl|uptime|usbconfig|usbdevs';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($fakes)\b/){
 					$fake{$1} = 1;
@@ -20883,7 +20883,8 @@ sub get_init_data {
 		# output: /sbin/init --version:  init (upstart 1.1)
 		# init (upstart 0.6.3)
 		# openwrt /sbin/init hangs on --version command, I think
-		if ((!$b_mips && !$b_sparc && !$b_arm) && ($init_version = program_version('init', 'upstart', '3','--version') )){
+		if ((!$b_mips && !$b_sparc && !$b_arm) && 
+		 ($init_version = program_version('init', 'upstart', '3','--version') )){
 			$init = 'Upstart';
 		}
 		elsif (check_program('launchctl')){
@@ -20900,7 +20901,7 @@ sub get_init_data {
 			$init = 'init (BSD)';
 		}
 	}
-	if ( grep { /openrc/ } globber('/run/*openrc*') ){
+	if ( (grep { /openrc/ } globber('/run/*openrc*')) || (grep {/openrc/} @ps_cmd) ){
 		$rc = 'OpenRC';
 		# /sbin/openrc --version == openrc (OpenRC) 0.13
 		if ($program = check_program('openrc')){
@@ -21770,8 +21771,10 @@ sub get_uptime {
 	if (check_program('uptime')){
 		$uptime = qx(uptime);
 		$uptime = trimmer($uptime);
-		#$uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
-		# $uptime = '9:51 PM  up 49 secs, 1 user, load average: 0:58, 0.27, 0.11';
+		if ($fake{'uptime'}){
+			# $uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
+			# $uptime = '9:51 PM  up 49 secs, 1 user, load average: 0:58, 0.27, 0.11';
+		}
 		if ($uptime && 
 		 $uptime =~ /[\S]+\s+up\s+(([0-9]+)\s+day[s]?,\s+)?(([0-9]{1,2}):([0-9]{1,2})|([0-9]+)\smin[s]?|([0-9]+)\ssec[s]?),\s+([0-9]+\s+user|load average)/){
 			$days = $2 . 'd' if $2;
