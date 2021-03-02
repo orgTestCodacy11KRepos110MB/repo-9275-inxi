@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-01';
-my $self_patch='66';
+my $self_patch='67';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6320,6 +6320,7 @@ sub print_data {
 		'Monitor' => 1,
 		'Optical' => 1,
 		'Screen' => 1,
+		'Sound Server' => 1,
 		'variant' => 1, # arm > 1 cpu type
 		);
 		foreach my $val1 (@{$data->{$key1}}){
@@ -6674,8 +6675,25 @@ sub usb_output {
 
 sub sound_server_output {
 	eval $start if $b_log;
-	my (@data,$program,$server,$version);
-	my $num = 0;
+	my (@rows,$program);
+	my ($j,$num) = (0,0);
+	my @servers = sound_server_data();
+	for my $server (@servers){
+		$j = scalar @rows;
+		$server->[1] ||= 'N/A';
+		push(@rows, {
+		main::key($num++,1,1,'Sound Server') => $server->[0],
+		main::key($num++,0,2,'v') => $server->[1],
+		});
+		$server->[2] ||= 'N/A';
+		$rows[$j]->{main::key($num++,1,1,'running')} = $server->[2];
+	}
+	eval $end if $b_log;
+	return @rows;
+}
+sub sound_server_data {
+	eval $start if $b_log;
+	my (@servers,$program,$running,$server,$version);
 	if (my $file = main::system_files('asound-version') ){
 		my $content = main::reader($file,'',0);
 		# some alsa strings have the build date in (...)
@@ -6686,27 +6704,55 @@ sub sound_server_output {
 				$version = (split(/\s+/, $content))[-1];
 				$version =~ s/\.$//; # trim off period
 				$server = 'ALSA';
+				$running = 'yes';
 # 			}
 # 		}
+		# note needd I think, if asound is there, it's running
+		#if (main::check_program('aplay') && main::grabber('aplay -l 2>/dev/null')){
+		#	$running = 'yes';
+		#}
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
 	}
-	elsif ($program = main::check_program('oss')){
+	if ($program = main::check_program('oss')){
 		$server = 'OSS';
 		$version = main::program_version('oss','\S',2);
-		$version ||= 'N/A';
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
 	}
-	elsif ($program = main::check_program('sndiod')){
+	if ($program = main::check_program('jackd')){
+		$server = 'JACK';
+		$version = main::program_version($program,'^jackd',3,'--version',1);
+		$running = (grep {/jackd/} @ps_cmd) ? 'yes':'no' ;
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
+	}
+	if ($program = main::check_program('sndiod')){
 		$server = 'sndio';
 		#$version = main::program_version('sndio','\S',2);
-		$version ||= 'N/A';
+		$running = (grep {/sndiod/} @ps_cmd) ? 'yes': 'no';
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
 	}
-	if ($server){
-		@data = ({
-		main::key($num++,1,1,'Sound Server') => $server,
-		main::key($num++,0,2,'v') => $version,
-		},);
+	# note: pactl info/list/stat could be used
+	if ($program = main::check_program('pactl')){
+		$server = 'PulseAudio';
+		$version = main::program_version($program,'^pactl',2,'--version',1);
+		$running = (grep {/pulseaudio/} @ps_cmd) ? 'yes':'no' ;
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
 	}
+	if ($program = main::check_program('pipewire')){
+		$server = 'PipeWire';
+		$version = main::program_version($program,'^Compiled with libpipe',4,'--version',1);
+		$running = (grep {/pipewire/} @ps_cmd) ? 'yes':'no' ;
+		push(@servers, [$server,$version,$running]);
+		($running,$server,$version) = ('','','');
+	}
+	main::log_data('dump','sound servers: @servers',\@servers) if $b_log;
+	print Data::Dumper::Dumper \@servers if $test[26];
+	return @servers;
 	eval $end if $b_log;
-	return @data;
 }
 }
 
