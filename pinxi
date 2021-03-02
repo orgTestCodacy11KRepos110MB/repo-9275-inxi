@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-01';
-my $self_patch='70';
+my $self_date='2021-03-02';
+my $self_patch='71';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4912,7 +4912,7 @@ sub show_options {
 	$self_name^-FzjJxy^80" ],
 	['0', '', '', $line ],
 	['0', '', '', "Output Control Options (see Extra Data Options to extend output):" ],
-	['1', '-A', '--audio', "Audio/sound devices(s), driver, sound server." ],
+	['1', '-A', '--audio', "Audio/sound devices(s), driver, running sound servers." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge, condition
 	voltage (if critical), plus extra info (if battery present)." ],
@@ -5086,7 +5086,8 @@ sub show_options {
 	['1', '-x', '--extra', "Adds the following extra data (only works with 
 	verbose or line output, not short form):" ],
 	['2', '-A', '', "Specific vendor/product information (if relevant); 
-	PCI/USB ID of device; Version/port(s)/driver version (if available)." ],
+	PCI/USB ID of device; Version/port(s)/driver version (if available);
+	non-running sound servers." ],
 	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
 	attached devices (e.g. wireless mouse, keyboard, if present)." ],
 	['2', '-C', '', "CPU $flags (short list, use -f to see full list);
@@ -6679,6 +6680,7 @@ sub sound_server_output {
 	my ($j,$num) = (0,0);
 	my @servers = sound_server_data();
 	for my $server (@servers){
+		next if $extra < 1 && (!$server->[2] || $server->[2] ne 'yes');
 		$j = scalar @rows;
 		$server->[1] ||= 'N/A';
 		push(@rows, {
@@ -14926,7 +14928,7 @@ sub md_output {
 		$j = scalar @rows;
 		next if !%$row;
 		$num = 1;
-		$level = (defined $row->{'level'}) ? $row->{'level'} : 'no-raid';
+		$level = (defined $row->{'level'}) ? $row->{'level'} : 'linear';
 		push(@rows, {
 		main::key($num++,1,1,'Device') => $row->{'id'},
 		});
@@ -15055,7 +15057,7 @@ sub zfs_output {
 		@arrays_holder = @arrays;
 		my $count = scalar @arrays;
 		if (!defined $arrays[0]->{'level'} ){
-			$level = 'no-raid';
+			$level = 'linear';
 			$rows[$j]->{main::key($num++,0,2,'level')} = $level;
 		}
 		elsif ($count < 2 && $arrays[0]->{'level'}){
@@ -15082,7 +15084,7 @@ sub zfs_output {
 				$num = 1;
 				$size = ($row2->{'size'}) ? main::get_size($row2->{'size'},'string') : 'N/A';
 				$available = ($row2->{'free'}) ? main::get_size($row2->{'free'},'string') : 'N/A';
-				$level = (defined $row2->{'level'}) ? $row2->{'level'}: 'no-raid';
+				$level = (defined $row2->{'level'}) ? $row2->{'level'}: 'linear';
 				$status = ($row2->{'status'}) ? $row2->{'status'}: 'N/A';
 				push(@rows, {
 				main::key($num++,1,2,'Array') => $level,
