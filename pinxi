@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-02';
-my $self_patch='79';
+my $self_patch='80';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7568,16 +7568,21 @@ sub full_output {
 			$rows[$j]->{main::key($num++,0,2,'microcode')} = $cpu{'microcode'};
 		}
 	}
-	if ($extra > 1 && $properties{'l1-cache'}){
-		$rows[$j]->{main::key($num++,0,2,'L1-cache')} = main::get_size($properties{'l1-cache'},'string');
+	if (($extra > 1 && ($properties{'l1-cache'} || $properties{'l3-cache'})) || $properties{'l2-cache'}){
+		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
+		if ($extra > 1 && $properties{'l1-cache'}){
+			$rows[$j]->{main::key($num++,0,3,'L1')} = main::get_size($properties{'l1-cache'},'string');
+		}
+		# the arm + l2 will never be true since arm cpus don't have l2 cache
+		if ((!$b_arm && !$b_mips && !$b_ppc) || $properties{'l2-cache'}){
+			$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
+			$rows[$j]->{main::key($num++,0,3,'L2')} = $properties{'l2-cache'};
+		}
+		if ($extra > 1 && $properties{'l3-cache'}){
+			$rows[$j]->{main::key($num++,0,3,'L3')} = main::get_size($properties{'l3-cache'},'string');
+		}
 	}
-	if (!$b_arm || ($b_arm && $properties{'l2-cache'})){
-		$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
-		$rows[$j]->{main::key($num++,0,2,'L2-cache')} = $properties{'l2-cache'};
-	}
-	if ($extra > 1 && $properties{'l3-cache'}){
-		$rows[$j]->{main::key($num++,0,2,'L3-cache')} = main::get_size($properties{'l3-cache'},'string');
-	}
+	
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split(/\s+/, $cpu{'flags'}) if $cpu{'flags'};
@@ -15939,7 +15944,7 @@ sub ram_output {
 				}
 				if ($extra > 2 ){
 					$mod->{'data-width'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,3,'bus width')} = $mod->{'data-width'};
+					$rows[$j]->{main::key($num++,0,3,'bus-width')} = $mod->{'data-width'};
 					$mod->{'total-width'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,3,'total')} = $mod->{'total-width'};
 				}
