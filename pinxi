@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-02';
-my $self_patch='80';
+my $self_patch='81';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6055,14 +6055,16 @@ sub row_defaults {
 }
 
 # convert string passed to KB, based on GB/MB/TB id
-# NOTE: K 1024 KB 1000
+# NOTE: K 1024 KB 1000 KiB 1024
+# The logic will turn false MB to M for this tool
+# Hopefully one day sizes will all be in KiB type units
 sub translate_size {
 	my ($working) = @_;
 	my ($size,$unit) = (0,'');
 	#print ":$working:\n";
 	return if ! defined $working;
 	my $math = ($working =~ /B$/) ? 1000: 1024;
-	if ($working =~ /^([0-9\.]+)\s*([kKMGTPE])B?$/i){
+	if ($working =~ /^([0-9\.]+)\s*([kKMGTPE])i?B?$/i){
 		$size = $1;
 		$unit = uc($2);
 	}
@@ -7568,21 +7570,19 @@ sub full_output {
 			$rows[$j]->{main::key($num++,0,2,'microcode')} = $cpu{'microcode'};
 		}
 	}
-	if (($extra > 1 && ($properties{'l1-cache'} || $properties{'l3-cache'})) || $properties{'l2-cache'}){
+	if (($extra > 1 && ($properties{'l1-cache'} || $properties{'l3-cache'})) || 
+	 ((!$b_arm && !$b_mips && !$b_ppc) || $properties{'l2-cache'})){
 		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
 		if ($extra > 1 && $properties{'l1-cache'}){
 			$rows[$j]->{main::key($num++,0,3,'L1')} = main::get_size($properties{'l1-cache'},'string');
 		}
 		# the arm + l2 will never be true since arm cpus don't have l2 cache
-		if ((!$b_arm && !$b_mips && !$b_ppc) || $properties{'l2-cache'}){
-			$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
-			$rows[$j]->{main::key($num++,0,3,'L2')} = $properties{'l2-cache'};
-		}
+		$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
+		$rows[$j]->{main::key($num++,0,3,'L2')} = $properties{'l2-cache'};
 		if ($extra > 1 && $properties{'l3-cache'}){
 			$rows[$j]->{main::key($num++,0,3,'L3')} = main::get_size($properties{'l3-cache'},'string');
 		}
 	}
-	
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split(/\s+/, $cpu{'flags'}) if $cpu{'flags'};
@@ -7986,17 +7986,17 @@ sub cpuinfo_data {
 		## this is only for -C full cpu output
 		if ( $type eq 'full' ){
 			if (!$cpu{'l2-cache'} && ($line[0] eq 'cache size' || $line[0] eq 'l2 cache size' )){
-				if ($line[1] =~ /(\d+\s*[KMG]B?)$/){
+				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l2-cache'} = main::translate_size($1);
 				}
 			}
 			elsif (!$cpu{'l1-cache'} && $line[0] eq 'l1 cache size'){
-				if ($line[1] =~ /(\d+\s*[KMG]B?)$/){
+				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l1-cache'} = main::translate_size($1);
 				}
 			}
 			elsif (!$cpu{'l3-cache'} && $line[0] eq 'l3 cache size'){
-				if ($line[1] =~ /(\d+\s*[KMG]B?)$/){
+				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l2-cache'} = main::translate_size($1);
 				}
 			}
@@ -8269,8 +8269,9 @@ sub dmesg_boot_data {
 				$model =~ s/^0+//;
 				$stepping =~ s/^0+//;
 			}
+			# note: cpu cache is in KiB MiB even though they call it KB and MB
 			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/ && 
-			 /^cpu0:\s*(([0-9\.]+[KMG]B).*?\sI[\s-]?cache)?(,\s+([0-9\.]+[KMG]B).*?\sD[\s-]?cache)?(,\s+([0-9\s]+[KMG]B).*?\sL2[\s-]?cache)?(,\s+([0-9\.]+[KMG]B).*?\sL3[\s-]?cache)?/){
+			 /^cpu0:\s*(([0-9\.]+[KMG])i?B.*?\sI[\s-]?cache)?(,\s+([0-9\.]+[KMG])i?B.*?\sD[\s-]?cache)?(,\s+([0-9\s]+[KMG])i?B.*?\sL2[\s-]?cache)?(,\s+([0-9\.]+[KMG])i?B.*?\sL3[\s-]?cache)?/){
 				$l1 = main::translate_size($2) if $2;
 				$l2 = main::translate_size($6) if $6;
 				$l3 = main::translate_size($8) if $8;
@@ -8628,7 +8629,9 @@ sub cpu_dmi_data {
 				elsif (!$id && $value =~ /^Configuration:.* Level.*([1-3])\b/){
 					$id = "L$1";
 				}
-				elsif ($id && $value =~ /^Installed Size:\s+(.*B)$/){
+				# NOTE: cache is in KiB or MiB but they call it kB or MB
+				# so we send translate_size k or M which trips KiB/MiB mode
+				elsif ($id && $value =~ /^Installed Size:\s+(.*?[kKM])i?B$/){
 					$amount = main::translate_size($1);
 				}
 				if ($id && $amount){
@@ -9789,7 +9792,7 @@ sub dmesg_boot_data {
 			}
 			#print "$i\n";
 			if ($bsd_type eq 'openbsd'){
-				if ($row[1] =~ /(^|,\s*)([0-9\.]+[MGTPE][B]?),.*\ssectors$|^</){
+				if ($row[1] =~ /(^|,\s*)([0-9\.]+[MGTPE]i?B?),.*\ssectors$|^</){
 					$working = main::translate_size($2);
 					$size += $working if $working;
 					$drives[$i]->{'size'} = $working;
@@ -9807,7 +9810,7 @@ sub dmesg_boot_data {
 				# print "openbsd\n";
 			}
 			else {
-				if ($row[1] =~ /^([0-9]+[KMGTPE][B]?)\s/){
+				if ($row[1] =~ /^([0-9]+[KMGTPE]i?B?)\s/){
 					$working = main::translate_size($1);
 					$size += $working if $working;
 					$drives[$i]->{'size'} = $working;
@@ -16122,7 +16125,7 @@ sub dmidecode_data {
 				# do not try to guess from installed modules, only use this to correct type 5 data
 				elsif ($temp[0] eq 'Size'){
 					# we want any non real size data to be preserved
-					if ( $temp[1] =~ /^[0-9]+\s*[KkMTPG]B/ ) {
+					if ( $temp[1] =~ /^[0-9]+\s*[KkMTPG]i?B/ ) {
 						$derived_module_size = calculate_size($temp[1],$derived_module_size);
 						$working_size = calculate_size($temp[1],0);
 						$device_size = $working_size;
@@ -16400,12 +16403,12 @@ sub process_speed {
 	my ($speed,$device_type,$check) = @_;
 	my $speed_note;
 	$speed = main::dmi_cleaner($speed) if $speed;
-	if ($device_type && $device_type =~ /ddr/i && $speed && $speed =~ /^([0-9]+) MHz/){
+	if ($device_type && $device_type =~ /ddr/i && $speed && $speed =~ /^([0-9]+)\s*MHz/){
 		$speed = ($1 * 2) . " MT/s ($speed)";
 	}
 	# seen cases of 1 MT/s, 61690 MT/s, not sure why, bug
 	# crucial is shipping 5100 MT/s now, and 6666 has been hit, so speeds can hit 10k
-	if ($speed && $speed =~ /^([0-9]+) M/){
+	if ($speed && $speed =~ /^([0-9]+)\s*M/){
 		$speed_note = $check if $1 < 50 || $1 > 20000 ;
 	}
 	return ($speed,$speed_note);
@@ -16420,57 +16423,37 @@ sub process_size {
 	#return $size if $size =~ /\D/;
 	return $size if !main::is_numeric($size);
 	#print "size: $size\n";
-	if ( $size < 1024 ){
-		$unit='MiB';
-	}
-	elsif ( $size < 1024000 ){
-		$size = $size / 1024;
-		$unit='GiB';
-		$b_trim = 1;
-	}
-	elsif ( $size < 1024000000 ){
-		$size = $size / 1024000;
-		$unit='TiB';
-		$b_trim = 1;
-	}
 	# we only want a max 2 decimal places, and only when it's 
-	# a unit > MB
+	# a unit > 1 GiB
+	$b_trim = 1 if $size > 1024;
+	# switch it back to KiB for tool
+	($size,$unit) = main::get_size($size * 1024);
 	$size = sprintf("%.2f",$size) if $b_trim;
 	$size =~ s/\.[0]+$//;
 	$size = "$size $unit";
 	return $size;
 }
+# note that even though MB should be 1000^x it's actually 
+# MiB etc. As with process_size, this uses MiB not KiB
 sub calculate_size {
 	my ($data, $size) = @_;
 	# technically k is KiB, K is KB but can't trust that
-	if ( $data =~ /^[0-9]+\s*[kKGMTP]B/) {
-		if ( $data =~ /([0-9]+)\s*GB/ ) {
-			$data = $1 * 1024;
+	if ( $data =~ /^([0-9]+\s*[kKGMTP])i?B/) {
+		my $working = $1;
+		# this converts it to KiB
+		my $working_size = main::translate_size($working);
+		# but we want it back in MiB for RAM, that should get fixed
+		$working_size = $working_size/1024 if $working_size;
+		#print "ws-a: $working_size s-1: $size\n";
+		if (main::is_numeric($working_size) && $working_size > $size ) {
+			$size = $working_size;
 		}
-		elsif ( $data =~ /([0-9]+)\s*MB/ ) {
-			$data = $1;
-		}
-		elsif ( $data =~ /([0-9]+)\s*TB/ ) {
-			$data = $1 * 1024 * 1000;
-		}
-		elsif ( $data =~ /([0-9]+)\s*PB/ ) {
-			$data = $1 * 1024 * 1000 * 1000;
-		}
-		elsif ( $data =~ /([0-9]+)\s*[kK]B/ ) {
-			$data = $1/1024;
-			#print "d3:$data\n";
-		}
-		#print "d1a: $data s1: $size\n";
-		if (main::is_numeric($data) && $data > $size ) {
-		#if ($data =~ /^[0-9][0-9]+$/ && $data > $size ) {
-			$size = $data;
-		}
-		#print "d1b: $data s1: $size\n";
+		#print "ws-b: $working_size s-2: $size\n";
 	}
 	else {
 		$size = 0;
 	}
-	#print "d2: $data s2: $size\n";
+	#print "d-2: $data s-3: $size\n";
 	return $size;
 }
 }
@@ -21202,10 +21185,10 @@ sub bsd_data {
 		if ( $row ){
 			@data = split(/\s+/, $row);
 			# openbsd 6.3, dragonfly 5.x introduced an M / G character, sigh.
-			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[KGMT])$/){
+			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
 				$data[$avm] = main::translate_size($1);
 			}
-			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[KGMT])$/){
+			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
 				$data[$fre] = main::translate_size($1);;
 			}
 			# dragonfly can have 0 avg, or no avm, sigh, but they may fix that so make test dynamic
