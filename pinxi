@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-03';
-my $self_patch='84';
+my $self_patch='85';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7908,7 +7908,6 @@ sub cpuinfo_data {
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
-		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
@@ -7932,6 +7931,7 @@ sub cpuinfo_data {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
@@ -8117,23 +8117,23 @@ sub cpuinfo_data {
 			if ($cpu{'type'} eq 'elbrus'){
 				# note: cache0 is L1i and cache1 L1d, but add both for L1
 				if (!$cpu{'l0-cache'} && $line[0] eq 'cache0'){
-					if ($line[1] =~ /size=(\d+)K\s/){
+					if ($line[1] =~ /size\s*=\s*(\d+)K\s/){
 						$cpu{'l0-cache'} = $1;
 					}
 				}
 				elsif (!$cpu{'l1-cache'} && $line[0] eq 'cache1'){
-					if ($line[1] =~ /size=(\d+)K\s/){
+					if ($line[1] =~ /size\s*=\s*(\d+)K\s/){
 						$cpu{'l1-cache'} = $1;
 						$cpu{'l1-cache'} += $cpu{'l0-cache'} if $cpu{'l0-cache'};
 					}
 				}
 				elsif (!$cpu{'l2-cache'} && $line[0] eq 'cache2'){
-					if ($line[1] =~ /size=(\d+)(K|M)\s/){
+					if ($line[1] =~ /size\s*=\s*(\d+)(K|M)\s/){
 						$cpu{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 					}
 				}
 				elsif (!$cpu{'l3-cache'} && $line[0] eq 'cache3'){
-					if ($line[1] =~ /size=(\d+)(K|M)\s/){
+					if ($line[1] =~ /size\s*=\s*(\d+)(K|M)\s/){
 						$cpu{'l3-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 					}
 				}
@@ -10068,7 +10068,7 @@ sub smartctl_data {
 	eval $start if $b_log;
 	my ($data) = @_;
 	my ($b_attributes,$b_intel,$b_kingston,$cmd,%holder,$id,@working,@result,@split);
-	my ($splitter,$num,$a,$f,$r,$t,$v,$w,$y) = (':\s*',0,0,8,1,5,3,4,6); # $y is type, $t threashold, etc
+	my ($splitter,$num,$a,$f,$r,$t,$v,$w,$y) = (':\s*',0,0,8,1,5,3,4,6); # $y is type, $t threshold, etc
 	for (my $i = 0; $i < scalar @$data; $i++){
 		next if !$data->[$i]{'id'};
 		($b_attributes,$b_intel,$b_kingston,$splitter,$num,$a,$r) = (0,0,0,':\s*',0,0,1);
@@ -14301,7 +14301,8 @@ sub partition_data {
 		# this handles zfs type devices/partitions, which do not start with / but contain /
 		# note: Main/jails/transmission_1 path can be > 1 deep 
 		# Main zfs 3678031340 8156 3678023184 0% /mnt/Main
-		if (!$dev_base && ($row[0] =~ /^([^\/]+\/)(.+)/ || ($row[0] =~ /^[^\/]+$/ && $row[1] =~ /^(btrfs|hammer[2-9]?|zfs)$/ ) ) ){
+		if (!$dev_base && ($row[0] =~ /^([^\/]+\/)(.+)/ || 
+		 ($row[0] =~ /^[^\/]+$/ && $row[1] =~ /^(btrfs|hammer[2-9]?|zfs)$/ ) ) ){
 			$dev_base = $row[0];
 			$dev_type = 'logical';
 		}
@@ -14586,13 +14587,14 @@ sub get_mounts_fs {
 sub get_bsd_label_uuid {
 	eval $start if $b_log;
 	my ($item) = @_;
+	return if !$item;
 	my (@data,$b_found);
 	foreach (@gpart){
 		my @working = split(/\s*:\s*/, $_);
-		if ($_ =~ /^[0-9]+\.\sName:/ && $working[1] eq $item){
+		if ($_ =~ /^[0-9]+\.\s*Name:/ && $working[1] eq $item){
 			$b_found = 1;
 		}
-		elsif ($_ =~ /^[0-9]+\.\sName:/ && $working[1] ne $item){
+		elsif ($_ =~ /^[0-9]+\.\s*Name:/ && $working[1] ne $item){
 			$b_found = 0;
 		}
 		if ($b_found){
@@ -14602,7 +14604,7 @@ sub get_bsd_label_uuid {
 			}
 			if ($working[0] eq 'rawuuid'){
 				$data[1] = $working[1];
-				$data[0] =~ s/\(|\)//g; 
+				$data[1] =~ s/\(|\)//g; 
 			}
 		}
 	}
@@ -14613,7 +14615,7 @@ sub get_bsd_label_uuid {
 sub set_label_uuid {
 	eval $start if $b_log;
 	$b_label_uuid = 1;
-	if ( $show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
+	if ($show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
 		if (!$bsd_type){
 			if (-d '/dev/disk/by-label'){
 				@labels = main::globber('/dev/disk/by-label/*');
@@ -14623,7 +14625,7 @@ sub set_label_uuid {
 			}
 		}
 		else {
-			if ( my $path = main::check_program('gpart')){
+			if (my $path = main::check_program('gpart')){
 				@gpart = main::grabber("$path list 2>/dev/null",'','strip');
 			}
 		}
