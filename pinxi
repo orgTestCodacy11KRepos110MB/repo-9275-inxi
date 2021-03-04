@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-03';
-my $self_patch='82';
+my $self_patch='83';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -163,7 +163,7 @@ sub main {
 	## legacy method
 	#my $ob_start = StartClient->new();
 	#$ob_start->get_client_data();
-	StartClient::get_client_data();
+	StartClient::set();
 	# print_line( Dumper \%client);
 	get_options();
 	set_debugger(); # right after so it's set
@@ -5433,7 +5433,7 @@ package StartClient;
 my $ppid = '';
 my $pppid = '';
 
-# NOTE: there's no reason to crete an object, we can just access
+# NOTE: there's no reason to create an object, we can just access
 # the features statically. 
 # args: none
 # sub new {
@@ -5443,8 +5443,7 @@ my $pppid = '';
 # 	# print "$type\n";
 # 	return bless $self, $class;
 # }
-
-sub get_client_data {
+sub set {
 	eval $start if $b_log;
 	$ppid = getppid();
 	main::set_ps_aux() if ! @ps_aux;
@@ -5465,7 +5464,6 @@ sub get_client_data {
 sub get_client_name {
 	eval $start if $b_log;
 	my $client_name = '';
-	
 	# print "$ppid\n";
 	if ($ppid && -e "/proc/$ppid/exe" ){
 		$client_name = lc(readlink "/proc/$ppid/exe");
@@ -8220,21 +8218,22 @@ sub sysctl_data {
 		      $line[0] eq 'machdep.cpu.brand_string' ){
 			# cut L2 cache/cpu max speed out of model string, if available
 			# openbsd 5.6: AMD Sempron(tm) Processor 3400+ ("AuthenticAMD" 686-class, 256KB L2 cache)
+			# openbsd 6.x has Lx cache data in dmesg.boot
 			# freebsd 10: hw.model: AMD Athlon(tm) II X2 245 Processor
 			$line[1] = main::cleaner($line[1]);
 			$line[1] = cpu_cleaner($line[1]);
-			if ( $line[1] =~ /([0-9]+)[-[:space:]]*([KM]B)\s+L2 cache/) {
+			if ( $line[1] =~ /([0-9]+)[\s-]*([KM]B)\s+L2 cache/) {
 				my $multiplier = ($2 eq 'MB') ? 1024: 1;
 				$cpu{'l2-cache'} = $1 * $multiplier;
 			}
-			if ( $line[1] =~ /([^0-9\.][0-9\.]+)[-[:space:]]*[MG]Hz/) {
+			if ( $line[1] =~ /([^0-9\.][0-9\.]+)[\s-]*[MG]Hz/) {
 				$cpu{'max-freq'} = $1;
 				if ($cpu{'max-freq'} =~ /MHz/i) {
-					$cpu{'max-freq'} =~ s/[-[:space:]]*MHz//;
+					$cpu{'max-freq'} =~ s/[\s-]*MHz//;
 					$cpu{'max-freq'} = speed_cleaner($cpu{'max-freq'},'mhz');
 				}
 				elsif ($cpu{'max-freq'} =~ /GHz/) {
-					$cpu{'max-freq'} =~ s/[-[:space:]]*GHz//i;
+					$cpu{'max-freq'} =~ s/[\s-]*GHz//i;
 					$cpu{'max-freq'} = $cpu{'max-freq'} / 1000;
 					$cpu{'max-freq'} = speed_cleaner($cpu{'max-freq'},'mhz');
 				}
@@ -8387,17 +8386,17 @@ sub dmesg_boot_data {
 			}
 			# note: cpu cache is in KiB MiB even though they call it KB and MB
 			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/ && 
-			 /^cpu0:\s*(([0-9\.]+[KMG])i?B.*?\sI[\s-]?cache)?(,\s+([0-9\.]+[KMG])i?B.*?\sD[\s-]?cache)?(,\s+([0-9\s]+[KMG])i?B.*?\sL2[\s-]?cache)?(,\s+([0-9\.]+[KMG])i?B.*?\sL3[\s-]?cache)?/){
+			 /^cpu0:\s*(([0-9\.]+[KMG])i?B.*?\sI[\s-]?cache)?(,?\s*([0-9\.]+[KMG])i?B.*?\sD[\s-]?cache)?(,?\s*([0-9\s]+[KMG])i?B.*?\sL2[\s-]?cache)?(,?\s*([0-9\.]+[KMG])i?B.*?\sL3[\s-]?cache)?/){
 				$l1 = main::translate_size($2) if $2;
 				$l2 = main::translate_size($6) if $6;
 				$l3 = main::translate_size($8) if $8;
 			}
-			elsif (/^~*Origin:\s*(.+?)[\s,]+Id=(0x)?([0-9a-f]+)[\s,]+Family=(0x)?([a-f0-9]+)[\s,]+Model=(0x)([a-f0-9]+)[\s,]+Stepping=(0x)?([0-9a-f]+)/){
+			elsif (/^~*Origin:\s*(.+?)[\s,]+(Id=(0x)?([0-9a-f]+)[\s,]*)?(Family=(0x)?([a-f0-9]+)[\s,]*)?(Model=(0x)([a-f0-9]+)[\s,]*)?(Stepping=(0x)?([0-9a-f]+))?/){
 				$type = cpu_vendor($1) if $1;
-				$microcode = ($2) ? uc($3) : $3;
-				$family = ($4) ? uc($5) : $5;
-				$model =  ($6) ? uc($7) : $7;
-				$stepping = ($8) ? uc($9) : $9;
+				$microcode = ($3) ? uc($4) : $4;
+				$family = ($6) ? uc($7) : $7;
+				$model =  ($9) ? uc($10) : $10;
+				$stepping = ($12) ? uc($13) : $13;
 			}
 			elsif (/^(ioapic|pci)/){
 				last;
@@ -14183,8 +14182,8 @@ sub partition_data {
 	eval $start if $b_log;
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mount,@partitions_working,%part,@working);
-	my ($b_fake_map,$b_fs,$b_load,$b_space,$cols,$roots) = (0,1,0,0,6,0);
-	my ($back_size,$back_used) = (4,3);
+	my ($back_size,$back_used,$b_fs,$cols,$roots) = (4,3,1,6,0);
+	my ($b_fake_map,$b_load,$b_slice,$b_space,);
 	my ($block_size,$blockdev,$dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
 	$maj_min,$percent_used,$raw_size,$replace,$size_available,$size,$test,
 	$type,$uuid,$used);
@@ -14353,6 +14352,7 @@ sub partition_data {
 					}
 				}
 			}
+			$b_slice = 1 if $fs && $fs =~ /(hammer|zfs)/; 
 			$id = join(' ', @row[$cols .. $#row]);
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
@@ -14372,6 +14372,10 @@ sub partition_data {
 				# note: I have seen this: beta:data/ for sshfs path
 				elsif ($dev_base =~ /^\/\/|:\//){
 					$dev_type = 'remote';
+				}
+				# a slice bsd system, zfs can't be detected this easily
+				elsif ($b_slice && $fs && $fs eq 'null'){
+					$dev_type = 'slice';
 				}
 				# an error has occurred almost for sure
 				elsif (!$dev_base){
