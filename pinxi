@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-03';
-my $self_patch='87';
+my $self_patch='88';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5016,7 +5016,7 @@ sub show_options {
 	['1', '-o', '--unmounted', "Unmounted $partition_string info (includes UUID 
 	and Label if available). Shows file system type if you have lsblk installed 
 	(Linux) or, for BSD/GNU Linux, if 'file' installed and you are root or if 
-	you have added to /etc/sudoers (sudo v. 1.7 or newer)." ],
+	you have added to /etc/sudoers (sudo v. 1.7 or newer)(BSDs: see doas)." ],
 	['1', '', '', "Example: ^<username>^ALL^=^NOPASSWD:^/usr/bin/file^" ],
 	['1', '-p', '--partitions-full', "Full $partition_string information (-P plus all other 
 	detected ${partition_string}s)." ],
@@ -5101,7 +5101,7 @@ sub show_options {
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
 	for device(s)." ],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
-	(dmidecode+root/sudo required); CPU vulnerabilities (bugs); 
+	(dmidecode+root/sudo/doas[BSDs] required); CPU vulnerabilities (bugs); 
 	family, model-id, stepping - format: hex (decimal) if greater 
 	than 9, otherwise hex; microcode - format: hex." ],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
@@ -5143,7 +5143,7 @@ sub show_options {
 	['2', '-D', '', "HDD temp with disk data. Kernels >= 5.6: enable module
 	drivetemp if not enabled. Older systems require hddtemp, run as
 	as superuser, or as user if you have added hddtemp to /etc/sudoers
-	(sudo v. 1.7 or newer). 
+	(sudo v. 1.7 or newer)(BSDs see doas). 
 	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp" ],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
 	LMP version." ],
@@ -5231,7 +5231,7 @@ sub show_options {
 	rotation speed/SSD (if detected)." ],
 	['2', '-E', '', "Serial number, class ID, HCI version and revision." ],
 	['2', '-G', '', "Serial number, class ID." ],
-	['2', '-I', '', "For 'Shell:' adds ([su|sudo|login]) to shell name if present; 
+	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
 	adds wakeups: (from suspend) to Uptime." ],
 	['2', '-J', '', "If present: Devices: serial number, interface count; USB speed; max power." ],
@@ -5366,12 +5366,12 @@ sub show_options {
 	['2', '22', '', "Upload debugger dataset to $self_name debugger server 
 	automatically, removes debugger data directory and debugger tar.gz file." ],
 	# ['1', '', '--debug-filter', "Add -z flag to debugger $self_name optiions." ],
-	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/root." ],
+	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/doas/root." ],
 	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on." ],
 	['1', '', '--debug-no-exit', "Skip exit on error to allow completion." ],
 	['1', '', '--debug-no-proc', "Skip /proc debugging in case of a hang." ],
 	['1', '', '--debug-no-sys', "Skip /sys debugging in case of a hang." ],
-	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/root." ],
+	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/doas/root." ],
 	['1', '', '--debug-sys-print', "To locate file that /sys debugger hangs on." ],
 	['1', '', '--ftp', "Use with --debugger 21 to trigger an alternate FTP server for upload. 
 	Format:^[ftp.xx.xx/yy]. Must include a remote directory to upload to. 
@@ -21733,7 +21733,8 @@ sub get_shell_data {
 		}
 		if ($working){
 			$working =~ s/^.*\///;
-# 			if (($shell eq 'sh' || $shell eq 'sudo' || $shell eq 'su' ) && $shell ne $working){
+# 			if (($shell eq 'sh' || $shell eq 'doas' || $shell eq 'sudo' || $shell eq 'su' ) && 
+#			 $shell ne $working){
 # 				$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
 # 				$shell = $working;
 # 			}
@@ -21805,7 +21806,7 @@ sub get_shell_data {
 	}
 	if (!$client{'su-start'}){
 		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
-		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'}; # 10 to 1 won't work
+		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'};
 	}
 	
 	eval $end if $b_log;
@@ -24351,8 +24352,9 @@ sub generate_info_data {
 		$b_pkg = 1;
 	}
 	if (!$b_irc && $extra > 1 ){
-		# bsds don't support -f option to get PPID
-		if (($b_display && !$b_force_display) && !$bsd_type){
+		# some bsds don't support -f option to get PPID
+		if ($b_display && !$b_force_display && ($client{'ppid'} && 
+		 (!$bsd_type || (grabber("ps -j -fp $client{'ppid'} 2>/dev/null"))))){
 			$parent = get_shell_source();
 		}
 		else {
