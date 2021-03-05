@@ -14636,6 +14636,10 @@ sub set_gpart_data {
 					$working[1] =~ s/\(|\)//g; 
 					$gpart{$id}->{'label'} = $working[1];
 				}
+				elsif ($working[0] eq 'Mediasize'){
+					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
+					$gpart{$id}->{'size'} = $working[1];
+				}
 				elsif ($working[0] eq 'rawuuid'){
 					$working[1] =~ s/\(|\)//g; 
 					$gpart{$id}->{'uuid'} = $working[1];
@@ -15407,7 +15411,7 @@ sub components_output {
 			$$rows_ref[$$j_ref]{main::key($$num_ref++,0,$l3,'maj-min')} = $device->[$f2];
 		}
 		if ($b_admin && $device->[$f1]){
-			my $size = ($device->[$f1]) ? main::get_size($device->[$f1],'string') : 'N/A';
+			my $size = main::get_size($device->[$f1],'string');
 			$$rows_ref[$$j_ref]->{main::key($$num_ref++,0,$l3,'size')} = $size;
 		}
 		if ($b_admin && $device->[$f3]){
@@ -15779,7 +15783,10 @@ sub zfs_data {
 	else {
 		@working = main::grabber("$zpool list -v 2>/dev/null");
 	}
-	DiskData::set_glabel() if $bsd_type && !$b_glabel;
+	if ($bsd_type){
+		DiskData::set_glabel() if !$b_glabel;
+		PartitionData::set_gpart_data() if !$b_gpart;
+	}
 	# bsd sed does not support inserting a true \n so use this trick
 	# some zfs does not have -v
 	if (!@working){
@@ -15874,7 +15881,7 @@ sub zfs_data {
 				$free = ($row[4])? main::translate_size($row[4]): '';
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
-			if ((!$maj_min || !$part_size) && @lsblk){
+			if ((!$maj_min || !$part_size) && @proc_partitions){
 				my @part = main::get_proc_partition($working);
 				if (@part){
 					$maj_min = $part[0] . ':' . $part[1];
@@ -15885,6 +15892,10 @@ sub zfs_data {
 				my %data= main::get_lsblk($working);
 				$maj_min = $data{'maj-min'};
 				$part_size = $data{'size'};
+			}
+			if (!$part_size && %gpart){
+				my @data= PartitionData::get_gpart_data($working);
+				$part_size = $data[0] if $data[0];
 			}
 			$raw_logical[1] += $part_size if $part_size;
 			$zfs[$j]->{'arrays'}[$k]{'components'}[$i] = [$working,$part_size,$maj_min,$state];
