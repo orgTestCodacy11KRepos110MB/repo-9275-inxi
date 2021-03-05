@@ -5481,8 +5481,8 @@ sub get_client_name {
 		$client_name = lc(readlink "/proc/$ppid/exe");
 		$client_name =~ s/^.*\///;
 		if ($client_name =~ /^bash|dash|sh|python.*|perl.*$/){
-			$pppid = (main::grabber("ps -p $ppid -o ppid"))[1];
-			#my @temp = (main::grabber("ps -p $ppid -o ppid 2>/dev/null"))[1];
+			$pppid = (main::grabber("ps -wwp $ppid -o ppid"))[1];
+			#my @temp = (main::grabber("ps -wwp $ppid -o ppid 2>/dev/null"))[1];
 			$pppid =~ s/^\s+|\s+$//g;
 			$client_name =~ s/[0-9\.]+$//; # clean things like python2.7
 			if ($pppid && -f "/proc/$pppid/exe" ){
@@ -5499,7 +5499,7 @@ sub get_client_name {
 	else {
 		if (! check_modern_konvi() ){
 			$ppid = getppid();
-			$client_name = (main::grabber("ps -p $ppid"))[1];
+			$client_name = (main::grabber("ps -wwp $ppid"))[1];
 			if ($client_name){
 				my @data = split(/\s+/, $client_name) if $client_name;
 				if ($bsd_type){
@@ -21714,7 +21714,7 @@ sub get_self_version {
 sub get_shell_data {
 	eval $start if $b_log;
 	my ($ppid) = @_;
-	my $cmd = "ps -p $ppid -o comm= 2>/dev/null";
+	my $cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
 	my $shell = qx($cmd);
 	log_data('cmd',$cmd) if $b_log;
 	chomp($shell);
@@ -21885,7 +21885,7 @@ sub get_start_parent {
 	my ($parent) = @_;
 	return 0 if !$parent;
 	# ps -j -fp : some bsds ps do not have -f for PPID, so we can't get the ppid
-	my $cmd = "ps -j -fp $parent 2>/dev/null";
+	my $cmd = "ps -wwjfp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd);
 	#shift @data if @data;
@@ -21899,7 +21899,7 @@ sub get_shell_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
 	return '' if !$parent;
-	my $cmd = "ps -j -p $parent 2>/dev/null";
+	my $cmd = "ps -wwjp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd,'','strip');
 	my $shell_parent = (grep {/$parent/} @data)[0] if @data;
@@ -23017,7 +23017,7 @@ sub set_ps_aux {
 	my ($header,@temp);
 	# note: some ps cut off output based on terminal width
 	# ww sets width unlimited
-	@ps_aux = grabber("ps auxww 2>/dev/null",'','strip');
+	@ps_aux = grabber("ps wwaux 2>/dev/null",'','strip');
 	if (@ps_aux){
 		$header = shift @ps_aux; # get rid of header row
 		# handle busy box, which has 3 columns, regular ps aux has 11
@@ -24360,7 +24360,7 @@ sub generate_info_data {
 	if (!$b_irc && $extra > 1 ){
 		# some bsds don't support -f option to get PPID
 		if ($b_display && !$b_force_display && ($client{'ppid'} && 
-		 (!$bsd_type || (grabber("ps -j -fp $client{'ppid'} 2>/dev/null"))))){
+		 (!$bsd_type || (grabber("ps -wwjfp $client{'ppid'} 2>/dev/null"))))){
 			$parent = get_shell_source();
 		}
 		else {
