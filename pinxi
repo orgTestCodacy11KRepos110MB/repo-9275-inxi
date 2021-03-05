@@ -14198,7 +14198,7 @@ sub partition_data {
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mount,@partitions_working,%part,@working);
 	my ($back_size,$back_used,$b_fs,$cols,$roots) = (4,3,1,6,0);
-	my ($b_fake_map,$b_load,$b_slice,$b_space,);
+	my ($b_fake_map,$b_load,$b_logical,$b_space,);
 	my ($block_size,$blockdev,$dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
 	$maj_min,$percent_used,$raw_size,$replace,$size_available,$size,$test,
 	$type,$uuid,$used);
@@ -14364,7 +14364,7 @@ sub partition_data {
 					($label,$uuid) = get_bsd_label_uuid($dev_base);
 				}
 			}
-			$b_slice = 1 if $fs && $fs =~ /(hammer|zfs)/; 
+			$b_logical = 1 if $fs && $fs =~ /(hammer|zfs)/; 
 			$id = join(' ', @row[$cols .. $#row]);
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
@@ -14386,8 +14386,8 @@ sub partition_data {
 					$dev_type = 'remote';
 				}
 				# a slice bsd system, zfs can't be detected this easily
-				elsif ($b_slice && $fs && $fs eq 'null'){
-					$dev_type = 'slice';
+				elsif ($b_logical && $fs && $fs eq 'null'){
+					$dev_type = 'logical';
 					$dev_base = $row[0] if !$dev_base;
 				}
 				# an error has occurred almost for sure
@@ -23015,7 +23015,9 @@ sub set_proc_partitions {
 sub set_ps_aux {
 	eval $start if $b_log;
 	my ($header,@temp);
-	@ps_aux = grabber("ps aux 2>/dev/null",'','strip');
+	# note: some ps cut off output based on terminal width
+	# ww sets width unlimited
+	@ps_aux = grabber("ps auxww 2>/dev/null",'','strip');
 	if (@ps_aux){
 		$header = shift @ps_aux; # get rid of header row
 		# handle busy box, which has 3 columns, regular ps aux has 11
