@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-05';
-my $self_patch='89';
+my $self_patch='90';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -13067,23 +13067,38 @@ sub machine_data_sysctl {
 		next if ! $_;
 		my @item = split(':', $_);
 		next if ! $item[1];
-		if ($item[0] eq 'hw.vendor'){
+		if ($item[0] eq 'hw.vendor' || $item[0] eq 'machdep.dmi.board-vendor'){
 			$data{'board_vendor'} = main::dmi_cleaner($item[1]);
 		}
-		elsif ($item[0] eq 'hw.product'){
+		elsif ($item[0] eq 'hw.product' || $item[0] eq 'machdep.dmi.board-product'){
 			$data{'board_name'} = main::dmi_cleaner($item[1]);
 		}
-		elsif ($item[0] eq 'hw.version'){
-			$data{'board_version'} = $item[1];
+		elsif ($item[0] eq 'hw.version' || $item[0] eq 'machdep.dmi.board-version'){
+			$data{'board_version'} = main::dmi_cleaner($item[1]);
 		}
-		elsif ($item[0] eq 'hw.serialno'){
-			$data{'board_serial'} = $item[1];
+		elsif ($item[0] eq 'hw.serialno' || $item[0] eq 'machdep.dmi.board-serial'){
+			$data{'board_serial'} = main::dmi_cleaner($item[1]);
 		}
 		elsif ($item[0] eq 'hw.serial'){
-			$data{'board_serial'} = $item[1];
+			$data{'board_serial'} = main::dmi_cleaner($item[1]);
 		}
 		elsif ($item[0] eq 'hw.uuid'){
-			$data{'board_uuid'} = $item[1];
+			$data{'board_uuid'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.system-vendor'){
+			$data{'sys_vendor'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.system-product'){
+			$data{'product_name'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.system-version'){
+			$data{'product_version'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.system-serial'){
+			$data{'product_serial'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.system-uuid'){
+			$data{'sys_uuid'} = main::dmi_cleaner($item[1]);
 		}
 		# bios0:at mainbus0: AT/286+ BIOS, date 06/30/06, BIOS32 rev. 0 @ 0xf2030, SMBIOS rev. 2.4 @ 0xf0000 (47 entries)
 		# bios0:vendor Phoenix Technologies, LTD version "3.00" date 06/30/2006
@@ -13098,6 +13113,15 @@ sub machine_data_sysctl {
 				$data{'bios_date'} = $3;
 				$data{'bios_version'} =~ s/^v//i if $data{'bios_version'} && $data{'bios_version'} !~ /vi/i;
 			}
+		}
+		elsif ($item[0] eq 'machdep.dmi.bios-vendor'){
+			$data{'bios_vendor'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.bios-version'){
+			$data{'bios_version'} = main::dmi_cleaner($item[1]);
+		}
+		elsif ($item[0] eq 'machdep.dmi.bios-date'){
+			$data{'bios_date'} = main::dmi_cleaner($item[1]);
 		}
 	}
 	eval $end if $b_log;
@@ -23174,10 +23198,10 @@ sub set_sysctl_data {
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1sysctl_lenovot500_user.txt";
 		## matches: compaq: openbsd-dmesg.boot-1.txt
-		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-1.txt"; 
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-1.txt"; 
 		## matches: toshiba: openbsd-5.6-dmesg.boot-1.txt
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-2.txt"; 
-		@temp = reader($file);
+		# @temp = reader($file);
 	}
 	foreach (@temp){
 		$_ =~ s/\s*=\s*|:\s+/:/;
@@ -23188,7 +23212,7 @@ sub set_sysctl_data {
 		if (/^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/){
 			push(@sysctl_sensors, $_);
 		}
-		elsif (/^hw\.(vendor|product|version|serialno|uuid)/){
+		elsif (/^(hw|machdep\.dmi\.(bios|board|system)-)\.(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@sysctl_machine, $_);
 		}
 		elsif (/^hw\.snd\./){
