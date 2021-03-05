@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-03';
-my $self_patch='86';
+my $self_patch='87';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -528,16 +528,22 @@ sub set_sep {
 }
 
 # Important: -n makes it non interactive, no prompt for password
-# only use sudo if not root, -n option requires sudo -V 1.7 or greater. 
+# only use doas/sudo if not root, -n option requires sudo -V 1.7 or greater. 
 # for some reason sudo -n with < 1.7 in Perl does not print to stderr
 # sudo will just error out which is the safest course here for now,
 # otherwise that interactive sudo password thing is too annoying
 sub set_sudo {
-	if (!$b_root && !$b_no_sudo && (my $path = check_program('sudo'))) {
-		my @data = program_data('sudo');
-		$data[1] =~ s/^([0-9]+\.[0-9]+).*/$1/;
-		#print "sudo v: $data[1]\n";
-		$sudo = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
+	if (!$b_root && !$b_no_sudo){
+		my ($path);
+		if ($path = check_program('sudo')) {
+			my @data = program_data('sudo');
+			$data[1] =~ s/^([0-9]+\.[0-9]+).*/$1/;
+			#print "sudo v: $data[1]\n";
+			$sudo = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
+		}
+		elsif ($path = check_program('doas')){
+			$sudo = "$path -n ";
+		}
 	}
 }
 
@@ -1165,8 +1171,11 @@ sub get_config_item {
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'NO_DIG') {$b_skip_dig = $val if is_int($val)}
 	elsif ($key eq 'NO_HTML_WAN') {$b_no_html_wan = $val if is_int($val)}
-	elsif ($key eq 'NO_SUDO') {$b_no_sudo = $val if is_int($val)}
-	elsif ($key eq 'PARTITION_SORT') {$show{'partition-sort'} = $val if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/) }
+	elsif ($key eq 'NO_SUDO' || $key eq 'NO_DOAS') {$b_no_sudo = $val if is_int($val)}
+	elsif ($key eq 'PARTITION_SORT') {
+		if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/){
+			$show{'partition-sort'} = $val;
+		}}
 	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
 	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
 	elsif ($key eq 'SENSORS_EXCLUDE') {@sensors_exclude = split(/\s*,\s*/, $val) if $val}
@@ -4736,7 +4745,7 @@ sub get_options {
 		$b_no_man_force = 0; },
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
-	'no-sudo' => sub {
+	'no-sudo|no-doas' => sub {
 		$b_no_sudo = 1; },
 	'output-file:s' => sub {
 		my ($opt,$arg) = @_;
@@ -5295,6 +5304,8 @@ sub show_options {
 	}
 	push(@data, 
 	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program." ],
+	['1', '', '--no-doas', "Skip internal program use of doas features (not related 
+	to starting $self_name with doas)." ],
 	['1', '', '--no-host', "Turn off hostname for -S. Useful if showing output from servers etc. 
 	-z triggers --no-host." ],
 	['1', '', '--no-html-wan', "Skip HTML IP sources for WAN IP checks, use dig only, 
@@ -20391,25 +20402,26 @@ sub get_bsd_os {
 	if (!$distro){
 		my $bsd_type_osr = 'dragonfly';
 		@osr = main::reader($os_release) if -r $os_release;
-		if (@osr && $bsd_type =~ /$bsd_type_osr/ && (grep {/$bsd_type_osr/i} @osr)){
+		if (@osr && $bsd_type =~ /($bsd_type_osr)/ && (grep {/($bsd_type_osr)/i} @osr)){
 			$distro = get_os_release();
 		}
-		if (!$distro){
-			# seen a case without osx file, or was it permissions?
-			# this covers all the other bsds anyway, no problem.
-			$distro = "$uname[0] $uname[2]";
-		}
-		if ((-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') 
-		&& $distro =~ /freebsd/i){
-			my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
-			# only swap if we get result from the query
-			if ($version){
-				$system_base = $distro;
-				$distro = "GhostBSD $version";
-			}
-		}
-		system_base_bsd() if $extra > 0;
 	}
+	if (!$distro){
+		# seen a case without osx file, or was it permissions?
+		# this covers all the other bsds anyway, no problem.
+		$distro = "$uname[0] $uname[2]";
+	}
+	if ($distro &&
+	 (-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
+	  $distro =~ /freebsd/i){
+		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
+		# only swap if we get result from the query
+		if ($version){
+			$system_base = $distro;
+			$distro = "GhostBSD $version";
+		}
+	}
+	system_base_bsd() if $extra > 0;
 	eval $end if $b_log;
 }
 
@@ -21715,7 +21727,7 @@ sub get_shell_data {
 		$shell =~ s/^.*\///; 
 		my $working = $ENV{'SHELL'};
 		# NOTE: su -c "inxi -F" results in shell being su
-		if ($shell eq 'sudo' || $shell eq 'su' ){
+		if ($shell eq 'doas' || $shell eq 'sudo' || $shell eq 'su' ){
 			$client{'su-start'} = $shell;
 			$shell = get_shell_parent(get_start_parent($ppid));
 		}
@@ -21791,7 +21803,11 @@ sub get_shell_data {
 		$client{'name'} = 'shell';
 		$client{'name-print'} = 'Unknown Shell';
 	}
-	$client{'su-start'} = 'sudo' if (!$client{'su-start'} && $ENV{'SUDO_USER'});
+	if (!$client{'su-start'}){
+		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
+		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'}; # 10 to 1 won't work
+	}
+	
 	eval $end if $b_log;
 }
 # list of program_values non-handled shells, or known to have no version
