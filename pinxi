@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-03';
-my $self_patch='85';
+my $self_patch='86';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -61,8 +61,9 @@ if (eval {require Time::HiRes}){
 	$b_hires = 1;
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
+
 ## Hashes
-my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,
+my (%alerts,%build_prop,%client,%colors,%debugger,%dl,%files,%gpart,
 %dmmapper,%mapper,%program_values,%rows,%sensors_raw,%system_files);
 
 ## Arrays
@@ -74,7 +75,7 @@ my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
 
 ## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@gpart,@labels,@lsblk,@lvm,
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
 @lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
 
 ## Booleans
@@ -14198,7 +14199,7 @@ sub partition_data {
 	# for raw partition sizes, maj_min
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	main::set_lsblk() if !$bsd_type && !$b_lsblk;
-	# set labels, uuid, gpart
+	# set @labels, @uuid, %gpart
 	set_label_uuid() if !$b_label_uuid;
 	# most current OS support -T and -k, but -P means different things
 	# in freebsd. However since most use is from linux, we make that default
@@ -14333,7 +14334,7 @@ sub partition_data {
 					if (%part && $part{'label'}) {
 						$label = $part{'label'};
 					}
-					elsif ( @labels){
+					elsif (@labels){
 						$label = get_label($row[0]);
 					}
 				}
@@ -14348,12 +14349,8 @@ sub partition_data {
 			}
 			else {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
-				if (@gpart && ($show{'label'} || $show{'uuid'} ) ){
-					my @extra = get_bsd_label_uuid("$dev_base");
-					if (@extra){
-						$label = $extra[0];
-						$uuid = $extra[1];
-					}
+				if (%gpart && ($show{'label'} || $show{'uuid'} ) ){
+					($label,$uuid) = get_bsd_label_uuid($dev_base);
 				}
 			}
 			$b_slice = 1 if $fs && $fs =~ /(hammer|zfs)/; 
@@ -14488,12 +14485,8 @@ sub swap_data {
 			if ($show{'uuid'} && @uuids){
 				$uuid = get_uuid($data[0]);
 			}
-			if ($bsd_type && @gpart && ($show{'label'} || $show{'uuid'} ) ){
-				my @extra = get_bsd_label_uuid("$dev_base");
-				if (@extra){
-					$label = $extra[0];
-					$uuid = $extra[1];
-				}
+			if ($bsd_type && %gpart && ($show{'label'} || $show{'uuid'} ) ){
+				($label,$uuid) = get_bsd_label_uuid($dev_base);
 			}
 			$dev_type = 'dev';
 			$maj_min = get_maj_min($dev_base) if @proc_partitions;
@@ -14588,25 +14581,10 @@ sub get_bsd_label_uuid {
 	eval $start if $b_log;
 	my ($item) = @_;
 	return if !$item;
-	my (@data,$b_found);
-	foreach (@gpart){
-		my @working = split(/\s*:\s*/, $_);
-		if ($_ =~ /^[0-9]+\.\s*Name:/ && $working[1] eq $item){
-			$b_found = 1;
-		}
-		elsif ($_ =~ /^[0-9]+\.\s*Name:/ && $working[1] ne $item){
-			$b_found = 0;
-		}
-		if ($b_found){
-			if ($working[0] eq 'label'){
-				$data[0] = $working[1];
-				$data[0] =~ s/\(|\)//g; # eg: label:(null) - we want to show null
-			}
-			if ($working[0] eq 'rawuuid'){
-				$data[1] = $working[1];
-				$data[1] =~ s/\(|\)//g; 
-			}
-		}
+	my (@data) = ('','');
+	if ($gpart{$item}){
+		$data[0] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
+		$data[1] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
 	}
 	main::log_data('dump','@data',\@data) if $b_log;
 	eval $end if $b_log;
@@ -14615,7 +14593,7 @@ sub get_bsd_label_uuid {
 sub set_label_uuid {
 	eval $start if $b_log;
 	$b_label_uuid = 1;
-	if ($show{'unmounted'} || $show{'label'} || $show{'uuid'} ){
+	if ($show{'unmounted'} || $show{'label'} || $show{'swap'} || $show{'uuid'} ){
 		if (!$bsd_type){
 			if (-d '/dev/disk/by-label'){
 				@labels = main::globber('/dev/disk/by-label/*');
@@ -14623,11 +14601,33 @@ sub set_label_uuid {
 			if (-d '/dev/disk/by-uuid'){
 				@uuids = main::globber('/dev/disk/by-uuid/*');
 			}
+			main::log_data('dump', '@lebels', \@labels) if $b_log;
+			main::log_data('dump', '@uuids', \@uuids) if $b_log;
 		}
 		else {
 			if (my $path = main::check_program('gpart')){
-				@gpart = main::grabber("$path list 2>/dev/null",'','strip');
+				my @data = main::grabber("$path list 2>/dev/null",'','strip');
+				main::log_data('dump', 'gpart: @data', \@data) if $b_log;
+				my ($id);
+				for (@data){
+					my @working = split(/\s*:\s*/, $_);
+					if ($working[0] =~ /^[0-9]+\.\s*Name/){
+						$id = $working[1];
+					}
+					elsif ($id){
+						# eg: label:(null) - we want to show null
+						if ($working[0] eq 'label'){
+							$working[1] =~ s/\(|\)//g; 
+							$gpart{$id}->{'label'} = $working[1];
+						}
+						elsif ($working[0] eq 'rawuuid'){
+							$working[1] =~ s/\(|\)//g; 
+							$gpart{$id}->{'uuid'} = $working[1];
+						}
+					}
+				}
 			}
+			main::log_data('dump', '%gpart', \%gpart) if $b_log;
 		}
 	}
 	eval $end if $b_log;
@@ -20363,7 +20363,7 @@ sub get_display_manager {
 package DistroData;
 my (@distro_files,@osr,@working);
 my ($distro,$distro_file,$distro_id,$system_base) = ('','','','');
-my ($etc_issue,$lc_issue) = ('','');
+my ($etc_issue,$lc_issue,$os_release) = ('','','/etc/os-release');
 sub get {
 	eval $start if $b_log;
 	if ($bsd_type){
@@ -20388,19 +20388,28 @@ sub get_bsd_os {
 			$distro = join(' ', @working);
 		}
 	}
-	# seen a case without osx file, or was it permissions?
-	# this covers all the other bsds anyway, no problem.
-	$distro = "$uname[0] $uname[2]" if !$distro;
-	if ((-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') 
-	&& $distro =~ /freebsd/i){
-		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
-		# only swap if we get result from the query
-		if ($version){
-			$system_base = $distro;
-			$distro = "GhostBSD $version";
+	if (!$distro){
+		my $bsd_type_osr = 'dragonfly';
+		@osr = main::reader($os_release) if -r $os_release;
+		if (@osr && $bsd_type =~ /$bsd_type_osr/ && (grep {/$bsd_type_osr/i} @osr)){
+			$distro = get_os_release();
 		}
+		if (!$distro){
+			# seen a case without osx file, or was it permissions?
+			# this covers all the other bsds anyway, no problem.
+			$distro = "$uname[0] $uname[2]";
+		}
+		if ((-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') 
+		&& $distro =~ /freebsd/i){
+			my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
+			# only swap if we get result from the query
+			if ($version){
+				$system_base = $distro;
+				$distro = "GhostBSD $version";
+			}
+		}
+		system_base_bsd() if $extra > 0;
 	}
-	system_base_bsd() if $extra > 0;
 	eval $end if $b_log;
 }
 
@@ -20419,7 +20428,7 @@ sub get_linux_distro {
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
 	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
  	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
-	my ($issue,$lsb_release,$os_release) = ('/etc/issue','/etc/lsb-release','/etc/os-release');
+	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
 	$b_issue = 1 if -f $issue;
 	$b_lsb = 1 if -f $lsb_release;
 	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
