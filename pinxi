@@ -21884,7 +21884,7 @@ sub get_start_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
 	return 0 if !$parent;
-	# ps -j -fp : bsds ps do not have -f for PPID, so we can't get the ppid
+	# ps -j -fp : some bsds ps do not have -f for PPID, so we can't get the ppid
 	my $cmd = "ps -j -fp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd);
@@ -21902,8 +21902,12 @@ sub get_shell_parent {
 	my $cmd = "ps -j -p $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd,'','strip');
+	my $shell_parent = (grep {/$parent/} @data)[0] if @data;
+	$shell_parent =~ s/^.*[0-9]+:[0-9\.]+\s+//;
+	$shell_parent = (split(/\s+/,$shell_parent))[0];
 	#shift @data if @data;
-	my $shell_parent = awk(\@data, "$parent",-1,'\s+');
+	# -1 would be right, except when shell parents have start args!
+	#my $shell_parent = awk(\@data, "$parent",-1,'\s+');
 	eval $end if $b_log;
 	return $shell_parent;
 }
