@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-03';
-my $self_patch='88';
+my $self_date='2021-03-05';
+my $self_patch='89';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -82,9 +82,11 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
 my ($b_active_general,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
 $b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,$b_force_display,
-$b_gpudata,$b_hddtemp_force,$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
+$b_gpart,$b_gpudata,$b_hddtemp_force,$b_irc,
+$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
-$b_no_html_wan,$b_no_sudo,$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
+$b_no_doas,$b_no_html_wan,$b_no_sudo,
+$b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_bluetooth,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
 $b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
@@ -106,7 +108,7 @@ my $sensors_cpu_nu = 0;
 my ($dl_ua,$weather_source,$weather_unit) = ('s-tools/' . $self_name  . '-',100,'mi');
 ## Tools
 my ($bt_tool,$display,$ftp_alt,$tty_session);
-my ($display_opt,$sudo) = ('','');
+my ($display_opt,$sudoas) = ('','');
 
 ## Output
 my $extra = 0;# supported values: 0-3
@@ -533,16 +535,16 @@ sub set_sep {
 # sudo will just error out which is the safest course here for now,
 # otherwise that interactive sudo password thing is too annoying
 sub set_sudo {
-	if (!$b_root && !$b_no_sudo){
+	if (!$b_root){
 		my ($path);
-		if ($path = check_program('sudo')) {
+		if (!$b_no_doas && ($path = check_program('doas'))){
+			$sudoas = "$path -n ";
+		}
+		elsif (!$b_no_sudo && ($path = check_program('sudo'))) {
 			my @data = program_data('sudo');
 			$data[1] =~ s/^([0-9]+\.[0-9]+).*/$1/;
 			#print "sudo v: $data[1]\n";
-			$sudo = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
-		}
-		elsif ($path = check_program('doas')){
-			$sudo = "$path -n ";
+			$sudoas = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
 		}
 	}
 }
@@ -1170,8 +1172,9 @@ sub get_config_item {
 	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'NO_DIG') {$b_skip_dig = $val if is_int($val)}
+	elsif ($key eq 'NO_DOAS') {$b_no_doas = $val if is_int($val)}
 	elsif ($key eq 'NO_HTML_WAN') {$b_no_html_wan = $val if is_int($val)}
-	elsif ($key eq 'NO_SUDO' || $key eq 'NO_DOAS') {$b_no_sudo = $val if is_int($val)}
+	elsif ($key eq 'NO_SUDO') {$b_no_sudo = $val if is_int($val)}
 	elsif ($key eq 'PARTITION_SORT') {
 		if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/){
 			$show{'partition-sort'} = $val;
@@ -4737,6 +4740,8 @@ sub get_options {
 		}},
 	'no-dig' => sub {
 		$b_skip_dig = 1; },
+	'no-doas' => sub {
+		$b_no_doas = 1; },
 	'no-host|no-hostname' => sub {
 		$show{'host'} = 0 ;
 		$show{'no-host'} = 1},
@@ -4746,7 +4751,7 @@ sub get_options {
 		$b_no_man_force = 0; },
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
-	'no-sudo|no-doas' => sub {
+	'no-sudo' => sub {
 		$b_no_sudo = 1; },
 	'output-file:s' => sub {
 		my ($opt,$arg) = @_;
@@ -11034,7 +11039,7 @@ sub hdd_temp {
 			}
 			if ($nvme){
 				$device =~ s/n[0-9]//;
-				@data = main::grabber("$sudo$nvme smart-log $device 2>/dev/null");
+				@data = main::grabber("$sudoas$nvme smart-log $device 2>/dev/null");
 				foreach (@data){
 					my @row = split(/\s*:\s*/, $_);
 					next if !$row[0];
@@ -11055,7 +11060,7 @@ sub hdd_temp {
 				}
 			}
 			if ($hddtemp){
-				$hdd_temp = (main::grabber("$sudo$hddtemp -nq -u C $device 2>/dev/null"))[0];
+				$hdd_temp = (main::grabber("$sudoas$hddtemp -nq -u C $device 2>/dev/null"))[0];
 			}
 		}
 		$hdd_temp =~ s/\s?(Celsius|C)$// if $hdd_temp;
@@ -14212,7 +14217,12 @@ sub partition_data {
 	main::set_proc_partitions() if !$bsd_type && !$b_proc_partitions;
 	main::set_lsblk() if !$bsd_type && !$b_lsblk;
 	# set @labels, @uuid, %gpart
-	set_label_uuid() if !$b_label_uuid;
+	if (!$bsd_type){
+		set_label_uuid() if !$b_label_uuid;
+	}
+	else {
+		set_gpart_data() if !$b_gpart;
+	}
 	# most current OS support -T and -k, but -P means different things
 	# in freebsd. However since most use is from linux, we make that default
 	# android 7 no -T support
@@ -14361,8 +14371,8 @@ sub partition_data {
 			}
 			else {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
-				if (%gpart && ($show{'label'} || $show{'uuid'} ) ){
-					($label,$uuid) = get_bsd_label_uuid($dev_base);
+				if (%gpart && ($b_admin || $show{'label'} || $show{'uuid'} ) ){
+					($block_size,$label,$uuid) = get_gpart_data($dev_base);
 				}
 			}
 			$b_logical = 1 if $fs && $fs =~ /(hammer|zfs)/; 
@@ -14431,7 +14441,6 @@ sub partition_data {
 	print Data::Dumper::Dumper \@partitions if $test[16];
 	eval $end if $b_log;
 }
-
 sub swap_data {
 	eval $start if $b_log;
 	return @swaps if $b_swaps;
@@ -14488,17 +14497,23 @@ sub swap_data {
 			$swap_type = 'partition';
 			$dev_base = $data[0];
 			$dev_base =~ s|^/dev/||;
-			if (!$bsd_type && $dev_base =~ /^dm-/ && %dmmapper){
-				$dev_mapped = $dmmapper{$dev_base};
+			if (!$bsd_type){
+				if ($dev_base =~ /^dm-/ && %dmmapper){
+					$dev_mapped = $dmmapper{$dev_base};
+				}
+				if ($show{'label'} && @labels){
+					$label = get_label($data[0]);
+				}
+				if ($show{'uuid'} && @uuids){
+					$uuid = get_uuid($data[0]);
+				}
 			}
-			if ($show{'label'} && @labels){
-				$label = get_label($data[0]);
-			}
-			if ($show{'uuid'} && @uuids){
-				$uuid = get_uuid($data[0]);
-			}
-			if ($bsd_type && %gpart && ($show{'label'} || $show{'uuid'} ) ){
-				($label,$uuid) = get_bsd_label_uuid($dev_base);
+			else {
+				if (%gpart && ($show{'label'} || $show{'uuid'} ) ){
+					my @temp = get_gpart_data($data[0]);
+					$label = $temp[1] if $temp[1];
+					$uuid = $temp[2] if $temp[2];
+				}
 			}
 			$dev_type = 'dev';
 			$maj_min = get_maj_min($dev_base) if @proc_partitions;
@@ -14589,58 +14604,63 @@ sub get_mounts_fs {
 #   label: (null)
 #   label: ssd-root
 #   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
-sub get_bsd_label_uuid {
+sub get_gpart_data {
 	eval $start if $b_log;
 	my ($item) = @_;
 	return if !$item;
 	my (@data) = ('','');
 	if ($gpart{$item}){
-		$data[0] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
-		$data[1] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
+		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
+		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
+		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
 	}
 	main::log_data('dump','@data',\@data) if $b_log;
 	eval $end if $b_log;
 	return @data;
 }
+sub set_gpart_data {
+	eval $start if $b_log;
+	$b_gpart = 1;
+	if (my $path = main::check_program('gpart')){
+		my @data = main::grabber("$path list 2>/dev/null",'','strip');
+		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
+		my ($id);
+		for (@data){
+			my @working = split(/\s*:\s*/, $_);
+			if ($working[0] =~ /^[0-9]+\.\s*Name/){
+				$id = $working[1];
+			}
+			elsif ($id){
+				# eg: label:(null) - we want to show null
+				if ($working[0] eq 'label'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'label'} = $working[1];
+				}
+				elsif ($working[0] eq 'rawuuid'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'uuid'} = $working[1];
+				}
+				elsif ($working[0] eq 'Sectorsize'){
+					$gpart{$id}->{'block-size'} = $working[1];
+				}
+			}
+		}
+	}
+	main::log_data('dump', '%gpart', \%gpart) if $b_log;
+	eval $end if $b_log;
+}
 sub set_label_uuid {
 	eval $start if $b_log;
 	$b_label_uuid = 1;
 	if ($show{'unmounted'} || $show{'label'} || $show{'swap'} || $show{'uuid'} ){
-		if (!$bsd_type){
-			if (-d '/dev/disk/by-label'){
-				@labels = main::globber('/dev/disk/by-label/*');
-			}
-			if (-d '/dev/disk/by-uuid'){
-				@uuids = main::globber('/dev/disk/by-uuid/*');
-			}
-			main::log_data('dump', '@lebels', \@labels) if $b_log;
-			main::log_data('dump', '@uuids', \@uuids) if $b_log;
+		if (-d '/dev/disk/by-label'){
+			@labels = main::globber('/dev/disk/by-label/*');
 		}
-		else {
-			if (my $path = main::check_program('gpart')){
-				my @data = main::grabber("$path list 2>/dev/null",'','strip');
-				main::log_data('dump', 'gpart: @data', \@data) if $b_log;
-				my ($id);
-				for (@data){
-					my @working = split(/\s*:\s*/, $_);
-					if ($working[0] =~ /^[0-9]+\.\s*Name/){
-						$id = $working[1];
-					}
-					elsif ($id){
-						# eg: label:(null) - we want to show null
-						if ($working[0] eq 'label'){
-							$working[1] =~ s/\(|\)//g; 
-							$gpart{$id}->{'label'} = $working[1];
-						}
-						elsif ($working[0] eq 'rawuuid'){
-							$working[1] =~ s/\(|\)//g; 
-							$gpart{$id}->{'uuid'} = $working[1];
-						}
-					}
-				}
-			}
-			main::log_data('dump', '%gpart', \%gpart) if $b_log;
+		if (-d '/dev/disk/by-uuid'){
+			@uuids = main::globber('/dev/disk/by-uuid/*');
 		}
+		main::log_data('dump', '@lebels', \@labels) if $b_log;
+		main::log_data('dump', '@uuids', \@uuids) if $b_log;
 	}
 	eval $end if $b_log;
 }
@@ -18726,9 +18746,16 @@ sub unmounted_data {
 			# these components of lvm raid will show as partitions byt are reserved private lvm member
 			# See man lvm for all current reserved private volume names
 			next if $dev_mapped && $dev_mapped =~ /_([ctv]data|corig|[mr]image|mlog|[crt]meta|pmspare|pvmove|vorigin)(_[0-9]+)?$/;
-			$label = PartitionData::get_label("/dev/$row->[-1]") if !$label;
+			if (!$bsd_type){
+				$label = PartitionData::get_label("/dev/$row->[-1]") if !$label;
+				$uuid = PartitionData::get_uuid("/dev/$row->[-1]") if !$uuid;
+			}
+			elsif (%gpart) {
+				my @temp = PartitionData::get_gpart_data($row->[-1]);
+				$label = $temp[1] if $temp[1];
+				$uuid = $temp[2] if $temp[2];
+			}
 			$maj_min = "$row->[0]:$row->[1]" if !$maj_min;
-			$uuid = PartitionData::get_uuid("/dev/$row->[-1]") if !$uuid;
 			push(@unmounted, {
 			'dev-base' => $row->[-1],
 			'dev-mapped' => $dev_mapped,
@@ -18784,7 +18811,7 @@ sub unmounted_filesystem {
 		# this will fail if regular user and no sudo present, but that's fine, it will just return null
 		# note the hack that simply slices out the first line if > 1 items found in string
 		# also, if grub/lilo is on partition boot sector, no file system data is available
-		$data = (main::grabber("$sudo$file -s /dev/$item 2>/dev/null"))[0];
+		$data = (main::grabber("$sudoas$file -s /dev/$item 2>/dev/null"))[0];
 		if ($data){
 			foreach (@filesystems){
 				if ($data =~ /($_)[\s,]/i){
