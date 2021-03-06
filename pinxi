@@ -21321,8 +21321,9 @@ sub get {
 	eval $start if $b_log;
 	my ($type) = @_;
 	my ($memory);
+	# note: netbsd 8.0 has meminfo!
 	if (my $file = main::system_files('meminfo') ) {
-		$memory = linux_data($type,$file);
+		$memory = meminfo_data($type,$file);
 	}
 	else {
 		$memory = bsd_data($type);
@@ -21358,7 +21359,7 @@ sub full {
 	eval $end if $b_log;
 	return @rows;
 }
-sub linux_data {
+sub meminfo_data {
 	eval $start if $b_log;
 	my ($type,$file) = @_;
 	my ($available,$gpu,$memory,$not_used,$total) = (0,0,'',0,0);
@@ -21379,6 +21380,8 @@ sub linux_data {
 	#$gpu = main::translate_size('128M');
 	$total += $gpu;
 	my $used = $total - ($not_used);
+	# seen fringe cases, where total - free+buff+cach < 0
+	$used = 0 if $used && $total && $used < 0;
 	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
 	if ($type eq 'string'){
 		$percent = " ($percent%)" if $percent;
