@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-05';
-my $self_patch='93';
+my $self_patch='94';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3578,7 +3578,7 @@ sub set_program_values {
 	'clfswm' => ['^clsfwm',0,'0','clfswm',0,1,0,'',''], # no version
 	'compiz' => ['^compiz',2,'--version','Compiz',0,1,0,'',''],
 	'compton' => ['^\d',1,'--version','Compton',0,1,0,'',''],
-	'ctwm' => ['^ctwm',2,'-version','ctwm',0,1,0,'',''],
+	'ctwm' => ['^\S',1,'-version','ctwm',0,1,0,'',''],
 	'cwm' => ['^cwm',0,'0','CWM',0,1,0,'',''], # no version
 	'dcompmgr' => ['^dcompmgr',0,'0','dcompmgr',0,1,0,'',''], # unverified
 	'deepin' => ['^Version',2,'file','Deepin',0,100,'=','','/etc/deepin-version'], # special
@@ -19684,7 +19684,7 @@ sub get {
 	eval $start if $b_log;
 	my (@compiler);
 	if (my $file = main::system_files('version') ) {
-		@compiler = version_linux($file);
+		@compiler = version_proc($file);
 	}
 	elsif ($bsd_type) {
 		@compiler = version_bsd();
@@ -19714,7 +19714,7 @@ sub version_bsd {
 	eval $end if $b_log;
 	return @compiler;
 }
-sub version_linux {
+sub version_proc {
 	eval $start if $b_log;
 	my ($file) = @_;
 	my (@compiler,$version);
@@ -19724,14 +19724,15 @@ sub version_linux {
 		if ($fake{'compiler'}){
 			# $result = $result =~ /\*(gcc|clang)\*eval\*/;
 			# $result='Linux version 5.4.0-rc1 (sourav@archlinux-pc) (clang version 9.0.0 (tags/RELEASE_900/final)) #1 SMP PREEMPT Sun Oct 6 18:02:41 IST 2019';
-			#$result='Linux version 5.8.3-fw1 (fst@x86_64.frugalware.org) ( OpenMandriva 11.0.0-0.20200819.1 clang version 11.0.0 (/builddir/build/BUILD/llvm-project-release-11.x/clang 2a0076812cf106fcc34376d9d967dc5f2847693a), LLD 11.0.0)';
-			#$result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
+			# $result='Linux version 5.8.3-fw1 (fst@x86_64.frugalware.org) ( OpenMandriva 11.0.0-0.20200819.1 clang version 11.0.0 (/builddir/build/BUILD/llvm-project-release-11.x/clang 2a0076812cf106fcc34376d9d967dc5f2847693a), LLD 11.0.0)';
+			# $result='Linux version 5.8.0-18-generic (buildd@lgw01-amd64-057) (gcc (Ubuntu 10.2.0-5ubuntu2) 10.2.0, GNU ld (GNU Binutils for Ubuntu) 2.35) #19-Ubuntu SMP Wed Aug 26 15:26:32 UTC 2020';
 			# $result='Linux version 5.8.9-fw1 (fst@x86_64.frugalware.org) (gcc (Frugalware Linux) 9.2.1 20200215, GNU ld (GNU Binutils) 2.35) #1 SMP PREEMPT Tue Sep 15 16:38:57 CEST 2020';
 			# $result='Linux version 5.8.0-2-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.0-9) 10.2.0, GNU ld (GNU Binutils for Debian) 2.35) #1 SMP Debian 5.8.10-1 (2020-09-19)';
 			# $result='Linux version 5.9.0-5-amd64 (debian-kernel@lists.debian.org) (gcc-10 (Debian 10.2.1-1) 10.2.1 20201207, GNU ld (GNU Binutils for Debian) 2.35.1) #1 SMP Debian 5.9.15-1 (2020-12-17)';
 			# $result='Linux version 2.6.1 (GNU 0.9 GNU-Mach 1.8+git20201007-486/Hurd-0.9 i686-AT386)';
+			# $result='NetBSD version 9.1 (netbsd@localhost) (gcc version 7.5.0) NetBSD 9.1 (GENERIC) #0: Sun Oct 18 19:24:30 UTC 2020';
 		}
-		if ($result =~ /(gcc|clang).*version\s([\S]+)/){
+		if ($result =~ /(gcc|clang).*version\s([^\s\)]+)/){
 			$version = $2;
 			$version ||= 'N/A'; 
 			@compiler = ($1,$version);
@@ -21322,7 +21323,7 @@ sub get {
 	my ($type) = @_;
 	my ($memory);
 	# note: netbsd 8.0 has meminfo!
-	if (my $file = main::system_files('meminfo') ) {
+	if (my $file = main::system_files('meminfo')) {
 		$memory = meminfo_data($type,$file);
 	}
 	else {
@@ -21362,26 +21363,44 @@ sub full {
 sub meminfo_data {
 	eval $start if $b_log;
 	my ($type,$file) = @_;
-	my ($available,$gpu,$memory,$not_used,$total) = (0,0,'',0,0);
+	my ($available,$buffers,$cached,$free,$gpu,$memory,$not_used,$total) = (0,0,0,0,0,'',0,0);
 	my @data = main::reader($file);
 	foreach (@data){
 		if ($_ =~ /^MemTotal:/){
 			$total = main::get_piece($_,2);
 		}
-		elsif ($_ =~ /^(MemFree|Buffers|Cached):/){
-			$not_used += main::get_piece($_,2);
+		elsif ($_ =~ /^MemFree:/){
+			$free = main::get_piece($_,2); 
+		}
+		elsif ($_ =~ /^Buffers:/){
+			$buffers = main::get_piece($_,2); 
+		}
+		elsif ($_ =~ /^Cached:/){
+			$cached = main::get_piece($_,2); 
 		}
 		elsif ($_ =~ /^MemAvailable:/){
 			$available = main::get_piece($_,2);
 		}
 	}
-	$not_used = $available if $available;
 	$gpu = gpu_ram_arm() if $b_arm;
 	#$gpu = main::translate_size('128M');
 	$total += $gpu;
-	my $used = $total - ($not_used);
+	if ($available){
+		$not_used = $available;
+	}
 	# seen fringe cases, where total - free+buff+cach < 0
-	$used = 0 if $used && $total && $used < 0;
+	# the idea is that the OS must be using 10MiB of ram or more
+	elsif (($total - ($free + $buffers + $cached)) > 10000) {
+		$not_used = ($free + $buffers + $cached);
+	}
+	# netbsd goes < 0, but it's wrong, so dump the cache
+	elsif (($total - ($free + $buffers)) > 10000){
+		$not_used = ($free + $buffers);
+	}
+	else {
+		$not_used = $free;
+	}
+	my $used = ($total - $not_used);
 	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
 	if ($type eq 'string'){
 		$percent = " ($percent%)" if $percent;
@@ -21412,7 +21431,6 @@ sub meminfo_data {
 #  r b w     avm    fre  flt  re  pi  po  fr  sr ad0 ad1   in   sy  cs us sy id
 #  0 0 0       0  84060 30273993 2845 12742 1164 407498171 320960902   0   0 ....
 ## dragonfly: V2, no avm, no -H support
-
 sub bsd_data {
 	eval $start if $b_log;
 	my ($type) = @_;
@@ -21998,6 +22016,7 @@ sub get_shell_data {
 		}
 		$client{'version'} ||= '';
 		$client{'version'} =~ s/(\(.*|-release|-version)// if $client{'version'};
+		$shell =~ s/^[\s-]+|[\s-]+$//g if $shell; # sometimes will be like -sh
 		$client{'name'} = lc($shell);
 		$client{'name-print'} = $shell;
 		#print "shell4: $client{'name-print'} version: $client{'version'}\n";
@@ -22079,7 +22098,7 @@ sub get_shell_source {
 		}
 		# to work around a ps -p or gnome-terminal bug, which returns 
 		# gnome-terminal- trim - off end 
-		$shell_parent =~ s/-$// if $shell_parent;
+		$shell_parent =~ s/^-|-$// if $shell_parent;
 	}
 	if ($b_log){
 		$self_parent ||= '';
@@ -23075,27 +23094,27 @@ sub set_ifconfig {
 			}
 			$b_skip = 0;
 		}
-		# lladdr openbsd
-		elsif (!$b_skip && $bsd_type && /^\s+(ether|media|status|lladdr)/){
+		elsif (!$b_skip && $bsd_type && /^\s+(address|ether|media|status|lladdr)/){
 			$_ =~ s/^\s+//;
-			# media: Ethernet 100baseTX <full-duplex> freebsd 7.3 
-			# media: Ethernet autoselect (1000baseT <full-duplex>) Freebsd 8.2
-			# 
+			# freebsd 7.3: media: Ethernet 100baseTX <full-duplex>
+			# Freebsd 8.2/12.2: media: Ethernet autoselect (1000baseT <full-duplex>) 
+			# Netbsd 9.1: media: Ethernet autoselect (1000baseT full-duplex) 
+			# openbsd: media: Ethernet autoselect (1000baseT full-duplex)
 			if (/^media/){
-				# openbsd: media: Ethernet autoselect (1000baseT full-duplex)
-				if ($bsd_type && $bsd_type eq 'openbsd'){
-					$_ =~ /\s\([\S]+\s([\S]+)\)/;
-					$duplex = $1;
+				if ($_ =~ /[\s\(]([1-9][^\(\s]+)?\s<([^>]+)>/){
+					$speed = $1 if $1;
+					$duplex = $2;
 				}
-				else {
-					$_ =~ /<([^>]+)>/;
-					$duplex = $1;
+				if (!$duplex && $_ =~ /\s\(([\S]+)\s([^\s<]+)\)/){
+					$speed = $1;
+					$duplex = $2;
 				}
-				$_ =~ /\s\(([1-9][\S]+\s)/;
-				$speed = $1;
-				$speed =~ s/\s+$// if $speed;
+				if (!$speed && $_ =~ /\s\(([1-9][\S]+)\s/){
+					$speed = $1;
+				}
 			}
-			elsif (!$mac && /^ether|lladdr/){
+			# lladdr openbsd/address netbsd/ether freebsd
+			elsif (!$mac && /^(address|ether|lladdr)/){
 				$mac = (split(/\s+/, $_))[1];
 			}
 			elsif (/^status/){
