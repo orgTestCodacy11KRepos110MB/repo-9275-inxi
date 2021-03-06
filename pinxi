@@ -12466,8 +12466,8 @@ sub lvm_data {
 	copy_percent);
 	my $num = 0;
 	if ($fake{'logical'}){
-		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
-		@data = main::reader($file,'strip');
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
+		#@data = main::reader($file,'strip');
 	}
 	else {
 		# lv_full_name: ar0-home; lv_dm_path: /dev/mapper/ar0-home
@@ -12485,8 +12485,9 @@ sub lvm_data {
 	my $j = 0;
 	foreach (@data){
 		my @line = split(/\^:/, $_);
+		next if $_ =~ /^Partial mode/i; # sometimes error doesn't catch this
 		for (my $i = 0; $i < scalar @args; $i++){
-			$line[$i] =~ s/k$// if $args[$i] =~ /_(free|size|used)$/;
+			$line[$i] =~ s/k$// if $args[$i] && $args[$i] =~ /_(free|size|used)$/;
 			$lvm[$j]->{$args[$i]} = $line[$i];
 		}
 		if (!$totals{'vgs'}->{$lvm[$j]->{'vg_name'}}){
@@ -15549,7 +15550,7 @@ sub lvm_data {
 	return if !@lvm;
 	my (@lvraid,$maj_min,$vg_used,@working);
 	foreach my $item (@lvm){
-		next if $item->{'segtype'} !~ /^raid/;
+		next if $item->{'segtype'} && $item->{'segtype'} !~ /^raid/;
 		my (@components,$dev,$maj_min,$vg_used);
 		#print Data::Dumper::Dumper $item;
 		if ($item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'}){
@@ -21827,6 +21828,9 @@ sub process_status {
 	eval $start if $b_log;
 	my ($cmd,@data);
 	my ($result,$value) = ('','');
+	# as far as I can tell, only systemctl actually returns a non 
+	# stderr if not running or not enabled. All return error if not 
+	# existing at all.
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key} status $service";
 	}
@@ -21848,7 +21852,7 @@ sub process_status {
 			$cmd = "$service_tool{$key}$service status";
 		}
 	}
-	@data = main::grabber("$cmd 2>/dev/null",'','strip');
+	@data = main::grabber("$cmd 2>/dev/null",'','strip') if $cmd;
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
 		my @working = split(/\s*:\s*/,$row);
@@ -21877,7 +21881,7 @@ sub process_status {
 				$result = $1;
 			}
 			elsif ($working[0] =~ /\b$service( does not exist: unrecognized)/){
-				$result = 'not installed';
+				$result = 'not enabled';
 			}
 		}
 	}
