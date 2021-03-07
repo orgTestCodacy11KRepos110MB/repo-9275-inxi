@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-05';
-my $self_patch='94';
+my $self_patch='95';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -308,7 +308,7 @@ sub set_commands {
 	else {
 		if ($b_pci){
 			$commands{'pciconf'} = ['exec-sys','','-l'];
-			$commands{'pcictl'} = ['exec-sys','','list'];
+			$commands{'pcictl'} = ['exec-sys','',' pci0 list'];
 			$commands{'pcidump'} = ['exec-sys','',''];
 		}
 		if ($b_sysctl){
@@ -368,8 +368,16 @@ sub set_forced_tools {
 # only for dev/debugging BSD 
 sub set_fake_bsd_tools {
 	$system_files{'dmesg-boot'} = '/var/run/dmesg.boot' if $fake{'dboot'};
-	$alerts{'pciconf'}->{'action'} = 'use' if $fake{'pciconf'};
 	$alerts{'sysctl'}->{'action'} = 'use' if $fake{'sysctl'};
+	if ($fake{'pciconf'} || $fake{'pcictl'} || $fake{'pcidump'}){
+		$alerts{'pciconf'}->{'action'} = 'use' if $fake{'pciconf'};
+		$alerts{'pcictl'}->{'action'} = 'use' if $fake{'pcictl'};
+		$alerts{'pcidump'}->{'action'} = 'use' if $fake{'pcidump'};
+		$alerts{'lspci'} = {
+		'action' => 'missing',
+		'message' => 'Required program lspci not available',
+		};
+	}
 	if ($fake{'usbconfig'} || $fake{'usbdevs'}){
 		$alerts{'usbconfig'}->{'action'} = 'use' if $fake{'usbconfig'};
 		$alerts{'usbdevs'}->{'action'} = 'use' if $fake{'usbdevs'};
@@ -1892,8 +1900,9 @@ sub system_data {
 	['pcidump','-v'],
 	# netbsd
 	['kldstat',''],
-	['pcictl','list'],
-	['pcictl','list -ns'],
+	['pcictl','pci0 list'],
+	['pcictl','pci0 list -N'],
+	['pcictl','pci0 list -n'],
 	);
 	run_commands(\@cmds,'system-bsd');
 	# diskinfo -v <disk>
@@ -4691,7 +4700,8 @@ sub get_options {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $fakes = 'bluetooth|compiler|cpu|dboot|dmidecode|logical|';
-			$fakes .= 'pciconf|raid|sensors|sysctl|uptime|usbconfig|usbdevs';
+			$fakes .= 'pciconf|pcictl|pcidump|raid|sensors|sysctl|uptime|';
+			$fakes .= 'usbconfig|usbdevs';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($fakes)\b/){
 					$fake{$1} = 1;
@@ -11221,38 +11231,6 @@ sub device_speed {
 	eval $end if $b_log;
 	return @data;
 }
-# gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
-sub match_glabel {
-	eval $start if $b_log;
-	my ($gptid) = @_;
-	return if !@glabel || ! $gptid;
-	#$gptid =~ s/s[0-9]+$//;
-	my ($dev_id) = ('');
-	foreach (@glabel){
-		my @temp = split(/\s+/, $_);
-		my $gptid_trimmed = $gptid;
-		# slice off s[0-9] from end in case they use slice syntax
-		$gptid_trimmed =~ s/s[0-9]+$//;
-		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq $gptid_trimmed ) ){
-			$dev_id = $temp[2];
-			last;
-		}
-	}
-	$dev_id ||= $gptid; # no match? return full string
-	eval $end if $b_log;
-	return $dev_id;
-}
-sub set_glabel {
-	eval $start if $b_log;
-	$b_glabel = 1;
-	if (my $path = main::check_program('glabel')){
-		@glabel = main::grabber("$path status 2>/dev/null");
-	}
-	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
-	# get rid of first header line
-	shift @glabel;
-	eval $end if $b_log;
-}
 }
 
 ## GraphicData 
@@ -13600,7 +13578,7 @@ sub advanced_data_bsd {
  		else {
 			@data = @$item;
  		}
-		if ( $b_check || $working_if eq $if){
+		if ($b_check || $working_if eq $if){
 			$if = $working_if if $b_check;
 			# print "top: if: $if ifs: @ifs_found\n";
 			next if ($b_check && grep {/$if/} @ifs_found);
@@ -14275,9 +14253,6 @@ sub partition_data {
 	if (!$bsd_type){
 		set_label_uuid() if !$b_label_uuid;
 	}
-	else {
-		set_gpart_data() if !$b_gpart;
-	}
 	# most current OS support -T and -k, but -P means different things
 	# in freebsd. However since most use is from linux, we make that default
 	# android 7 no -T support
@@ -14426,8 +14401,11 @@ sub partition_data {
 			}
 			else {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
-				if (%gpart && ($b_admin || $show{'label'} || $show{'uuid'} ) ){
-					($block_size,$label,$uuid) = get_gpart_data($dev_base);
+				if ($bsd_type && ($b_admin || $show{'label'} || $show{'uuid'} ) ){
+					my @temp = GpartData::get($dev_base);
+					$block_size = $temp[0] if $temp[0];
+					$label = $temp[1] if $temp[1];
+					$uuid =$temp[2] if $temp[2];
 				}
 			}
 			$b_logical = 1 if $fs && $fs =~ /(hammer|zfs)/; 
@@ -14564,8 +14542,8 @@ sub swap_data {
 				}
 			}
 			else {
-				if (%gpart && ($show{'label'} || $show{'uuid'} ) ){
-					my @temp = get_gpart_data($data[0]);
+				if ($bsd_type && ($show{'label'} || $show{'uuid'} ) ){
+					my @temp = GpartData::get($data[0]);
 					$label = $temp[1] if $temp[1];
 					$uuid = $temp[2] if $temp[2];
 				}
@@ -14655,62 +14633,7 @@ sub get_mounts_fs {
 	main::log_data('data',"fs: $fs") if $b_log;
 	return $fs;
 }
-# 1. Name: ada1p1
-#   label: (null)
-#   label: ssd-root
-#   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
-sub get_gpart_data {
-	eval $start if $b_log;
-	my ($item) = @_;
-	return if !$item;
-	my (@data) = ('','');
-	if ($gpart{$item}){
-		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
-		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
-		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
-		$data[3] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
-	}
-	main::log_data('dump','@data',\@data) if $b_log;
-	eval $end if $b_log;
-	return @data;
-}
-# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
-sub set_gpart_data {
-	eval $start if $b_log;
-	$b_gpart = 1;
-	if (my $path = main::check_program('gpart')){
-		my @data = main::grabber("$path list 2>/dev/null",'','strip');
-		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
-		my ($id);
-		for (@data){
-			my @working = split(/\s*:\s*/, $_);
-			if ($working[0] =~ /^[0-9]+\.\s*Name/){
-				$id = $working[1];
-			}
-			elsif ($id){
-				# eg: label:(null) - we want to show null
-				if ($working[0] eq 'label'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'label'} = $working[1];
-				}
-				elsif ($working[0] eq 'Mediasize'){
-					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
-					# gpart shows in bytes, not KiB. For the time being...
-					$gpart{$id}->{'size'} = $working[1]/1024 if $working[1];
-				}
-				elsif ($working[0] eq 'rawuuid'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'uuid'} = $working[1];
-				}
-				elsif ($working[0] eq 'Sectorsize'){
-					$gpart{$id}->{'block-size'} = $working[1];
-				}
-			}
-		}
-	}
-	main::log_data('dump', '%gpart', \%gpart) if $b_log;
-	eval $end if $b_log;
-}
+
 sub set_label_uuid {
 	eval $start if $b_log;
 	$b_label_uuid = 1;
@@ -15841,10 +15764,6 @@ sub zfs_data {
 	else {
 		@working = main::grabber("$zpool list -v 2>/dev/null");
 	}
-	if ($bsd_type){
-		DiskData::set_glabel() if !$b_glabel;
-		PartitionData::set_gpart_data() if !$b_gpart;
-	}
 	# bsd sed does not support inserting a true \n so use this trick
 	# some zfs does not have -v
 	if (!@working){
@@ -15918,8 +15837,8 @@ sub zfs_data {
 			my $working = ($1) ? $1 : ''; # note: the negative case can never happen
 			my $state = ($3) ? $3 : '';
 			my ($maj_min,$part_size);
-			if ($working =~ /[\S]+\// && @glabel){
-				$working = DiskData::match_glabel($working);
+			if ($bsd_type && $working =~ /[\S]+\//){
+				$working = GlabelData::get($working);
 			}
 			# kind of a hack, things like cache may not show size/free
 			# data since they have no array row, but they might show it in 
@@ -15952,8 +15871,8 @@ sub zfs_data {
 				$part_size = $data{'size'};
 			}
 			if (!$part_size && %gpart){
-				my @data= PartitionData::get_gpart_data($working);
-				$part_size = $data[3] if $data[3];
+				my @temp = GpartData::get($working);
+				$part_size = $temp[3] if $temp[3];
 			}
 			$raw_logical[1] += $part_size if $part_size;
 			$zfs[$j]->{'arrays'}[$k]{'components'}[$i] = [$working,$part_size,$maj_min,$state];
@@ -18819,8 +18738,8 @@ sub unmounted_data {
 				$label = PartitionData::get_label("/dev/$row->[-1]") if !$label;
 				$uuid = PartitionData::get_uuid("/dev/$row->[-1]") if !$uuid;
 			}
-			elsif (%gpart) {
-				my @temp = PartitionData::get_gpart_data($row->[-1]);
+			else {
+				my @temp = GpartnData::get($row->[-1]);
 				$label = $temp[1] if $temp[1];
 				$uuid = $temp[2] if $temp[2];
 			}
@@ -21113,6 +21032,105 @@ sub get_gcc_data {
 	eval $end if $b_log;
 	return @gccs;
 }
+
+# Get GlabelData
+{
+package GlabelData;
+# gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
+sub get {
+	eval $start if $b_log;
+	my ($gptid) = @_;
+	set() if !$b_glabel;
+	return if !@glabel || !$gptid;
+	my ($dev_id) = ('');
+	foreach (@glabel){
+		my @temp = split(/\s+/, $_);
+		my $gptid_trimmed = $gptid;
+		# slice off s[0-9] from end in case they use slice syntax
+		$gptid_trimmed =~ s/s[0-9]+$//;
+		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq $gptid_trimmed ) ){
+			$dev_id = $temp[2];
+			last;
+		}
+	}
+	$dev_id ||= $gptid; # no match? return full string
+	eval $end if $b_log;
+	return $dev_id;
+}
+sub set {
+	eval $start if $b_log;
+	$b_glabel = 1;
+	if (my $path = main::check_program('glabel')){
+		@glabel = main::grabber("$path status 2>/dev/null");
+	}
+	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
+	# get rid of first header line
+	shift @glabel;
+	eval $end if $b_log;
+}
+}
+
+# Get GpartData
+{
+package GpartData;
+# 1. Name: ada1p1
+#   label: (null)
+#   label: ssd-root
+#   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
+sub get {
+	eval $start if $b_log;
+	my ($item) = @_;
+	my (@data) = ('','','','');
+	set() if !$b_gpart;
+	return @data if !$item || !%gpart;
+	if ($gpart{$item}){
+		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
+		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
+		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
+		$data[3] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
+	}
+	main::log_data('dump','@data',\@data) if $b_log;
+	eval $end if $b_log;
+	return @data;
+}
+# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
+sub set {
+	eval $start if $b_log;
+	$b_gpart = 1;
+	if (my $path = main::check_program('gpart')){
+		my @data = main::grabber("$path list 2>/dev/null",'','strip');
+		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
+		my ($id);
+		for (@data){
+			my @working = split(/\s*:\s*/, $_);
+			if ($working[0] =~ /^[0-9]+\.\s*Name/){
+				$id = $working[1];
+			}
+			elsif ($id){
+				# eg: label:(null) - we want to show null
+				if ($working[0] eq 'label'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'label'} = $working[1];
+				}
+				elsif ($working[0] eq 'Mediasize'){
+					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
+					# gpart shows in bytes, not KiB. For the time being...
+					$gpart{$id}->{'size'} = $working[1]/1024 if $working[1];
+				}
+				elsif ($working[0] eq 'rawuuid'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'uuid'} = $working[1];
+				}
+				elsif ($working[0] eq 'Sectorsize'){
+					$gpart{$id}->{'block-size'} = $working[1];
+				}
+			}
+		}
+	}
+	main::log_data('dump', '%gpart', \%gpart) if $b_log;
+	eval $end if $b_log;
+}
+}
 sub get_hostname {
 	eval $start if $b_log;
 	my $hostname = '';
@@ -21849,12 +21867,12 @@ sub process_status {
 	eval $start if $b_log;
 	my ($cmd,@data);
 	my ($result,$value) = ('','');
-	# as far as I can tell, only systemctl actually returns a non 
-	# stderr if not running or not enabled. All return error if not 
-	# existing at all.
+	# systemctl returns stdout if exists, all others to stderr if 
+	# not exist or not loaded.
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key} status $service";
 	}
+	# can be /etc/init.d or /etc/rc.d
 	elsif ($key eq 'rc-service'){
 		$cmd = "$service_tool{$key} $service status";
 	}
@@ -21867,13 +21885,20 @@ sub process_status {
 		if (-e "$service_tool{$key}$service"){
 			$cmd = "$service_tool{$key}$service check";
 		}
+		else {
+			$result = 'not present';
+		}
 	}
 	elsif ($key eq 'init.d'){
 		if (-e "$service_tool{$key}$service"){
 			$cmd = "$service_tool{$key}$service status";
 		}
+		else {
+			$result = 'not present';
+		}
 	}
-	@data = main::grabber("$cmd 2>/dev/null",'','strip') if $cmd;
+	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
+	print Data::Dumper::Dumper \@data if $test[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
 		my @working = split(/\s*:\s*/,$row);
@@ -21901,11 +21926,12 @@ sub process_status {
 			if ($working[0] =~ /\b$service is (.*?)(\s+as\s.*|\s+\.\.\..*)?\.?/){
 				$result = $1;
 			}
-			elsif ($working[0] =~ /\b$service( does not exist: unrecognized)/){
-				$result = 'not enabled';
+			elsif ($working[0] =~ /\b$service\b.*?(not (exist|found)|unrecognized)/){
+				$result = 'not present';
 			}
 		}
 	}
+	print "service result: $result\n" if $test[29];
 	main::log_data('data',"result: $result") if $b_log;
 	eval $end if $b_log;
 	return $result;
@@ -21927,7 +21953,7 @@ sub set {
 		# service ssh status
 		%service_tool = ('service' => $path);
 	}
-	# freebsd does not have 'check'
+	# freebsd does not have 'check', netbsd does not have status
 	elsif (-d '/etc/rc.d/'){
 		# /etc/rc.d/ssh check :: ssh(ok|failed)
 		%service_tool = ('rc.d' => '/etc/rc.d/'); 
@@ -22320,7 +22346,7 @@ sub set_build_prop {
 ## DeviceData / PCI / SOC
 {
 package DeviceData;
-my (@data,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
+my (@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
 
 my ($busid,$busid_nu,$chip_id,$content,$device,$driver,$driver_nu,$file,
 $handle,$modules,$port,$rev,$temp,$type,$type_id,$vendor,$vendor_id);
@@ -22348,6 +22374,9 @@ sub set {
 			elsif ($alerts{'pcidump'}->{'action'} eq 'use'){
 				pcidump_data();
 			}
+			elsif ($alerts{'pcictl'}->{'action'} eq 'use'){
+				pcictl_data();
+			}
 		}
 		if ($test[9]){
 			print Data::Dumper::Dumper \@devices_audio;
@@ -22372,7 +22401,7 @@ sub set {
 sub lspci_data {
 	eval $start if $b_log;
 	my ($subsystem,$subsystem_id);
-	@data = pci_grabber('lspci');
+	my @data = pci_grabber('lspci');
 	#print Data::Dumper::Dumper \@data;
 	foreach (@data){
 		#print "$_\n";
@@ -22438,7 +22467,7 @@ sub lspci_data {
 #     subclass   = ethernet
 sub pciconf_data {
 	eval $start if $b_log;
-	@data = pci_grabber('pciconf');
+	my @data = pci_grabber('pciconf');
 	foreach (@data){
 		if ($driver){
 			if ($_ =~ /^~$/) {
@@ -22496,7 +22525,7 @@ sub pciconf_data {
 
 sub pcidump_data {
 	eval $start if $b_log;
-	@data = pci_grabber('pcidump');
+	my @data = pci_grabber('pcidump');
 	foreach (@data){
 		if ($_ =~ /^~$/ && $busid && $device) {
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
@@ -22524,6 +22553,48 @@ sub pcidump_data {
 	main::log_data('dump','pcidump @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
+sub pcictl_data {
+	eval $start if $b_log;
+	my @data = pci_grabber('pcictl');
+	my @data2 = pci_grabber('pcictl-n');
+	foreach (@data){
+		if ($_ =~ /^~$/ && $busid && $device) {
+			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
+			$rev,$port,$driver,$modules,$driver_nu);
+			assign_data('pci',\@temp);
+			($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
+			$rev,$port,$driver,$modules,$driver_nu) = undef;
+			next;
+		}
+		# it's too fragile to get these in one matching so match, trim, next match
+		if (/\s+\[([^\]0-9]+)([0-9]+)\]$/){
+			$driver = $1;
+			$driver_nu = $2;
+			$_ =~ s/\s+\[[^\]]+\]$//;
+		}
+		if (/\s+\(.*?(revision 0x([^\)]+))?\)/){
+			$rev = $2 if $2;
+			$_ =~ s/\s+\([^\)]+?\)$//;
+		}
+		if ($_ =~ /^([0-9a-f:]+):([0-9]+):\s+([^.]+?)$/i){
+			$busid = $1;
+			$busid_nu = $2;
+			$device = main::cleaner($3);
+			my $working = (grep {/^${busid}:${busid_nu}:\s/} @data2)[0];
+			if ($working && 
+			 $working =~ /^${busid}:${busid_nu}:\s+0x([0-9a-f]{4})([0-9a-f]{4})\s+\(0x([0-9a-f]{2})([0-9a-f]{2})[0-9a-f]+\)/){
+				$vendor_id = $1;
+				$chip_id = $2;
+				$type = pci_class($3);
+				$type_id = "$3$4";
+			}
+		}
+	}
+	print Data::Dumper::Dumper \@devices if $test[4];
+	main::log_data('dump','pcidump @devices',\@devices) if $b_log;
+	eval $end if $b_log;
+}
+
 sub pci_grabber {
 	eval $start if $b_log;
 	my ($program) = @_;
@@ -22543,12 +22614,25 @@ sub pci_grabber {
 		$path = $alerts{'pcidump'}->{'path'};
 		$pattern = '^[0-9a-f]+:';
 	}
-	@data = main::grabber("$path $args 2>/dev/null",'','strip');
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
-	#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
-	#my $file = "$ENV{HOME}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
-	#my $file = "$ENV{HOME}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
-	#@data = main::reader($file,'strip');
+	elsif ($program eq 'pcictl'){
+		$args = ' pci0 list -N';
+		$path = $alerts{'pcictl'}->{'path'};
+		$pattern = '^[0-9a-f:]+:';
+	}
+	elsif ($program eq 'pcictl-n'){
+		$args = ' pci0 list -n';
+		$path = $alerts{'pcictl'}->{'path'};
+		$pattern = '^[0-9a-f:]+:';
+	}
+	my @data = main::grabber("$path $args 2>/dev/null",'','strip');
+	if ($fake{'pciconf'} || $fake{'pcictl'} || $fake{'pcidump'}){
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
+		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcictl/pci-netbsd-9.1-vm.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
+		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
+		@data = main::reader($file,'strip');
+	}
 	if (@data){
 		$b_pci_tool = 1 if scalar @data > 10;
 		foreach (@data){
@@ -22559,7 +22643,7 @@ sub pci_grabber {
 		}
 		push(@working, '~');
 	}
-	#print Data::Dumper::Dumper \@working;
+	print Data::Dumper::Dumper \@working if $test[30];
 	eval $end if $b_log;
 	return @working;
 }
