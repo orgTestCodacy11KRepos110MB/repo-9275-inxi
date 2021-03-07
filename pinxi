@@ -21868,8 +21868,6 @@ sub process_status {
 	my ($cmd,$status,@data);
 	my ($result,$value) = ('','');
 	my %translate = ('ok' => 'running',);
-	# systemctl returns stdout if exists, all others to stderr if 
-	# not exist or not loaded.
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key} status $service";
 	}
@@ -21901,14 +21899,15 @@ sub process_status {
 	}
 	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
 	#@data = ('bluetooth is running.');
-	#print "key: $key\n", Data::Dumper::Dumper \@data if $test[29];
+	print "key: $key\n", Data::Dumper::Dumper \@data if $test[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
 		my @working = split(/\s*:\s*/,$row);
 		($value) = ('');
 		# print "$working[0]::$working[1]\n";
 		if ($working[0] eq 'Loaded'){
-			$working[1] =~ /^(.+?)\s*\(.*?$service\.service;\s+(\S+?);.*/;
+			# note: sshd shows ssh for ssh.service
+			$working[1] =~ /^(.+?)\s*\(.*?\.service;\s+(\S+?);.*/;
 			$result = $1 if $1;
 			$result = $2 if $2; # this will be enabled/disabled
 		}
@@ -21934,6 +21933,9 @@ sub process_status {
 			$result = 'not found';
 		}
 		elsif ($row =~ /unknown directive|Usage/){
+			$result = 'N/A';
+		}
+		else {
 			$result = 'N/A';
 		}
 	}
@@ -21972,7 +21974,7 @@ sub set {
 }
 # $test[29] = 1;
 # set_path();
-# print ServiceData::get('status','sshd'),"\n";
+# print ServiceData::get('status','bluetooth'),"\n";
 
 sub get_shell_data {
 	eval $start if $b_log;
