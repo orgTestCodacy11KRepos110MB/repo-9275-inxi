@@ -21865,7 +21865,7 @@ sub get {
 }
 sub process_status {
 	eval $start if $b_log;
-	my ($cmd,@data);
+	my ($cmd,$status,@data);
 	my ($result,$value) = ('','');
 	my %translate = ('ok' => 'running',);
 	# systemctl returns stdout if exists, all others to stderr if 
@@ -21873,17 +21873,18 @@ sub process_status {
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key} status $service";
 	}
-	# can be /etc/init.d or /etc/rc.d
+	# can be /etc/init.d or /etc/rc.d; ghostbsd/gentoo have this
 	elsif ($key eq 'rc-service'){
 		$cmd = "$service_tool{$key} $service status";
 	}
+	# dragonfly/netbsd have this
 	elsif ($key eq 'service'){
 		$cmd = "$service_tool{$key} $service status";
 	}
-	# check or status or onestatus (netbsd), but status
-	# may not be supported at all.
+	# check or status or onestatus (netbsd)
 	elsif ($key eq 'rc.d'){
 		if (-e "$service_tool{$key}$service"){
+			$status =  ($bsd_type && $bsd_type =~ /(dragonfly)/) ? 'status' : 'check';
 			$cmd = "$service_tool{$key}$service check";
 		}
 		else {
@@ -21933,6 +21934,9 @@ sub process_status {
 		elsif ($working[0] =~ /\b$service\b[a-z\s]+?(not (exist|found)|unrecognized)/){
 			$result = 'not found';
 		}
+		elsif ($working[0] =~ /\bunknown directive/){
+			$result = 'N/A';
+		}
 	}
 	print "service result: $result\n" if $test[29];
 	main::log_data('data',"result: $result") if $b_log;
@@ -21953,7 +21957,7 @@ sub set {
 		%service_tool = ('rc-service' => $path);
 	}
 	elsif ($path = main::check_program('service')){
-		# service ssh status
+		# service sshd status
 		%service_tool = ('service' => $path);
 	}
 	# freebsd does not have 'check', netbsd does not have status
@@ -21969,6 +21973,7 @@ sub set {
 }
 }
 # $test[29] = 1;
+# set_path();
 # print ServiceData::get('status','bluetooth'),"\n";
 
 sub get_shell_data {
