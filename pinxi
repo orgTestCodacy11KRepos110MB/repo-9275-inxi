@@ -21867,6 +21867,7 @@ sub process_status {
 	eval $start if $b_log;
 	my ($cmd,@data);
 	my ($result,$value) = ('','');
+	my %translate = ('ok' => 'running',);
 	# systemctl returns stdout if exists, all others to stderr if 
 	# not exist or not loaded.
 	if ($key eq 'systemctl'){
@@ -21886,7 +21887,7 @@ sub process_status {
 			$cmd = "$service_tool{$key}$service check";
 		}
 		else {
-			$result = 'not present';
+			$result = 'not found';
 		}
 	}
 	elsif ($key eq 'init.d'){
@@ -21894,41 +21895,43 @@ sub process_status {
 			$cmd = "$service_tool{$key}$service status";
 		}
 		else {
-			$result = 'not present';
+			$result = 'not found';
 		}
 	}
 	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
-	print Data::Dumper::Dumper \@data if $test[29];
+	#@data = ('bluetooth is running.');
+	print "key: $key\n", Data::Dumper::Dumper \@data if $test[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
 		my @working = split(/\s*:\s*/,$row);
 		($value) = ('');
-		if (scalar @working > 1){
-			# print "$working[0]::$working[1]\n";
-			if ($working[0] eq 'Loaded'){
-				$working[1] =~ /^(.+?)\s*\(.*?$service\.service;\s+(\S+?);.*/;
-				$result = $1 if $1;
-				$result = $2 if $2; # this will be enabled/disabled
-			}
-			elsif ($working[0] eq 'Active'){
-				$working[1] =~ /^(.+?)\s*\((\S+?)\).*/;
-				$value = $1 if $1 && (!$result || $result ne 'disabled');
-				# $value = $2 if $2; # this will be dead/running
-				$result .= ", $value" if ($result && $value);
-			}
-			elsif ($working[0] eq '* status'){
-				$result = $working[1];
-			}
+		# print "$working[0]::$working[1]\n";
+		if ($working[0] eq 'Loaded'){
+			$working[1] =~ /^(.+?)\s*\(.*?$service\.service;\s+(\S+?);.*/;
+			$result = $1 if $1;
+			$result = $2 if $2; # this will be enabled/disabled
 		}
-		else {
-			# service <service> status on stopped service goes to stderr at least
-			# in some cases. So really we only need to test for the success versions
-			if ($working[0] =~ /\b$service is (.*?)(\s+as\s.*|\s+\.\.\..*)?\.?/){
-				$result = $1;
-			}
-			elsif ($working[0] =~ /\b$service\b.*?(not (exist|found)|unrecognized)/){
-				$result = 'not present';
-			}
+		elsif ($working[0] eq 'Active'){
+			$working[1] =~ /^(.+?)\s*\((\S+?)\).*/;
+			$value = $1 if $1 && (!$result || $result ne 'disabled');
+			# $value = $2 if $2; # this will be dead/running
+			$result .= ", $value" if ($result && $value);
+		}
+		elsif ($working[0] eq '* status'){
+			$result = $working[1];
+		}
+		# service <service> status on stopped service goes to stderr at least
+		# in some cases. So really we only need to test for the success versions
+		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?$/){
+			$result = $1;
+			$result =~ s/\.$//;
+		}
+		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
+			$result = $1;
+			$result = $translate{$result} if $translate{$result};
+		}
+		elsif ($working[0] =~ /\b$service\b[a-z\s]+?(not (exist|found)|unrecognized)/){
+			$result = 'not found';
 		}
 	}
 	print "service result: $result\n" if $test[29];
@@ -21965,6 +21968,7 @@ sub set {
 	eval $end if $b_log;
 }
 }
+# $test[29] = 1;
 # print ServiceData::get('status','bluetooth'),"\n";
 
 sub get_shell_data {
