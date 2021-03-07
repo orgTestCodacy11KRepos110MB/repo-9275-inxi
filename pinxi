@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-05';
-my $self_patch='95';
+my $self_date='2021-03-07';
+my $self_patch='96';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -7253,7 +7253,9 @@ sub upower_data {
 ## BluetoothData 
 {
 package BluetoothData;
-my ($b_bluetooth,$b_hci_error,$b_hci,%hci);
+my ($b_bluetooth,$b_hci_error,$b_hci,$b_service);
+my ($service);
+my (%hci);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -7409,12 +7411,9 @@ sub advanced_output {
 		($k,$l,$m) = (1,2,3);
 	}
 	if (@temp && %hci){
-		my ($b_service,$service);
 		if ($hci{'alert'}){
+			check_service(); # sets $service
 			$j = scalar @rows;
-			# returns good value or N/A so will always be not null
-			$service = main::ServiceData::get('status','bluetooth');
-			$b_service = 1;
 			$rows[$j]->{main::key($num++,1,$k,'Report')} = '';
 			$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
 			$rows[$j]->{main::key($num++,0,$l,'note')} = $hci{'alert'};
@@ -7431,10 +7430,7 @@ sub advanced_output {
 				$rows[$j]->{main::key($num++,0,$l,'state')} = $hci{$item}->{'state'};
 				# this only appears for hciconfig, bt-adapter does not run without bt service
 				if (!$b_bluetooth || $hci{$item}->{'state'} eq 'down'){
-					if (!$b_service){
-						$service = main::ServiceData::get('status','bluetooth');
-						$b_service = 1;
-					}
+					check_service(); # sets $service
 					$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
 				}
 				$rows[$j]->{main::key($num++,0,$l,'address')} = main::apply_filter($hci{$item}->{'address'});
@@ -7610,6 +7606,15 @@ sub hciconfig_data {
 	}
 	print Data::Dumper::Dumper \%hci if $test[27];
 	main::log_data('dump','%hci', \%hci) if $b_log;
+	eval $end if $b_log;
+}
+sub check_service {
+	eval $start if $b_log;
+	if (!$b_service){
+		$service = ServiceData::get('status','bluetooth');
+		$service ||= 'N/A';
+		$b_service = 1;
+	}
 	eval $end if $b_log;
 }
 sub bluetooth_version {
@@ -21919,23 +21924,27 @@ sub process_status {
 		}
 		elsif ($working[0] eq '* status'){
 			$result = $working[1];
+			last;
 		}
 		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?s$/){
 			$result = $1;
+			last;
 		}
 		# sshd(ok)
 		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
 			$result = $1;
 			$result = $translate{$result} if $translate{$result};
+			last;
 		}
 		elsif ($working[0] =~ /\b$service.*?(not (exist|(be )?found)|unrecognized)/){
 			$result = 'not found';
+			last;
 		}
+		# means command just failed
 		elsif ($row =~ /unknown directive|Usage/){
-			$result = 'N/A';
+			last;
 		}
 	}
-	$result ||= 'N/A';
 	print "service result: $result\n" if $test[29];
 	main::log_data('data',"result: $result") if $b_log;
 	eval $end if $b_log;
