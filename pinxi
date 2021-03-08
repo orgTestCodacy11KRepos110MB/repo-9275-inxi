@@ -18888,8 +18888,8 @@ sub usb_output {
 	my ($b_hub,$bus_id,$chip_id,$driver,$ind_sc,$path_id,$ports,$product,$serial,$speed,$type);
 	my $num = 0;
 	my $j = 0;
-	# note: the data has been presorted in set_lsusb_data by:
-	# bus id then device id, so we don't need to worry about the order
+	# note: the data has been presorted in USBData:
+	# bus alpah id, so we don't need to worry about the order
 	foreach my $id (@usb){
 		$j = scalar @rows;
 		($b_hub,$ind_sc,$num) = (0,3,1);
@@ -22741,13 +22741,15 @@ sub soc_devices_files {
 	main::uniq(\@files);
 	eval $end if $b_log;
 }
+
 sub soc_devices {
 	eval $start if $b_log;
 	my (@bluetooth,@working);
 	# special case of pi bt on ttyAMA0
-	@bluetooth = main::globber('/sys/class/devices/bluetooth/*') if -e '/sys/class/bluetooth';
+	@bluetooth = main::globber('/sys/class/bluetooth/*') if -e '/sys/class/bluetooth';
+	@bluetooth = map {$_ = Cwd::abs_path($_);$_} @bluetooth if @bluetooth;
 	@bluetooth = grep {!/usb/} @bluetooth if @bluetooth; # we only want non usb bt
-	@bluetooth = map {$_ = readlink($_);$_;} @bluetooth if @bluetooth;
+	main::log_data('dump','soc bt: @bluetooth', \@bluetooth) if $b_log;
 	foreach $file (@files){
 		next if -z $file;
 		$chip_id = $file;
@@ -22782,12 +22784,12 @@ sub soc_devices {
 		}
 		# it's worthless, we can't use it
 		next if ! defined $type;
+		$type_id = $type;
 		if (@bluetooth && $type eq 'serial'){
 			my $file_temp = $file;
 			$file_temp =~ s/uevent$//;
 			$type = 'bluetooth' if grep {/$file_temp/} @bluetooth;
 		}
-		$type_id = $type;
 		$chip_id = '' if ! defined $chip_id;
 		$vendor_id = '' if ! defined $vendor_id;
 		$driver = '' if ! defined $driver;
