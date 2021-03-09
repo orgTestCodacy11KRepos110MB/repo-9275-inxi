@@ -5252,7 +5252,7 @@ sub show_options {
 	['2', '-G', '', "Serial number, class ID." ],
 	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
-	adds wakeups: (from suspend) to Uptime." ],
+	adds wakeups: (from suspend) to Uptime; adds init service tool." ],
 	['2', '-J', '', "If present: Devices: serial number, interface count; USB speed; max power." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
@@ -21889,8 +21889,13 @@ sub get {
 	my $value;
 	set() if !$b_service_tool;
 	$key = (keys %service_tool)[0] if %service_tool;
-	if ($key && $type eq 'status'){
-		$value = process_status();
+	if ($key){
+		if ($type eq 'status'){
+			$value = process_status();
+		}
+		elsif ($type eq 'tool'){
+			$value = $service_tool{$key}->[1];
+		}
 	}
 	eval $end if $b_log;
 	return $value;
@@ -21901,29 +21906,29 @@ sub process_status {
 	my ($result,$value) = ('','');
 	my %translate = ('ok' => 'running',);
 	if ($key eq 'systemctl'){
-		$cmd = "$service_tool{$key} status $service";
+		$cmd = "$service_tool{$key}->[0] status $service";
 	}
 	# can be /etc/init.d or /etc/rc.d; ghostbsd/gentoo have this
 	elsif ($key eq 'rc-service'){
-		$cmd = "$service_tool{$key} $service status";
+		$cmd = "$service_tool{$key}->[0] $service status";
 	}
 	# dragonfly/netbsd/freebsd have this
 	elsif ($key eq 'service'){
-		$cmd = "$service_tool{$key} $service status";
+		$cmd = "$service_tool{$key}->[0] $service status";
 	}
 	# check or status or onestatus (netbsd)
 	elsif ($key eq 'rc.d'){
-		if (-e "$service_tool{$key}$service"){
+		if (-e "$service_tool{$key}->[0]$service"){
 			$status =  ($bsd_type && $bsd_type =~ /(dragonfly)/) ? 'status' : 'check';
-			$cmd = "$service_tool{$key}$service check";
+			$cmd = "$service_tool{$key}->[0]$service check";
 		}
 		else {
 			$result = 'not found';
 		}
 	}
 	elsif ($key eq 'init.d'){
-		if (-e "$service_tool{$key}$service"){
-			$cmd = "$service_tool{$key}$service status";
+		if (-e "$service_tool{$key}->[0]$service"){
+			$cmd = "$service_tool{$key}->[0]$service status";
 		}
 		else {
 			$result = 'not found';
@@ -21984,24 +21989,24 @@ sub set {
 	my ($path);
 	if ($path = main::check_program('systemctl')){
 		# systemctl status ssh :: Loaded: / Active: 
-		%service_tool = ('systemctl' => $path);
+		%service_tool = ('systemctl' => [$path,'systemctl']);
 	}
 	elsif ($path = main::check_program('rc-service')){
 		# rc-service ssh status ::  * status: stopped
-		%service_tool = ('rc-service' => $path);
+		%service_tool = ('rc-service' => [$path,'rc-service']);
 	}
 	elsif ($path = main::check_program('service')){
 		# service sshd status
-		%service_tool = ('service' => $path);
+		%service_tool = ('service' => [$path,'service']);
 	}
 	# freebsd does not have 'check', netbsd does not have status
 	elsif (-d '/etc/rc.d/'){
 		# /etc/rc.d/ssh check :: ssh(ok|failed)
-		%service_tool = ('rc.d' => '/etc/rc.d/'); 
+		%service_tool = ('rc.d' => ['/etc/rc.d/','/etc/rc.d/']); 
 	}
 	elsif (-d '/etc/init.d/'){
 		# /etc/init.d/ssh status :: Loaded: loaded (...)/ Active: active (...)
-		%service_tool = ('init.d' => '/etc/init.d/');
+		%service_tool = ('init.d' => ['/etc/init.d/','/etc/init.d/']);
 	}
 	eval $end if $b_log;
 }
@@ -24713,6 +24718,9 @@ sub generate_info_data {
 			if ($init{'default'}){
 				my $default = ($init{'init-type'} eq 'systemd' && $init{'default'} =~ /[^0-9]$/ ) ? 'target' : 'default';
 				$data{$data_name}->[$index]{main::key($num++,0,2,$default)} = $init{'default'};
+			}
+			if ($extra > 2 && (my $tool = ServiceData::get('tool',''))){
+				$data{$data_name}->[$index]{main::key($num++,0,2,'tool')} = $tool;
 			}
 		}
 	}
