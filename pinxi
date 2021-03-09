@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-08';
-my $self_patch='97';
+my $self_patch='98';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -89,9 +89,9 @@ $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_doas,$b_no_html_wan,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_service_tool,$b_skip_dig,
-$b_slot_tool,$b_soc_audio,$b_soc_bluetooth,$b_soc_gfx,$b_soc_net,$b_soc_timer,$b_sparc,
-$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,$b_usb_tool,
-$b_wmctrl);
+$b_slot_tool,$b_soc_audio,$b_soc_bluetooth,$b_soc_gfx,$b_soc_hwraid,$b_soc_net,
+$b_soc_timer,$b_sparc,$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,
+$b_usb_tool,$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid,$b_smartctl);
@@ -5516,13 +5516,13 @@ sub get_client_name {
 		#print "$client{'name-print'}\n";
 	}
 	else {
-		if (! check_modern_konvi() ){
+		if (!check_modern_konvi()){
 			$ppid = getppid();
 			$client_name = (main::grabber("ps -wwp $ppid"))[1];
 			if ($client_name){
-				my @data = split(/\s+/, $client_name) if $client_name;
+				my @data = split(/\s+/, $client_name);
 				if ($bsd_type){
-					$client_name = lc($data[5]);
+					$client_name = lc($data[4]);
 				}
 				# gnu/linux uses last value
 				else {
@@ -6626,14 +6626,14 @@ sub device_output {
 		$j = scalar @rows;
 		my $driver = $row->[9];
 		$driver ||= 'N/A';
-		my $card = $row->[4];
-		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
+		my $device = $row->[4];
+		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($card) > 85 || $size{'max'} < 110){
-			$card = main::pci_long_filter($card);
+		if (length($device) > 85 || $size{'max'} < 110){
+			$device = main::pci_long_filter($device);
 		}
 		push(@rows, {
-		main::key($num++,1,1,'Device') => $card,
+		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $b_pci_tool && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
@@ -6678,7 +6678,7 @@ sub asound_output {
 	eval $start if $b_log;
 	my ($file) = @_;
 	my (@asound,@rows);
-	my ($card,$driver,$j,$num) = ('','',0,1);
+	my ($device,$driver,$j,$num) = ('','',0,1);
 	@asound = main::reader($file);
 	foreach (@asound){
 		# filtering out modems and usb devices like webcams, this might get a
@@ -6688,13 +6688,13 @@ sub asound_output {
 			my @working = split(/:\s*/, $_);
 			# now let's get 1 2
 			$working[1] =~ /(.*)\s+-\s+(.*)/;
-			$card = $2;
+			$device = $2;
 			$driver = $1;
-			if ( $card ){
+			if ($device){
 				$j = scalar @rows;
 				$driver ||= 'N/A';
 				push(@rows, {
-				main::key($num++,1,1,'Device') => $card,
+				main::key($num++,1,1,'Device') => $device,
 				main::key($num++,1,2,'driver') => $driver,
 				},);
 				if ($extra > 0){
@@ -7263,6 +7263,7 @@ sub get {
 	my (@rows);
 	my $num = 0;
 	$b_bluetooth = 1 if @ps_cmd && (grep {m|/bluetoothd\b|} @ps_cmd);
+	# note: rapi 4 has pci bus
 	if (($b_arm || $b_mips) && !$b_soc_bluetooth && !$b_pci_tool){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
@@ -7294,20 +7295,21 @@ sub get {
 
 sub device_output {
 	eval $start if $b_log;
-	my (@rows);
+	my ($bus_id,@rows);
 	my ($j,$num) = (0,1);
 	foreach my $row (@devices_bluetooth){
 		$num = 1;
+		$bus_id = '';
 		$j = scalar @rows;
 		my $driver = ($row->[9]) ? $row->[9] : 'N/A';
-		my $card = $row->[4];
-		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
+		my $device = $row->[4];
+		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($card) > 85 || $size{'max'} < 110){
-			$card = main::pci_long_filter($card);
+		if (length($device) > 85 || $size{'max'} < 110){
+			$device = main::pci_long_filter($device);
 		}
 		push(@rows, {
-		main::key($num++,1,1,'Device') => $card,
+		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $b_pci_tool && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
@@ -7338,7 +7340,16 @@ sub device_output {
 				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
 			}
 		}
-		push(@rows,advanced_output('pci',"$row->[2].$row->[3]")) if defined $row->[2] && defined $row->[3];
+		# weird serial rpi bt
+		if ($b_soc_bluetooth){
+			# /sys/devices/platform/soc/fe201000.serial/
+			$bus_id = "$row->[6].$row->[1]" if defined $row->[1] && defined $row->[6];
+		}
+		else {
+			# only theoretical, never seen one
+			$bus_id = "$row->[2].$row->[3]" if defined $row->[2] && defined $row->[3];
+		}
+		push(@rows,advanced_output('pci',$bus_id)) if $bus_id;
 		#print "$row->[0]\n";
 	}
 	eval $end if $b_log;
@@ -7389,7 +7400,7 @@ sub usb_output {
 sub advanced_output {
 	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
-	my ($path,@rows,@temp);
+	my (@rows,@temp);
 	my ($j,$num,$k,$l,$m,$id,$id2) = (0,1,2,3,4,'','');
 	if (!$b_hci && $alerts{'hciconfig'}->{'action'} eq 'use'){
 		hciconfig_data();
@@ -7397,15 +7408,14 @@ sub advanced_output {
 	elsif (!$b_hci && $alerts{'bt-adapter'}->{'action'} eq 'use'){
 		bt_tool_data();
 	}
-	if ($type eq 'usb'){
-		$path = "/sys/bus/usb/devices/$bus_id:*/bluetooth";
-	}
-	elsif ($type eq 'pci') {
-		$path = "/sys/bus/pci/devices/0000:$bus_id/bluetooth";
-	}
+	#print "bid: $bus_id\n";
 	if ($type ne 'check'){
-		@temp = main::globber("$path/*") if $path;
+		@temp = main::globber('/sys/class/bluetooth/*');
+		@temp = map {$_ = Cwd::abs_path($_);$_} @temp if @temp;
+		#print Data::Dumper::Dumper \@temp;
+		@temp = grep {/$bus_id/} @temp if @temp;
 		@temp = map {$_ =~ s|^/.*/||;$_;} @temp if @temp;
+		#print Data::Dumper::Dumper \@temp;
 	}
 	elsif ($type eq 'check' && %hci){
 		@temp = keys %hci;
@@ -11293,14 +11303,14 @@ sub device_output {
 		$j = scalar @rows;
 		$driver = $row->[9];
 		$driver ||= 'N/A';
-		my $card = main::trimmer($row->[4]);
-		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
+		my $device = main::trimmer($row->[4]);
+		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($card) > 85 || $size{'max'} < 110){
-			$card = main::pci_long_filter($card);
+		if (length($device) > 85 || $size{'max'} < 110){
+			$device = main::pci_long_filter($device);
 		}
 		push(@rows, {
-		main::key($num++,1,1,'Device') => $card,
+		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $b_pci_tool && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
@@ -13331,12 +13341,12 @@ sub device_output {
 		}
 		# first check if it's a known wifi id'ed card, if so, no print of duplex/speed
 		$b_wifi = check_wifi($row->[4]);
-		my $card = $row->[4];
-		$card = ($card) ? main::pci_cleaner($card,'output') : 'N/A';
-		#$card ||= 'N/A';
+		my $device = $row->[4];
+		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
+		#$device ||= 'N/A';
 		$driver ||= 'N/A';
 		push(@rows, {
-		main::key($num++,1,1,'Device') => $card,
+		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $b_pci_tool && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
@@ -20505,7 +20515,7 @@ sub get_linux_distro {
 		}
 		# note: wrong fix, applies to both raspbian and raspberry pi os
 		# assumption here is that r pi os fixes this before stable release
-		elsif ($lc_issue !~ /^debian/ && -e '/etc/apt/sources.list.d/raspi.list' && 
+		elsif ($lc_issue =~ /^debian/ && -e '/etc/apt/sources.list.d/raspi.list' && 
 		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
 			$distro_id = 'raspios' ;
 		}
@@ -20712,6 +20722,10 @@ sub android_info {
 sub system_base_bsd {
 	eval $start if $b_log;
 	# ghostbsd is handled in main bsd section
+	if (lc($uname[1]) eq 'nomadbsd' && $distro =~ /^freebsd/i){
+		$system_base = $distro;
+		$distro = $uname[1];
+	}
 	eval $end if $b_log;
 }
 
@@ -22375,8 +22389,8 @@ sub set_build_prop {
 ## DeviceData / PCI / SOC
 {
 package DeviceData;
-my (@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
-
+my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
+my ($b_bt_check);
 my ($busid,$busid_nu,$chip_id,$content,$device,$driver,$driver_nu,$file,
 $handle,$modules,$port,$rev,$temp,$type,$type_id,$vendor,$vendor_id);
 
@@ -22409,6 +22423,7 @@ sub set {
 		}
 		if ($test[9]){
 			print Data::Dumper::Dumper \@devices_audio;
+			print Data::Dumper::Dumper \@devices_bluetooth;
 			print Data::Dumper::Dumper \@devices_graphics;
 			print Data::Dumper::Dumper \@devices_network;
 			print Data::Dumper::Dumper \@devices_hwraid;
@@ -22417,6 +22432,7 @@ sub set {
 		}
 		if ( $b_log){
 			main::log_data('dump','@devices_audio',\@devices_audio);
+			main::log_data('dump','@devices_bluetooth',\@devices_bluetooth);
 			main::log_data('dump','@devices_graphics',\@devices_graphics);
 			main::log_data('dump','@devices_hwraid',\@devices_hwraid);
 			main::log_data('dump','@devices_network',\@devices_network);
@@ -22744,12 +22760,8 @@ sub soc_devices_files {
 
 sub soc_devices {
 	eval $start if $b_log;
-	my (@bluetooth,@working);
-	# special case of pi bt on ttyAMA0
-	@bluetooth = main::globber('/sys/class/bluetooth/*') if -e '/sys/class/bluetooth';
-	@bluetooth = map {$_ = Cwd::abs_path($_);$_} @bluetooth if @bluetooth;
-	@bluetooth = grep {!/usb/} @bluetooth if @bluetooth; # we only want non usb bt
-	main::log_data('dump','soc bt: @bluetooth', \@bluetooth) if $b_log;
+	my (@working);
+	set_bluetooth() if !$b_bt_check;
 	foreach $file (@files){
 		next if -z $file;
 		$chip_id = $file;
@@ -22800,6 +22812,7 @@ sub soc_devices {
 		@temp3 = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,$rev,
 		$port,$driver,$modules,'','','',$handle);
 		assign_data('soc',\@temp3);
+		main::log_data('dump','soc devices: @devices @temp3',\@temp3) if $b_log;
 	}
 	eval $end if $b_log;
 }
@@ -22809,6 +22822,7 @@ sub soc_devicetree {
 	if (-d '/sys/firmware/devicetree/base/soc'){
 		@files = main::globber('/sys/firmware/devicetree/base/soc/*/compatible');
 		my $test = (@full_names) ? join('|', sort @full_names) : 'xxxxxx';
+		set_bluetooth() if !$b_bt_check;
 		foreach $file (@files){
 			if ( $file !~ m%$test%){
 				($handle,$content,$device,$type,$type_id,$vendor_id) = ('','','','','','');
@@ -22818,6 +22832,11 @@ sub soc_devicetree {
 				next if !$type || !$content;
 				$handle = $2 if $2;
 				$type_id = $type;
+				if (@bluetooth && $type eq 'serial'){
+					my $file_temp = $file;
+					$file_temp =~ s/uevent$//;
+					$type = 'bluetooth' if grep {/$file_temp/} @bluetooth;
+				}
 				if ($content){
 					@temp3 = split(',', $content);
 					$vendor_id = $temp3[0];
@@ -22828,11 +22847,19 @@ sub soc_devicetree {
 				$type = soc_type($type,$vendor_id,'');
 				@temp3 = ($type,$type_id,0,0,$device,$vendor_id,'soc','','','','','','','',$handle);
 				assign_data('soc',\@temp3);
-				main::log_data('dump','@devices @temp3',\@temp3) if $b_log;
+				main::log_data('dump','devicetree: @devices @temp3',\@temp3) if $b_log;
 			}
 		}
 	}
 	eval $end if $b_log;
+}
+sub set_bluetooth {
+	# special case of pi bt on ttyAMA0
+	$b_bt_check = 1;
+	@bluetooth = main::globber('/sys/class/bluetooth/*') if -e '/sys/class/bluetooth';
+	@bluetooth = map {$_ = Cwd::abs_path($_);$_} @bluetooth if @bluetooth;
+	@bluetooth = grep {!/usb/} @bluetooth if @bluetooth; # we only want non usb bt
+	main::log_data('dump','soc bt: @bluetooth', \@bluetooth) if $b_log;
 }
 sub assign_data {
 	my ($tool,$data) = @_;
@@ -22851,7 +22878,7 @@ sub assign_data {
 	}
 	elsif (check_hwraid($data->[0],$data->[1])){
 		push(@devices_hwraid,[@$data]);
-		$b_soc_net = 1 if $tool eq 'soc';
+		$b_soc_hwraid = 1 if $tool eq 'soc';
 	}
 	elsif (check_network($data->[0],$data->[1])){
 		push(@devices_network,[@$data]);
@@ -22859,7 +22886,7 @@ sub assign_data {
 	}
 	elsif (check_timer($data->[0],$data->[1])){
 		push(@devices_timer,[@$data]);
-		$b_soc_timer = 1;
+		$b_soc_timer = 1 if $tool eq 'soc';
 	}
 	# not used at this point, -M comes before ANG
 	# $device_vm = check_vm($data[4]) if ( (!$b_ppc && !$b_mips) && !$device_vm );
@@ -22928,6 +22955,7 @@ sub soc_type {
 	 ($driver && $driver =~ /(audio|snd|sound)/i) ){
 		$type = 'audio';
 	}
+	# no need for bluetooth since that's only found in pi, handled above
 	elsif ($type =~ /^((meson-?)?fb|disp|display(-[^\s]+)?|gpu|.*mali|vpu)$/i){
 		$type = 'display';
 	}
