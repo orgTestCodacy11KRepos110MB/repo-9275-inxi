@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE:    inxi-data.txt
-VERSION: 1.5
-DATE:    2018-09-04
+VERSION: 1.6
+DATE:    2021-03-09
 
 ----------------------------------------
 Docs:
@@ -26,6 +26,14 @@ distributed data.
 
 Sections:
 1. CORE DATA
+  COMPOSITOR DATA
+  CPU DATA
+  DESKTOP / WM DATA
+  LOGICAL DATA
+  SERVICE DATA
+2. SECONDARY DATA
+  DISTRO DATA
+  LIVE CD LOGINS
 2. DATA ANALYSIS
 
 ================================================================================
@@ -33,7 +41,135 @@ CORE DATA
 --------------------------------------------------------------------------------
 
 ========================================
-CPU
+COMPOSITOR DATA
+----------------------------------------
+
+qdbus org.kde.KWin /Compositor org.kde.kwin.Compositing.active
+Gives you true or false depending on whether it is currently enabled or not
+
+https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
+To track compositor you'll need to check if selection is _NET_WM_CM_S0 
+is owned by anyone (assuming you are on screen 0) using XGetSelectionOwner
+Check if xprop -root has this data in it
+
+https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
+
+----------------------------------------
+Wayland compositors:
+Enlightenment Gala KWin Mutter Muffin Budgie-wm Weston
+
+----------------------------------------
+Add if -Gxx:
+
+NOTE: mutter is metacity + clutter
+
+----------------------------------------
+
+compositing wm:
+
+budgie-wm 3dwm compiz enlightenment kwin_wayland kwin_x11 kwin marco muffin mutter 
+xfwm4 xfwm5 metisse mir
+
+----------------------------------------
+
+compositors:
+clayland compiz compton dwc dcompmgr grefson ireplace kmscon lipstick 
+metisse mir moblin rustland sway swc unagi wayhouse westford 
+westeros weston xcompmgr
+
+not handled: 
+steamcompmgr 
+
+----------------------------------------
+
+NOTE: These are the current wm, listed is available data per for
+getting version info. 
+
+https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
+
+unknown: means not tested or verified yet. All unknown default to 0,0 version
+
+unsupported: means has values 0,0 which means no version test runs. 
+
+supported: means has known version data generator values.
+
+## these are either wayland or x11/wayland wm/compositors
+## budgie-wm, gnome-shell, kwin_x11, marco, muffin, mutter 
+## can be compositing/non compositing wm
+3dwm - unknown - wm
+asc - unknown
+budgie-wm - unknown - wm
+# owned by: compiz-core in debian
+compiz - supported - wm
+compton - supported
+dwc - unknown
+# as of version 20 is wayland compositor
+enlightenment - wm - note, uses a different method for version, from xprop, so can't be used
+fireplace - unknown - wm
+gnome-shell - supported - wm - very slow --version execution, only show if not in System:
+grefson - unknown
+kmscon - unknown
+kwin_wayland - unknown - wm
+kwin_x11 - version not used - wm
+liri - unknown # Uncertain if this is the name of the liri projectc compositor now
+marco - supported - wm
+metisse - unknown - wm
+mir - unknown - wm
+moblin - unknown
+motorcar - unknown
+muffin - supported - wm
+mutter - supports --version, but no example seen - wm
+orbital - unknown
+papyros - unknown # merged into liri, along with hawaii
+perceptia - unknown - wm
+rustland - unknown
+sway - unknown
+swc - unknown
+unagi - unknown
+wavy - unknown
+way-cooler - unknown
+wayhouse - unknown
+westford - unknown
+weston - supports --version, but no example seen
+xcompmgr - unknown
+
+## x11 common wm/compositors that have optional compositing and are not 
+## shown in Compositor: item.
+gala - unsupported - wm (deepin, --version works but not used, very slow)
+kwin - ambuity, not in compositor: version not used - wm
+metacity - ambuity, not in compositor: version not used - wm
+xfwm4 - ambuity, not in compositor: version not used - wm
+xfwm5 - ambuity, not in compositor: version not used - wm
+
+----------------------------------------
+COMPOSITOR ARRAY RULES
+----------------------------------------
+
+https://stackoverflow.com/questions/46578951/list-screen-resolutions-using-wayland-weston
+
+note these don't give me any such results, no idea why unless it's a wayland item?
+
+--------------------------
+The reply is so late but still can be useful to you or someone :)
+
+You can see all supported video adapters by using this command
+
+$ ls /sys/class/drm
+card0
+card0-VGA-1
+card1
+card1-DVI-I-1
+card1-HDMI-A-1
+card1-VGA-2
+
+You can get all supported resolutions by this command, use the adapter which you are using
+
+$ cat /sys/class/drm/card0-LVDS-1/modes 
+1366x768
+1366x768
+
+========================================
+CPU DATA
 ----------------------------------------
 
 ----------------------------------------
@@ -95,8 +231,11 @@ Hardware    : MSM8x25 U8951 BOARD
 Revision    : 0000
 Serial      : 0000000000000000
 
-
 ========================================
+DESKTOPS / WM DATA
+----------------------------------------
+
+----------------------------------------
 PS GUI
 ----------------------------------------
 
@@ -128,10 +267,81 @@ https://en.wikipedia.org/wiki/List_of_display_servers#Wayland
 arcan display server?
 
 ----------------------------------------
+DESKTOP ARRAY RULES
+----------------------------------------
+
+----------------------------------------
 PRIMARY ARRAY RULES
 ----------------------------------------
 
 Simplest detection to make a match:
+
+
+-S desktops (other ids):
+
+qw(razor-desktop razor-session lxsession lxqt-session tdelauncher tdeinit_phase1);
+
+Test: Deepin [no version]; Pantheon [no version];
+deepin may use /etc/deepin-version
+
+NOTE: Pixel for ARM is really just a wrapped LXDE, and there is no unique 
+identifier in current versions for detecting it.
+
+----------------------------------------
+
+-S desktops (window managers):
+
+qw(afterstep awesome blackbox dwm fluxbox flwm fvwm-crystal fvwm2 fvwm 
+i3 jwm matchbox-panel openbox sawfish scrotwm spectrwm 
+twm WindowMaker wm2 wmii2 wmii xmonad);
+
+----------------------------------------
+
+-Sxx wm:
+
+http://www.kevinboone.net/xdesktop_windowmanager.html
+http://www.gilesorr.com/wm/table.html
+
+qw(9wm afterstep amiwm awesome blackbox bspwm budgie-wm dwm fluxbox flwm fvwm-crystal fvwm2 fvwm 
+gala gnome-shell i3 jwm twin kwin_wayland kwin_x11 kwin matchbox-window-manager
+marco deepin-metacity metacity muffin mutter notion 
+openbox ratpoison sawfish scrotwm spectrwm twm windowlab WindowMaker wm2 wmii2 wmii xfwm4 xfwm5);
+
+Note: gala is pantheon wm; i3wm - same as i3/i3-wm
+Not handled yet: 
+2bwm 5dwm aewm cwm evilwm Ion monsterwm musca PlayWM 
+sithWM snapwm steamcompmgr StumpWM UWM Wingo WMFS WMFS2 wmutils
+
+test:  
+AmiWM [no version]
+
+----------------------------------------
+
+-Sxxx info:
+
+http://www.kevinboone.net/xdesktop_desktop.html
+# 2009, already many of these are not present
+http://penguininside.blogspot.com/2009/09/10-panel-dock-applications-for-your.html
+http://openbox.org/wiki/Help:Openbox-session
+https://urukrama.wordpress.com/openbox-guide/#Panelsetc
+
+qw(awn bar bmpanel bmpanel2 budgie-panel cairo-dock 
+dde-dock dmenu dockbarx docky dzen dzen2 fbpanel fspanel 
+gnome-panel hpanel i3bar kicker ltpanel lxpanel lxqt-panel 
+matchbox-panel mate-panel 
+perlpanel plank plasma-desktop plasma-netbook pypanel 
+razor-panel razorqt-panel tint2 
+wbar wharf witray wingpanel vala-panel xfce4-panel xfce5-panel 
+xmobar yabar)
+
+Maybe:
+lxsession (can be used with any wm)
+
+awn = Avant Window Navigator
+no package info yet: 'Avant Window Navigator' 'Gnome Do'
+bbdock Perl-Panel BMPanel BarPanel PyPanel 
+
+wharf=afterstep dock/bar
 
 ----------------------------------------
 DESKTOPS + WMs
@@ -174,8 +384,9 @@ NOTE: scrotwm switched names to spectrwm around 2015 or so.
 
 https://en.wikibooks.org/wiki/Guide_to_X11/Window_Managers
 https://www.gilesorr.com/wm/table.html
+
 ----------------------------------------
-WM commands
+WM COMMANDS
 ----------------------------------------
 
 sudo systemctl start lightdm.service
@@ -275,7 +486,6 @@ CM-Return: Spawn a new terminal.
 CM-w Spawn “exec WindowManager” menu, allowing a switch to another window manager.
 CMS-r Restart.
 CMS-q Quit.
-
 
 ----------------------------------------
 dwm: [no -v/--version]
@@ -411,7 +621,6 @@ right mouse click on desktop, root menu
 musca: [ -v version]
 https://linux.die.net/man/1/musca
 
-
 quit: exit musca
 ----------------------------------------
 
@@ -526,93 +735,11 @@ https://xmonad.org/tour.html
 ----------------------------------------
 yeahwm [evilwm, aewm fork]
 
-----------------------------------------
-DESKTOP ARRAY RULES
-----------------------------------------
-
--S desktops (other ids):
-
-qw(razor-desktop razor-session lxsession lxqt-session tdelauncher tdeinit_phase1);
-
-Test: Deepin [no version]; Pantheon [no version];
-deepin may use /etc/deepin-version
-
-NOTE: Pixel for ARM is really just a wrapped LXDE, and there is no unique 
-identifier in current versions for detecting it.
-
+========================================
+DISTRO DATA
 ----------------------------------------
 
--S desktops (window managers):
-
-qw(afterstep awesome blackbox dwm fluxbox flwm fvwm-crystal fvwm2 fvwm 
-i3 jwm matchbox-panel openbox sawfish scrotwm spectrwm 
-twm WindowMaker wm2 wmii2 wmii xmonad);
-
-----------------------------------------
-
--Sxx wm:
-
-http://www.kevinboone.net/xdesktop_windowmanager.html
-http://www.gilesorr.com/wm/table.html
-
-qw(9wm afterstep amiwm awesome blackbox bspwm budgie-wm dwm fluxbox flwm fvwm-crystal fvwm2 fvwm 
-gala gnome-shell i3 jwm twin kwin_wayland kwin_x11 kwin matchbox-window-manager
-marco deepin-metacity metacity muffin mutter notion 
-openbox ratpoison sawfish scrotwm spectrwm twm windowlab WindowMaker wm2 wmii2 wmii xfwm4 xfwm5);
-
-Note: gala is pantheon wm; i3wm - same as i3/i3-wm
-Not handled yet: 
-2bwm 5dwm aewm cwm evilwm Ion monsterwm musca PlayWM 
-sithWM snapwm steamcompmgr StumpWM UWM Wingo WMFS WMFS2 wmutils
-
-test:  
-AmiWM [no version]
-
-----------------------------------------
-
--Sxxx info:
-
-http://www.kevinboone.net/xdesktop_desktop.html
-# 2009, already many of these are not present
-http://penguininside.blogspot.com/2009/09/10-panel-dock-applications-for-your.html
-http://openbox.org/wiki/Help:Openbox-session
-https://urukrama.wordpress.com/openbox-guide/#Panelsetc
-
-qw(awn bar bmpanel bmpanel2 budgie-panel cairo-dock 
-dde-dock dmenu dockbarx docky dzen dzen2 fbpanel fspanel 
-gnome-panel hpanel i3bar kicker ltpanel lxpanel lxqt-panel 
-matchbox-panel mate-panel 
-perlpanel plank plasma-desktop plasma-netbook pypanel 
-razor-panel razorqt-panel tint2 
-wbar wharf witray wingpanel vala-panel xfce4-panel xfce5-panel 
-xmobar yabar)
-
-Maybe:
-lxsession (can be used with any wm)
-
-awn = Avant Window Navigator
-no package info yet: 'Avant Window Navigator' 'Gnome Do'
-bbdock Perl-Panel BMPanel BarPanel PyPanel 
-
-wharf=afterstep dock/bar
-
-----------------------------------------
-LOGICAL DATA
-----------------------------------------
-lvm_data()
-
-these were for pvs:
-
-	@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
-	lv_name lv_size lv_health_status lv_parent pv_count 
-	pv_count pv_name dev_size pv_size pv_free pv_used pv_major pv_minor
-	seg_size devices metadata_devices segtype stripes);
-
-----------------------------------------
-DISTRO ID
-----------------------------------------
-
-get_os_release()
+DistroData::get()
 
 NOTE: live cd TAILS which is a Debian based security live cd uses non 
 standard syntax in /etc/os-release
@@ -639,138 +766,221 @@ them correct the os-release syntax, not to correct it for them.
 For coming UBUNTU version:
 ubuntu-distro-info --devel --fullname
 
+========================================
+LOGICAL DATA
 ----------------------------------------
-COMPOSITOR ARRAY RULES
-----------------------------------------
+lvm_data()
 
-qdbus org.kde.KWin /Compositor org.kde.kwin.Compositing.active
-Gives you true or false depending on whether it is currently enabled or not
+these were for pvs:
 
-https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
-To track compositor you'll need to check if selection is _NET_WM_CM_S0 
-is owned by anyone (assuming you are on screen 0) using XGetSelectionOwner
-Check if xprop -root has this data in it
+@args = qw(vg_name vg_fmt vg_size vg_free vg_sysid lv_count
+lv_name lv_size lv_health_status lv_parent pv_count 
+pv_count pv_name dev_size pv_size pv_free pv_used pv_major pv_minor
+seg_size devices metadata_devices segtype stripes);
 
-https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
-
-----------------------------------------
-Wayland compositors:
-Enlightenment Gala KWin Mutter Muffin Budgie-wm Weston
-
-
-----------------------------------------
-Add if -Gxx:
-
-NOTE: mutter is metacity + clutter
-
+========================================
+SERVICE DATA
 ----------------------------------------
 
-compositing wm:
-
-budgie-wm 3dwm compiz enlightenment kwin_wayland kwin_x11 kwin marco muffin mutter 
-xfwm4 xfwm5 metisse mir
+Note: all use redirect of stderr to stdout to get errors, because most
+send to stderr when service not found or present in system.
 
 ----------------------------------------
+OpenRC: tool: rc-service
+----------------------------------------
 
-compositors:
-clayland compiz compton dwc dcompmgr grefson ireplace kmscon lipstick 
-metisse mir moblin rustland sway swc unagi wayhouse westford 
-westeros weston xcompmgr
+Could also use just /etc/rc.d/<service> <command> but mappings may  not 
+always be the same.
 
-not handled: 
-steamcompmgr 
+----------------------------------------
+BSD init: source: /etc/rc.d tool: /etc/rc.d
+----------------------------------------
+
+OpenBSD 6.8
 
 ----------------------------------------
 
-NOTE: These are the current wm, listed is available data per for
-getting version info. 
+[loaded]
+/etc/rc.d/ntpd check 
+ntpd(ok)
 
-https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
+----------------------------------------
 
-unknown: means not tested or verified yet. All unknown default to 0,0 version
+[stopped]
+/etc/rc.d/ntpd check 
+ntpd(failed)
 
-unsupported: means has values 0,0 which means no version test runs. 
+----------------------------------------
 
-supported: means has known version data generator values.
+[not exist]
+/etc/rc.d/ntp check 
+ksh: /etc/rc.d/ntp: not found
 
-## these are either wayland or x11/wayland wm/compositors
-## budgie-wm, gnome-shell, kwin_x11, marco, muffin, mutter 
-## can be compositing/non compositing wm
-3dwm - unknown - wm
-asc - unknown
-budgie-wm - unknown - wm
-# owned by: compiz-core in debian
-compiz - supported - wm
-compton - supported
-dwc - unknown
-# as of version 20 is wayland compositor
-enlightenment - wm - note, uses a different method for version, from xprop, so can't be used
-fireplace - unknown - wm
-gnome-shell - supported - wm - very slow --version execution, only show if not in System:
-grefson - unknown
-kmscon - unknown
-kwin_wayland - unknown - wm
-kwin_x11 - version not used - wm
-liri - unknown # Uncertain if this is the name of the liri projectc compositor now
-marco - supported - wm
-metisse - unknown - wm
-mir - unknown - wm
-moblin - unknown
-motorcar - unknown
-muffin - supported - wm
-mutter - supports --version, but no example seen - wm
-orbital - unknown
-papyros - unknown # merged into liri, along with hawaii
-perceptia - unknown - wm
-rustland - unknown
-sway - unknown
-swc - unknown
-unagi - unknown
-wavy - unknown
-way-cooler - unknown
-wayhouse - unknown
-westford - unknown
-weston - supports --version, but no example seen
-xcompmgr - unknown
+----------------------------------------
+BSD init: source: /etc/rc.d tool: rc-service
+----------------------------------------
 
-## x11 common wm/compositors that have optional compositing and are not 
-## shown in Compositor: item.
-gala - unsupported - wm (deepin, --version works but not used, very slow)
-kwin - ambuity, not in compositor: version not used - wm
-metacity - ambuity, not in compositor: version not used - wm
-xfwm4 - ambuity, not in compositor: version not used - wm
-xfwm5 - ambuity, not in compositor: version not used - wm
+GhostBSD 21.01.20 
+
+----------------------------------------
+
+[running]
+rc-service ntpd status
+ * status: started 
+ 
+----------------------------------------
+
+[stopped]
+rc-service ntpd status 
+ * status: stopped 
+ 
+----------------------------------------
+
+[unrecognized command]
+rc-service ntpd disable 
+ * ntpd: unknown function 'disable'
+ 
+----------------------------------------
+
+[not exist]
+rc-service ntp status 
+ * rc-service: service 'ntp' does not exist 
 
 
 ----------------------------------------
-COMPOSITOR ARRAY RULES
+BSD init: source: /etc/rc.d tool: service 
 ----------------------------------------
 
-https://stackoverflow.com/questions/46578951/list-screen-resolutions-using-wayland-weston
+Nomad 1.4 / FreeBSD 12.2
 
-note these don't give me any such results, no idea why unless it's a wayland item?
+----------------------------------------
 
---------------------------
-The reply is so late but still can be useful to you or someone :)
+[loaded]
+service ntpd status 
+ntpd is running as pid 1046
 
-You can see all supported video adapters by using this command
+----------------------------------------
 
-$ ls /sys/class/drm
-card0
-card0-VGA-1
-card1
-card1-DVI-I-1
-card1-HDMI-A-1
-card1-VGA-2
+[not exist]
+service ntp status
+ntp does not exist in /etc/rc.d or the local startup
+directories (/usr.local/etc/rc.d), or is not executable
 
-You can get all supported resolutions by this command, use the adapter which you are using
+----------------------------------------
 
-$ cat /sys/class/drm/card0-LVDS-1/modes 
-1366x768
-1366x768
+[stopped]
+service ntpd status 
+ntpd is not running
+
+----------------------------------------
+
+[disabled]
+Cannot 'status' ntpd. Set ntpd_enable to YES in /etc/rc.conf or use 'onestatus' instead of status
+
+----------------------------------------
+BSD init: source: /etc/rc.d tool: service
+----------------------------------------
+
+NetBSD 9.1 
+
+----------------------------------------
+
+[running]
+/usr/sbin/service ntpd status 
+ntpd is running as pid 311. 
+
+----------------------------------------
+
+[stopped]
+/usr/sbin/service ntpd status
+ntpd is not running.
+
+----------------------------------------
+
+[unknown command]
+/usr/sbin/service ntpd disable 
+/etc/rc.d/ntpd: unknown directive 'disable'
+Usage: /etc/rc.d/ntpd [fast|force|one](start stop restart rcvar status poll)
+
+----------------------------------------
+
+[not exists]
+/usr/sbin/service ntp status
+ntp does not exist in /etc/rc.d
+
+----------------------------------------
+systemd: tool: systemctl 
+----------------------------------------
+
+syntax: systemctl [start|stop|status] <service>
+note: presence or absence of 'd' creates odd results
+
+----------------------------------------
+
+[loaded]
+systemctl status bluetooth 
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; enabled; vendor preset: enabled)
+     Active: active (running) since Sun 2021-03-07 22:17:52 PST; 1 day 14h ago
+       Docs: man:bluetoothd(8)
+   Main PID: 1046 (bluetoothd)
+     Status: "Running"
+      Tasks: 1 (limit: 38452)
+     Memory: 5.0M
+     CGroup: /system.slice/bluetooth.service
+             └─1046 /usr/libexec/bluetooth/bluetoothd
+
+Warning: some journal files were not opened due to insufficient permissions.
+
+----------------------------------------
+
+[stopped]
+systemctl status bluetooth 
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; enabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:bluetoothd(8)
+       
+----------------------------------------
+
+[disabled]
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; disabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:bluetoothd(8)
+
+----------------------------------------
+
+systemctl status bluetoothd
+systemctl status bluetooth 
+Unit bluetoothd.service could not be found.
 
 
+----------------------------------------
+SysVinit: source: /etc/init.d tool: service
+----------------------------------------
 
+Old antiX 17.1 / debian stretch
+
+----------------------------------------
+
+[not exists]
+service ntpd status
+ntpd: unrecognized service 
+
+----------------------------------------
+
+[stopped]
+service elogind status
+[FAIL] elogind is not running ... failed!
+
+----------------------------------------
+
+[started]
+service cron status
+[ ok ] cron is running
+
+(note the space around the 'ok')
 
 ================================================================================
 SECONDARY DATA

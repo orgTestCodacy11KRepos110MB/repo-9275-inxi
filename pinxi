@@ -82,16 +82,16 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
 ## Booleans
 my ($b_active_general,$b_active_lvm,
 $b_admin,$b_android,$b_arm,$b_bb_ps,$b_block_tool,$b_build_prop,
-$b_display,$b_dmesg_boot_check,$b_dmi,$b_dmidecode_force,$b_force_display,
-$b_gpart,$b_gpudata,$b_hddtemp_force,$b_irc,
-$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
+$b_display,$b_dmesg_boot_check,$b_dmi,$b_force_display,$b_force_dmidecode,
+$b_force_hddtemp,$b_force_lsusb,$b_force_usb_sys,$b_gpart,$b_gpudata,
+$b_irc,$b_log,$b_log_colors,$b_log_full,$b_lvm,$b_lvm_data,
 $b_man,$b_mapper,$b_mdadm,$b_mem,$b_mips,
 $b_no_doas,$b_no_html_wan,$b_no_sudo,
 $b_pci,$b_pci_tool,$b_pkg,$b_ppc,$b_proc_partitions,
 $b_ps_gui,$b_root,$b_running_in_display,$b_sensors,$b_service_tool,$b_skip_dig,
 $b_slot_tool,$b_soc_audio,$b_soc_bluetooth,$b_soc_gfx,$b_soc_hwraid,$b_soc_net,
-$b_soc_timer,$b_sparc,$b_swaps,$b_sysctl,$b_usb,$b_usb_check,$b_usb_sys,
-$b_usb_tool,$b_wmctrl);
+$b_soc_timer,$b_sparc,$b_swaps,$b_sysctl,$b_usb,$b_usb_check,
+$b_wmctrl);
 ## Disk checks
 my ($b_dm_boot_disk,$b_dm_boot_optical,$b_glabel,$b_hardware_raid,
 $b_label_uuid,$b_lsblk,$b_partitions,$b_raid,$b_smartctl);
@@ -1198,7 +1198,7 @@ sub get_config_item {
 			$show{'no-host'} = 1 if !$show{'host'};
 		}
 	}
-	elsif ($key eq 'USB_SYS') {$b_usb_sys = $val if is_int($val)}
+	elsif ($key eq 'USB_SYS') {$b_force_usb_sys = $val if is_int($val)}
 	elsif ($key eq 'WAN_IP_URL') {
 		if ($val =~ /^(ht|f)tp[s]?:\//i){
 			$wan_url = $val;
@@ -4676,7 +4676,7 @@ sub get_options {
 			error_handler('bad-arg', $opt, $arg);
 		} },
 	'dmidecode' => sub {
-		$b_dmidecode_force = 1 },
+		$b_force_dmidecode = 1 },
 	'downloader:s' => sub { 
 		my ($opt,$arg) = @_;
 		$arg = lc($arg);
@@ -4726,7 +4726,7 @@ sub get_options {
 			error_handler('bad-arg', $opt, $arg);
 		}},
 	'hddtemp' => sub {
-		$b_hddtemp_force = 1 },
+		$b_force_hddtemp = 1 },
 	'host|hostname' => sub {
 		$show{'host'} = 1;
 		$show{'no-host'} = 0},
@@ -4846,9 +4846,9 @@ sub get_options {
 			error_handler('distro-block', $opt);
 		} },
 	'usb-sys' => sub {
-		$b_usb_sys = 1 },
+		$b_force_usb_sys = 1 },
 	'usb-tool' => sub {
-		$b_usb_tool = 1 },
+		$b_force_lsusb = 1 },
 	'wan-ip-url:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg && $arg =~ /^(f|ht)tp[s]?:\/\//){
@@ -4928,7 +4928,7 @@ sub get_options {
 		$show{'disk-total'} = 0;
 	}
 	if ( $show{'ram'} || $show{'slot'} || ($show{'cpu'} && $extra > 1) ||
-	     ( ( $bsd_type || $b_dmidecode_force ) && ($show{'machine'} || $show{'battery'}) ) ){
+	     ( ( $bsd_type || $b_force_dmidecode ) && ($show{'machine'} || $show{'battery'}) ) ){
 		$b_dmi = 1;
 	}
 	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} ){
@@ -6842,7 +6842,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,%battery,$key1,$val1);
 	my $num = 0;
-	if ($bsd_type || $b_dmidecode_force){
+	if ($bsd_type || $b_force_dmidecode){
 		if ($alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{'message'};
@@ -11072,7 +11072,7 @@ sub hdd_temp {
 	my ($device) = @_;
 	my ($path) = ('');
 	my (@data,$hdd_temp);
-	$hdd_temp = hdd_temp_sys($device) if !$b_hddtemp_force && -e "/sys/block/$device";
+	$hdd_temp = hdd_temp_sys($device) if !$b_force_hddtemp && -e "/sys/block/$device";
 	if (!$hdd_temp){
 		$device = "/dev/$device";
 		if ($device =~ /nvme/i){
@@ -12572,7 +12572,7 @@ sub get {
 	eval $start if $b_log;
 	my (%soc_machine,%data,@rows,$key1,$val1,$which);
 	my $num = 0;
-	if ($bsd_type && @sysctl_machine && !$b_dmidecode_force ){
+	if ($bsd_type && @sysctl_machine && !$b_force_dmidecode ){
 		%data = machine_data_sysctl();
 		if (%data){
 			@rows = machine_output(\%data);
@@ -12582,7 +12582,7 @@ sub get {
 			$val1 = main::row_defaults('machine-data-force-dmidecode','');
 		}
 	}
-	elsif ($bsd_type || $b_dmidecode_force){
+	elsif ($bsd_type || $b_force_dmidecode){
 		if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{'message'};
@@ -23616,7 +23616,7 @@ sub set {
 		usbconfig_data();
 	}
 	# if user config sets USB_SYS you can override with --usb-tool
-	elsif ((!$b_usb_sys || $b_usb_tool) && $alerts{'lsusb'}->{'action'} eq 'use' ){
+	elsif ((!$b_force_usb_sys || $b_force_lsusb) && $alerts{'lsusb'}->{'action'} eq 'use' ){
 		lsusb_data();
 	}
 	elsif (-d '/sys/bus/usb/devices'){
