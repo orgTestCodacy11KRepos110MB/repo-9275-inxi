@@ -5132,7 +5132,8 @@ sub show_options {
 	resolution; hz; dpi; size; diagonal; list of alternate kernel modules/drivers
 	for device(s)." ],
 	['2', '-I', '', "As well as per package manager counts, also adds total
-	number of lib files found for each package manager if not -r." ],
+	number of lib files found for each package manager if not -r; adds init
+	service tool." ],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not." ],
 	['2', '-L', '', "LV, Crypto, devices, components: add maj:min; show
@@ -5252,7 +5253,7 @@ sub show_options {
 	['2', '-G', '', "Serial number, class ID." ],
 	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if present; 
 	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
-	adds wakeups: (from suspend) to Uptime; adds init service tool." ],
+	adds wakeups: (from suspend) to Uptime." ],
 	['2', '-J', '', "If present: Devices: serial number, interface count; USB speed; max power." ],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
 	than data); Detail for Type, if present; module voltage, if available; serial 
@@ -5358,8 +5359,9 @@ sub show_options {
 	inside of another tool like Chef or MOTD and returns corrupted color codes. Please see
 	man page or file an issue if you need to use this flag. Must use -y [width] option if 
 	you want a specific output width. Always put this option first in an option list."],
-	['1', '', '--usb-sys', "Force USB data to use /sys as data source (Linux only)." ],
-	['1', '', '--usb-tool', "Force USB data to use lsusb as data source (Linux only)." ],
+	['1', '', '--usb-sys', "Force USB data to use only /sys as data source (Linux only)." ],
+	['1', '', '--usb-tool', "Force USB data to use lsusb as data source [default]
+	(Linux only)." ],
 	['1', '', '--wan-ip-url', "[URL] Skips dig, uses supplied URL for WAN IP (-i). 
 	URL output must end in the IP address. See man. 
 	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php" ],
@@ -21904,7 +21906,12 @@ sub process_status {
 	eval $start if $b_log;
 	my ($cmd,$status,@data);
 	my ($result,$value) = ('','');
-	my %translate = ('ok' => 'running',);
+	my %translate = (
+	'fail' => 'not found', 
+	'failed' => 'not found', 
+	'ok' => 'running',
+	'run' => 'running',
+	);
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key}->[0] status $service";
 	}
@@ -21915,6 +21922,10 @@ sub process_status {
 	# dragonfly/netbsd/freebsd have this
 	elsif ($key eq 'service'){
 		$cmd = "$service_tool{$key}->[0] $service status";
+	}
+	# runit
+	elsif ($key eq 'sv'){
+		$cmd = "$service_tool{$key}->[0] status $service";
 	}
 	# check or status or onestatus (netbsd)
 	elsif ($key eq 'rc.d'){
@@ -21963,13 +21974,18 @@ sub process_status {
 			$result = $1;
 			last;
 		}
+		# runit sv: run/down/fail - fail means not found
+		elsif ($working[1] && $working[1] eq $service && $working[0] =~ /^([a-z]+)$/){
+			$result = $1;
+			$result = $translate{$result} if $translate{$result};
+		}
 		# sshd(ok)
 		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
 			$result = $1;
 			$result = $translate{$result} if $translate{$result};
 			last;
 		}
-		elsif ($working[0] =~ /\b$service.*?(not (exist|(be )?found)|unrecognized)/){
+		elsif ($row =~ /\b$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/){
 			$result = 'not found';
 			last;
 		}
@@ -21999,6 +22015,10 @@ sub set {
 		# service sshd status
 		%service_tool = ('service' => [$path,'service']);
 	}
+	elsif ($path = main::check_program('sv')){
+		# service sshd status
+		%service_tool = ('sv' => [$path,'sv']);
+	}
 	# freebsd does not have 'check', netbsd does not have status
 	elsif (-d '/etc/rc.d/'){
 		# /etc/rc.d/ssh check :: ssh(ok|failed)
@@ -22011,9 +22031,7 @@ sub set {
 	eval $end if $b_log;
 }
 }
-# $test[29] = 1;
-# set_path();
-# print ServiceData::get('status','bluetooth'),"\n";
+# $test[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
 
 sub get_shell_data {
 	eval $start if $b_log;
@@ -24719,7 +24737,7 @@ sub generate_info_data {
 				my $default = ($init{'init-type'} eq 'systemd' && $init{'default'} =~ /[^0-9]$/ ) ? 'target' : 'default';
 				$data{$data_name}->[$index]{main::key($num++,0,2,$default)} = $init{'default'};
 			}
-			if ($extra > 2 && (my $tool = ServiceData::get('tool',''))){
+			if ($b_admin && (my $tool = ServiceData::get('tool',''))){
 				$data{$data_name}->[$index]{main::key($num++,0,2,'tool')} = $tool;
 			}
 		}
