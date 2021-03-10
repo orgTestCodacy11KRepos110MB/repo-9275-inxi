@@ -42,7 +42,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-10';
-my $self_patch='100';
+my $self_patch='101';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -3741,7 +3741,7 @@ sub set_program_values {
 	'xdm' => ['^xdm',0,'0','XDM',0,1,0,'',''],
 	'xenodm' => ['^xenodm',0,'0','xenodm',0,1,0,'',''],
 	## Shells - not checked: ion, eshell ##
-	## See test_shell() for unhandled but known shells
+	## See ShellData::shell_test() for unhandled but known shells
 	'ash' => ['',3,'pkg','ash',1,0,0,'',''], # special; dash precursor
 	'bash' => ['^GNU[[:space:]]bash',4,'--version','Bash',1,1,0,'',''],
 	'busybox' => ['^busybox',0,'0','BusyBox',1,0,0,'',''], # unverified, hush/ash likely
@@ -5597,7 +5597,7 @@ sub get_client_version {
 	elsif ($client{'name'} eq 'konversation') {
 		$client{'konvi'} = ( ! $client{'native'} ) ? 2 : 1;
 	}
-	elsif ($client{'name'} =~ /quassel/) {
+	elsif ($client{'name'} =~ /quassel/i) {
 		@data = main::grabber("$client{'name'} -v 2>/dev/null");
 		foreach (@data){
 			if ($_ =~ /^Quassel IRC:/){
@@ -5635,9 +5635,9 @@ sub get_client_version {
 	elsif ($client{'name'} =~ /python/) {
 		perl_python_client();
 	}
+	# NOTE: these must be empirically determined, not all events that 
+	# show no tty are actually IRC.
 	if (!$client{'name-print'}) {
-		# NOTE: these must be empirically determined, not all events that 
-		# show no tty are actually IRC.
 		my $wl_terms = 'alacritty|evilvte|germinal|guake|hyper|kate|kitty|kmscon|';
 		$wl_terms .= 'konsole|minicom|putty|rxvt|sakura|shellinabox|^st$|sudo|term|tilda|';
 		$wl_terms .= 'tilix|urvxt|yaft|yakuake';
@@ -5646,7 +5646,7 @@ sub get_client_version {
 		# print "$client{'name'}\n";
 		if ($client{'name'} =~ /($whitelist)/i){
 			if ($client{'name'} =~ /($wl_terms)/i){
-				main::get_shell_data($ppid);
+				ShellData::set($ppid);
 			}
 			else {
 				$client{'name-print'} = $client{'name'};
@@ -21909,11 +21909,14 @@ sub process_status {
 	my ($result,$value) = ('','');
 	my %translate = (
 	'active' => 'running',
+	'down' => 'stopped',
 	'fail' => 'not found', 
 	'failed' => 'not found', 
 	'inactive' => 'stopped',
 	'ok' => 'running',
+	'not running' => 'stopped',
 	'run' => 'running',
+	'started' => 'running',
 	);
 	if ($key eq 'systemctl'){
 		$cmd = "$service_tool{$key}->[0] status $service";
@@ -21983,11 +21986,13 @@ sub process_status {
 		# rc-service: * status: started :: * status: stopped, fail handled in not exist test
 		elsif ($working[0] eq '* status' && $working[1]){
 			$result = lc($working[1]);
+			$result = $translate{$result} if $translate{$result};
 			last;
 		}
 		## start exists status detections
 		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?$/){
 			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
 			last;
 		}
 		# runit sv: run/down/fail - fail means not found
@@ -22043,12 +22048,16 @@ sub set {
 }
 # $test[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
 
-sub get_shell_data {
+# Get ShellData
+{
+package ShellData;
+# public
+sub set {
 	eval $start if $b_log;
 	my ($ppid) = @_;
 	my $cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
 	my $shell = qx($cmd);
-	log_data('cmd',$cmd) if $b_log;
+	main::log_data('cmd',$cmd) if $b_log;
 	chomp($shell);
 	if ($shell){
 		# print "shell pre: $shell\n";
@@ -22059,22 +22068,21 @@ sub get_shell_data {
 		$shell =~ s/^.*\///; 
 		my $working = $ENV{'SHELL'};
 		# NOTE: su -c "inxi -F" results in shell being su
-		# but: su - results in $test being su
-		my $test = get_shell_parent(get_start_parent($ppid));
-		# print "shell: $shell test: $test\n";
+		# but: su - results in $parent being su
+		my $parent = parent_name(get_pppid($ppid));
+		# print "1: shell: $shell parent: $parent\n";
 		if ($shell =~ /^(doas|sudo|su)$/){
 			$client{'su-start'} = $shell;
-			$shell = $test; #get_shell_parent(get_start_parent($ppid));
+			$shell = $parent;
 		}
-		elsif ($test && $test =~ /^(doas|sudo|su)$/){
-			$client{'su-start'} = $test;
+		elsif ($parent && $parent =~ /^(doas|sudo|su)$/){
+			$client{'su-start'} = $parent;
 		}
-		# print get_shell_parent(get_start_parent($ppid)),"\n";
+		# print "2: shell: $shell parent: $parent\n";
 		if ($working){
 			$working =~ s/^.*\///;
-# 			if (($shell eq 'sh' || $shell eq 'doas' || $shell eq 'sudo' || $shell eq 'su' ) && 
-#			 $shell ne $working){
-# 				$client{'su-start'} = $shell if ($shell eq 'sudo' || $shell eq 'su');
+# 			if ($shell =~ /^(sh|doas|sudo|su)$/ && $shell ne $working){
+# 				$client{'su-start'} = $shell if $shell ne 'sh';
 # 				$shell = $working;
 # 			}
 			# a few manual changes for known 
@@ -22084,14 +22092,14 @@ sub get_shell_data {
 				$shell = $working;
 			}
 		}
-		# print "shell post: $shell working: $working\n";
+		# print "3: shell post: $shell working: $working\n";
 		# since there are endless shells, we'll keep a list of non program value
 		# set shells since there is little point in adding those to program values
-		if (test_shell($shell)){
+		if (shell_test($shell)){
 			# do nothing, just leave $shell as is
 		}
 		# note: not all programs return version data. This may miss unhandled shells!
-		elsif ((@app = program_data(lc($shell),lc($shell),1)) && $app[0]){
+		elsif ((@app = main::program_data(lc($shell),lc($shell),1)) && $app[0]){
 			$shell = $app[0];
 			$client{'version'} = $app[1] if $app[1]; 
 			# print "app test $shell v: $client{'version'}\n";
@@ -22105,21 +22113,20 @@ sub get_shell_data {
 			# recognized as a known possible program
 			#print "app not shell?: $shell\n";
 			if ($shell){
-				# print 'shell: ' . $shell .' Start client version type: ', get_shell_parent(get_start_parent(getppid())), "\n";
-				my $parent = get_shell_parent(get_start_parent($ppid));
+				# print "shell 4: $shell StartClientVersionType: $parent\n";
 				if ($parent){
-					if (test_shell($parent)){
+					if (shell_test($parent)){
 						$shell = $parent;
 					}
-					elsif ((@app = program_data(lc($parent),lc($parent),0)) && $app[0]){
+					elsif ((@app = main::program_data(lc($parent),lc($parent),0)) && $app[0]){
 						$shell = $app[0];
 						$client{'version'} = $app[1] if $app[1];
 					}
-					#print "shell3: $shell version: $client{'version'}\n";
+					#print "shell 5: $shell version: $client{'version'}\n";
 				}
 			}
 			else {
-				$client{'version'} = row_defaults('unknown-shell');
+				$client{'version'} = main::row_defaults('unknown-shell');
 			}
 			#print "shell not app version: $client{'version'}\n";
 		}
@@ -22128,12 +22135,12 @@ sub get_shell_data {
 		$shell =~ s/^[\s-]+|[\s-]+$//g if $shell; # sometimes will be like -sh
 		$client{'name'} = lc($shell);
 		$client{'name-print'} = $shell;
-		#print "shell4: $client{'name-print'} version: $client{'version'}\n";
+		#print "shell 6: $client{'name-print'} version: $client{'version'}\n";
 		if ($extra > 2 && $working && lc($shell) ne lc($working)){
-			if (@app = program_data(lc($working))){
+			if (@app = main::program_data(lc($working))){
 				$client{'default-shell'} = $app[0];
 				$client{'default-shell-v'} = $app[1];
-				$client{'default-shell-v'} =~ s/(\(.*|-release|-version)// if $client{'default-shell-v'};
+				$client{'default-shell-v'} =~ s/(\s*\(.*|-release|-version)// if $client{'default-shell-v'};
 			}
 			else {
 				$client{'default-shell'} = $working;
@@ -22148,130 +22155,125 @@ sub get_shell_data {
 		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
 		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'};
 	}
-	
 	eval $end if $b_log;
 }
-
-sub get_shell_source {
+# public, returns shell launcher, terminal, program, whatever
+sub shell_launcher {
 	eval $start if $b_log;
 	my (@data);
-	my ($msg,$self_parent,$shell_parent) = ('','','');
+	my ($msg,$pppid,$shell_parent) = ('','','');
 	my $ppid = getppid();
-	$self_parent = get_start_parent($ppid);
+	$pppid = get_pppid($ppid);
 	if ($b_log){
-		$msg = ($ppid) ? "self parent: $self_parent ppid: $ppid": "self parent: undefined";
-		log_data('data',$msg);
+		$msg = ($ppid) ? "pppid: $pppid ppid: $ppid": "ppid: undefined";
+		main::log_data('data',$msg);
 	}
-	#print "self parent: $self_parent ppid: $ppid\n";
-	if ($self_parent){
-		$shell_parent = get_shell_parent($self_parent);
-		$client{'su-start'} = $shell_parent if ($shell_parent eq 'su' && !$client{'su-start'});
+	#print "self parent: $pppid ppid: $ppid\n";
+	if ($pppid){
+		$shell_parent = parent_name($pppid);
+		if (!$client{'su-start'} && $shell_parent =~ /^(doas|su|sudo)$/){
+			$client{'su-start'} = $shell_parent;
+		}
 		#print "shell parent 1: $shell_parent\n";
 		if ($b_log){
 			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
-			log_data('data',$msg);
+			main::log_data('data',$msg);
 		}
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
 		my $shells = 'ash|bash|busybox|cicada|csh|dash|doas|elvish|fish|fizsh|ksh|ksh93|';
 		$shells .= 'lksh|loksh|mksh|nash|oh|oil|osh|pdksh|perl|posh|';
 		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
-		$shells .= test_shell('return');
-		for my $i (2..4){
-			if ( $shell_parent && $shell_parent =~ /^($shells)$/ ){
-				# no idea why have to do script_parent action twice in su case, but you do.
-				$self_parent = get_start_parent($self_parent);
-				$shell_parent = get_shell_parent($self_parent);
-				#print "self::shell parent 2-${i}: $self_parent :: $shell_parent\n";
-				if ($b_log){
-					$msg = ($shell_parent) ? "shell parent $i: $shell_parent": "shell parent $i: undefined";
-					log_data('data',$msg);
-				}
+		$shells .= shell_test('return');
+		my $i = 0;
+		# note that new shells not matched will keep this loop spinning until it ends. 
+		# All we really can do about that is update with new shell name when we find them. 
+		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
+			# bash > su > parent
+			$pppid = get_pppid($pppid);
+			$shell_parent = parent_name($pppid);
+			# print "self::pppid-${i}: $pppid :: $shell_parent\n";
+			if ($b_log){
+				$msg = ($shell_parent) ? "pppid-$i: $shell_parent": "shell parent $i: undefined";
+				main::log_data('data',$msg);
 			}
-			else {
-				last;
-			}
+			$i++;
 		}
-		# to work around a ps -p or gnome-terminal bug, which returns 
-		# gnome-terminal- trim - off end 
-		$shell_parent =~ s/^[_-]|[_-]$//g if $shell_parent;
 	}
 	if ($b_log){
-		$self_parent ||= '';
+		$pppid ||= '';
 		$shell_parent ||= '';
-		log_data('data',"parents: self: $self_parent shell: $shell_parent");
+		main::log_data('data',"parents: pppid: $pppid parent-name: $shell_parent");
 	}
 	eval $end if $b_log;
 	return $shell_parent;
 }
-
-# utilities for get_shell_source 
-# arg: 1 - parent id
-sub get_start_parent {
+# arg: 1 - parent id 
+# returns SID/start ID
+sub get_pppid {
 	eval $start if $b_log;
-	my ($parent) = @_;
-	return 0 if !$parent;
+	my ($ppid) = @_;
+	return 0 if !$ppid;
 	# ps -j -fp : some bsds ps do not have -f for PPID, so we can't get the ppid
-	my $cmd = "ps -wwjfp $parent 2>/dev/null";
-	log_data('cmd',$cmd) if $b_log;
-	my @data = grabber($cmd);
+	my $cmd = "ps -wwjfp $ppid 2>/dev/null";
+	main::log_data('cmd',$cmd) if $b_log;
+	my @data = main::grabber($cmd);
 	#shift @data if @data;
-	my $self_parent = awk(\@data,"$parent",3,'\s+');
+	my $pppid = main::awk(\@data,"$ppid",3,'\s+');
 	eval $end if $b_log;
-	return $self_parent;
+	return $pppid;
 }
-
 # arg: 1 - parent id
-sub get_shell_parent {
+# returns parent command name
+sub parent_name {
 	eval $start if $b_log;
-	my ($parent) = @_;
-	return '' if !$parent;
-	my ($shell_parent);
-	my $cmd = "ps -wwjp $parent 2>/dev/null";
-	log_data('cmd',$cmd) if $b_log;
-	my @data = grabber($cmd,'','strip');
-	$shell_parent = (grep {/$parent/} @data)[0] if @data;
-	#shift @data if @data;
-	# -1 would be right, except when shell parents have start args!
-	#my $shell_parent = awk(\@data, "$parent",-1,'\s+');
-	if ($shell_parent){
+	my ($ppid) = @_;
+	return '' if !$ppid;
+	my ($parent_name);
+	my $cmd = "ps -wwjp $ppid 2>/dev/null";
+	main::log_data('cmd',$cmd) if $b_log;
+	my @data = main::grabber($cmd,'','strip');
+	# dump the headers if they exist
+	$parent_name = (grep {/$ppid/} @data)[0] if @data;
+	if ($parent_name){
 		# we don't want to worry about column position, just slice off all 
 		# the first part before the command
-		$shell_parent =~ s/^.*[0-9]+:[0-9\.]+\s+//;
+		$parent_name =~ s/^.*[0-9]+:[0-9\.]+\s+//;
 		# then get the command
-		$shell_parent = (split(/\s+/,$shell_parent))[0];
+		$parent_name = (split(/\s+/,$parent_name))[0];
 		# get rid of /../ path info if present
-		$shell_parent =~ s|^.*/|| if $shell_parent; 
-		# sometimes has start/trail - / _ which breaks detection patterns
-		$shell_parent =~ s/^[_-]|[_-]$//g;
+		$parent_name =~ s|^.*/|| if $parent_name; 
+		# to work around a ps -p or gnome-terminal bug, which returns 
+		# gnome-terminal- trim -/_ off start/end; _su, etc, which breaks detections
+		$parent_name =~ s/^[_-]|[_-]$//g;
 	}
 	eval $end if $b_log;
-	return $shell_parent;
+	return $parent_name;
 }
-
 # list of program_values non-handled shells, or known to have no version
 # Move shell to set_program_values for print name, or version if available
-sub test_shell {
+# $1 - return|[shell name to test
+# returns test list OR shell name/''
+sub shell_test {
 	my ($test) = @_;
-	# not verified or tested
+	# these shells are not verified or tested
 	my $shells = 'apush|ccsh|ch|esh|eshell|heirloom|hush|';
 	$shells .= 'ion|imrsh|larryshell|mrsh|msh(ell)?|murex|nsh|nu(shell)?|';
 	$shells .= 'psh|pwsh|pysh(ell)?|rush|sash|';
-	# tested shells with no version info discovered
+	# these shells are tested and have no version info
 	$shells .= 'es|rc|scsh|sh';
 	return '|' . $shells if $test eq 'return';
 	return ($test =~ /^($shells)$/) ? $test : '';
 }
-
 # this will test against default IP like: (:0) vs full IP to determine 
 # ssh status. Surprisingly easy test? Cross platform
-sub get_ssh_status {
+sub ssh_status {
 	eval $start if $b_log;
 	my ($b_ssh,$ssh);
 	# fred   pts/10       2018-03-24 16:20 (:0.0)
 	# fred-remote pts/1        2018-03-27 17:13 (43.43.43.43)
-	if (my $program = check_program('who')){
-		$ssh = (grabber("$program am i 2>/dev/null"))[0];
+	if (my $program = main::check_program('who')){
+		$ssh = (main::grabber("$program am i 2>/dev/null"))[0];
 		# crude IP validation
 		if ($ssh && $ssh =~ /\(([:0-9a-f]{8,}|[1-9][\.0-9]{6,})\)$/){
 			$b_ssh = 1;
@@ -22279,6 +22281,7 @@ sub get_ssh_status {
 	}
 	eval $end if $b_log;
 	return $b_ssh;
+}
 }
 
 sub get_tty_console_irc {
@@ -24621,7 +24624,7 @@ sub generate_short_data {
 	eval $start if $b_log;
 	my $num = 0;
 	my $kernel_os = ($bsd_type) ? 'OS' : 'Kernel';
-	get_shell_data($client{'ppid'}) if $client{'ppid'};
+	ShellData::set($client{'ppid'}) if $client{'ppid'};
 	my $client = $client{'name-print'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	if ($client{'version'}){
@@ -24726,7 +24729,7 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	get_shell_data($client{'ppid'}) if $client{'ppid'};
+	ShellData::set($client{'ppid'}) if $client{'ppid'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
 	my %data = (
@@ -24814,9 +24817,10 @@ sub generate_info_data {
 	}
 	if (!$b_irc && $extra > 1 ){
 		# some bsds don't support -f option to get PPID
+		# note: root/su - does not have $DISPLAY usually
 		if ($b_display && !$b_force_display && ($client{'ppid'} && 
 		 (!$bsd_type || (grabber("ps -wwjfp $client{'ppid'} 2>/dev/null"))))){
-			$parent = get_shell_source();
+			$parent = ShellData::shell_launcher();
 		}
 		else {
 			$parent = get_tty_number();
@@ -24828,7 +24832,7 @@ sub generate_info_data {
 		}
 		# can be tty 0 so test for defined
 		$running_in = $parent if defined $parent;
-		if ($extra > 2 && $running_in && get_ssh_status() ){
+		if ($extra > 2 && $running_in && ShellData::ssh_status() ){
 			$running_in .= ' (SSH)';
 		}
 	}
