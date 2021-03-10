@@ -8490,6 +8490,96 @@ sub dmesg_boot_data {
 	eval $end if $b_log;
 	return %values;
 }
+sub cpu_dmi_data {
+	eval $start if $b_log;
+	return if !@dmi;
+	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'ext-clock' => undef, 'socket' => undef, 
+	'speed' => undef, 'max-speed' => undef, 'upgrade' => undef, 'volts' => undef);
+	my ($id,$amount,$socket,$upgrade);
+	foreach my $item (@dmi){
+		next if ref $item ne 'ARRAY';
+		next if ($item->[0] < 4 || $item->[0] == 5 || $item->[0] == 6);
+		last if $item->[0] > 7;
+		if ($item->[0] == 7){
+			# skip first three rows, we don't need that data
+			($id,$amount) = ('',0);
+			foreach my $value (@$item[3 .. $#$item]){
+				next if $value =~ /~/;
+				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
+				if ($value =~ /^Socket Designation:.*? (L[1-3])\b/){
+					$id = $1;
+				}
+				# some cpus only show Socket Designation: Internal cache
+				elsif (!$id && $value =~ /^Configuration:.* Level.*?([1-3])\b/){
+					$id = "L$1";
+				}
+				# NOTE: cache is in KiB or MiB but they call it kB or MB
+				# so we send translate_size k or M which trips KiB/MiB mode
+				elsif ($id && $value =~ /^Installed Size:\s+(.*?[kKM])i?B$/){
+					$amount = main::translate_size($1);
+				}
+				if ($id && $amount){
+					$dmi_data{$id} += $amount;
+					last;
+				}
+			}
+		}
+		# note: for multi cpu systems, we're hoping that these values are
+		# the same for each cpu, which in most pc situations they will be,
+		# and ARM etc won't be using dmi data here anyway.
+		# Older dmidecode appear to have unreliable Upgrade outputs
+		elsif ($item->[0] == 4){
+			# skip first three row,s we don't need that data
+			($socket,$upgrade) = (undef);
+			foreach my $value (@$item[3 .. $#$item]){
+				next if $value =~ /~/;
+				# note: on single cpu systems, Socket Designation shows socket type,
+				# but on multi, shows like, CPU1; CPU Socket #2; Socket 0; so check values a bit.
+				# Socket Designation: Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz
+				# Sometimes shows as CPU Socket...
+				if ($value =~ /^Socket Designation:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
+					$upgrade = main::dmi_cleaner($2) if $2 !~ /(cpu|[mg]hz|onboard|socket|@|^#?[0-9]$)/i;
+					#print "$socket_temp\n";
+				}
+				# normally we prefer this value, but sometimes it's garbage
+				# older systems often show: Upgrade: ZIF Socket which is a generic term, legacy
+				elsif ($value =~ /^Upgrade:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
+					#print "$2\n";
+					$socket = main::dmi_cleaner($2) if $2 !~ /(ZIF|\bslot\b)/i;
+				}
+				# seen: Voltage: 5.0 V 2.9 V
+				elsif ($value =~ /^Voltage:\s*([0-9\.]+)\s*(V|Volts)?\b/i){
+					$dmi_data{'volts'} = main::dmi_cleaner($1);
+				}
+				elsif ($value =~ /^Current Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
+					$dmi_data{'speed'} = main::dmi_cleaner($1);
+				}
+				elsif ($value =~ /^Max Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
+					$dmi_data{'max-speed'} = main::dmi_cleaner($1);
+				}
+				elsif ($value =~ /^External Clock:\s*([0-9\.]+\s*[MGK]Hz)\b/){
+					$dmi_data{'ext-clock'} = main::dmi_cleaner($1);
+				}
+			}
+		}
+	}
+	# Seen older cases where Upgrade: Other value exists
+	if ($socket || $upgrade){
+		if ($socket && $upgrade){
+			$upgrade = undef if $socket eq $upgrade;
+		}
+		elsif ($upgrade){
+			$socket = $upgrade;
+			$upgrade = undef;
+		}
+		$dmi_data{'socket'} = $socket;
+		$dmi_data{'upgrade'} = $upgrade;
+	}
+	main::log_data('dump','%dmi_data',\%dmi_data) if $b_log;
+	# print Data::Dumper::Dumper \%dmi_data;
+	eval $end if $b_log;
+	return %dmi_data;
+}
 
 sub cpu_properties {
 	my ($cpu) = @_;
@@ -8784,96 +8874,7 @@ sub cpu_properties {
 	eval $end if $b_log;
 	return %cpu_properties;
 }
-sub cpu_dmi_data {
-	eval $start if $b_log;
-	return if !@dmi;
-	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'ext-clock' => undef, 'socket' => undef, 
-	'speed' => undef, 'max-speed' => undef, 'upgrade' => undef, 'volts' => undef);
-	my ($id,$amount,$socket,$upgrade);
-	foreach my $item (@dmi){
-		next if ref $item ne 'ARRAY';
-		next if ($item->[0] < 4 || $item->[0] == 5 || $item->[0] == 6);
-		last if $item->[0] > 7;
-		if ($item->[0] == 7){
-			# skip first three rows, we don't need that data
-			($id,$amount) = ('',0);
-			foreach my $value (@$item[3 .. $#$item]){
-				next if $value =~ /~/;
-				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
-				if ($value =~ /^Socket Designation:.*? (L[1-3])\b/){
-					$id = $1;
-				}
-				# some cpus only show Socket Designation: Internal cache
-				elsif (!$id && $value =~ /^Configuration:.* Level.*?([1-3])\b/){
-					$id = "L$1";
-				}
-				# NOTE: cache is in KiB or MiB but they call it kB or MB
-				# so we send translate_size k or M which trips KiB/MiB mode
-				elsif ($id && $value =~ /^Installed Size:\s+(.*?[kKM])i?B$/){
-					$amount = main::translate_size($1);
-				}
-				if ($id && $amount){
-					$dmi_data{$id} += $amount;
-					last;
-				}
-			}
-		}
-		# note: for multi cpu systems, we're hoping that these values are
-		# the same for each cpu, which in most pc situations they will be,
-		# and ARM etc won't be using dmi data here anyway.
-		# Older dmidecode appear to have unreliable Upgrade outputs
-		elsif ($item->[0] == 4){
-			# skip first three row,s we don't need that data
-			($socket,$upgrade) = (undef);
-			foreach my $value (@$item[3 .. $#$item]){
-				next if $value =~ /~/;
-				# note: on single cpu systems, Socket Designation shows socket type,
-				# but on multi, shows like, CPU1; CPU Socket #2; Socket 0; so check values a bit.
-				# Socket Designation: Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz
-				# Sometimes shows as CPU Socket...
-				if ($value =~ /^Socket Designation:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
-					$upgrade = main::dmi_cleaner($2) if $2 !~ /(cpu|[mg]hz|onboard|socket|@|^#?[0-9]$)/i;
-					#print "$socket_temp\n";
-				}
-				# normally we prefer this value, but sometimes it's garbage
-				# older systems often show: Upgrade: ZIF Socket which is a generic term, legacy
-				elsif ($value =~ /^Upgrade:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
-					#print "$2\n";
-					$socket = main::dmi_cleaner($2) if $2 !~ /(ZIF|\bslot\b)/i;
-				}
-				# seen: Voltage: 5.0 V 2.9 V
-				elsif ($value =~ /^Voltage:\s*([0-9\.]+)\s*(V|Volts)?\b/i){
-					$dmi_data{'volts'} = main::dmi_cleaner($1);
-				}
-				elsif ($value =~ /^Current Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
-					$dmi_data{'speed'} = main::dmi_cleaner($1);
-				}
-				elsif ($value =~ /^Max Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
-					$dmi_data{'max-speed'} = main::dmi_cleaner($1);
-				}
-				elsif ($value =~ /^External Clock:\s*([0-9\.]+\s*[MGK]Hz)\b/){
-					$dmi_data{'ext-clock'} = main::dmi_cleaner($1);
-				}
-			}
-		}
-	}
-	# Seen older cases where Upgrade: Other value exists
-	if ($socket || $upgrade){
-		if ($socket && $upgrade){
-			$upgrade = undef if $socket eq $upgrade;
-		}
-		elsif ($upgrade){
-			$socket = $upgrade;
-			$upgrade = undef;
-		}
-		$dmi_data{'socket'} = $socket;
-		$dmi_data{'upgrade'} = $upgrade;
-	}
-	main::log_data('dump','%dmi_data',\%dmi_data) if $b_log;
-	# print Data::Dumper::Dumper \%dmi_data;
-	eval $end if $b_log;
-	return %dmi_data;
-}
+
 sub cpu_bugs_sys {
 	eval $start if $b_log;
 	my (@bugs,$type,$value);
@@ -22190,7 +22191,7 @@ sub get_shell_source {
 		}
 		# to work around a ps -p or gnome-terminal bug, which returns 
 		# gnome-terminal- trim - off end 
-		$shell_parent =~ s/^-|-$// if $shell_parent;
+		$shell_parent =~ s/^-|-$//g if $shell_parent;
 	}
 	if ($b_log){
 		$self_parent ||= '';
@@ -22222,15 +22223,23 @@ sub get_shell_parent {
 	eval $start if $b_log;
 	my ($parent) = @_;
 	return '' if !$parent;
+	my ($shell_parent);
 	my $cmd = "ps -wwjp $parent 2>/dev/null";
 	log_data('cmd',$cmd) if $b_log;
 	my @data = grabber($cmd,'','strip');
-	my $shell_parent = (grep {/$parent/} @data)[0] if @data;
-	$shell_parent =~ s/^.*[0-9]+:[0-9\.]+\s+//;
-	$shell_parent = (split(/\s+/,$shell_parent))[0];
+	$shell_parent = (grep {/$parent/} @data)[0] if @data;
 	#shift @data if @data;
 	# -1 would be right, except when shell parents have start args!
 	#my $shell_parent = awk(\@data, "$parent",-1,'\s+');
+	if ($shell_parent){
+		# we don't want to worry about column position, just slice off all 
+		# the first part before the command
+		$shell_parent =~ s/^.*[0-9]+:[0-9\.]+\s+//;
+		# then get the command
+		$shell_parent = (split(/\s+/,$shell_parent))[0];
+		# get rid of /../ path info if present
+		$shell_parent =~ s|^.*/|| if $shell_parent; 
+	}
 	eval $end if $b_log;
 	return $shell_parent;
 }
@@ -24689,7 +24698,7 @@ sub generate_info_data {
 	my %data = (
 	$data_name => [{
 	main::key($num++,0,1,'Processes') => scalar @ps_aux, 
-	main::key($num++,1,1,'Uptime') => &get_uptime(),
+	main::key($num++,1,1,'Uptime') => get_uptime(),
 	},],
 	);
 	$index = scalar(@{ $data{$data_name} } ) - 1;
