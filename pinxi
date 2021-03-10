@@ -41,8 +41,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-09';
-my $self_patch='99';
+my $self_date='2021-03-10';
+my $self_patch='100';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -21908,8 +21908,10 @@ sub process_status {
 	my ($cmd,$status,@data);
 	my ($result,$value) = ('','');
 	my %translate = (
+	'active' => 'running',
 	'fail' => 'not found', 
 	'failed' => 'not found', 
+	'inactive' => 'stopped',
 	'ok' => 'running',
 	'run' => 'running',
 	);
@@ -21957,41 +21959,48 @@ sub process_status {
 		if ($working[0] eq 'Loaded'){
 			# note: sshd shows ssh for ssh.service
 			$working[1] =~ /^(.+?)\s*\(.*?\.service;\s+(\S+?);.*/;
-			$result = $1 if $1;
-			$result = $2 if $2; # this will be enabled/disabled
+			$result = lc($1) if $1;
+			$result = lc($2) if $2; # this will be enabled/disabled
 		}
 		elsif ($working[0] eq 'Active'){
 			$working[1] =~ /^(.+?)\s*\((\S+?)\).*/;
-			$value = $1 if $1 && (!$result || $result ne 'disabled');
-			# $value = $2 if $2; # this will be dead/running
+			$value = lc($1) if $1 && (!$result || $result ne 'disabled');
+			$value = $translate{$value} if $value && $translate{$value};
 			$result .= ", $value" if ($result && $value);
 			last;
 		}
-		elsif ($working[0] eq '* status'){
-			$result = $working[1];
-			last;
-		}
-		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?s$/){
-			$result = $1;
-			last;
-		}
-		# runit sv: run/down/fail - fail means not found
-		elsif ($working[1] && $working[1] eq $service && $working[0] =~ /^([a-z]+)$/){
-			$result = $1;
-			$result = $translate{$result} if $translate{$result};
-		}
-		# sshd(ok)
-		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
-			$result = $1;
-			$result = $translate{$result} if $translate{$result};
-			last;
-		}
-		elsif ($row =~ /\b$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/){
+		# valid syntax, but service does not exist
+		# * rc-service: service 'ntp' does not exist :: 
+		elsif ($row =~ /$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/i){
 			$result = 'not found';
 			last;
 		}
-		# means command just failed
-		elsif ($row =~ /unknown directive|Usage/){
+		# means command directive doesn't exist, we don't know if service exists or not
+		# * ntpd: unknown function 'disable' :: 
+		elsif ($row =~ /unknown (directive|function)|Usage/i){
+			last;
+		}
+		# rc-service: * status: started :: * status: stopped, fail handled in not exist test
+		elsif ($working[0] eq '* status' && $working[1]){
+			$result = lc($working[1]);
+			last;
+		}
+		## start exists status detections
+		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?$/){
+			$result = lc($1);
+			last;
+		}
+		# runit sv: run/down/fail - fail means not found
+		# run: udevd: (pid 631) 641s :: down: sshd: 9s, normally up
+		elsif ($working[1] && $working[1] eq $service && $working[0] =~ /^([a-z]+)$/){
+			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
+			$result = "enabled,$result" if $working[2] && $working[2] =~ /normally up/i;
+		}
+		# OpenBSD: sshd(ok)
+		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
+			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
 			last;
 		}
 	}
@@ -22042,7 +22051,7 @@ sub get_shell_data {
 	log_data('cmd',$cmd) if $b_log;
 	chomp($shell);
 	if ($shell){
-		#print "shell pre: $shell\n";
+		# print "shell pre: $shell\n";
 		# when run in debugger subshell, would return sh as shell,
 		# and parent as perl, that is, pinxi itself, which is actually right.
 		# trim leading /.../ off just in case. ps -p should return the name, not path 
@@ -22050,10 +22059,17 @@ sub get_shell_data {
 		$shell =~ s/^.*\///; 
 		my $working = $ENV{'SHELL'};
 		# NOTE: su -c "inxi -F" results in shell being su
-		if ($shell eq 'doas' || $shell eq 'sudo' || $shell eq 'su' ){
+		# but: su - results in $test being su
+		my $test = get_shell_parent(get_start_parent($ppid));
+		# print "shell: $shell test: $test\n";
+		if ($shell =~ /^(doas|sudo|su)$/){
 			$client{'su-start'} = $shell;
-			$shell = get_shell_parent(get_start_parent($ppid));
+			$shell = $test; #get_shell_parent(get_start_parent($ppid));
 		}
+		elsif ($test && $test =~ /^(doas|sudo|su)$/){
+			$client{'su-start'} = $test;
+		}
+		# print get_shell_parent(get_start_parent($ppid)),"\n";
 		if ($working){
 			$working =~ s/^.*\///;
 # 			if (($shell eq 'sh' || $shell eq 'doas' || $shell eq 'sudo' || $shell eq 'su' ) && 
@@ -22078,7 +22094,7 @@ sub get_shell_data {
 		elsif ((@app = program_data(lc($shell),lc($shell),1)) && $app[0]){
 			$shell = $app[0];
 			$client{'version'} = $app[1] if $app[1]; 
-			#print "app test $shell v: $client{'version'}\n";
+			# print "app test $shell v: $client{'version'}\n";
 		}
 		else {
 			# NOTE: we used to guess here with position 2 --version but this cuold lead
@@ -22134,19 +22150,6 @@ sub get_shell_data {
 	}
 	
 	eval $end if $b_log;
-}
-# list of program_values non-handled shells, or known to have no version
-# Move shell to set_program_values for print name, or version if available
-sub test_shell {
-	my ($test) = @_;
-	# not verified or tested
-	my $shells = 'apush|ccsh|ch|esh|eshell|heirloom|hush|';
-	$shells .= 'ion|imrsh|larryshell|mrsh|msh(ell)?|murex|nsh|nu(shell)?|';
-	$shells .= 'psh|pwsh|pysh(ell)?|rush|sash|';
-	# tested shells with no version info discovered
-	$shells .= 'es|rc|scsh|sh';
-	return '|' . $shells if $test eq 'return';
-	return ($test =~ /^($shells)$/) ? $test : '';
 }
 
 sub get_shell_source {
@@ -22244,6 +22247,20 @@ sub get_shell_parent {
 	}
 	eval $end if $b_log;
 	return $shell_parent;
+}
+
+# list of program_values non-handled shells, or known to have no version
+# Move shell to set_program_values for print name, or version if available
+sub test_shell {
+	my ($test) = @_;
+	# not verified or tested
+	my $shells = 'apush|ccsh|ch|esh|eshell|heirloom|hush|';
+	$shells .= 'ion|imrsh|larryshell|mrsh|msh(ell)?|murex|nsh|nu(shell)?|';
+	$shells .= 'psh|pwsh|pysh(ell)?|rush|sash|';
+	# tested shells with no version info discovered
+	$shells .= 'es|rc|scsh|sh';
+	return '|' . $shells if $test eq 'return';
+	return ($test =~ /^($shells)$/) ? $test : '';
 }
 
 # this will test against default IP like: (:0) vs full IP to determine 
@@ -24826,7 +24843,7 @@ sub generate_info_data {
 		$data{$data_name}->[$index]{main::key($num++,1,2,'default')} = $client{'default-shell'};
 		$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $client{'default-shell-v'} if $client{'default-shell-v'};
 	}
-	if ( $running_in ){
+	if ($running_in){
 		$data{$data_name}->[$index]{main::key($num++,0,2,'running-in')} = $running_in;
 	}
 	$data{$data_name}->[$index]{main::key($num++,0,1,$self_name)} = &get_self_version();

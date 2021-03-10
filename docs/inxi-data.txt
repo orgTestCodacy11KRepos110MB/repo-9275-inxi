@@ -786,17 +786,10 @@ Note: all use redirect of stderr to stdout to get errors, because most
 send to stderr when service not found or present in system.
 
 ----------------------------------------
-OpenRC: tool: rc-service
+init [BSD]: source: /etc/rc.d/ tool: /etc/rc.d
 ----------------------------------------
 
-Could also use just /etc/rc.d/<service> <command> but mappings may  not 
-always be the same.
-
-----------------------------------------
-BSD init: source: /etc/rc.d tool: /etc/rc.d
-----------------------------------------
-
-OpenBSD 6.8
+OpenBSD 6.3/6.8
 
 ----------------------------------------
 
@@ -804,51 +797,49 @@ OpenBSD 6.8
 /etc/rc.d/ntpd check 
 ntpd(ok)
 
-----------------------------------------
-
 [stopped]
 /etc/rc.d/ntpd check 
 ntpd(failed)
-
-----------------------------------------
 
 [not exist]
 /etc/rc.d/ntp check 
 ksh: /etc/rc.d/ntp: not found
 
+[unknown directive]
+/etc/rc.d/sshd fred
+usage: /etc/rc.d/sshd [-df] start|stop|restart|reload|check
+
 ----------------------------------------
-BSD init: source: /etc/rc.d tool: rc-service
+init [BSD]: source: /etc/rc.d/ tool: rc-service
 ----------------------------------------
 
+OpenRC
+
 GhostBSD 21.01.20 
+
+Could also use just /etc/rc.d/<service> <command> but mappings may  not 
+always be the same.
 
 ----------------------------------------
 
 [running]
 rc-service ntpd status
  * status: started 
- 
-----------------------------------------
 
 [stopped]
 rc-service ntpd status 
  * status: stopped 
- 
-----------------------------------------
 
-[unrecognized command]
+[unrecognized rc-service directive]
 rc-service ntpd disable 
  * ntpd: unknown function 'disable'
- 
-----------------------------------------
 
 [not exist]
 rc-service ntp status 
  * rc-service: service 'ntp' does not exist 
 
-
 ----------------------------------------
-BSD init: source: /etc/rc.d tool: service 
+init [BSD]: source: /etc/rc.d/ tool: service 
 ----------------------------------------
 
 Nomad 1.4 / FreeBSD 12.2
@@ -859,7 +850,12 @@ Nomad 1.4 / FreeBSD 12.2
 service ntpd status 
 ntpd is running as pid 1046
 
-----------------------------------------
+[stopped]
+service ntpd status 
+ntpd is not running
+
+[disabled]
+Cannot 'status' ntpd. Set ntpd_enable to YES in /etc/rc.conf or use 'onestatus' instead of status
 
 [not exist]
 service ntp status
@@ -867,18 +863,7 @@ ntp does not exist in /etc/rc.d or the local startup
 directories (/usr.local/etc/rc.d), or is not executable
 
 ----------------------------------------
-
-[stopped]
-service ntpd status 
-ntpd is not running
-
-----------------------------------------
-
-[disabled]
-Cannot 'status' ntpd. Set ntpd_enable to YES in /etc/rc.conf or use 'onestatus' instead of status
-
-----------------------------------------
-BSD init: source: /etc/rc.d tool: service
+init [BSD]: source: /etc/rc.d/ tool: service
 ----------------------------------------
 
 NetBSD 9.1 
@@ -889,24 +874,42 @@ NetBSD 9.1
 /usr/sbin/service ntpd status 
 ntpd is running as pid 311. 
 
-----------------------------------------
-
 [stopped]
 /usr/sbin/service ntpd status
 ntpd is not running.
-
-----------------------------------------
 
 [unknown command]
 /usr/sbin/service ntpd disable 
 /etc/rc.d/ntpd: unknown directive 'disable'
 Usage: /etc/rc.d/ntpd [fast|force|one](start stop restart rcvar status poll)
 
-----------------------------------------
-
 [not exists]
 /usr/sbin/service ntp status
 ntp does not exist in /etc/rc.d
+
+----------------------------------------
+runit: source: /etc/sv/ tool: sv
+----------------------------------------
+
+Void Linux [earlier versions at least]
+
+----------------------------------------
+
+[running]
+sv status udevd 
+run: udevd: (pid 631) 641s
+
+[down, enabled]
+sv status sshd 
+down: sshd: 9s, normally up
+
+[not exist]
+sv status ntpd 
+fail: ntpd: unable to change to service directory: file does not exist
+
+[unknown directive]
+sv fred sshd 
+usage: sv [-v] [-w sec] command service
 
 ----------------------------------------
 systemd: tool: systemctl 
@@ -932,16 +935,12 @@ systemctl status bluetooth
 
 Warning: some journal files were not opened due to insufficient permissions.
 
-----------------------------------------
-
 [stopped]
 systemctl status bluetooth 
 ● bluetooth.service - Bluetooth service
      Loaded: loaded (/lib/systemd/system/bluetooth.service; enabled; vendor preset: enabled)
      Active: inactive (dead)
        Docs: man:bluetoothd(8)
-       
-----------------------------------------
 
 [disabled]
 ● bluetooth.service - Bluetooth service
@@ -949,12 +948,13 @@ systemctl status bluetooth
      Active: inactive (dead)
        Docs: man:bluetoothd(8)
 
-----------------------------------------
-
+[not exists]
 systemctl status bluetoothd
-systemctl status bluetooth 
 Unit bluetoothd.service could not be found.
 
+[unknown directive]
+systemctl fred bluetooth
+Unknown command verb fred.
 
 ----------------------------------------
 SysVinit: source: /etc/init.d tool: service
@@ -964,23 +964,18 @@ Old antiX 17.1 / debian stretch
 
 ----------------------------------------
 
-[not exists]
-service ntpd status
-ntpd: unrecognized service 
-
-----------------------------------------
-
 [stopped]
 service elogind status
 [FAIL] elogind is not running ... failed!
 
-----------------------------------------
-
 [started]
 service cron status
-[ ok ] cron is running
-
+[ ok ] cron is running  
 (note the space around the 'ok')
+
+[not exists]
+service ntpd status
+ntpd: unrecognized service 
 
 ================================================================================
 SECONDARY DATA
