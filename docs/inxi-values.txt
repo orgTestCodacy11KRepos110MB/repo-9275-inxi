@@ -490,12 +490,15 @@ dmidecode debugger data.
 and any other logical type volume data
 
 ----------------------------------------
---fake raid - Use debugger data files instead of /proc/mdstat and 
-zfs debugger data, and any other raid types.
+Fake RAID DATA
 
-Note: to actually trigger, use RaidData global debug
-switches, which work together with $fake{'raid'} to activate
-the relevant item.
+--fake raid-hw - Use debugger data files.
+
+--fake raid-lvm - Use debugger data files.
+
+--fake raid-md - Debugger data files instead of /proc/mdstat.
+
+--fake raid-zfs - Debugger data files instead of zfs debugger data.
 
 ----------------------------------------
 --fake sensors - Use debugger data file based lm-sensors sensors output file
@@ -509,6 +512,169 @@ HASHED/SCALAR/BOOLEAN VALUES
 
 These hashes/booleans contain data that will be used for tests and data 
 collection.
+
+
+========================================
+ACTION HASHES
+----------------------------------------
+
+These hashes will trigger various behaviors, they are either user
+set, via options, or internally set flags.
+
+See --fake for debugger tool forcings.
+
+----------------------------------------
+FORCE --force [action]
+----------------------------------------
+
+%force = (
+'display'            => [01], # force $b_display even if root or out of X
+'dmidecode'          => [01], # force override use of dmidecode everywhere
+'hddtemp'            => [01], # override /sys drive temps
+'lsusb'              => [01], # linux, override USB_SYS config setting, restore default
+'no-dig'             => [01], # skip dig, or override and use
+'no-doas'            => [01], # don't use doas internally
+'no-html-wan'        => [01], # force dig or nothing for WAN IP
+'no-sudo'            => [01], # don't use sudo internally
+'usb-sys'            => [01], # linux, skip lsusb for vendor/product data
+'vmstat'             => [01], # override /proc/meminfo if present
+'wmctrl'             => [01], # use wmctrl as wm source always
+
+''            => [01],
+''            => [01],
+);
+
+----------------------------------------
+LOADED DATA SWITCHES - INTERNAL
+----------------------------------------
+
+flags for loads of features we only want to run once.
+
+----------------------------------------
+
+local in generate_lines(), passed by reference
+
+%checks = (
+'device'                => [01], # DeviceData loaded
+'dmesg-boot'            => [01], # set_dmesg_boot_data loaded
+'dmidecode'             => [01], # set_dmidecode_data loaded
+'usb'                   => [01], # USBData loaded
+);
+
+----------------------------------------
+global:
+
+%loaded = (
+'build-prop'            => [01], # android build.prop has been loaded
+'glabel'                => [01], # set in GlabelData
+'gpart'                 => [01], # bsd, partitions etc, GpartData
+'gpu-data'              => [01], # cpu sensors data, global in case used elsewhere
+'label-uuid'            => [01], # linux label/uuid fallback data
+'lm-sensors'            => [01], # global in case we need to set lm-sensors from 
+                                 # other modules.
+'lsblk'                 => [01], # set_lsblk loaded
+'lvm-data'              => [01], # lvm data loaded, for -L or -R
+'mapper'                => [01], # set_mapper loaded
+'memory'                => [01], # MemoryData loaded
+'partitions'            => [01], # many places
+'pkg'                   => [01], # packages run/loaded
+'raid'                  => [01], # -R, -D raid tests
+'service-tool'          => [01], # ServiceData::set() is loaded
+'swaps'                 => [01], # swap data has been loaded
+'usb'                   => [01], # USBData loaded
+
+''            => [01],
+);
+
+----------------------------------------
+SHOW - PRINT LINE SWITCHES
+----------------------------------------
+
+%show
+
+This is a global that assigns print row boolean values.
+
+These are set in the get_options function.
+
+%show = (
+'audio'            # -A/--audio
+'battery'          # -b/-F battery only if present
+'battery-forced    # -B/--battery
+'bluetooth'        # -E/--bluetooth
+'cpu'              # -C/--cpu - cpu overrides cpu-basic
+'cpu-basic'        # -b/--basic/-v 1 cpu line
+'cpu-flag'         # -C/--cpu/-f/--flags and full flags
+'disk'             # -D/--disk - disk overrides disk-basic/disk-total
+'disk-basic'       # -v 2 Disk data
+'disk-total'       # -b/--basic/ -v 1 Disk
+'graphic'          # -G/--graphics
+'host'             # -S/--system. Default: true. --alt 31/32 disable/enable
+'info'             # -I/--info
+'ip'               # -i/--internet
+'label'            # -l/--label [-P or -p + labels]
+'logical'          # -L/--logical
+'machine'          # -M/--machine
+'network'          # -N/--network
+'network-advanced' # -n/--network-advanced/ -v 3
+'optical'          # -d/--disk-all/--optical/ -v 6
+'optical-basic'    # -F, -v5 - basic optical output
+'partition'        # -P/--partition basic
+'partition-full'   # -p/--partition-full
+'process'          # -t/--processes with c or m
+'ps-cpu'           # -t/--processes with c [count]. Sets: $configs{'PS_COUNT'}
+'ps-mem'           # -t/--processes with m [count]. Sets: $configs{'PS_COUNT'}
+'raid'             # -R/--raid, sets raid, raid-forced'
+'raid-basic'       # -b / -F / -v 2 raid, only show if data is there
+'raid-forced'      # -R/--raid, show if raid there or not
+'ram'              # -m/--memory
+'repo'             # -r / --repos
+'sensor'           # -s/--sensors
+'short'            # inxi short form, no args
+'slot'             # --slots
+'system'           # -S/--system
+'unmounted'        # -o/--unmounted
+'usb'              # --usb
+'uuid'             # -p/-P/-u/--uuid with UUID
+'weather'          # -w / --weather, distro override with $use{'weather'} false
+'weather-location' # -W / --weather-location, contains location string or is null
+'width'            # -y/--width 80-130
+);
+
+$extra   # -x, -xx, -xxx, --extra [0-3]. Repeat or integer arg.
+         # Either increments (-xxx) or uses option value (-x 3)
+$b_admin # --admin/-a [-a sets -xxx as well]
+
+----------------------------------------
+USE SWITCHES - INTERNAL/OPTIONS
+----------------------------------------
+
+These trip specific behaviors, mostly around filtering or distro maintainer blocks of features.
+
+%use = (
+'block-tool'       # run lsblk/blockdev alerts tests
+'dmidecode'        # run dmidecode alerts tests; set_dmesg_boot_data() triggers
+'filter'           # -z/--filter: all, filters output. $filter_string Auto on in IRC unless disabled by -Z
+'filter-label'     # --filter-label: filter partition labels.
+'filter-override'  # -Z/--filter-override: overrides IRC filter
+'filter-uuid'      # --filter-uuid: filter partition UUIDs
+'hardware-raid'    # for -R, hw raid detected
+'man'              # --man -U 3/-U: force update man page for -U/-U 3
+'lvm'              # run lvs alerts test
+'mdadm'            # run mdadm alert tests
+'pci-tool'         # DeviceData found one of the pci tools: lspci/pcidump/pciconf/pcictl
+'smartctl'         # run smartctl alerts test
+'slot-tool'        # found slots in dmidecode, show slot data
+'soc-audio'        # soc data found for this type
+'soc-bluetooth'    # soc data found for this type
+'soc-gfx'          # soc data found for this type
+'soc-hwraid'       # soc data found for this type
+'soc-network'      # soc data found for this type
+'soc-timer'        # soc data found for this type
+'sysctl'           # run sysctl alerts test
+'update'           # allow -U updater, default true, distro maintainers can set in configs to false
+'usb'              # run lsusb/usbdevs/usbconfig alerts tests
+'weather'          # allow -w/W weather, default true, distro maintainers can set in configs to false
+);
 
 ========================================
 ALERTS / WARNINGS
@@ -625,6 +791,19 @@ if ( my $mount = system_files{'mount'} ){
 'scsi'           => '/proc/scsi/scsi',
 'xorg-log'       => '/var/log/Xorg.0.log' # or xset path
 );
+      
+========================================
+OUTPUT SCALARS
+----------------------------------------
+
+----------------------------------------
+$cpu_sleep = 0.3 # time cpu sleeps before inxi gets the speed, inxi itself
+spikes the cpu when it runs so it's good to let it spin down a bit before 
+losting the speed. CPU_SLEEP config item or --sleep overrides it.
+
+----------------------------------------
+$limit = 10 # for large IP output, allows users to set the limit, either in
+ config file LIMIT= or with --limit switch. -1 means no limit
 
 ========================================
 OUTPUT HASHES
@@ -679,93 +858,7 @@ $size{'no-display'}
 # these will be set dynamically in set_display_width()
 $size{'term'}=80;
 $size{'term-lines'}=100;
-      
-========================================
-OUTPUT SCALARS
-----------------------------------------
-
-----------------------------------------
-$cpu_sleep = 0.3 # time cpu sleeps before inxi gets the speed, inxi itself
-spikes the cpu when it runs so it's good to let it spin down a bit before 
-losting the speed. CPU_SLEEP config item or --sleep overrides it.
-
-----------------------------------------
-$limit = 10 # for large IP output, allows users to set the limit, either in
- config file LIMIT= or with --limit switch. -1 means no limit
  
-========================================
-SHOW - PRINT LINE SWITCHES
-----------------------------------------
-
-%show
-
-This is a global that assigns print row boolean values.
-
-These are set in the get_options function.
-
-%show = (
-'audio'            # -A/--audio
-'battery'          # -b/-F battery only if present
-'battery-forced    # -B/--battery
-'bluetooth'        # -E/--bluetooth
-'cpu'              # -C/--cpu - cpu overrides cpu-basic
-'cpu-basic'        # -b/--basic/-v 1 cpu line
-'cpu-flag'         # -C/--cpu/-f/--flags and full flags
-'disk'             # -D/--disk - disk overrides disk-basic/disk-total
-'disk-basic'       # -v 2 Disk data
-'disk-total'       # -b/--basic/ -v 1 Disk
-'graphic'          # -G/--graphics
-'host'             # -S/--system. Default: true. --alt 31/32 disable/enable
-'info'             # -I/--info
-'ip'               # -i/--internet
-'label'            # -l/--label [-P or -p + labels]
-'logical'          # -L/--logical
-'machine'          # -M/--machine
-'network'          # -N/--network
-'network-advanced' # -n/--network-advanced/ -v 3
-'optical'          # -d/--disk-all/--optical/ -v 6
-'optical-basic'    # -F, -v5 - basic optical output
-'partition'        # -P/--partition basic
-'partition-full'   # -p/--partition-full
-'process'          # -t/--processes with c or m
-'ps-cpu'           # -t/--processes with c [count]. Sets: $configs{'PS_COUNT'}
-'ps-mem'           # -t/--processes with m [count]. Sets: $configs{'PS_COUNT'}
-'raid'             # -R/--raid, sets raid, raid-forced'
-'raid-basic'       # -b / -F / -v 2 raid, only show if data is there
-'raid-forced'      # -R/--raid, show if raid there or not
-'ram'              # -m/--memory
-'repo'             # -r / --repos
-'sensor'           # -s/--sensors
-'short'            # inxi short form, no args
-'slot'             # --slots
-'system'           # -S/--system
-'unmounted'        # -o/--unmounted
-'usb'              # --usb
-'uuid'             # -p/-P/-u/--uuid with UUID
-'weather'          # -w / --weather, distro override with $use{'weather'} false
-'weather-location' # -W / --weather-location, contains location string or is null
-'width'            # -y/--width 80-130
-);
-
-$extra   # -x, -xx, -xxx, --extra [0-3]. Repeat or integer arg.
-         # Either increments (-xxx) or uses option value (-x 3)
-$b_admin # --admin/-a [-a sets -xxx as well]
-
-========================================
-USE SWITCHES
-----------------------------------------
-
-These trip specific behaviors, mostly around filtering or distro maintainer blocks of features.
-
-%use = (
-'filter'           # -z/--filter: all, filters output. $filter_string Auto on in IRC unless disabled by -Z
-'filter-label'     # filter partition labels
-'filter-override'  # -Z/--filter-override: overrides IRC filter
-'filter-uuid'      # filter partition UUIDs
-'update'           # allow -U updater, default true, distro maintainers can set in configs to false
-'weather'          # allow -w/W weather, default true, distro maintainers can set in configs to false
-);
-
 ================================================================================
 DATA ARRAY VALUES
 --------------------------------------------------------------------------------
