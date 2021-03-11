@@ -9991,6 +9991,9 @@ sub dmesg_boot_data {
 						$drives[$i]->{'model'} = $temp[1];
 					}
 				}
+				if ($row[2] =~ /\sserial\.(\S*)/){
+					$drives[$i]->{'serial'} = $1;
+				}
 				# print "openbsd\n";
 			}
 			else {
@@ -23101,6 +23104,8 @@ sub set_dmesg_boot_data {
 	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
+		push(@dmesg_boot,'~~~~~',grabber('dmesg 2>/dev/null'));
+		uniq(\@dmesg_boot); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
 		# replace all indented items with ~ so we can id them easily while
 		# processing note that if user, may get error of read permissions
@@ -23121,6 +23126,7 @@ sub set_dmesg_boot_data {
 		}
 		@dmesg_boot = @temp;
 		# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
+		# OpenBSD: 'sd' is usb device, 'wd' normal drive
 		if ($b_dm_boot_disk && @dmesg_boot){
 			@dm_boot_disk = grep {/^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
@@ -23132,8 +23138,8 @@ sub set_dmesg_boot_data {
 			print Dumper \@dm_boot_optical if $test[11];
 		}
 	}
-	log_data('dump','@dmesg_boot',\@dmesg_boot) if $b_log;
-	#print Dumper \@dmesg_boot if $test[11];
+	log_data('dump','@dmesg_boot full',\@dmesg_boot) if $b_log;
+	print Dumper \@dmesg_boot if $test[11];
 	eval $end if $b_log;
 }
 
