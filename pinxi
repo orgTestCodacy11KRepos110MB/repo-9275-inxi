@@ -10681,7 +10681,8 @@ sub set_vendors {
 	# these are HP/Sandisk cobranded. DX110064A5xnNMRI ids as HP and Sandisc
 	['(^DX[1-9])','^(HP\b|SANDDISK)','Sandisk/HP',''], # ssd drive, must come before seagate ST test
 	# real, SSEAGATE Backup+; XP1600HE30002 | 024 HN (spinpoint) ; possible usb: 24AS
-	['(^ST[^T]|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|Expansion Desk|^Expansion|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch|Slim\s? BK)','[S]?SEAGATE','Seagate',''], 
+	# ST[numbers] excludes other ST starting devices
+	['(^ST[0-9]{2}|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|Expansion Desk|^Expansion|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch|Slim\s? BK)','[S]?SEAGATE','Seagate',''], 
 	['^(WD|WL[0]9]|Western Digital|My (Book|Passport)|\d*LPCX|Elements|easystore|MD0|M000|EARX|EFRX|\d*EAVS|0JD|JP[CV]|[0-9]+(BEV|(00)?AAK|AAV|AZL|EA[CD]S)|3200[AB]|2500[BJ]|EA[A-Z]S|20G2|5000[AB]|6400[AB]|7500[AB]|i HTS|00[ABL][A-Z]{2})','(^WDC|Western\s?Digital)','Western Digital',''],
 	# rare cases WDC is in middle of string
 	['(\bWDC\b)','','Western Digital',''],
@@ -22311,15 +22312,15 @@ sub get_tty_console_irc {
 sub get_tty_number {
 	eval $start if $b_log;
 	my ($tty);
-	if ( defined $ENV{'XDG_VTNR'} ){
+	if (defined $ENV{'XDG_VTNR'}){
 		$tty = $ENV{'XDG_VTNR'};
 	}
 	else {
 		$tty = POSIX::ttyname(1);
-		#variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
+		# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
 		$tty =~ s/.*\/[^0-9]*//g if defined $tty;
 	}
-	$tty = '' if ! defined $tty;
+	$tty = '' if !defined $tty;
 	log_data('data',"tty:$tty") if $b_log;
 	eval $end if $b_log;
 	return $tty;
@@ -23104,7 +23105,10 @@ sub set_dmesg_boot_data {
 	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
-		push(@dmesg_boot,'~~~~~',grabber('dmesg 2>/dev/null'));
+		my @dmesg = grabber('dmesg 2>/dev/null');
+		# clear out for netbsd
+		@dmesg = map {$_ =~ s/^\[[^\]]+\]\s+//;$_} @dmesg;
+		push(@dmesg_boot,'~~~~~',@dmesg);
 		uniq(\@dmesg_boot); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
 		# replace all indented items with ~ so we can id them easily while
@@ -24824,18 +24828,18 @@ sub generate_info_data {
 		}
 		$b_pkg = 1;
 	}
-	if (!$b_irc && $extra > 1 ){
+	if (!$b_irc && $extra > 1){
 		# some bsds don't support -f option to get PPID
 		# note: root/su - does not have $DISPLAY usually
 		if ($b_display && !$b_force_display && ($client{'ppid'} && 
 		 (!$bsd_type || (grabber("ps -wwjfp $client{'ppid'} 2>/dev/null"))))){
 			$parent = ShellData::shell_launcher();
 		}
-		else {
+		if (!$parent) {
 			$parent = get_tty_number();
 			$parent = "tty $parent" if $parent ne '';
 		}
-		if ($parent eq 'login'){
+		if ($parent && $parent eq 'login'){
 			$client{'su-start'} = $parent if !$client{'su-start'};
 			$parent = undef;
 		}
@@ -24931,7 +24935,7 @@ sub generate_system_data {
 			$desktop_info = '';
 		}
 		# it is defined, as ''
-		if ( $tty eq '' && $client{'console-irc'}){
+		if ($tty eq '' && $client{'console-irc'}){
 			$tty = get_tty_console_irc('vtnr');
 		}
 		$desktop = "tty $tty" if $tty ne '';
