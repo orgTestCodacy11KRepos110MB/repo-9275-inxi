@@ -9999,47 +9999,45 @@ sub dmesg_boot_data {
 				$drives[$i]->{'vendor'} = '';
 			}
 			#print "$i\n";
-			#if ($bsd_type eq 'openbsd'){
-				if ($row[1] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE]i?B?),.*\ssectors$|^</){
-					$working = main::translate_size($2);
-					$size += $working if $working;
-					$drives[$i]->{'size'} = $working;
+			# openbsd/netbsd matches will often work
+			if ($row[1] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE]i?B?),.*\ssectors$|^</){
+				$working = main::translate_size($2);
+				$size += $working if $working;
+				$drives[$i]->{'size'} = $working;
+			}
+			if ($row[2] && $row[2] =~ /<([^>]+)>/){
+				$drives[$i]->{'model'} = $1 if $1;
+				$drives[$i]->{'type'} = 'removable' if $_ =~ /removable/;
+				# <Generic-, Compact Flash, 1.00>
+				my $count = ($drives[$i]->{'model'} =~ tr/,//);
+				if ($count && $count > 1){
+					@temp = split(/,\s*/, $drives[$i]->{'model'});
+					$drives[$i]->{'model'} = $temp[1];
 				}
-				if ($row[2] && $row[2] =~ /<([^>]+)>/){
-					$drives[$i]->{'model'} = $1 if $1;
-					$drives[$i]->{'type'} = 'removable' if $_ =~ /removable$/;
-					# <Generic-, Compact Flash, 1.00>
-					my $count = ($drives[$i]->{'model'} =~ tr/,//);
-					if ($count && $count > 1){
-						@temp = split(/,\s*/, $drives[$i]->{'model'});
-						$drives[$i]->{'model'} = $temp[1];
-					}
-				}
-				if ($row[2] && $row[2] =~ /\sserial\.(\S*)/){
-					$drives[$i]->{'serial'} = $1;
-				}
-				# print "openbsd\n";
-			#}
-			#else {
-				if ($row[1] =~ /^([0-9]+\s*[KMGTPE]i?B?)[\s,]/){
-					$working = main::translate_size($1);
-					$size += $working if $working;
-					$drives[$i]->{'size'} = $working;
-				}
-				if ($row[1] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
-					$row[1] =~ s/\sdevice$//g;
-					$row[1] =~ /<([^>]*)>(\s(.*))?/;
-					$drives[$i]->{'model'} = $1 if $1;
-					$drives[$i]->{'spec'} = $3 if $3;
-				}
-				if ($row[1] =~ /^Serial\sNumber\s(.*)/){
-					$drives[$i]->{'serial'} = $1;
-				}
-				if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
-					$drives[$i]->{'speed'} = $1;
-					$drives[$i]->{'speed'} =~ s/\.[0-9]+// if $drives[$i]->{'speed'};
-				}
-			#}
+			}
+			if ($row[2] && $row[2] =~ /\sserial\.(\S*)/){
+				$drives[$i]->{'serial'} = $1;
+			}
+			# print "openbsd\n";
+			# these were mainly FreeBSD/Dragonfly matches
+			if (!$drives[$i]->{'size'} && $row[1] =~ /^([0-9]+\s*[KMGTPE]i?B?)[\s,]/){
+				$working = main::translate_size($1);
+				$size += $working if $working;
+				$drives[$i]->{'size'} = $working;
+			}
+			if ($row[1] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
+				$row[1] =~ s/\sdevice$//g;
+				$row[1] =~ /<([^>]*)>(\s(.*))?/;
+				$drives[$i]->{'model'} = $1 if $1;
+				$drives[$i]->{'spec'} = $3 if $3;
+			}
+			if (!$drives[$i]->{'serial'} && $row[1] =~ /^Serial\sNumber\s(.*)/){
+				$drives[$i]->{'serial'} = $1;
+			}
+			if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
+				$drives[$i]->{'speed'} = $1;
+				$drives[$i]->{'speed'} =~ s/\.[0-9]+// if $drives[$i]->{'speed'};
+			}
 			$drives[$i]->{'model'} = main::disk_cleaner($drives[$i]->{'model'});
 			my @device_data = device_vendor($drives[$i]->{'model'},'');
 			$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
