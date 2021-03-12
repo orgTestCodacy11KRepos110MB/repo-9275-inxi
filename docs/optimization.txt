@@ -323,12 +323,167 @@ Deferencing an array vs using it by reference
 Tests showed that it's about 20% faster to not deference an array
 but rather use it all by reference. 
 
-One of many small improvements, if we ekep chipping away 
+One of many small improvements, if we keep chipping away 
 at inxi performance we'll keep it reasonably quick as it gets bigger.
 
 ----------------------------------------
-SUB vs METHOD
+reference vs passing copy
 ----------------------------------------
+sub cleaner {
+	my ($item) = @_;
+	return $item if !$item;# handle cases where it was 0 or ''
+	# note: |nee trips engineering, but I don't know why nee was filtered
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/,|\*/ /g;
+	$item =~ s/\s\s+/ /g;
+	$item =~ s/^\s+|\s+$//g;
+	return $item;
+}
+sub cleaner_ref {
+	return $_[0] if !$_[0];# handle cases where it was 0 or ''
+	# note: |nee trips engineering, but I don't know why nee was filtered
+	${$_[0]} =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	${$_[0]} =~ s/,|\*/ /g;
+	${$_[0]} =~ s/\s\s+/ /g;
+	${$_[0]} =~ s/^\s+|\s+$//g;
+}
+my $t0 = [gettimeofday()];
+my $string = "apple corporation company is stupid <co> and will fail";
+for (0 .. 300){
+$string = cleaner($string);
+#cleaner_ref(\$string);
+}
+$t3 = tv_interval($t0, [gettimeofday()]);
+print " elapsed: $t3\n";
+print "$string\n";
+exit;
+
+Results:
+The two are essentially identical, no difference at all!
+
+$string = cleaner($string):
+
+elapsed: 0.005632
+elapsed: 0.005768
+elapsed: 0.005677
+
+cleaner_ref(\$string):
+
+elapsed: 0.005662
+elapsed: 0.005594
+elapsed: 0.006132
+
+----------------------------------
+Using Benchmark:
+
+sub cleaner {
+	my ($item) = @_;
+	return $item if !$item;# handle cases where it was 0 or ''
+	# note: |nee trips engineering, but I don't know why nee was filtered
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/,|\*/ /g;
+	$item =~ s/\s\s+/ /g;
+	$item =~ s/^\s+|\s+$//g;
+	return $item;
+}
+
+sub cleaner_ref {
+	return $_[0] if !$_[0];# handle cases where it was 0 or ''
+	# note: |nee trips engineering, but I don't know why nee was filtered
+	${$_[0]} =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	${$_[0]} =~ s/,|\*/ /g;
+	${$_[0]} =~ s/\s\s+/ /g;
+	${$_[0]} =~ s/^\s+|\s+$//g;
+}
+my $string = "apple creates <co> with revision and many <ltd> items";
+cmpthese(-4, {
+'copy' => sub {
+	$string = cleaner($string);
+},
+'ref' => sub {
+	cleaner_ref(\$string);
+},
+});exit;
+
+        Rate copy  ref
+copy 42392/s   --  -1%
+ref  42906/s   1%   --
+
+------------------------------
+
+my @a = (
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+'a','b','c','d','e','g','h',
+);
+cmpthese(-2, {
+'a copy' => sub {
+	my @b = a_copy(@a);
+},
+'a ref' => sub {
+	my $b = a_ref(\@a);
+},
+});
+
+sub a_copy {
+my (@a) = @_;
+return @a;
+}
+sub a_ref {
+my ($a) = @_;
+return $a;
+}
+
+            Rate a copy  a ref
+a copy   42910/s     --   -99%
+a ref  4937238/s 11406%     --
+
+
+
+----------------------------------------
+SUB vs METHOD :: Benchmark
+----------------------------------------
+
+https://perldoc.perl.org/Benchmark
+
+https://www.perl.com/article/40/2013/9/29/How-to-benchmark-Perl-code-for-speed/
 
 https://www.perlmonks.org/bare/?node_id=621709
 
@@ -391,6 +546,14 @@ Method      886331/s      77%        38%       11%        --      -26%      -84%
 Sub        1191561/s     138%        85%       49%       34%        --      -78%
 Direct     5397078/s     978%       738%      577%      509%      353%        --
 
+--------
+
+	timethis(-3, 
+	sub {
+		AudioData::get();
+	}
+
+	);
 
 ----------------------------------------
 SWITCH
@@ -446,7 +609,7 @@ my $file = 'well there are a whole lot of characters really there are!!! ';
 foreach ( (0 .. 1000) ){
 	#$name = length($file):
 	$name = $file;
-	$name = tr/!//;
+	$name =~ tr/!//;
 }
 $t3 = tv_interval ($t0, [gettimeofday]);
 print "path: $name elapsed: $t3\n";
@@ -455,6 +618,23 @@ print "path: $name elapsed: $t3\n";
    0.000193 0.000224 0.000172 0.000136
 2. using tr 
    0.000837 0.000594 0.000603
+   
+-----------------------
+
+my $name;
+my $file = 'well there are a whole lot of characters really there are!!! ';
+cmpthese(-1, {
+'tr to count' => sub {
+	$name = $file;
+	$name =~ tr/!//;
+},
+'length to count' => sub {
+	$name = length($file);
+},
+});
+                       Rate     tr to count length to count
+tr to count       8143526/s              --            -92%
+length to count 102122184/s           1154%              --
    
 ----------------------------------------
 USB
@@ -546,6 +726,12 @@ use Benchmark ':all';
 # get rid of the cpu sleep time
 perl -d:NYTProf pinxi -Fa --sleep 0;nytprofhtml --open
 nytprofhtml --open
+
+perl -d:NYTProf pinxi -v8 --sleep 0;nytprofhtml --open
+
+----------------------------------------
+
+Devel::Profile
 
 ----------------------------------------
 speed up Perl:
