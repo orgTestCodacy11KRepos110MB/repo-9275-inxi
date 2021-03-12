@@ -36,7 +36,8 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(uname strftime ttyname);
-# use feature qw(state);
+# use Devel::Size qw(size total_size);
+# use feature qw(say state); # 5.10 or newer Perl
 
 ## INXI INFO ##
 my $self_name='pinxi';
@@ -47,13 +48,22 @@ my $self_patch='103';
 
 ### INITIALIZE VARIABLES ###
 
-## Self data
-my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
-
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,%dl,%files,%gpart,
 %dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,%service_tool,
 %system_files);
+
+## Arrays
+# ps_aux is full output, ps_cmd is only the last 10 columns to last
+my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
+@devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
+@paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
+@sysctl,@sysctl_audio,@sysctl_battery,@sysctl_machine,@sysctl_sensors,
+@uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
+
+## Disk arrays 
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
+@lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
@@ -72,33 +82,27 @@ if (eval {require Time::HiRes}){
 }
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 
-## Arrays
-# ps_aux is full output, ps_cmd is only the last 10 columns to last
-my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
-@devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
-@paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
-@sysctl,@sysctl_audio,@sysctl_battery,@sysctl_machine,@sysctl_sensors,
-@uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
-
-## Disk arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
-@lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
-
 ## Booleans [busybox_ps not used actively]
 my ($b_admin,$b_android,$b_arm,$b_busybox_ps,$b_display,$b_irc,
 $b_mips,$b_ppc,$b_root,$b_running_in_display,$b_sparc);
+
 # initialize basic use features
 my %use = (
 'sysctl_disk' => 1, # unused currently
 'update' => 1, # switched off/on with maintainer config ALLOW_UPDATE
 'weather' => 1, # switched off/on with maintainer config ALLOW_WEATHER
 );
+
+## Self data
+my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
+
 ## System
 my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
 my ($bits_sys,$cpu_arch);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
 my ($dl_ua,$weather_source,$weather_unit) = ('s-tools/' . $self_name  . '-',100,'mi');
+
 ## Tools
 my ($bt_tool,$display,$ftp_alt,$tty_session);
 my ($display_opt,$sudoas) = ('','');
@@ -2341,6 +2345,11 @@ sub user_debug_test_1 {
 # 	print "Perl IO data:\n";
 # 	print(join(', ', PerlIO::get_layers(STDOUT)), "\n");
 # 	close $duped;
+}
+# see docs/optimization.txt
+sub ram_use {
+    my ($name, $ref) = @_;
+    printf "%-25s %5d %5d\n", $name, size($ref), total_size($ref);
 }
 
 #### -------------------------------------------------------------------
@@ -24804,6 +24813,7 @@ sub generate_info_data {
 			}
 			if ($b_admin && (my $tool = ServiceData::get('tool',''))){
 				$data{$data_name}->[$index]{main::key($num++,0,2,'tool')} = $tool;
+				undef %service_tool;
 			}
 		}
 	}

@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE:    inxi-data.txt
-VERSION: 1.6
-DATE:    2021-03-09
+VERSION: 1.7
+DATE:    2021-03-11
 
 ----------------------------------------
 Docs:
@@ -31,6 +31,7 @@ Sections:
   DESKTOP / WM DATA
   LOGICAL DATA
   SERVICE DATA
+  TTY DATA
 2. SECONDARY DATA
   DISTRO DATA
   LIVE CD LOGINS
@@ -976,6 +977,172 @@ service cron status
 [not exists]
 service ntpd status
 ntpd: unrecognized service 
+
+========================================
+TTY DATA
+----------------------------------------
+
+----------------------------------------
+What is the TTY major number of your Unix?
+----------------------------------------
+
+https://unix.stackexchange.com/questions/127259/what-is-the-tty-major-number-of-your-unix/127260#127260
+
+Unix version 7 (1979):
+
+# ls -l /dev/console /dev/tty?*
+crw--w--w- 1 root    0,  0 Sep 22 06:46 /dev/console
+crw-rw-r-- 1 root    0,  1 Sep 22 05:47 /dev/tty1
+crw-rw-r-- 1 root    0,  2 Sep 22 05:47 /dev/tty2
+
+(no pty there yet)
+Linux 3.2.0 (debian wheezy).
+
+Note: you can also find these by searching /dev for owned by group tty and dialout. That's a Debian thing.
+
+    Virtual consoles
+        /dev/tty[0-9]*: 4
+    Real serial ports:
+        /dev/ttyS[0-9]+: 4
+    Pseudo terminals:
+        /dev/pts/[0-9]+: 136
+        /dev/pts/ptmx: 5
+    FTDI USB serial port:
+        /dev/ttyUSB[0-9]+: 188
+    USB serial port: (AVR embedded USB/Arduino Uno)
+        /dev/ttyACM[0-9]+: 166
+
+Linux 3.4.0 (Android 4.4.2 / Nexus 5)
+
+Note: has all linux ones plus:
+
+    ttyACM (cell modem control)
+        (no /dev entry, apparently): 166
+    ttyHSL (Bluetooth)
+        /dev/ttyHSL0: 247
+    ttyHS (Bluetooth)
+        /dev/ttyHS99: 248
+
+Darwin 13.1.0 (MacOS 10.9.2):
+
+    Real serial ports:
+        /dev/ttys[0-9a-f]: 4
+    Pseudo terminals:
+        /dev/ttys[0-9]{3}: 16
+    FTDI USB serial port:
+        /dev/tty.usbserial.*: 18
+    USB serial port: (AVR embedded USB/Arduino Uno)
+        /dev/tty.usbmodem.*: 18
+
+Solaris 10 x86/amd64:
+
+    Pseudo terminals:
+        /dev/pty[p-r][0-9a-f] (pty master): 25
+        /dev/tty[p-r][0-9a-f] (pty slave): 26
+        /dev/pts/[0-9]+: 24
+        /dev/ptmx: 23
+
+    Serial devices:
+        /dev/tty[abc...] aka /dev/term/[abc...] or /dev/tty0[012..] (uart serial, also ): 106
+        also as /dev/ttyd[012...] but with different interface (dial, modem) also on 106 but high minors.
+
+OpenBSD 6.0
+
+As documented in the commentary in /dev/MAKEDEV
+
+    PC/AT UART serial ports:
+        /dev/tty[0-7][0-9a-f]: 8
+        /dev/cua[0-7][0-9a-f]: 8
+    Cyclades serial ports:
+        /dev/ttyc*: 38
+        /dev/cuac*: 38
+    Virtio serial ports:
+        /dev/ttyVI*: 94
+    USB serial ports:
+        /dev/ttyU[0-3]: 66
+        /dev/cuaU[0-3]: 66
+    wscons terminals:
+        /dev/tty[C-J][0-b]: 12
+    Pseudo terminal master and slave (non-UNIX 98)
+        /dev/pty[p-zP-T][0-9a-zA-Z]: 6
+        /dev/tty[p-zP-T][0-9a-zA-Z]: 5
+
+FreeBSD 10.0 and TrueOS
+
+FreeBSD (and its derivatives such as TrueOS) is where your idea shows a fatal flaw. There is no major+minor device number scheme in FreeBSD.
+
+The devfs pseudo-filesystem on FreeBSD, conventionally mounted at /dev, does not use a major+minor system for grouping devices into "major" classes at all. Rather, the rdev for the device is the same as its i-node number in the pseudo-filesystem, with i-nodes simply assigned in ascending order as device nodes are generated, depending from the exact hardware on the machine at hand at the time.
+
+So device number cannot be used as a shortcut for isatty().
+
+
+----------------------------------------
+What is the difference between ttys0, ttyUSB0 and ttyAMA0 in Linux?
+
+----------------------------------------
+
+https://unix.stackexchange.com/questions/307390/what-is-the-difference-between-ttys0-ttyusb0-and-ttyama0-in-linux/307394
+
+-----------------------
+ttyS0
+-----------------------
+
+What you get on the host when you connect to target with this:
+
+[image] [serial adapter cable]
+
+This port is not present on most laptops or small devboards, but is still present on many desktops, and is very convenient for OS developers as mentioned at: https://askubuntu.com/questions/104771/where-are-kernel-panic-logs/932380#932380
+
+You also get it with qemu -device isa-serial.
+
+For example could hook up two desktops with one of those cables, and communicate directly between them to get a shell on the remote desktop from your own. From Linux computer 1 you would run:
+
+screen /dev/ttyS0 115200
+
+and then computer 2 would reply with the login prompt, and then you can log in from computer 1 into computer 2.
+
+So this is a bit like SSH and can be seen as an early form of networking. I think those cables cannot be too long or else the signal is lost though, and you can't do as much without the TCP/IP addressing/packet mechanisms.
+
+-----------------------
+ttyUSB0
+-----------------------
+
+What you get on host when using something like:
+
+[image] usb > tty adapter cable
+
+I also get it when I connect the GPIOs of my Raspberry Pi to my laptop to get a shell on a Raspberry Pi without a screen!
+
+[image] usb laptop to raspi gpio
+
+And another more integrated RPI connector version of the above:
+
+[image] usb gpio direct connector
+
+A concrete RPI example at: https://stackoverflow.com/questions/22054578/how-to-run-a-program-without-an-operating-system/32483545#32483545
+
+-----------------------
+ttyAMA0
+-----------------------
+
+An ARM thing as mentioned by Sato.
+
+Haven't run into that for real hardware, will post pics when I do. I think I would be able to connect my desktop with a serial port to my RPI with that interface: https://raspberrypi.stackexchange.com/questions/69697/what-is-dev-ttyama0
+
+But I've used it with QEMU: https://github.com/buildroot/buildroot/tree/27d7ef126bc7f4eb1a757128466befa11245bbfd/board/qemu/arm-versatile
+
+It seem that AMA is a shortened form of AMBA? https://www.raspberrypi.org/forums/viewtopic.php?t=8075 But why would they shorten a 4 character acronym?!
+
+The only interesting Linux kernel hits are under: https://github.com/torvalds/linux/blob/v4.16/drivers/tty/serial/amba-pl011.c#L2488 so it seems to be strictly linked to the PL011: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0183g/index.html which is a UART controller licensed by ARM, which I think is the dominating implementation.
+
+[note: this is what raspberry pi uses for bluetooth on at least pi 4, maybe pi 3 too.]
+
+-----------------------
+ttySAC0
+-----------------------
+
+Kamil reported that his Samsung Artik 710, so another one for the collection.
+
 
 ================================================================================
 SECONDARY DATA
