@@ -67,7 +67,7 @@ my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
 
 ## Debuggers
 my %debugger = ('level' => 0);
-my (%fake,@t0,@test);
+my (@dbg,%fake,@t0);
 my ($b_hires,$b_log,$b_log_colors,$b_log_full);
 my ($end,$start,$fh_l,$log_file); # log file handle, file
 my ($t1,$t2,$t3) = (0,0,0);
@@ -241,7 +241,7 @@ sub set {
 			$alerts{$test}->{'message'} = main::row_defaults('tool-missing-os', ucfirst($os) . " $test");
 		}
 	}
-	print Data::Dumper::Dumper \%alerts if $test[25];
+	print Data::Dumper::Dumper \%alerts if $dbg[25];
 	set_fake_bsd_tools() if $fake{'bsd'};
 	set_forced_tools();
 	eval $end if $b_log;
@@ -672,7 +672,7 @@ sub set_xorg_log {
 			}
 		}
 	}
-	print "Xorg log file: $file_holder\nLast modified: $time_holder\n" if $test[14];
+	print "Xorg log file: $file_holder\nLast modified: $time_holder\n" if $dbg[14];
 	log_data('data',"Xorg log file: $file_holder") if $b_log;
 	$system_files{'xorg-log'} = $file_holder;
 	eval $end if $b_log;
@@ -2404,7 +2404,7 @@ sub download_file {
 			$debug_data = $result;
 		}
 	}
-	print "-------\nDownloader Data:\n$cmd\nResult: $debug_data\n" if $test[1];
+	print "-------\nDownloader Data:\n$cmd\nResult: $debug_data\n" if $dbg[1];
 	log_data('data',"$cmd\nResult: $result") if $b_log;
 	return $result;
 }
@@ -2427,7 +2427,7 @@ sub get_file {
 		my $msg = "Failed to connect to server/file!\n";
 		$msg .= "Response: ${content}Downloader: HTTP::Tiny URL: $url\nFile: $file";
 		log_data('data',$msg) if $b_log;
-		print error_defaults('download-error',$msg) if $test[1];
+		print error_defaults('download-error',$msg) if $dbg[1];
 		$return = 0;
 	}
 	else {
@@ -2482,7 +2482,7 @@ sub set_downloader {
 		$dl{'timeout'} = '';
 	}
 	elsif ( $dl{'curl'} && check_program('curl')  ){
-		$quiet = '-s ' if !$test[1];
+		$quiet = '-s ' if !$dbg[1];
 		$dl{'dl'} = 'curl';
 		$dl{'file'} = "  -L ${quiet}-o ";
 		$dl{'no-ssl'} = ' --insecure';
@@ -2491,7 +2491,7 @@ sub set_downloader {
 		$dl{'ua'} = ' -A ' . $dl_ua;
 	}
 	elsif ($dl{'wget'} && check_program('wget') ){
-		$quiet = '-q ' if !$test[1];
+		$quiet = '-q ' if !$dbg[1];
 		$dl{'dl'} = 'wget';
 		$dl{'file'} = " ${quiet}-O ";
 		$dl{'no-ssl'} = ' --no-check-certificate';
@@ -2501,7 +2501,7 @@ sub set_downloader {
 		$dl{'ua'} = ' -U ' . $dl_ua;
 	}
 	elsif ($dl{'fetch'} && check_program('fetch')){
-		$quiet = '-q ' if !$test[1];
+		$quiet = '-q ' if !$dbg[1];
 		$dl{'dl'} = 'fetch';
 		$dl{'file'} = " ${quiet}-o ";
 		$dl{'no-ssl'} = ' --no-verify-peer';
@@ -4122,7 +4122,7 @@ sub update_man {
 	print "Updating $self_name.1 in $man_file_location\n";
 	print "using $download_id branch as download source\n";
 	print "Downloading man page file...\n";
-	print "Download URL: $man_file_url\n" if $test[1];
+	print "Download URL: $man_file_url\n" if $dbg[1];
 	$file_contents = download_file('stdout', $man_file_url);
 	if ($file_contents){
 		# make sure the whole file got downloaded and is in the variable
@@ -4617,7 +4617,7 @@ sub get {
 	'dbg:i' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg > 0) {
-			$test[$arg] = 1;
+			$dbg[$arg] = 1;
 		}
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
@@ -5333,6 +5333,8 @@ sub show_options {
 	['1', '', '--dmidecode', "Force use of dmidecode data instead of /sys where relevant 
 	(e.g. -M, -B)." ],
 	['1', '', '--downloader', "Force $self_name to use [curl|fetch|perl|wget] for downloads." ],
+	['1', '', '--force', "[dmidecode|hddtemp|lsusb|usb-sys|vmstat|wmctl]. Force use of item, 
+	see --hddtemp, --dmidecode, --wm, --usb-tool, --usb-sys." ],
 	['1', '', '--hddtemp', "Force use of hddtemp for disk temps." ],
 	['1', '', '--host', "Turn on hostname for -S." ],
 	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to default)." ],
@@ -6852,7 +6854,7 @@ sub sound_server_data {
 		($running,$server,$version) = ('','','');
 	}
 	main::log_data('dump','sound servers: @servers',\@servers) if $b_log;
-	print Data::Dumper::Dumper \@servers if $test[26];
+	print Data::Dumper::Dumper \@servers if $dbg[26];
 	return @servers;
 	eval $end if $b_log;
 }
@@ -7589,7 +7591,7 @@ sub bt_tool_data {
 	if (!@data && !$b_bluetooth){
 		$hci{'alert'} = main::row_defaults('bluetooth-down','bt-adapter');
 	}
-	print Data::Dumper::Dumper \%hci if $test[27];
+	print Data::Dumper::Dumper \%hci if $dbg[27];
 	main::log_data('dump','%hci', \%hci) if $b_log;
 	eval $end if $b_log;
 }
@@ -7642,7 +7644,7 @@ sub hciconfig_data {
 			$hci{$id}->{'service-classes'} = main::general_cleaner(lc($1));
 		}
 	}
-	print Data::Dumper::Dumper \%hci if $test[27];
+	print Data::Dumper::Dumper \%hci if $dbg[27];
 	main::log_data('dump','%hci', \%hci) if $b_log;
 	eval $end if $b_log;
 }
@@ -8284,7 +8286,7 @@ sub cpuinfo_data {
 		$cpu{'max-freq'} = $speeds{'max-freq'};
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	print Data::Dumper::Dumper \%cpu if $test[8];
+	print Data::Dumper::Dumper \%cpu if $dbg[8];
 	eval $end if $b_log;
 	return %cpu;
 }
@@ -8435,7 +8437,7 @@ sub sysctl_data {
 		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	print Data::Dumper::Dumper \%cpu if $test[8];
+	print Data::Dumper::Dumper \%cpu if $dbg[8];
 	eval $end if $b_log;
 	return %cpu;
 }
@@ -8510,7 +8512,7 @@ sub dmesg_boot_data {
 	'stepping' => $stepping,
 	'type' => $type,
 	);
-	print Data::Dumper::Dumper \%values if $test[27];
+	print Data::Dumper::Dumper \%values if $dbg[27];
 	eval $end if $b_log;
 	return %values;
 }
@@ -9732,7 +9734,7 @@ sub disk_data {
 			$smartctl_missing = $alerts{'smartctl'}->{'message'};
 		}
 	}
-	print Data::Dumper::Dumper \@data if $test[13];;
+	print Data::Dumper::Dumper \@data if $dbg[13];;
 	main::log_data('data',"used: $used") if $b_log;
 	eval $end if $b_log;
 	return @data;
@@ -9800,7 +9802,7 @@ sub proc_data {
 		@data = proc_data_advanced($b_hdx,\@drives);
 	}
 	main::log_data('dump','@data',\@data) if $b_log;
-	print Data::Dumper::Dumper \@data if $test[24];
+	print Data::Dumper::Dumper \@data if $dbg[24];
 	eval $end if $b_log;
 	return @data;
 }
@@ -10172,7 +10174,7 @@ sub smartctl_data {
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
-		print 'Drive:/dev/' . $id . ":\n", Data::Dumper::Dumper\@result if $test[12];
+		print 'Drive:/dev/' . $id . ":\n", Data::Dumper::Dumper\@result if $dbg[12];
 		if (scalar @result < 4 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data->[$i]{'smart-permissions'} = main::row_defaults('tool-permissions','smartctl');
@@ -10522,7 +10524,7 @@ sub smartctl_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper $data if $test[19];
+	print Data::Dumper::Dumper $data if $dbg[19];
 	eval $end if $b_log;
 	return @$data;
 }
@@ -11189,7 +11191,7 @@ sub hdd_temp_sys {
 	$hdd_temp = sprintf("%.1f", $hdd_temp/1000) if $hdd_temp;
 	main::log_data('data',"device: $device temp: $hdd_temp") if $b_log;
 	main::log_data('dump','%sensors',\%sensors) if $b_log;
-	print Data::Dumper::Dumper \%sensors if $test[21];
+	print Data::Dumper::Dumper \%sensors if $dbg[21];
 	eval $end if $b_log;
 	return $hdd_temp;
 }
@@ -11806,7 +11808,7 @@ sub display_data_x {
 	else {
 		$graphics{'no-xdpyinfo'} = main::row_defaults('tool-missing-basic','xdpyinfo');
 	}
-	print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $test[17];
+	print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
@@ -11817,7 +11819,7 @@ sub display_data_wayland {
 		# return as wayland-0 or 0?
 		$graphics{'display-id'} =~ s/wayland-?//i;
 	}
-	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $test[17];
+	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	#main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
@@ -12473,7 +12475,7 @@ sub general_data {
 		}
 	}
 	main::log_data('dump','luks @general_data', \@general_data);
-	print Data::Dumper::Dumper \@general_data if $test[23];
+	print Data::Dumper::Dumper \@general_data if $dbg[23];
 	eval $end if $b_log;
 	return @general_data;
 }
@@ -12505,7 +12507,7 @@ sub lvm_data {
 		$cmd .= ' 2>/dev/null';
 		@data = main::grabber("$cmd",'','strip');
 		main::log_data('dump','lvm @data', \@data) if $b_log;
-		print "command: $cmd\n" if $test[22];
+		print "command: $cmd\n" if $dbg[22];
 	}
 	my $j = 0;
 	foreach (@data){
@@ -12523,7 +12525,7 @@ sub lvm_data {
 	}
 	# print Data::Dumper::Dumper \%totals, \@raw_logical;
 	main::log_data('dump','lvm @lvm', \@lvm) if $b_log;
-	print Data::Dumper::Dumper \@lvm if $test[22];
+	print Data::Dumper::Dumper \@lvm if $dbg[22];
 	eval $end if $b_log;
 }
 sub process_lvm_data {
@@ -12559,7 +12561,7 @@ sub process_lvm_data {
 		}
 	}
 	main::log_data('dump','lvm %processed', \%processed) if $b_log;
-	print Data::Dumper::Dumper \%processed if $test[23];
+	print Data::Dumper::Dumper \%processed if $dbg[23];
 	eval $end if $b_log;
 	return %processed;
 }
@@ -12883,7 +12885,7 @@ sub machine_data_sys {
 # 	foreach (keys %data){
 # 		print "$_: $data{$_}\n";
 # 	}
-	print Data::Dumper::Dumper \%data if $test[28];
+	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
 	return %data;
@@ -12956,7 +12958,7 @@ sub machine_data_soc {
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
 		$data{'serial'} = $serial if $serial;
 	}
-	print Data::Dumper::Dumper \%data if $test[28];
+	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
 	return %data;
@@ -13097,7 +13099,7 @@ sub machine_data_dmi {
 # 	foreach (keys %data){
 # 		print "$_: $data{$_}\n";
 # 	}
-	print Data::Dumper::Dumper \%data if $test[28];
+	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
 	return %data;
@@ -13176,7 +13178,7 @@ sub machine_data_sysctl {
 		$product = $data{'board_name'} if !$product;
 		$data{'device'} = get_device_vm($vendor,$product);
 	}
-	print Data::Dumper::Dumper \%data if $test[28];
+	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
 	return %data;
@@ -14510,12 +14512,12 @@ sub partition_data {
 	}
 	@data = swap_data();
 	push(@partitions,@data);
-	print Data::Dumper::Dumper \@partitions if $test[16];
+	print Data::Dumper::Dumper \@partitions if $dbg[16];
 	if (!$bsd_type && @lsblk){
 		check_partition_data();# updates @partitions 
 	}
 	main::log_data('dump','@partitions',\@partitions) if $b_log;
-	print Data::Dumper::Dumper \@partitions if $test[16];
+	print Data::Dumper::Dumper \@partitions if $dbg[16];
 	eval $end if $b_log;
 }
 sub swap_data {
@@ -14630,7 +14632,7 @@ sub swap_data {
 		$s++;
 	}
 	main::log_data('dump','@swaps',\@swaps) if $b_log;
-	print Data::Dumper::Dumper \@swaps if $test[15];;
+	print Data::Dumper::Dumper \@swaps if $dbg[15];;
 	eval $end if $b_log;
 	return @swaps;
 }
@@ -17815,11 +17817,11 @@ sub ipmi_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper \%sensors if $test[31];
+	print Data::Dumper::Dumper \%sensors if $dbg[31];
 	%sensors = process_data(%sensors) if %sensors;
 	main::log_data('dump','ipmi: %sensors',\%sensors) if $b_log;
 	eval $end if $b_log;
-	print Data::Dumper::Dumper \%sensors if $test[31];
+	print Data::Dumper::Dumper \%sensors if $dbg[31];
 	return %sensors;
 }
 sub lm_sensors_data {
@@ -17992,10 +17994,10 @@ sub lm_sensors_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper \%sensors if $test[31];
+	print Data::Dumper::Dumper \%sensors if $dbg[31];
 	%sensors = process_data(%sensors) if %sensors;
 	main::log_data('dump','lm-sensors: %sensors',\%sensors) if $b_log;
-	print Data::Dumper::Dumper \%sensors if $test[31];
+	print Data::Dumper::Dumper \%sensors if $dbg[31];
 	eval $end if $b_log;
 	return %sensors;
 }
@@ -18063,7 +18065,7 @@ sub process_lm_sensors {
 		}
 	}
 	$loaded{'lm-sensors'} = 1;
-	if ($test[18]){
+	if ($dbg[18]){
 		print 'lm sensors: ' , Data::Dumper::Dumper \%sensors_raw;
 	}
 	if ($b_log){
@@ -18473,7 +18475,7 @@ sub gpu_data {
 	main::log_data('dump','sensors output: video: @gpudata',\@gpudata);
 	# we'll probably use this data elsewhere so make it a one time call
 	$loaded{'gpu-data'} = 1;
-	print 'gpudata: ', Data::Dumper::Dumper \@gpudata if $test[18];
+	print 'gpudata: ', Data::Dumper::Dumper \@gpudata if $dbg[18];
 	eval $end if $b_log;
 	return @gpudata;
 }
@@ -21974,7 +21976,7 @@ sub process_status {
 	}
 	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
 	#@data = ('bluetooth is running.');
-	print "key: $key\n", Data::Dumper::Dumper \@data if $test[29];
+	print "key: $key\n", Data::Dumper::Dumper \@data if $dbg[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
 		my @working = split(/\s*:\s*/,$row);
@@ -22030,7 +22032,7 @@ sub process_status {
 			last;
 		}
 	}
-	print "service result: $result\n" if $test[29];
+	print "service result: $result\n" if $dbg[29];
 	main::log_data('data',"result: $result") if $b_log;
 	eval $end if $b_log;
 	return $result;
@@ -22067,7 +22069,7 @@ sub set {
 	eval $end if $b_log;
 }
 }
-# $test[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
+# $dbg[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
 
 # Get ShellData
 {
@@ -22441,7 +22443,7 @@ sub set_build_prop {
 		}
 	}
 	log_data('dump','%build_prop',\%build_prop) if $b_log;
-	print Dumper \%build_prop if $test[20];
+	print Dumper \%build_prop if $dbg[20];
 	eval $end if $b_log;
 }
 
@@ -22497,7 +22499,7 @@ sub set {
 				pcictl_data();
 			}
 		}
-		if ($test[9]){
+		if ($dbg[9]){
 			print Data::Dumper::Dumper \@devices_audio;
 			print Data::Dumper::Dumper \@devices_bluetooth;
 			print Data::Dumper::Dumper \@devices_graphics;
@@ -22576,7 +22578,7 @@ sub lspci_data {
 			($driver,$driver_nu,$modules,$subsystem,$subsystem_id) = ('','','','','');
 		}
 	}
-	print Data::Dumper::Dumper \@devices if $test[4];
+	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','lspci @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
@@ -22654,7 +22656,7 @@ sub pciconf_data {
 			($device,$type,$vendor) = ('','','');
 		}
 	}
-	print Data::Dumper::Dumper \@devices if $test[4];
+	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','pciconf @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
@@ -22685,7 +22687,7 @@ sub pcidump_data {
 			$type_id = "$1$3";
 		}
 	}
-	print Data::Dumper::Dumper \@devices if $test[4];
+	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','pcidump @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
@@ -22726,7 +22728,7 @@ sub pcictl_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper \@devices if $test[4];
+	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','pcidump @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
@@ -22779,7 +22781,7 @@ sub pci_grabber {
 		}
 		push(@working, '~');
 	}
-	print Data::Dumper::Dumper \@working if $test[30];
+	print Data::Dumper::Dumper \@working if $dbg[30];
 	eval $end if $b_log;
 	return @working;
 }
@@ -22789,7 +22791,7 @@ sub soc_data {
 	soc_devices_files();
 	soc_devices();
 	soc_devicetree();
-	print Data::Dumper::Dumper \@devices if $test[4];
+	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','soc @devices',\@devices) if $b_log;
 	eval $end if $b_log;
 }
@@ -23149,16 +23151,16 @@ sub set_dmesg_boot_data {
 		if ($use{'dm-boot-disk'} && @dmesg_boot){
 			@dm_boot_disk = grep {/^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
-			print Dumper \@dm_boot_disk if $test[11];
+			print Dumper \@dm_boot_disk if $dbg[11];
 		}
 		if ($use{'dm-boot-optical'} && @dmesg_boot){
 			@dm_boot_optical = grep {/^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_optical',\@dm_boot_optical) if $b_log;
-			print Dumper \@dm_boot_optical if $test[11];
+			print Dumper \@dm_boot_optical if $dbg[11];
 		}
 	}
 	log_data('dump','@dmesg_boot full',\@dmesg_boot) if $b_log;
-	print Dumper \@dmesg_boot if $test[11];
+	print Dumper \@dmesg_boot if $dbg[11];
 	eval $end if $b_log;
 }
 
@@ -23241,7 +23243,7 @@ sub set_dmidecode_data {
 	# by handle, as secondary sort.
 	@dmi = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @dmi;
 	log_data('dump','@dmi',\@dmi) if $b_log;
-	print Dumper \@dmi if $test[2];
+	print Dumper \@dmi if $dbg[2];
 	eval $end if $b_log;
 }
 
@@ -23303,13 +23305,13 @@ sub set_ip_addr {
 			#print Data::Dumper::Dumper \@ips;
 		}
 	}
-	#print Data::Dumper::Dumper \@ips if $test[4];
+	#print Data::Dumper::Dumper \@ips if $dbg[4];
 	if (@ips){
 		@temp = ($if,[@ips]);
 		push(@ifs,@temp);
 	}
 	main::log_data('dump','@ifs',\@ifs) if $b_log;
-	print Data::Dumper::Dumper \@ifs if $test[3];
+	print Data::Dumper::Dumper \@ifs if $dbg[3];
 	eval $end if $b_log;
 }
 
@@ -23406,8 +23408,8 @@ sub set_ifconfig {
 		push(@ifs_bsd,@temp);
 		($state,$speed,$duplex,$mac) = ('','','','');
 	}
-	print Data::Dumper::Dumper \@ifs if $test[3];
-	print Data::Dumper::Dumper \@ifs_bsd if $test[3];
+	print Data::Dumper::Dumper \@ifs if $dbg[3];
+	print Data::Dumper::Dumper \@ifs_bsd if $dbg[3];
 	main::log_data('dump','@ifs',\@ifs) if $b_log;
 	main::log_data('dump','@ifs_bsd',\@ifs_bsd) if $b_log;
 	eval $end if $b_log;
@@ -23528,7 +23530,7 @@ sub set_ps_aux {
 	} @ps_aux;
 	#@ps_cmd = grep {!/^\[/} @ps_cmd;
 	# never, because ps loaded before option handler
-	# print Dumper \@ps_cmd; # if $test[5];
+	# print Dumper \@ps_cmd; # if $dbg[5];
 	eval $end if $b_log;
 }
 sub set_ps_gui {
@@ -23597,7 +23599,7 @@ sub set_ps_gui {
 		}
 	}
 	uniq(\@ps_gui) if @ps_gui;
-	print Dumper \@ps_gui if $test[5];
+	print Dumper \@ps_gui if $dbg[5];
 	log_data('dump','@ps_gui',\@ps_gui) if $b_log;
 	eval $end if $b_log;
 }
@@ -23638,7 +23640,7 @@ sub set_sysctl_data {
 			push(@sysctl_battery, $_);
 		}
 	}
-	print Dumper \@sysctl if $test[7];
+	print Dumper \@sysctl if $dbg[7];
 	# this thing can get really long.
 	if ($b_log){
 		#main::log_data('dump','@sysctl',\@sysctl);
@@ -23758,9 +23760,9 @@ sub lsusb_data {
 		push(@usb,[@working]);
 		#print join("\n",@working),"\n\n=====\n";
 	}
-	print Data::Dumper::Dumper \@usb if $test[6];
+	print Data::Dumper::Dumper \@usb if $dbg[6];
 	sys_data('lsusb') if @usb;
-	print Data::Dumper::Dumper \@usb if $test[6];
+	print Data::Dumper::Dumper \@usb if $dbg[6];
 	main::log_data('dump','@usb: plain',\@usb) if $b_log;
 	eval $end if $b_log;
 }
@@ -23829,7 +23831,7 @@ sub usbconfig_data {
 		}
 	}
 	main::log_data('dump','@usb: usbconfig',\@usb) if $b_log;
-	print Data::Dumper::Dumper \@usb if $test[6];
+	print Data::Dumper::Dumper \@usb if $dbg[6];
 	eval $end if $b_log;
 }
 
@@ -24004,7 +24006,7 @@ sub usbdevs_data {
 		}
 	}
 	main::log_data('dump','@usb: usbdevs',\@usb) if $b_log;
-	print Data::Dumper::Dumper \@usb if $test[6];
+	print Data::Dumper::Dumper \@usb if $dbg[6];
 	eval $end if $b_log;
 }
 
@@ -24175,10 +24177,10 @@ sub sys_data {
 				assign_usb_type($usb[$i]);
 				$i++;
 			}
-			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $test[6];;
+			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $dbg[6];;
 		}
 	}
-	print Data::Dumper::Dumper \@usb if $source eq 'main' && $test[6];
+	print Data::Dumper::Dumper \@usb if $source eq 'main' && $dbg[6];
 	main::log_data('dump','@usb: sys',\@usb) if $source eq 'main' && $b_log;
 	eval $end if $b_log;
 }

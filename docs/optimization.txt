@@ -166,8 +166,6 @@ if (main::awk(\@xprop, '\"xfce4\"')){
 if (main::awk(\@xprop, 'xfce4')){
 7.87ms
 
-
-
 ----------------------------------------
 BASENAME/DIRNAME
 ----------------------------------------
@@ -327,6 +325,72 @@ but rather use it all by reference.
 
 One of many small improvements, if we ekep chipping away 
 at inxi performance we'll keep it reasonably quick as it gets bigger.
+
+----------------------------------------
+SUB vs METHOD
+----------------------------------------
+
+https://www.perlmonks.org/bare/?node_id=621709
+
+use Benchmark qw(:all);
+
+my $a = 10;
+my $b = 20;
+
+cmpthese(-2, {
+        'Direct' => sub {
+            my $c = $a+$b;
+        },
+        'Sub' => sub {
+            my $c = add ($a, $b);
+        },
+        'Method' => sub {
+            my $c = __PACKAGE__->meth_add ($a, $b);
+        },
+        'Method+sub' => sub {
+            my $c = __PACKAGE__->meth_sub_add ($a, $b);
+        },
+        'Sub^2' => sub {
+            my $c = add2 ($a, $b);
+        },
+        'Method^2' => sub {
+            my $c = __PACKAGE__->meth2 ($a, $b);
+        },
+    });
+
+sub add {
+    return $_[0] + $_[1];
+}
+
+sub add2 {
+    return add (@_);
+}
+
+sub meth_add {
+    shift;
+    return $_[0] + $_[1];
+}
+
+sub meth_sub_add {
+    shift;
+    return add (@_);
+}
+
+sub meth2 {
+    return $_[0] -> meth_add ( $_[1], $_[2] );
+}
+[download]
+
+And here are the results I get:
+
+                Rate Method^2 Method+sub     Sub^2    Method       Sub    Direct
+Method^2    500713/s       --       -22%      -37%      -44%      -58%      -91%
+Method+sub  643967/s      29%         --      -19%      -27%      -46%      -88%
+Sub^2       797484/s      59%        24%        --      -10%      -33%      -85%
+Method      886331/s      77%        38%       11%        --      -26%      -84%
+Sub        1191561/s     138%        85%       49%       34%        --      -78%
+Direct     5397078/s     978%       738%      577%      509%      353%        --
+
 
 ----------------------------------------
 SWITCH
