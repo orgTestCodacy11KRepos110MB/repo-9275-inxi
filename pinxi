@@ -11168,6 +11168,10 @@ sub hdd_temp_sys {
 	foreach (sort @data){
 		#print "file: $_\n";
 		#print(main::reader($_,'',0),"\n");
+		# we don't want these: crit|max|min|lowest|highest
+		# seeing long lag to read temp input files for some reason
+		# on some systems, just one one of them.
+		next if !/(input|label)$/;
 		$path = $_;
 		# cleanup everything in front of temp, the path
 		$path =~ s/^.*\///;
@@ -23509,36 +23513,52 @@ sub set_proc_partitions {
 
 sub set_ps_aux {
 	eval $start if $b_log;
-	my ($header,@temp);
+	my ($header,@ps,@temp);
 	# note: some ps cut off output based on terminal width
 	# ww sets width unlimited
-	@ps_aux = grabber("ps wwaux 2>/dev/null",'','strip');
-	if (@ps_aux){
-		$header = shift @ps_aux; # get rid of header row
+	@ps = grabber("ps wwaux 2>/dev/null",'','strip');
+	if (@ps){
+		$header = shift @ps; # get rid of header row
 		# handle busy box, which has 3 columns, regular ps aux has 11
 		# avoid deprecated implicit split error in older Perls
 		@temp = split(/\s+/, $header);
 	}
-	$ps_cols = $#temp;
+	$ps_cols = $#temp; # the indexes, not the scalar count
 	if ($ps_cols < 10){
 		my $version = qx(ps --version 2>&1);
 		$b_busybox_ps = 1 if $version =~ /busybox/i;
 	}
-	return if !@ps_aux; # note: mips/openwrt ps has no 'a'
-	$_=lc for @ps_aux; # this is a super fast way to set to lower
-	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
-	# for pinxi, we want to see the useage data for cpu/ram
-	@ps_aux = grep {!/\/$self_name\b/} @ps_aux if $self_name eq 'inxi';
-	# this is for testing for the presence of the command
-	@ps_cmd = grep {!/^\[/} map {
+	return if !@ps; # note: mips/openwrt ps has no 'a'
+	for (@ps){
+		next if !$_;
+		next if $self_name eq 'inxi' && /\/$self_name\b/;
+		$_ = lc;
+		push (@ps_aux,$_);
 		my @split = split(/\s+/, $_);
 		# slice out 10th to last elements of ps aux rows
 		my $final = $#split;
 		# some stuff has a lot of data, chrome for example
 		$final = ($final > ($ps_cols + 2) ) ? $ps_cols + 2 : $final;
-		@split = @split[$ps_cols .. $final];
-		join(' ', @split);
-	} @ps_aux;
+		if ($split[$ps_cols] !~ /^\[/){
+			push(@ps_cmd,join(' ', @split[$ps_cols .. $final]));
+		}
+	}
+# 	
+# 	$_=lc for @ps_aux; # this is a super fast way to set to lower
+# 	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
+# 	# for pinxi, we want to see the useage data for cpu/ram
+# 	
+# 	@ps_aux = grep {!/\/$self_name\b/} @ps_aux if $self_name eq 'inxi';
+# 	# this is for testing for the presence of the command
+# 	@ps_cmd = grep {!/^\[/} map {
+# 		my @split = split(/\s+/, $_);
+# 		# slice out 10th to last elements of ps aux rows
+# 		my $final = $#split;
+# 		# some stuff has a lot of data, chrome for example
+# 		$final = ($final > ($ps_cols + 2) ) ? $ps_cols + 2 : $final;
+# 		@split = @split[$ps_cols .. $final];
+# 		join(' ', @split);
+# 	} @ps_aux;
 	#@ps_cmd = grep {!/^\[/} @ps_cmd;
 	# never, because ps loaded before option handler
 	# print Dumper \@ps_cmd; # if $dbg[5];
