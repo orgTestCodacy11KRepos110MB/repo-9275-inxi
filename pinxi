@@ -22090,11 +22090,12 @@ my $b_debug = 0; # disable all debugger output in case forget to comment out!
 # at this point support it, so we only want to use -jp to get parent
 # $ppid set in initialize(). shell_launcher will use -f so it only 
 # runs in case we got $pppid. $client{'pppid'} will be used to trigger
-# launcher tests.
+# launcher tests. If started with sshd via ssh user@address 'pinxi -Ia'
+# will show sshd as shell, which is fine, that's what it is.
 sub set {
 	eval $start if $b_log;
 	my ($cmd,$parent,$pppid,$shell);
-	$client{'shell-data-set'} = 1;
+	$loaded{'shell-data'} = 1;
 	$cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
 	$shell = qx($cmd);
 	# we'll be using these $client pppid/parent values in shell_launcher() 
@@ -22232,7 +22233,7 @@ sub shell_launcher {
 		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
 		$shells .= shell_test('return');
 		my $i = 0;
-		# print "self::pppid-0: $pppid :: $shell_parent\n" if $b_debug;
+		print "self::pppid-0: $pppid :: $shell_parent\n" if $b_debug;
 		# note that new shells not matched will keep this loop spinning until it ends. 
 		# All we really can do about that is update with new shell name when we find them. 
 		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
@@ -22240,7 +22241,7 @@ sub shell_launcher {
 			$i++;
 			$pppid = get_pppid($pppid);
 			$shell_parent = parent_name($pppid);
-			# print "self::pppid-${i}: $pppid :: $shell_parent\n" if $b_debug;
+			print "self::pppid-${i}: $pppid :: $shell_parent\n" if $b_debug;
 			if ($b_log){
 				$msg = ($shell_parent) ? "parent-$i: $shell_parent": "shell parent $i: undefined";
 				main::log_data('data',$msg);
@@ -24678,7 +24679,7 @@ sub generate_short_data {
 	eval $start if $b_log;
 	my $num = 0;
 	my $kernel_os = ($bsd_type) ? 'OS' : 'Kernel';
-	ShellData::set() if !$client{'shell-data-set'} && $ppid;
+	ShellData::set() if !$loaded{'shell-data'} && $ppid;
 	my $client = $client{'name-print'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	if ($client{'version'}){
@@ -24783,7 +24784,7 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	ShellData::set() if !$client{'shell-data-set'} && $ppid;
+	ShellData::set() if !$loaded{'shell-data'} && $ppid;
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
 	my %data = (
