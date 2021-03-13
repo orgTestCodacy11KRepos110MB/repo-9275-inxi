@@ -43,8 +43,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-12';
-my $self_patch='105';
+my $self_date='2021-03-13';
+my $self_patch='106';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -22084,12 +22084,17 @@ sub set {
 # Get ShellData
 {
 package ShellData;
-# public
+my $b_debug = 0; # disable all debugger output in case forget to comment out!
+
+# public. This does not depend on using ps -jfp, open/netbsd do not 
+# at this point support it, so we only want to use -jp to get parent
+# $ppid set in initialize(). shell_launcher will use -f so it only 
+# runs in case we got $pppid. $client{'pppid'} will be used to trigger
+# launcher tests.
 sub set {
 	eval $start if $b_log;
 	my ($cmd,$parent,$pppid,$shell);
 	$client{'shell-data-set'} = 1;
-	my $b_debug = 0;
 	$cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
 	$shell = qx($cmd);
 	# we'll be using these $client pppid/parent values in shell_launcher() 
@@ -22202,6 +22207,7 @@ sub set {
 	eval $end if $b_log;
 }
 # public, returns shell launcher, terminal, program, whatever
+# depends on $pppid so only runs if that is set.
 sub shell_launcher {
 	eval $start if $b_log;
 	my (@data);
@@ -22226,7 +22232,7 @@ sub shell_launcher {
 		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
 		$shells .= shell_test('return');
 		my $i = 0;
-		# print "self::pppid-0: $pppid :: $shell_parent\n";
+		# print "self::pppid-0: $pppid :: $shell_parent\n" if $b_debug;
 		# note that new shells not matched will keep this loop spinning until it ends. 
 		# All we really can do about that is update with new shell name when we find them. 
 		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
@@ -22234,7 +22240,7 @@ sub shell_launcher {
 			$i++;
 			$pppid = get_pppid($pppid);
 			$shell_parent = parent_name($pppid);
-			# print "self::pppid-${i}: $pppid :: $shell_parent\n";
+			# print "self::pppid-${i}: $pppid :: $shell_parent\n" if $b_debug;
 			if ($b_log){
 				$msg = ($shell_parent) ? "parent-$i: $shell_parent": "shell parent $i: undefined";
 				main::log_data('data',$msg);
@@ -24864,11 +24870,10 @@ sub generate_info_data {
 		}
 	}
 	if (!$b_irc && $extra > 1){
-		# some bsds don't support -f option to get PPID
+		# some bsds don't support -f option to get PPPID
 		# note: root/su - does not have $DISPLAY usually
-		if ($b_display && !$force{'display'} && ($ppid && 
-		 (!$bsd_type || (grabber("ps -wwjfp $ppid 2>/dev/null"))))){
-			$parent = ShellData::shell_launcher() if $client{'pppid'};
+		if ($b_display && !$force{'display'} && $ppid && $client{'pppid'}){
+			$parent = ShellData::shell_launcher();
 		}
 		else {
 			$parent = get_tty_number();
