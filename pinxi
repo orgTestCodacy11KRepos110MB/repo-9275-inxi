@@ -43,8 +43,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-11';
-my $self_patch='104';
+my $self_date='2021-03-12';
+my $self_patch='105';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -99,7 +99,7 @@ my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
 
 ## System
 my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
-my ($bits_sys,$cpu_arch);
+my ($bits_sys,$cpu_arch,$ppid);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
 my ($dl_ua,$weather_source,$weather_unit) = ('s-tools/' . $self_name  . '-',100,'mi');
@@ -392,9 +392,9 @@ sub set_basics {
 	$ENV{'LC_ALL'}='C';
 	# remember, perl uses the opposite t/f return as shell!!!
 	# some versions of busybox do not have tty, like openwrt
-	$b_irc = ( check_program('tty') && system('tty >/dev/null') ) ? 1 : 0;
+	$b_irc = (check_program('tty') && system('tty >/dev/null') ) ? 1 : 0;
 	# print "birc: $b_irc\n";
-	$b_display = ( $ENV{'DISPLAY'} ) ? 1 : 0;
+	$b_display = ($ENV{'DISPLAY'}) ? 1 : 0;
 	$b_root = $< == 0; # root UID 0, all others > 0
 	$dl{'dl'} = 'curl';
 	$dl{'curl'} = 1;
@@ -412,6 +412,7 @@ sub set_basics {
 	$colors{'default'} = 2;
 	$show{'partition-sort'} = 'id'; # sort order for partitions
 	@raw_logical = (0,0,0);
+	$ppid = getppid();
 }
 
 # args: $1 - default OR override default cols max integer count. $_[0]
@@ -4716,7 +4717,7 @@ sub get {
 		if ($arg){
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|';
 			$wl .= 'pciconf|pcictl|pcidump|raid-hw|raid-lvm|raid-md|raid-zfs|';
-			$wl .= 'sensors|sysctl|uptime|usbconfig|usbdevs|vmstat';
+			$wl .= 'sensors|sysctl|uptime|usbconfig|usbdevs|vmstat|xorg-log';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -5499,7 +5500,6 @@ sub show_version {
 package StartClient;
 # use warnings;
 # use strict;
-my $ppid = '';
 my $pppid = '';
 
 # NOTE: there's no reason to create an object, we can just access
@@ -5514,11 +5514,9 @@ my $pppid = '';
 # }
 sub set {
 	eval $start if $b_log;
-	$ppid = getppid();
-	main::set_ps_aux() if ! @ps_aux;
+	main::set_ps_aux() if !$loaded{'ps-aux'};
 	if (!$b_irc){
 		# we'll run get_shell_data for -I, but only then
-		$client{'ppid'} = $ppid;
 	}
 	else {
 		$use{'filter'} = 1; 
@@ -5555,8 +5553,7 @@ sub get_client_name {
 	}
 	else {
 		if (!check_modern_konvi()){
-			$ppid = getppid();
-			$client_name = (main::grabber("ps -wwp $ppid"))[1];
+			$client_name = (main::grabber("ps -wwp $ppid 2>/dev/null"))[1];
 			if ($client_name){
 				my @data = split(/\s+/, $client_name);
 				if ($bsd_type){
@@ -5675,7 +5672,7 @@ sub get_client_version {
 	# show no tty are actually IRC. tmux is not a vt, but runs inside one
 	if (!$client{'name-print'}) {
 		my $wl_terms = 'alacritty|altyo|black-screen|conhost|doas|evilvte|';
-		$wl_terms .= 'germinal|guake|havoc|hyper|kate|kitty|kmscon|konsole|';
+		$wl_terms .= 'germinal|guake|havoc|hyper|kate|kitty|kmscon|konsole|login|';
 		$wl_terms .= 'macwise|minicom|putty|rxvt|sakura|securecrt|shellinabox|';
 		$wl_terms .= '^st$|sudo|term|tilda|tilix|tmux|tym|wayst|xiki|';
 		$wl_terms .= 'yaft|yakuake|\bzoc\b';
@@ -5684,7 +5681,7 @@ sub get_client_version {
 		# print "$client{'name'}\n";
 		if ($client{'name'} =~ /($whitelist)/i){
 			if ($client{'name'} =~ /($wl_terms)/i){
-				ShellData::set($ppid);
+				ShellData::set();
 			}
 			else {
 				$client{'name-print'} = $client{'name'};
@@ -5701,7 +5698,6 @@ sub get_cmdline {
 	eval $start if $b_log;
 	my @cmdline;
 	my $i = 0;
-	$ppid = getppid();
 	if (! -e "/proc/$ppid/cmdline" ){
 		return 1;
 	}
@@ -12046,11 +12042,13 @@ sub x_drivers {
 	my ($driver,@driver_data,,%drivers);
 	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
 	if (my $log = main::system_files('xorg-log')){
-		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
-		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-all41-mint.txt";
-		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-phd21-mint.txt";
-		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-gm10.log";
-		# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/xorg-multi-driver-1.log";
+		if ($fake{'xorg-log'}) {
+			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
+			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-all41-mint.txt";
+			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-phd21-mint.txt";
+			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-gm10.log";
+			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/xorg-multi-driver-1.log";
+		}
 		my @xorg = main::reader($log);
 		# list is from sgfxi plus non-free drivers, plus ARM drivers
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc ati 
@@ -16684,7 +16682,6 @@ sub get {
 		for (keys %packages){
 			$rows_p[0]->{$_} = $packages{$_};
 		}
-		$loaded{'packages'} = 1;
 	}
 	$num = 0;
 	if ($bsd_type){
@@ -21412,6 +21409,7 @@ sub get {
 	my ($type) = @_;
 	my ($memory);
 	# note: netbsd 8.0 has meminfo!
+	$loaded{'memory'} = 1;
 	if (!$force{'vmstat'} && (my $file = main::system_files('meminfo'))) {
 		$memory = meminfo_data($type,$file);
 	}
@@ -21427,25 +21425,23 @@ sub full {
 	my $num = 0;
 	my ($memory,@rows);
 	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
-	if ($show{'ram'} || (!$show{'info'} && $show{'process'} )){
-		$memory = get('splits');
-		if ($memory){
-			my @temp = split(':', $memory);
-			$gpu_ram = $temp[3] if $temp[3];
-			$total = ($temp[0]) ? main::get_size($temp[0],'string') : 'N/A';
-			$used = ($temp[1]) ? main::get_size($temp[1],'string') : 'N/A';
-			$used .= " ($temp[2]%)" if $temp[2];
-			if ($gpu_ram){
-				$gpu_ram = main::get_size($gpu_ram,'string');
-			}
+	$loaded{'memory'} = 1;
+	$memory = get('splits');
+	if ($memory){
+		my @temp = split(':', $memory);
+		$gpu_ram = $temp[3] if $temp[3];
+		$total = ($temp[0]) ? main::get_size($temp[0],'string') : 'N/A';
+		$used = ($temp[1]) ? main::get_size($temp[1],'string') : 'N/A';
+		$used .= " ($temp[2]%)" if $temp[2];
+		if ($gpu_ram){
+			$gpu_ram = main::get_size($gpu_ram,'string');
 		}
-		my $key = ($source eq 'process') ? 'System RAM': 'RAM';
-		$rows[0]->{main::key($num++,1,1,$key)} = '';
-		$rows[0]->{main::key($num++,0,2,'total')} = $total;
-		$rows[0]->{main::key($num++,0,2,'used')} = $used;
-		$rows[0]->{main::key($num++,0,2,'gpu')} = $gpu_ram if $gpu_ram;
-		$loaded{'memory'} = 1;
 	}
+	my $key = ($source eq 'process') ? 'System RAM': 'RAM';
+	$rows[0]->{main::key($num++,1,1,$key)} = '';
+	$rows[0]->{main::key($num++,0,2,'total')} = $total;
+	$rows[0]->{main::key($num++,0,2,'used')} = $used;
+	$rows[0]->{main::key($num++,0,2,'gpu')} = $gpu_ram if $gpu_ram;
 	eval $end if $b_log;
 	return @rows;
 }
@@ -21671,7 +21667,8 @@ $counts{'total'} = 0;
 sub get {
 	eval $start if $b_log;
 	# $num passed by reference to maintain incrementing where requested
-	($type,$num) = @_; 
+	($type,$num) = @_;
+	$loaded{'packages'} = 1;
 	package_counts();
 	appimage_counts();
 	create_output();
@@ -22090,10 +22087,15 @@ package ShellData;
 # public
 sub set {
 	eval $start if $b_log;
-	my ($ppid) = @_;
-	my $cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
-	my $shell = qx($cmd);
+	my ($cmd,$parent,$pppid,$shell);
 	$client{'shell-data-set'} = 1;
+	$cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
+	$shell = qx($cmd);
+	# we'll be using these $client pppid/parent values in shell_launcher() 
+	$pppid = $client{'pppid'} = get_pppid($ppid);
+	$pppid ||= ''; 
+	$client{'pppid'} ||= '';
+	# print "sh: $shell\n";
 	main::log_data('cmd',$cmd) if $b_log;
 	chomp($shell);
 	if ($shell){
@@ -22103,25 +22105,26 @@ sub set {
 		# trim leading /.../ off just in case. ps -p should return the name, not path 
 		# but at least one user dataset suggests otherwise so just do it for all.
 		$shell =~ s/^.*\///; 
-		my $working = $ENV{'SHELL'};
 		# NOTE: su -c "inxi -F" results in shell being su
 		# but: su - results in $parent being su
-		my $parent = parent_name(get_pppid($ppid));
-		# print "1: shell: $shell parent: $parent\n";
+		my $i=0;
+		$parent = $client{'parent'} = parent_name($pppid) if $pppid;
+		$parent ||= '';
+		#print "1: shell: $shell $ppid parent: $parent $pppid\n";
+ 		# this will fail in this case: sudo su -c 'inxi -Ia'
 		if ($shell =~ /^(doas|login|sudo|su)$/){
-			$client{'su-start'} = $shell;
-			$shell = $parent;
+			$client{'su-start'} = $shell if $shell ne 'login';
+			$shell = $parent if $parent;
 		}
-		elsif ($parent && $parent =~ /^(doas|login|sudo|su)$/){
+		# eg: su to root, then sudo
+		elsif ($parent && $client{'parent'} =~ /^(doas|sudo|su)$/){
 			$client{'su-start'} = $parent;
+			$parent = '';
 		}
-		# print "2: shell: $shell parent: $parent\n";
+		#print "2: shell: $shell parent: $parent\n";
+		my $working = $ENV{'SHELL'};
 		if ($working){
 			$working =~ s/^.*\///;
-# 			if ($shell =~ /^(sh|doas|sudo|su)$/ && $shell ne $working){
-# 				$client{'su-start'} = $shell if $shell ne 'sh';
-# 				$shell = $working;
-# 			}
 			# a few manual changes for known 
 			# Note: parent when fizsh shows as zsh but SHELL is fizsh, but other times
 			# SHELL is default shell, but in zsh, SHELL is default shell, not zfs
@@ -22129,7 +22132,7 @@ sub set {
 				$shell = $working;
 			}
 		}
-		# print "3: shell post: $shell working: $working\n";
+		#print "3: shell post: $shell working: $working\n";
 		# since there are endless shells, we'll keep a list of non program value
 		# set shells since there is little point in adding those to program values
 		if (shell_test($shell)){
@@ -22159,7 +22162,7 @@ sub set {
 						$shell = $app[0];
 						$client{'version'} = $app[1] if $app[1];
 					}
-					#print "shell 5: $shell version: $client{'version'}\n";
+					print "shell 5: $shell version: $client{'version'}\n";
 				}
 			}
 			else {
@@ -22192,6 +22195,9 @@ sub set {
 		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
 		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'};
 	}
+	if ($parent && $parent eq 'login'){
+		$client{'su-start'} = ($client{'su-start'}) ? $client{'su-start'} . ',' . $parent: $parent;
+	}
 	eval $end if $b_log;
 }
 # public, returns shell launcher, terminal, program, whatever
@@ -22199,19 +22205,14 @@ sub shell_launcher {
 	eval $start if $b_log;
 	my (@data);
 	my ($msg,$pppid,$shell_parent) = ('','','');
-	my $ppid = getppid();
-	$pppid = get_pppid($ppid);
+	$pppid = $client{'pppid'};
 	if ($b_log){
 		$msg = ($ppid) ? "pppid: $pppid ppid: $ppid": "ppid: undefined";
 		main::log_data('data',$msg);
 	}
 	#print "self parent: $pppid ppid: $ppid\n";
 	if ($pppid){
-		$shell_parent = parent_name($pppid);
-		if (!$client{'su-start'} && $shell_parent && 
-		 $shell_parent =~ /^(doas|login|su|sudo)$/){
-			$client{'su-start'} = $shell_parent;
-		}
+		$shell_parent = $client{'parent'};
 		#print "shell parent 1: $shell_parent\n";
 		if ($b_log){
 			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
@@ -22220,22 +22221,23 @@ sub shell_launcher {
 		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
 		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
 		my $shells = 'ash|bash|busybox|cicada|csh|dash|doas|elvish|fish|fizsh|ksh|ksh93|';
-		$shells .= 'lksh|loksh|mksh|nash|oh|oil|osh|pdksh|perl|posh|';
+		$shells .= 'lksh|login|loksh|mksh|nash|oh|oil|osh|pdksh|perl|posh|';
 		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
 		$shells .= shell_test('return');
 		my $i = 0;
+		# print "self::pppid-0: $pppid :: $shell_parent\n";
 		# note that new shells not matched will keep this loop spinning until it ends. 
 		# All we really can do about that is update with new shell name when we find them. 
 		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
 			# bash > su > parent
+			$i++;
 			$pppid = get_pppid($pppid);
 			$shell_parent = parent_name($pppid);
 			# print "self::pppid-${i}: $pppid :: $shell_parent\n";
 			if ($b_log){
-				$msg = ($shell_parent) ? "pppid-$i: $shell_parent": "shell parent $i: undefined";
+				$msg = ($shell_parent) ? "parent-$i: $shell_parent": "shell parent $i: undefined";
 				main::log_data('data',$msg);
 			}
-			$i++;
 		}
 	}
 	if ($b_log){
@@ -22330,7 +22332,6 @@ sub get_tty_console_irc {
 		$tty_session = $ENV{'XDG_VTNR'};
 	}
 	else {
-		my $ppid = getppid();
 		$tty_session = awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
 		$tty_session =~ s/^[^[0-9]+// if $tty_session;
 	}
@@ -23516,6 +23517,7 @@ sub set_ps_aux {
 	my ($header,@ps,@temp);
 	# note: some ps cut off output based on terminal width
 	# ww sets width unlimited
+	$loaded{'ps-aux'} = 1;
 	@ps = grabber("ps wwaux 2>/dev/null",'','strip');
 	if (@ps){
 		$header = shift @ps; # get rid of header row
@@ -23543,23 +23545,6 @@ sub set_ps_aux {
 			push(@ps_cmd,join(' ', @split[$ps_cols .. $final]));
 		}
 	}
-# 	
-# 	$_=lc for @ps_aux; # this is a super fast way to set to lower
-# 	# note: regular perl /.../inxi but sudo /.../inxi is added for sudo start
-# 	# for pinxi, we want to see the useage data for cpu/ram
-# 	
-# 	@ps_aux = grep {!/\/$self_name\b/} @ps_aux if $self_name eq 'inxi';
-# 	# this is for testing for the presence of the command
-# 	@ps_cmd = grep {!/^\[/} map {
-# 		my @split = split(/\s+/, $_);
-# 		# slice out 10th to last elements of ps aux rows
-# 		my $final = $#split;
-# 		# some stuff has a lot of data, chrome for example
-# 		$final = ($final > ($ps_cols + 2) ) ? $ps_cols + 2 : $final;
-# 		@split = @split[$ps_cols .. $final];
-# 		join(' ', @split);
-# 	} @ps_aux;
-	#@ps_cmd = grep {!/^\[/} @ps_cmd;
 	# never, because ps loaded before option handler
 	# print Dumper \@ps_cmd; # if $dbg[5];
 	eval $end if $b_log;
@@ -24511,7 +24496,7 @@ sub assign_data {
 sub generate_lines {
 	eval $start if $b_log;
 	my (%row,%checks);
-	set_ps_aux() if ! @ps_aux;
+	set_ps_aux() if !$loaded{'ps-aux'};
 	set_sysctl_data() if $use{'sysctl'};
 	# note: ps aux loads before logging starts, so create debugger data here
 	if ($b_log){
@@ -24686,7 +24671,7 @@ sub generate_short_data {
 	eval $start if $b_log;
 	my $num = 0;
 	my $kernel_os = ($bsd_type) ? 'OS' : 'Kernel';
-	ShellData::set($client{'ppid'}) if !$client{'shell-data-set'} && $client{'ppid'};
+	ShellData::set() if !$client{'shell-data-set'} && $ppid;
 	my $client = $client{'name-print'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	if ($client{'version'}){
@@ -24791,7 +24776,7 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	ShellData::set($client{'ppid'}) if !$client{'shell-data-set'} && $client{'ppid'};
+	ShellData::set() if !$client{'shell-data-set'} && $ppid;
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	my $client = $client{'name-print'};
 	my %data = (
@@ -24876,14 +24861,13 @@ sub generate_info_data {
 		for (keys %packages){
 			$data{$data_name}->[$index]{$_} = $packages{$_};
 		}
-		$loaded{'packages'} = 1;
 	}
 	if (!$b_irc && $extra > 1){
 		# some bsds don't support -f option to get PPID
 		# note: root/su - does not have $DISPLAY usually
-		if ($b_display && !$force{'display'} && ($client{'ppid'} && 
-		 (!$bsd_type || (grabber("ps -wwjfp $client{'ppid'} 2>/dev/null"))))){
-			$parent = ShellData::shell_launcher();
+		if ($b_display && !$force{'display'} && ($ppid && 
+		 (!$bsd_type || (grabber("ps -wwjfp $ppid 2>/dev/null"))))){
+			$parent = ShellData::shell_launcher() if $client{'pppid'};
 		}
 		else {
 			$parent = get_tty_number();
