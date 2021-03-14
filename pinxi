@@ -43,35 +43,35 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-13';
-my $self_patch='107';
+my $self_date='2021-03-14';
+my $self_patch='108';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
 
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,%dl,%files,%gpart,
-%dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,%service_tool,
-%system_files);
+%dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,
+%service_tool,%system_files);
 
-## Arrays
-# ps_aux is full output, ps_cmd is only the last 10 columns to last
+## System Arrays
 my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
-@paths,@proc_partitions,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
+@paths,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
 @sysctl,@sysctl_audio,@sysctl_battery,@sysctl_machine,@sysctl_sensors,
 @uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
 
-## Disk arrays 
+## Disk/Partition arrays 
 my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
-@lvm_raid,@md_raid,@partitions,@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
+@lvm_raid,@md_raid,@partitions,@proc_partitions,@raw_logical,
+@sysctl_disks,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
 my (@dbg,%fake,@t0);
 my ($b_hires,$b_log,$b_log_colors,$b_log_full);
 my ($end,$start,$fh_l,$log_file); # log file handle, file
-my ($t1,$t2,$t3) = (0,0,0);
+my ($t1,$t2,$t3) = (0,0,0); # timers
 ## debug / temp tools
 $debugger{'sys'} = 1;
 $client{'test-konvi'} = 0;
@@ -10010,10 +10010,17 @@ sub dmesg_boot_data {
 			}
 			#print "$i\n";
 			# openbsd/netbsd matches will often work
-			if ($row[1] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE]i?B?),.*\ssectors$|^</){
+			if ($row[1] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
 				$working = main::translate_size($2);
+				$drives[$i]->{'block-physical'} = ($working/$3)*1024 if $3;
 				$size += $working if $working;
 				$drives[$i]->{'size'} = $working;
+			}
+			# don't set both, if smartctl installed, we want to use its data so having
+			# only one of logical/physical will trip use of smartctl values
+			if ($row[1] =~ /[\s,]+([0-9]+)\sbytes?[\s\/]sector/ ){
+				#$drives[$i]->{'block-logical'} = $1;
+				$drives[$i]->{'block-physical'} = $1;
 			}
 			if ($row[2] && $row[2] =~ /<([^>]+)>/){
 				$drives[$i]->{'model'} = $1 if $1;
@@ -10028,8 +10035,11 @@ sub dmesg_boot_data {
 			if ($row[2] && $row[2] =~ /\sserial\.(\S*)/){
 				$drives[$i]->{'serial'} = $1;
 			}
+			if (!$drives[$i]->{'serial'} && $row[1] =~ /^Serial\sNumber\s(.*)/){
+				$drives[$i]->{'serial'} = $1;
+			}
 			# these were mainly FreeBSD/Dragonfly matches
-			if (!$drives[$i]->{'size'} && $row[1] =~ /^([0-9]+\s*[KMGTPE]i?B?)[\s,]/){
+			if (!$drives[$i]->{'size'} && $row[1] =~ /^([0-9]+\s*[KMGTPE])i?B?[\s,]/){
 				$working = main::translate_size($1);
 				$size += $working if $working;
 				$drives[$i]->{'size'} = $working;
@@ -10039,9 +10049,6 @@ sub dmesg_boot_data {
 				$row[1] =~ /<([^>]*)>(\s(.*))?/;
 				$drives[$i]->{'model'} = $1 if $1;
 				$drives[$i]->{'spec'} = $3 if $3;
-			}
-			if (!$drives[$i]->{'serial'} && $row[1] =~ /^Serial\sNumber\s(.*)/){
-				$drives[$i]->{'serial'} = $1;
 			}
 			if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
 				$drives[$i]->{'speed'} = $1;
@@ -10263,9 +10270,9 @@ sub smartctl_data {
 						$data->[$i]{'speed'} = $2 if !$data->[$i]{'speed'};
 					}
 				}
-				# seen both Size and Sizes
+				# seen both Size and Sizes. Linux will usually have both, BSDs not physical
 				elsif ($split[$a] =~ /^Sector Sizes?$/ ){
-					if( $data->[$i]{'type'} || !$data->[$i]{'block-logical'} || !$data->[$i]{'block-physical'} ){
+					if ($data->[$i]{'type'} || !$data->[$i]{'block-logical'} || !$data->[$i]{'block-physical'} ){
 						if ($split[$r] =~ m|^([0-9]+) bytes logical/physical| ){
 							$data->[$i]{'block-logical'} = $1;
 							$data->[$i]{'block-physical'} = $1;
