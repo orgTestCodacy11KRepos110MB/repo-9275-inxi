@@ -36,7 +36,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(uname strftime ttyname);
-#use Benchmark qw(:all);
+# use Benchmark qw(:all);
 # use Devel::Size qw(size total_size);
 # use feature qw(say state); # 5.10 or newer Perl
 
@@ -44,7 +44,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.01';
 my $self_date='2021-03-13';
-my $self_patch='106';
+my $self_patch='107';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -8319,7 +8319,7 @@ sub sysctl_data {
 			# freebsd 10: hw.model: AMD Athlon(tm) II X2 245 Processor
 			$line[1] = main::cleaner($line[1]);
 			$line[1] = cpu_cleaner($line[1]);
-			if ( $line[1] =~ /([0-9]+)[\s-]*([KM]B)\s+L2 cache/) {
+			if ( $line[1] =~ /([0-9]+)[\s-]*([KM]B)\s+L2 cache/i) {
 				my $multiplier = ($2 eq 'MB') ? 1024: 1;
 				$cpu{'l2-cache'} = $1 * $multiplier;
 			}
@@ -8539,7 +8539,7 @@ sub cpu_dmi_data {
 			($id,$amount) = ('',0);
 			foreach my $value (@$item[3 .. $#$item]){
 				next if $value =~ /~/;
-				# variants: L3 - Cache; L3 Cache; L3-cache; CPU Internal L1
+				# variants: L3 - Cache; L3 Cache; L3-cache; L2 CACHE; CPU Internal L1
 				if ($value =~ /^Socket Designation:.*? (L[1-3])\b/){
 					$id = $1;
 				}
@@ -8675,6 +8675,8 @@ sub cpu_properties {
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
 		my %cpu_dmi = cpu_dmi_data();
 		$l1_cache = $cpu_dmi{'L1'} if $cpu_dmi{'L1'};
+		# note: bsds often won't have L2 catch data found yet
+		$l2_cache = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
 		$l3_cache = $cpu_dmi{'L3'} if $cpu_dmi{'L3'};
 		# bsd sysctl can have these values so let's check just in case
 		$l1_cache = $cpu->{'l1-cache'} * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
@@ -23210,9 +23212,9 @@ sub set_dmidecode_data {
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
-		open(my $fh, '<', $file) or die "can't open $file: $!";
-		chomp(@data = <$fh>);
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
+		#open(my $fh, '<', $file) or die "can't open $file: $!";
+		#chomp(@data = <$fh>);
 	}
 	else {
 		$content = qx($alerts{'dmidecode'}->{'path'} 2>/dev/null);
