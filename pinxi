@@ -43,8 +43,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.01';
-my $self_date='2021-03-14';
-my $self_patch='110';
+my $self_date='2021-03-15';
+my $self_patch='111';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -5299,7 +5299,7 @@ sub show_options {
 	Hardware RAID rev, ports, specific vendor/product information." ],
 	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like lxpanel, 
 	xfce4-panel, mate-panel); (if available) dm version number, window manager
-	version number."],
+	version number, virtual terminal number."],
 	);
 	if ( $use{'weather'} ){
 		push(@data, 
@@ -22375,9 +22375,12 @@ sub get_tty_number {
 		$tty = '';
 	}
 	# systemd only item, usually same as tty in console, not defined
-	# for root
+	# for root or non systemd systems.
 	if (defined $ENV{'XDG_VTNR'} && $tty ne '' && $ENV{'XDG_VTNR'} ne $tty){
 		$tty = "$tty (vt $ENV{'XDG_VTNR'})";
+	}
+	elsif ($tty eq '' && defined $ENV{'XDG_VTNR'}) {
+		$tty = $ENV{'XDG_VTNR'};
 	}
 	log_data('data',"tty:$tty") if $b_log;
 	eval $end if $b_log;
@@ -24984,7 +24987,7 @@ sub generate_system_data {
 			$wm .= ' ' . $desktop_data[6] if $extra > 2 && $desktop_data[6];
 		}
 	}
-	if (!$b_display || ( !$desktop && $b_root)) {
+	if (!$b_display || (!$desktop && $b_root)) {
 		my $tty = get_tty_number();
 		if (!$desktop){
 			$desktop_info = '';
@@ -25011,6 +25014,9 @@ sub generate_system_data {
 	}
 	if ($extra > 1){
 		$data{$data_name}->[$index]{main::key($num++,0,2,'wm')} = $wm if $wm;
+		if ($extra > 2 && $b_display && defined $ENV{'XDG_VTNR'} ){
+			$data{$data_name}->[$index]{main::key($num++,0,2,'vt')} = $ENV{'XDG_VTNR'};
+		}
 		my $dms = get_display_manager();
 		if ($dms || $desktop_key ne 'Console'){
 			$dms ||= 'N/A';
