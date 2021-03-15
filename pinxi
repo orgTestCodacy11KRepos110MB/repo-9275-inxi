@@ -22361,21 +22361,24 @@ sub get_tty_console_irc {
 sub get_tty_number {
 	eval $start if $b_log;
 	my ($tty);
-	if (defined $ENV{'XDG_VTNR'}){
-		$tty = $ENV{'XDG_VTNR'};
-	}
 	# note: ttyname returns undefined if pinxi is > redirected output
-	else {
-		$tty = POSIX::ttyname(1);
-		# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
-		#$tty =~ s/.*\/[^0-9]*//g if defined $tty;
-	}
+	# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
+	$tty = POSIX::ttyname(1);
 	# but tty direct works fine in that case
 	if (!defined $tty && (my $program = check_program('tty'))){
 		chomp($tty = qx($program 2>/dev/null));
 	}
-	$tty =~ s/^\/dev\/(tty)?// if defined $tty;
-	$tty = '' if !defined $tty;
+	if (defined $tty){
+		$tty =~ s/^\/dev\/(tty)?//;
+	}
+	else {
+		$tty = '';
+	}
+	# systemd only item, usually same as tty in console, not defined
+	# for root
+	if (defined $ENV{'XDG_VTNR'} && $tty ne '' && $ENV{'XDG_VTNR'} ne $tty){
+		$tty = "$tty (vt $ENV{'XDG_VTNR'})";
+	}
 	log_data('data',"tty:$tty") if $b_log;
 	eval $end if $b_log;
 	return $tty;
