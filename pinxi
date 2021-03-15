@@ -16833,7 +16833,7 @@ sub get_repos_linux {
 			}
 			if (@apt_urls){
 				$key = repo_data('active','apt');
-				@apt_urls = url_cleaner(\@apt_urls);
+				url_cleaner(\@apt_urls);
 			}
 			else {
 				$key = repo_data('missing','apt');
@@ -16927,14 +16927,14 @@ sub get_repos_linux {
 				$key = repo_data('missing','slackpkg+');
 			}
 			else {
-				@content = url_cleaner(\@content);
+				url_cleaner(\@content);
 				$key = repo_data('active','slackpkg+');
 			}
 			@data = (
 			{main::key($num++,1,1,$key) => $slackpkg_plus},
 			[@content],
 			);
-			@data = url_cleaner(\@data);
+			url_cleaner(\@data);
 			push(@rows,@data);
 			@content = ();
 		}
@@ -17001,7 +17001,7 @@ sub get_repos_linux {
 					$key = repo_data('missing',$repo);
 				}
 				else {
-					@content = url_cleaner(\@content);
+					url_cleaner(\@content);
 					$key = repo_data('active',$repo);
 				}
 				push(@rows, 
@@ -17064,7 +17064,7 @@ sub get_repos_linux {
 					$key = repo_data('missing','portage');
 				}
 				else {
-					@content = url_cleaner(\@content);
+					url_cleaner(\@content);
 					$key = repo_data('active','portage');
 				}
 				push(@rows, 
@@ -17099,7 +17099,7 @@ sub get_repos_linux {
 			$key = repo_data('missing','cards');
 		}
 		else {
-			@content = url_cleaner(\@content);
+			url_cleaner(\@content);
 			$key = repo_data('active','cards');
 		}
 		push(@rows, 
@@ -17150,7 +17150,7 @@ sub get_repos_linux {
 			if (/(.+)\s([\S]+:\/\/.+)/){
 				# pack the repo url
 				push(@content, $1);
-				@content = url_cleaner(\@content);
+				url_cleaner(\@content);
 				# get the repo
 				$repo = $2;
 				push(@rows, 
@@ -17196,7 +17196,7 @@ sub get_repos_linux {
 				$repo = ($2 =~ /^activ/i) ? $repo : '';
 			}
 			if ($repo && @content){
-				@content = url_cleaner(\@content);
+				url_cleaner(\@content);
 				$key = repo_data('active',$which);
 				push(@rows, 
 				{main::key($num++,1,1,$key) => $repo},
@@ -17208,7 +17208,7 @@ sub get_repos_linux {
 		}
 		# last one if present
 		if ($repo && @content){
-			@content = url_cleaner(\@content);
+			url_cleaner(\@content);
 			$key = repo_data('active',$which);
 			push(@rows, 
 			{main::key($num++,1,1,$key) => $repo},
@@ -17223,7 +17223,7 @@ sub get_repos_linux {
 			$key = repo_data('missing','nix');
 		}
 		else {
-			@content = url_cleaner(\@content);
+			url_cleaner(\@content);
 			$key = repo_data('active','nix');
 		}
 		my $user = ($ENV{'USER'}) ? $ENV{'USER'}: 'N/A';
@@ -17246,11 +17246,12 @@ sub get_repos_bsd {
 	my $freebsd = '/etc/freebsd-update.conf';
 	my $freebsd_pkg = '/etc/pkg/FreeBSD.conf';
 	my $ghostbsd_pkg = '/etc/pkg/GhostBSD.conf';
+	my $hardenedbsd_pkg = '/etc/pkg/HardenedBSD.conf';
 	my $netbsd = '/usr/pkg/etc/pkgin/repositories.conf';
 	my $openbsd = '/etc/pkg.conf';
 	my $openbsd2 = '/etc/installurl';
 	my $portsnap =  '/etc/portsnap.conf';
-	if ( -f $portsnap || -f $freebsd || -d $bsd_pkg){
+	if ( -f $portsnap || -f $freebsd || -d $bsd_pkg || -f $ghostbsd_pkg || -f $hardenedbsd_pkg){
 		if ( -f $portsnap ) {
 			@data = repo_builder($portsnap,'portsnap','^\s*SERVERNAME','\s*=\s*',1);
 			push(@rows,@data);
@@ -17263,10 +17264,11 @@ sub get_repos_bsd {
 # 			@data = repo_builder($freebsd_pkg,'freebsd-pkg','^\s*url',':\s+',1);
 # 			push(@rows,@data);
 # 		}
-		if ( -d $bsd_pkg || -f $freebsd_pkg || -f $ghostbsd_pkg){
+		if ( -d $bsd_pkg || -f $freebsd_pkg || -f $ghostbsd_pkg || -f $hardenedbsd_pkg){
 			@files = main::globber('/usr/local/etc/pkg/repos/*.conf');
 			push(@files, $freebsd_pkg) if -f $freebsd_pkg;
 			push(@files, $ghostbsd_pkg) if -f $ghostbsd_pkg;
+			push(@files, $hardenedbsd_pkg) if -f $hardenedbsd_pkg;
 			if (@files){
 				my ($url);
 				foreach (@files){
@@ -17295,11 +17297,11 @@ sub get_repos_bsd {
 							}
 						}
 					}
-					if (! @data3){
+					if (!@data3){
 						$key = repo_data('missing','bsd-package');
 					}
 					else {
-						@data3 = url_cleaner(\@data3);
+						url_cleaner(\@data3);
 						$key = repo_data('active','bsd-package');
 					}
 					push(@rows, 
@@ -17416,7 +17418,7 @@ sub repo_builder {
 	if (-r $file){
 		@content =  main::reader($file);
 		@content = grep {/$search/i && !/^\s*$/} @content if @content;
-		@content = data_cleaner(\@content) if @content;
+		data_cleaner(\@content) if @content;
 	}
 	if ($split && @content){
 		@content = map { 
@@ -17429,7 +17431,7 @@ sub repo_builder {
 	}
 	else {
 		$key = repo_data('active',$type);
-		@content = url_cleaner(\@content);
+		url_cleaner(\@content);
 	}
 	@data = (
 	{main::key($num++,1,1,$key) => $file},
@@ -17439,16 +17441,12 @@ sub repo_builder {
 	return @data;
 }
 sub data_cleaner {
-	my ($content) = @_;
 	# basics: trim white space, get rid of double spaces
-	@$content = map { $_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @$content;
-	return @$content;
+	@{$_[0]} = map {$_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @{$_[0]};
 }
 # clean if irc
 sub url_cleaner {
-	my ($content) = @_;
-	@$content = map { $_ =~ s/:\//: \//; $_} @$content if $b_irc;
-	return @$content;
+	@{$_[0]} = map {$_ =~ s/:\//: \//; $_} @{$_[0]} if $b_irc;
 }
 sub file_path {
 	my ($filename,$dir) = @_;
@@ -20770,6 +20768,10 @@ sub system_base_bsd {
 	if (lc($uname[1]) eq 'nomadbsd' && $distro =~ /^freebsd/i){
 		$system_base = $distro;
 		$distro = $uname[1];
+	}
+	if (-f '/etc/pkg/HardenedBSD.conf' && $distro =~ /^freebsd/i){
+		$system_base = $distro;
+		$distro = 'HardenedBSD';
 	}
 	eval $end if $b_log;
 }
