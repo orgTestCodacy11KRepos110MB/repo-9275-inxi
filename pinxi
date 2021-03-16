@@ -1964,7 +1964,7 @@ sub system_files {
 	@files = RepoData::get($data_dir);
 	copy_files(\@files, 'repo');
 	# chdir "/etc";
-	@files = main::globber('/etc/*[-_s[rR]elease,[vV]ersion,issue}*');
+	@files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
 	push(@files, '/etc/issue');
 	push(@files, '/etc/lsb-release');
 	push(@files, '/etc/os-release');
@@ -11174,15 +11174,14 @@ sub hdd_temp_sys {
 	# slice out the part of path that gives us hwmon
 	$path =~ s%/(block|nvme)/.*$%%;
 	return if ! -e "$path/hwmon/";
-	my @data = main::globber("$path/hwmon/hwmon*/temp*");
+	# we don't want these: crit|max|min|lowest|highest
+	# seeing long lag to read temp input files for some reason
+	# on some systems, just one one of them.
+	my @data = main::globber("$path/hwmon/hwmon*/temp*_{input,label}");
 	#print "device: $device\n";
 	foreach (sort @data){
 		#print "file: $_\n";
 		#print(main::reader($_,'',0),"\n");
-		# we don't want these: crit|max|min|lowest|highest
-		# seeing long lag to read temp input files for some reason
-		# on some systems, just one one of them.
-		next if !/(input|label)$/;
 		$path = $_;
 		# cleanup everything in front of temp, the path
 		$path =~ s/^.*\///;
