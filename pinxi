@@ -3642,7 +3642,7 @@ sub set_program_values {
 	'kwin_x11' => ['^kwin_x11',0,'0','kwin_x11',0,1,0,'',''],# no version
 	'larswm' => ['^larswm',2,'-v','larswm',0,1,1,'',''],
 	'liri' => ['^liri',0,'0','liri',0,1,0,'',''],
-	'lumina' => ['^\S',1,'--version','Lumina',0,1,1,'',''],
+	'lumina-desktop' => ['^\S',1,'--version','Lumina',0,1,1,'',''],
 	'lwm' => ['^lwm',0,'0','lwm',0,1,0,'',''], # no version
 	'lxpanel' => ['^lxpanel',2,'--version','LXDE',0,1,0,'',''],
 	# command: lxqt-panel
@@ -4733,8 +4733,8 @@ sub get {
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'display|dmidecode|hddtemp|lsusb|man|no-dig|no-doas|no-html-wan|';
-			$wl .= 'no-sudo|usb-sys|vmstat|wmctrl';
+			my $wl = 'display|dmidecode|hddtemp|lsusb|man|meminfo|';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|usb-sys|vmstat|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$force{lc($1)} = 1;
@@ -17252,6 +17252,7 @@ sub get_repos_bsd {
 	my $freebsd_pkg = '/etc/pkg/FreeBSD.conf';
 	my $ghostbsd_pkg = '/etc/pkg/GhostBSD.conf';
 	my $hardenedbsd_pkg = '/etc/pkg/HardenedBSD.conf';
+	my $mports = '/usr/mports/Makefile';
 	my $netbsd = '/usr/pkg/etc/pkgin/repositories.conf';
 	my $openbsd = '/etc/pkg.conf';
 	my $openbsd2 = '/etc/installurl';
@@ -17292,7 +17293,7 @@ sub get_repos_bsd {
 							}
 							#print "url:$url\n" if $url;
 							if ($data2[0] eq 'enabled'){
-								if ($url && $data2[1] eq 'yes'){
+								if ($url && $data2[1] =~ /^(1|true|yes)$/i){
 									push(@data3, "$url");
 								}
 								$url = '';
@@ -17315,7 +17316,7 @@ sub get_repos_bsd {
 			}
 		}
 	}
-	elsif (-f $openbsd || -f $openbsd2) {
+	if (-f $openbsd || -f $openbsd2) {
 		if (-f $openbsd){
 			@data = repo_builder($openbsd,'openbsd','^installpath','\s*=\s*',1);
 			push(@rows,@data);
@@ -17325,10 +17326,35 @@ sub get_repos_bsd {
 			push(@rows,@data);
 		}
 	}
-	elsif (-f $netbsd){
+	if (-f $netbsd){
 		# not an empty row, and not a row starting with #
 		@data = repo_builder($netbsd,'netbsd','^\s*[^#]+$');
 		push(@rows,@data);
+	}
+	if (-f $mports){
+# 		@data = main::reader($mports,'strip');
+# 		main::writer("$debugger_dir/system-repo-data-mports.txt",\@data) if $debugger_dir;
+# 		for (@data){
+# 			if (!/^MASTER_SITE_INDEX/){
+# 				next;
+# 			}
+# 			else {
+# 				push(@data3,(split(/=\s*/,$_))[1]);
+# 			}
+# 			last if /^INDEX/;
+# 		}
+# 		if (!@data3){
+# 			$key = repo_data('missing','mports');
+# 		}
+# 		else {
+# 			url_cleaner(\@data3);
+# 			$key = repo_data('active','mports');
+# 		}
+# 		push(@rows, 
+# 		{main::key($num++,1,1,$key) => $mports},
+# 		[@data3],
+# 		);
+# 		@data3 = ();
 	}
 	# BSDs do not default always to having repo files, so show correct error 
 	# mesage in that case
@@ -17374,6 +17400,8 @@ sub repo_data {
 	'freebsd-missing' => 'No FreeBSD update servers in',
 	'freebsd-pkg-active' => 'FreeBSD default pkg server',
 	'freebsd-pkg-missing' => 'No FreeBSD default pkg server in',
+	'mports-active' => 'mports servers',
+	'mports-missing' => 'No mports servers found',
 	'netbsd-active' => 'NetBSD pkg servers',
 	'netbsd-files-missing' => 'No NetBSD pkg server files found',
 	'netbsd-missing' => 'No NetBSD pkg servers in',
@@ -19820,7 +19848,7 @@ sub get_kde_trinity_data {
 	# KDE_SESSION_VERSION is the integer version of the desktop
 	# NOTE: as of plasma 5, the tool: about-distro MAY be available, that will show
 	# actual desktop data, so once that's in debian/ubuntu, if it gets in, add that test
-	elsif ( $xdg_desktop eq 'kde' || $kde_session_version ){
+	elsif ($xdg_desktop eq 'kde' || $kde_session_version){
 		if ($kde_session_version && $kde_session_version <= 4){
 			@data = main::program_values("kded$kde_session_version");
 			if (@data){
@@ -20495,12 +20523,23 @@ sub get_bsd_os {
 		@osr = main::reader($os_release) if -r $os_release;
 		if (@osr && $bsd_type =~ /($bsd_type_osr)/ && (grep {/($bsd_type_osr)/i} @osr)){
 			$distro = get_os_release();
+			$distro_id = lc($1);
 		}
 	}
+	if (!$distro){
+		my $bsd_type_version = 'truenas';
+		my ($version_file,$version_info) = ('/etc/version','');
+		$version_info = main::reader($version_file,'strip') if -r $version_file;
+		if ($version_info && $version_info =~ /($bsd_type_version)/i){
+			$distro = $version_info;
+			$distro_id = lc($1);
+		}
+	}	
 	if (!$distro){
 		# seen a case without osx file, or was it permissions?
 		# this covers all the other bsds anyway, no problem.
 		$distro = "$uname[0] $uname[2]";
+		$distro_id = lc($uname[0]);
 	}
 	if ($distro &&
 	 (-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
@@ -20767,13 +20806,16 @@ sub android_info {
 sub system_base_bsd {
 	eval $start if $b_log;
 	# ghostbsd is handled in main bsd section
-	if (lc($uname[1]) eq 'nomadbsd' && $distro =~ /^freebsd/i){
+	if (lc($uname[1]) eq 'nomadbsd' && $distro_id eq 'freebsd'){
 		$system_base = $distro;
 		$distro = $uname[1];
 	}
-	if (-f '/etc/pkg/HardenedBSD.conf' && $distro =~ /^freebsd/i){
+	elsif (-f '/etc/pkg/HardenedBSD.conf' && $distro_id eq 'freebsd'){
 		$system_base = $distro;
 		$distro = 'HardenedBSD';
+	}
+	elsif ($distro_id =~ /^(truenas)$/){
+		$system_base = "$uname[0] $uname[2]";
 	}
 	eval $end if $b_log;
 }
@@ -21423,7 +21465,9 @@ sub get {
 	my ($memory);
 	# note: netbsd 8.0 has meminfo!
 	$loaded{'memory'} = 1;
-	if (!$force{'vmstat'} && (my $file = main::system_files('meminfo'))) {
+	# netbsd uses meminfo, but it uses it in a weird way
+	if (!$force{'vmstat'} && (!$bsd_type || ($force{'meminfo'} && $bsd_type)) && 
+	 (my $file = main::system_files('meminfo'))) {
 		$memory = meminfo_data($type,$file);
 	}
 	else {
@@ -21748,6 +21792,7 @@ sub package_counts {
 	['guix-sys','guix','p','package -p "/run/current-system/profile" -I',1,0,''],
 	['guix-usr','guix','p','package -I',1,0,''],
 	['kiss','kiss','p','list',1,0,''],
+	['mport','mport','p','list',1,0,''],
 	['nix-sys','nix-store','p','-qR /run/current-system/sw',1,1,'-'], 
 	['nix-usr','nix-store','p','-qR ~/.nix-profile',1,1,'-'], 
 	['nix-default','nix-store','p','-qR /nix/var/nix/profiles/default',1,2,'-'], 
@@ -21802,7 +21847,7 @@ sub package_counts {
 		}
 	}
 	# print Data::Dumper::Dumper \%counts;
-	main::log_data('dump','Packaage managers: %counts',\%counts) if $b_log;
+	main::log_data('dump','Package managers: %counts',\%counts) if $b_log;
 	eval $end if $b_log;
 }
 sub appimage_counts {
