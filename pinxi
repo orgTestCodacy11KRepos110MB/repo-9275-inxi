@@ -105,7 +105,7 @@ my $sensors_cpu_nu = 0;
 my ($dl_ua,$weather_source,$weather_unit) = ('s-tools/' . $self_name  . '-',100,'mi');
 
 ## Tools
-my ($bt_tool,$display,$ftp_alt,$tty_session);
+my ($bt_tool,$display,$ftp_alt);
 my ($display_opt,$sudoas) = ('','');
 
 ## Output
@@ -12038,11 +12038,14 @@ sub tty_data(){
 	if ($size{'term-cols'}){
 		$tty = "$size{'term-cols'}x$size{'term-lines'}";
 	}
+	# this is broken
 	elsif ($b_irc && $client{'console-irc'}){
-		my $tty_working = main::ShellData::tty_console_irc('tty');
+		ShellData::tty_console_irc() if !$loaded{'tty-session'};
+		my $tty_working = $client{'tty-session'};
 		if ($tty_working ne '' && (my $program = main::check_program('stty'))){
 			my $tty_arg = ($bsd_type) ? '-f' : '-F';
-			$tty = (main::grabber("$program $tty_arg /dev/pts/$tty_working size 2>/dev/null"))[0];
+			$tty_working = "tty$tty_working" if main::is_numeric($tty_working);
+			$tty = (main::grabber("$program $tty_arg /dev/$tty_working size 2>/dev/null"))[0];
 			if ($tty){
 				my @temp = split(/\s+/, $tty);
 				$tty = "$temp[1]x$temp[0]";
@@ -22391,22 +22394,21 @@ sub ssh_status {
 	eval $end if $b_log;
 	return $b_ssh;
 }
-# this is odd, for -G/-S, not sure if we really need this
 sub tty_console_irc {
 	eval $start if $b_log;
-	my ($type) = @_;
-	return $tty_session if defined $tty_session;
-	if ($type eq 'vtrn' && defined $ENV{'XDG_VTNR'} ){
-		$tty_session = $ENV{'XDG_VTNR'};
+	$loaded{'tty-session'} = 1;
+	# root doesn't have this
+	if (defined $ENV{'XDG_VTNR'} ){
+		$client{'tty-session'} = $ENV{'XDG_VTNR'};
 	}
 	else {
-		$tty_session = main::awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
-		$tty_session =~ s/^[^[0-9]+// if $tty_session;
+		# ppid won't work with name, so this is assuming there's only one client running
+		$client{'tty-session'} = main::awk(\@ps_aux,'.*\b' . $client{'name'} . '\b.*',7,'\s+');
+		$client{'tty-session'} =~ s/^(tty|\?)// if defined $client{'tty-session'};
 	}
-	$tty_session = '' if !defined $tty_session;
-	main::log_data('data',"console-irc-tty:$tty_session") if $b_log;
+	$client{'tty-session'} = '' if !defined $client{'tty-session'};
+	main::log_data('data',"console-irc-tty-session:$client{'tty-session'}") if $b_log;
 	eval $end if $b_log;
-	return $tty_session;
 }
 sub tty_number {
 	eval $start if $b_log;
@@ -24991,7 +24993,6 @@ sub generate_system_data {
 	my $data_name = main::key($prefix++,1,0,'System');
 	my ($desktop,$desktop_info,$desktop_key,$dm_key,$toolkit,$wm) = ('','','Desktop','dm','','');
 	my (@desktop_data,$desktop_version);
-	
 	my %data = (
 	$data_name => [{}],
 	);
@@ -25052,7 +25053,8 @@ sub generate_system_data {
 		}
 		# it is defined, as ''
 		if ($tty eq '' && $client{'console-irc'}){
-			$tty = ShellData::tty_console_irc('vtnr');
+			ShellData::tty_console_irc() if !$loaded{'tty-session'};
+			$tty = $client{'tty-session'};
 		}
 		$desktop = "tty $tty" if $tty ne '';
 		$desktop_key = 'Console';
