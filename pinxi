@@ -36,15 +36,15 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(uname strftime ttyname);
-# use Benchmark qw(:all);
+ use Benchmark qw(:all);
 # use Devel::Size qw(size total_size);
 # use feature qw(say state); # 5.10 or newer Perl
 
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.02';
-my $self_date='2021-03-15';
-my $self_patch='03';
+my $self_date='2021-03-17';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -4481,13 +4481,13 @@ sub get {
 				$show{'bluetooth-forced'} = 1;
 				$show{'cpu-flag'} = 1;
 				$show{'ip'} = 1;
+				$show{'logical'} = 1;
 				$show{'raid-forced'} = 1;
 				$extra = 3;
 			}
 			if ($arg >= 8 ){
 				$b_admin = 1;
 				$trigger{'downloader'} = 1;
-				$show{'logical'} = 1;
 				$show{'process'} = 1;
 				$show{'ps-cpu'} = 1;
 				$show{'ps-mem'} = 1;
@@ -5113,10 +5113,10 @@ sub show_options {
 	['2', '6', '', "Full $partition_string (-p), 
 	unmounted $partition_string (-o), optical drive (-d), USB (-J),
 	full RAID; triggers -xx." ], 
-	['2', '7', '', "Network IP data (-i), bluetooth and RAID forced; 
-	triggers -xxx."],
-	['2', '8', '', "Everything available, including logical (-L), 
-	repos (-r), processes (-tcm), PCI slots (--slots); triggers admin (-a)."],
+	['2', '7', '', "Network IP data (-i), bluetooth, logical (-L), 
+	RAID forced; triggers -xxx."],
+	['2', '8', '', "Everything available, including	repos (-r), 
+	processes (-tcm), PCI slots (--slots); triggers admin (-a)."],
 	);
 	# if distro maintainers don't want the weather feature disable it
 	if ( $use{'weather'} ){
@@ -5536,7 +5536,7 @@ sub get_client_name {
 	if ($ppid && -e "/proc/$ppid/exe" ){
 		$client_name = lc(readlink "/proc/$ppid/exe");
 		$client_name =~ s/^.*\///;
-		if ($client_name =~ /^bash|dash|sh|python.*|perl.*$/){
+		if ($client_name =~ /^(bash|csh|dash|fish|sh|python.*|perl.*|zsh)$/){
 			$pppid = (main::grabber("ps -wwp $ppid -o ppid"))[1];
 			#my @temp = (main::grabber("ps -wwp $ppid -o ppid 2>/dev/null"))[1];
 			$pppid =~ s/^\s+|\s+$//g;
@@ -5591,7 +5591,7 @@ sub get_client_version {
 		$client{'name-print'} = $app[3];
 		$client{'console-irc'} = $app[4];
 	}
-	if ($client{'name'} =~ /^bash|dash|sh$/ ){
+	if ($client{'name'} =~ /^(bash|csh|fish|dash|sh|zsh)$/ ){
 		$client{'name-print'} = 'shell wrapper';
 		$client{'console-irc'} = 1;
 	}
@@ -12039,8 +12039,8 @@ sub tty_data(){
 		$tty = "$size{'term-cols'}x$size{'term-lines'}";
 	}
 	elsif ($b_irc && $client{'console-irc'}){
-		my $tty_working = main::get_tty_console_irc('tty');
-		if (my $program = main::check_program('stty')){
+		my $tty_working = main::ShellData::tty_console_irc('tty');
+		if ($tty_working ne '' && (my $program = main::check_program('stty'))){
 			my $tty_arg = ($bsd_type) ? '-f' : '-F';
 			$tty = (main::grabber("$program $tty_arg /dev/pts/$tty_working size 2>/dev/null"))[0];
 			if ($tty){
@@ -12597,7 +12597,6 @@ sub component_data {
 	my ($maj_min,$full_components) = @_;
 	push(@$full_components, component_recursive_data($maj_min));
 }
-
 sub component_recursive_data {
 	eval $start if $b_log;
 	my ($maj_min) = @_;
@@ -22392,52 +22391,54 @@ sub ssh_status {
 	eval $end if $b_log;
 	return $b_ssh;
 }
-}
-
-sub get_tty_console_irc {
+# this is odd, for -G/-S, not sure if we really need this
+sub tty_console_irc {
 	eval $start if $b_log;
 	my ($type) = @_;
 	return $tty_session if defined $tty_session;
-	if ( $type eq 'vtrn' && defined $ENV{'XDG_VTNR'} ){
+	if ($type eq 'vtrn' && defined $ENV{'XDG_VTNR'} ){
 		$tty_session = $ENV{'XDG_VTNR'};
 	}
 	else {
-		$tty_session = awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
+		$tty_session = main::awk(\@ps_aux,".*$ppid.*$client{'name'}",7,'\s+');
 		$tty_session =~ s/^[^[0-9]+// if $tty_session;
 	}
-	$tty_session = '' if ! defined $tty_session;
-	log_data('data',"conole-irc-tty:$tty_session") if $b_log;
+	$tty_session = '' if !defined $tty_session;
+	main::log_data('data',"console-irc-tty:$tty_session") if $b_log;
 	eval $end if $b_log;
 	return $tty_session;
 }
-
-sub get_tty_number {
+sub tty_number {
 	eval $start if $b_log;
-	my ($tty);
+	$loaded{'tty-number'} = 1;
 	# note: ttyname returns undefined if pinxi is > redirected output
 	# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
-	$tty = POSIX::ttyname(1);
+	$client{'tty-number'} = POSIX::ttyname(1);
 	# but tty direct works fine in that case
-	if (!defined $tty && (my $program = check_program('tty'))){
-		chomp($tty = qx($program 2>/dev/null));
+	if (!defined $client{'tty-number'} && (my $program = main::check_program('tty'))){
+		chomp($client{'tty-number'} = qx($program 2>/dev/null));
+		if (defined $client{'tty-number'} && $client{'tty-number'} =~ /^not/){
+			undef $client{'tty-number'};
+		}
 	}
-	if (defined $tty){
-		$tty =~ s/^\/dev\/(tty)?//;
+	if (defined $client{'tty-number'}){
+		$client{'tty-number'} =~ s/^\/dev\/(tty)?//;
 	}
 	else {
-		$tty = '';
+		$client{'tty-number'} = '';
 	}
 	# systemd only item, usually same as tty in console, not defined
 	# for root or non systemd systems.
-	if (defined $ENV{'XDG_VTNR'} && $tty ne '' && $ENV{'XDG_VTNR'} ne $tty){
-		$tty = "$tty (vt $ENV{'XDG_VTNR'})";
+	if (defined $ENV{'XDG_VTNR'} && $client{'tty-number'} ne '' && 
+	 $ENV{'XDG_VTNR'} ne $client{'tty-number'}){
+		$client{'tty-number'} = "$client{'tty-number'} (vt $ENV{'XDG_VTNR'})";
 	}
-	elsif ($tty eq '' && defined $ENV{'XDG_VTNR'}) {
-		$tty = $ENV{'XDG_VTNR'};
+	elsif ($client{'tty-number'} eq '' && defined $ENV{'XDG_VTNR'}) {
+		$client{'tty-number'} = $ENV{'XDG_VTNR'};
 	}
-	log_data('data',"tty:$tty") if $b_log;
+	main::log_data('data',"tty:$client{'tty-number'}") if $b_log;
 	eval $end if $b_log;
-	return $tty;
+}
 }
 
 sub get_uptime {
@@ -24753,7 +24754,7 @@ sub generate_short_data {
 	eval $start if $b_log;
 	my $num = 0;
 	my $kernel_os = ($bsd_type) ? 'OS' : 'Kernel';
-	ShellData::set() if !$loaded{'shell-data'} && $ppid;
+	ShellData::set() if !$loaded{'shell-data'} && $ppid && (!$b_irc || !$client{'name-print'});
 	my $client = $client{'name-print'};
 	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
 	if ($client{'version'}){
@@ -24858,9 +24859,6 @@ sub generate_info_data {
 		$b_gcc = 1;
 	}
 	$gcc ||= 'N/A';
-	ShellData::set() if !$loaded{'shell-data'} && $ppid;
-	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
-	my $client = $client{'name-print'};
 	my %data = (
 	$data_name => [{
 	main::key($num++,0,1,'Processes') => scalar @ps_aux, 
@@ -24944,6 +24942,11 @@ sub generate_info_data {
 			$data{$data_name}->[$index]{$_} = $packages{$_};
 		}
 	}
+	if (!$loaded{'shell-data'} && $ppid && (!$b_irc || !$client{'name-print'})){
+		ShellData::set();
+	}
+	my $client_shell = ($b_irc) ? 'Client' : 'Shell';
+	my $client = $client{'name-print'};
 	if (!$b_irc && $extra > 1){
 		# some bsds don't support -f option to get PPPID
 		# note: root/su - does not have $DISPLAY usually
@@ -24951,31 +24954,32 @@ sub generate_info_data {
 			$parent = ShellData::shell_launcher();
 		}
 		else {
-			$parent = get_tty_number();
-			$parent = "tty $parent" if $parent ne '';
+			ShellData::tty_number() if !$loaded{'tty-number'};
+			$parent = "tty $client{'tty-number'}" if $client{'tty-number'} ne '';
 		}
 		# can be tty 0 so test for defined
 		$running_in = $parent if $parent;
 		if ($extra > 2 && $running_in && ShellData::ssh_status() ){
 			$running_in .= ' (SSH)';
 		}
-	}
-	if ($extra > 2 && $client{'su-start'}){
-		$client .= " ($client{'su-start'})";
+		if ($extra > 2 && $client{'su-start'}){
+			$client .= " ($client{'su-start'})";
+		}
 	}
 	$data{$data_name}->[$index]{main::key($num++,1,1,$client_shell)} =  $client;
 	if ($extra > 0 && $client{'version'}){
 		$data{$data_name}->[$index]{main::key($num++,0,2,'v')} = $client{'version'};
 	}
-	if ($extra > 2 && $client{'default-shell'}){
-		$data{$data_name}->[$index]{main::key($num++,1,2,'default')} = $client{'default-shell'};
-		$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $client{'default-shell-v'} if $client{'default-shell-v'};
+	if (!$b_irc){
+		if ($extra > 2 && $client{'default-shell'}){
+			$data{$data_name}->[$index]{main::key($num++,1,2,'default')} = $client{'default-shell'};
+			$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $client{'default-shell-v'} if $client{'default-shell-v'};
+		}
+		if ($running_in){
+			$data{$data_name}->[$index]{main::key($num++,0,2,'running-in')} = $running_in;
+		}
 	}
-	if ($running_in){
-		$data{$data_name}->[$index]{main::key($num++,0,2,'running-in')} = $running_in;
-	}
-	$data{$data_name}->[$index]{main::key($num++,0,1,$self_name)} = &get_self_version();
-	
+	$data{$data_name}->[$index]{main::key($num++,0,1,$self_name)} = get_self_version();
 	eval $end if $b_log;
 	return %data;
 }
@@ -25041,13 +25045,14 @@ sub generate_system_data {
 		}
 	}
 	if (!$b_display || (!$desktop && $b_root)) {
-		my $tty = get_tty_number();
+		ShellData::tty_number() if !$loaded{'tty-number'};
+		my $tty = $client{'tty-number'};
 		if (!$desktop){
 			$desktop_info = '';
 		}
 		# it is defined, as ''
 		if ($tty eq '' && $client{'console-irc'}){
-			$tty = get_tty_console_irc('vtnr');
+			$tty = ShellData::tty_console_irc('vtnr');
 		}
 		$desktop = "tty $tty" if $tty ne '';
 		$desktop_key = 'Console';
@@ -25077,7 +25082,7 @@ sub generate_system_data {
 		}
 	}
 	#if ($extra > 2 && $desktop_key ne 'Console'){
-	#	my $tty = get_tty_number();
+	#	my $tty = ShellData::tty_number() if !$loaded{'tty-number'};
 	#	$data{$data_name}->[$index]{main::key($num++,0,1,'vc')} = $tty if $tty ne '';
 	#}
 	my $distro_key = ($bsd_type) ? 'OS': 'Distro';
