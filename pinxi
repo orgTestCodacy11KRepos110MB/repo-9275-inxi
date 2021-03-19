@@ -43,8 +43,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-17';
-my $self_patch='01';
+my $self_date='2021-03-19';
+my $self_patch='02';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -421,43 +421,44 @@ sub set_display_width {
 	my ($width) = @_;
 	if ( $width eq 'live' ){
 		## sometimes tput will trigger an error (mageia) if irc client
-		if ( ! $b_irc ){
-			if ( check_program('tput') ) {
+		if (! $b_irc){
+			if (check_program('tput')) {
+				# tput: unknown terminal "rxvt-unicode-256color"
 				# trips error if use qx()...
-				chomp($size{'term'}=qx{tput cols});
-				chomp($size{'term-lines'}=qx{tput lines});
+				chomp($size{'term'} = qx{tput cols 2>/dev/null});
+				chomp($size{'term-lines'} = qx{tput lines 2>/dev/null});
 				$size{'term-cols'} = $size{'term'};
 			}
 			# print "tc: $size{'term'} cmc: $size{'console'}\n";
 			# double check, just in case it's missing functionality or whatever
-			if ( $size{'term'} == 0 || !is_int($size{'term'}) ){ 
+			if (!is_int($size{'term'} || $size{'term'} == 0)){ 
 				$size{'term'}=80;
 				# we'll be using this for terminal dimensions later so don't set default.
 				# $size{'term-lines'}=100;
 			}
 		}
 		# this lets you set different size for in or out of display server
-		if ( ! $b_running_in_display && $size{'no-display'} ){
-			$size{'console'}=$size{'no-display'};
+		if (!$b_running_in_display && $size{'no-display'}){
+			$size{'console'} = $size{'no-display'};
 		}
 		# term_cols is set in top globals, using tput cols
 		# print "tc: $size{'term'} cmc: $size{'console'}\n";
-		if ( $size{'term'} < $size{'console'} ){
-			$size{'console'}=$size{'term'};
+		if ($size{'term'} < $size{'console'}){
+			$size{'console'} = $size{'term'};
 		}
 		# adjust, some terminals will wrap if output cols == term cols
 		$size{'console'}=( $size{'console'} - 2 );
 		# echo cmc: $size{'console'}
 		# comes after source for user set stuff
-		if ( ! $b_irc ){
-			$size{'max'}=$size{'console'};
+		if (!$b_irc){
+			$size{'max'} = $size{'console'};
 		}
 		else {
-			$size{'max'}=$size{'irc'};
+			$size{'max'} = $size{'irc'};
 		}
 	}
 	else {
-		$size{'max'}=$width;
+		$size{'max'} = $width;
 	}
 	# print "tc: $size{'term'} cmc: $size{'console'} cm: $size{'max'}\n";
 }
