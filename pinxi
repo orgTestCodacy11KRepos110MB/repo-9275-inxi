@@ -43,8 +43,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-21';
-my $self_patch='03';
+my $self_date='2021-03-23';
+my $self_patch='04';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -6881,7 +6881,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,%battery,$key1,$val1);
 	my $num = 0;
-	if ($bsd_type || $force{'dmidecode'}){
+	if (($bsd_type && !@sysctl_battery) || $force{'dmidecode'}){
 		if ($alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{'message'};
@@ -6900,6 +6900,19 @@ sub get {
 			else {
 				@rows = battery_output(\%battery);
 			}
+		}
+	}
+	elsif ($bsd_type && @sysctl_battery){
+		%battery = battery_data_sysctl();
+		if (!%battery){
+			if ($show{'battery-forced'}){
+				$key1 = 'Message';
+				$val1 = main::row_defaults('battery-data','');
+				@rows = ({main::key($num++,0,1,$key1) => $val1,});
+			}
+		}
+		else {
+			@rows = battery_output(\%battery);
 		}
 	}
 	elsif (-d '/sys/class/power_supply/'){
@@ -7192,27 +7205,86 @@ sub battery_data_sys {
 				$battery{$id}->{'energy_full_design'} = $battery{$id}->{'charge_full_design'} * $battery{$id}->{'voltage_min_design'};
 			}
 		}
-		if ( $battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'} ){
+		if ($battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'}){
 			$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'}/$battery{$id}->{'energy_full'};
 			$battery{$id}->{'capacity'} = sprintf("%.1f", $battery{$id}->{'capacity'});
 		}
+		if ($battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'}){
+			$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'}/$battery{$id}->{'energy_full_design'};
+			$battery{$id}->{'of_orig'} = sprintf("%.1f", $battery{$id}->{'of_orig'});
+		}
+		if ($battery{$id}->{'energy_now'}){
+			$battery{$id}->{'energy_now'} = sprintf("%.1f", $battery{$id}->{'energy_now'});
+		}
+		if ($battery{$id}->{'energy_full_design'}){
+			$battery{$id}->{'energy_full_design'} = sprintf("%.1f",$battery{$id}->{'energy_full_design'});
+		}
+		if ($battery{$id}->{'energy_full'}){
+			$battery{$id}->{'energy_full'} = sprintf("%.1f", $battery{$id}->{'energy_full'});
+		}
+	}
+	print Data::Dumper::Dumper \%battery if $dbg[33];
+	main::log_data('dump','sys: %battery',\%battery) if $b_log;
+	eval $end if $b_log;
+	return %battery;
+}
+sub battery_data_sysctl {
+	eval $start if $b_log;
+	my (%battery,$id);
+	for (@sysctl_battery){
+		if (/^hw\.sensors\.acpi([^\.]+)\./){
+			$id = uc($1);
+		}
+		if (/volt[^:]+:([0-9\.]+)\s+VDC\s+\(voltage\)/){
+			$battery{$id}->{'voltage_min_design'} = $1;
+		}
+		elsif (/volt[^:]+:([0-9\.]+)\s+VDC\s+\(current voltage\)/){
+			$battery{$id}->{'voltage_now'} = $1;
+		}
+		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(design capacity\)/){
+			$battery{$id}->{'energy_full_design'} = $1;
+		}
+		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(last full capacity\)/){
+			$battery{$id}->{'energy_full'} = $1;
+		}
+		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(remaining capacity\)/){
+			$battery{$id}->{'energy_now'} = $1;
+		}
+		elsif (/raw[^:]+:[0-9\.]+\s+\((battery) ([^\)]+)\)/){
+			$battery{$id}->{'status'} = $2;
+		}
+	}
+	# then do the condition/charge percent math
+	for my $id (keys %battery){
+		$battery{$id}->{'purpose'} = 'primary';
+		battery_data_dmesg_boot($id,\%battery);
 		if ( $battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'} ){
 			$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'}/$battery{$id}->{'energy_full_design'};
 			$battery{$id}->{'of_orig'} = sprintf("%.1f", $battery{$id}->{'of_orig'});
 		}
-		if ( $battery{$id}->{'energy_now'} ){
-			$battery{$id}->{'energy_now'} = sprintf("%.1f", $battery{$id}->{'energy_now'});
-		}
-		if ( $battery{$id}->{'energy_full_design'} ){
-			$battery{$id}->{'energy_full_design'} = sprintf("%.1f",$battery{$id}->{'energy_full_design'});
-		}
-		if ( $battery{$id}->{'energy_full'} ){
-			$battery{$id}->{'energy_full'} = sprintf("%.1f", $battery{$id}->{'energy_full'});
+		if ($battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'}){
+			$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'}/$battery{$id}->{'energy_full'};
+			$battery{$id}->{'capacity'} = sprintf("%.1f", $battery{$id}->{'capacity'});
 		}
 	}
-	main::log_data('dump','sys: %battery',\%battery) if $b_log;
+	print Data::Dumper::Dumper \%battery if $dbg[33];
+	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
 	eval $end if $b_log;
 	return %battery;
+}
+sub battery_data_dmesg_boot {
+	eval $start if $b_log;
+	my ($id,$battery) = @_;
+	for (@dmesg_boot){
+		if (/^acpi[\S]+:at [^:]+:\s*$id\s+model\s+(.*?)\s*serial\s+([\S]*?)\s*type\s+(.*?)\s*oem\s+(.*)/i){
+			$$battery{$id}->{'model_name'} = main::dmi_cleaner($1);
+			$$battery{$id}->{'serial_number'} = main::dmi_cleaner($2);
+			$$battery{$id}->{'technology'} = main::dmi_cleaner($3);
+			$$battery{$id}->{'manufacturer'} = main::dmi_cleaner($4);
+			last;
+		}
+	}
+	eval $end if $b_log;
 }
 # note, dmidecode does not have charge_now or charge_full
 sub battery_data_dmi {
@@ -7256,7 +7328,7 @@ sub battery_data_dmi {
 			last;
 		}
 	}
-	# print Data::Dumper::Dumper \%battery;
+	print Data::Dumper::Dumper \%battery if $dbg[33];
 	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
 	eval $end if $b_log;
 	return %battery;
@@ -23226,6 +23298,7 @@ sub set_dmesg_boot_data {
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
 		## matches: compaq: openbsd-5.6-sysctl-1.txt"
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
 	}
 	if ($file){
 		return if ! -r $file;
@@ -23722,13 +23795,15 @@ sub set_sysctl_data {
 		@temp = grabber($alerts{'sysctl'}->{'path'} . " -a 2>/dev/null");
 	}
 	else {
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1sysctl_lenovot500_user.txt";
+		my $file;
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1sysctl_lenovot500_user.txt";
 		## matches: compaq: openbsd-dmesg.boot-1.txt
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-1.txt"; 
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-1.txt"; 
 		## matches: toshiba: openbsd-5.6-dmesg.boot-1.txt
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-2.txt"; 
-		# @temp = reader($file);
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-2.txt"; 
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd-6.8-sysctl-a-battery-sensor-1.txt"; 
+		@temp = reader($file);
 	}
 	foreach (@temp){
 		$_ =~ s/\s*=\s*|:\s+/:/;
@@ -24615,6 +24690,7 @@ sub generate_lines {
 		}
 		if ($show{'battery'}){
 			set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			set_dmesg_boot_data() if ($bsd_type && !$checks{'dmesg-boot'});
 			%row = line_handler('Battery','battery');
 			if (%row || $show{'battery-forced'}){
 				assign_data(\%row);
