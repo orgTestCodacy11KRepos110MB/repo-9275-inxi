@@ -23325,17 +23325,23 @@ sub set_dmesg_boot_data {
 			if (/^bios[0-9]:(at|vendor)/){
 				push(@sysctl_machine, $_);
 			}
+			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
+			# OpenBSD: 'sd' is usb device, 'wd' normal drive
+			elsif ($use{'dm-boot-disk'} && 
+			 /^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/){
+				push (@dm_boot_disk,$_);
+			}
+			elsif ($use{'dm-boot-optical'} && 
+			 /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
+				push(@dm_boot_optical,$_);
+			}
 		}
 		@dmesg_boot = @temp;
-		# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
-		# OpenBSD: 'sd' is usb device, 'wd' normal drive
 		if ($use{'dm-boot-disk'} && @dmesg_boot){
-			@dm_boot_disk = grep {/^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
 			print Dumper \@dm_boot_disk if $dbg[11];
 		}
 		if ($use{'dm-boot-optical'} && @dmesg_boot){
-			@dm_boot_optical = grep {/^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/} @dmesg_boot;
 			log_data('dump','@dm_boot_optical',\@dm_boot_optical) if $b_log;
 			print Dumper \@dm_boot_optical if $dbg[11];
 		}
