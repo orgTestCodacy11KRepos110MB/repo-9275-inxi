@@ -62,8 +62,8 @@ my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
 
 ## Disk/Partition arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,
-@lvm_raid,@md_raid,@partitions,@proc_partitions,@raw_logical,
+my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,@lvm_raid,
+@md_raid,@partitions,@proc_partitions,@raw_logical,
 @sysctl_disks,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
@@ -4905,6 +4905,9 @@ sub post_process {
 	if ($bsd_type && ($show{'optical-basic'} || $show{'optical'})){
 		$use{'dm-boot-optical'} = 1
 	}
+	if ($bsd_type && $show{'battery'}){
+		$use{'dm-boot-battery'} = 1
+	}
 	if ($b_admin && $show{'disk'}){
 		$use{'smartctl'} = 1;
 	}
@@ -7232,8 +7235,8 @@ sub battery_data_sysctl {
 	eval $start if $b_log;
 	my (%battery,$id);
 	for (@sysctl_battery){
-		if (/^hw\.sensors\.acpi([^\.]+)\./){
-			$id = uc($1);
+		if (/^(hw\.sensors\.)acpi([^\.]+)(\.|:)/){
+			$id = uc($2);
 		}
 		if (/volt[^:]+:([0-9\.]+)\s+VDC\s+\(voltage\)/){
 			$battery{$id}->{'voltage_min_design'} = $1;
@@ -7250,14 +7253,40 @@ sub battery_data_sysctl {
 		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(remaining capacity\)/){
 			$battery{$id}->{'energy_now'} = $1;
 		}
+		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(design capacity\)/){
+			$battery{$id}->{'charge_full_design'} = $1;
+		}
+		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(last full capacity\)/){
+			$battery{$id}->{'charge_full'} = $1;
+		}
+		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(remaining capacity\)/){
+			$battery{$id}->{'charge_now'} = $1;
+		}
 		elsif (/raw[^:]+:[0-9\.]+\s+\((battery) ([^\)]+)\)/){
 			$battery{$id}->{'status'} = $2;
+		}
+		elsif (/^acpi[\S]+:at [^:]+:\s*$id\s+model\s+(.*?)\s*serial\s+([\S]*?)\s*type\s+(.*?)\s*oem\s+(.*)/i){
+			$battery{$id}->{'model_name'} = main::dmi_cleaner($1);
+			$battery{$id}->{'serial_number'} = $2;
+			$battery{$id}->{'technology'} = $3;
+			$battery{$id}->{'manufacturer'} = main::dmi_cleaner($4);
 		}
 	}
 	# then do the condition/charge percent math
 	for my $id (keys %battery){
 		$battery{$id}->{'purpose'} = 'primary';
-		battery_data_dmesg_boot($id,\%battery);
+		# CHARGE is Ah, which are converted to Wh by: Ah x voltage. 
+		if ($battery{$id}->{'voltage_min_design'}){
+			if ($battery{$id}->{'charge_now'}){
+				$battery{$id}->{'energy_now'} = $battery{$id}->{'charge_now'} * $battery{$id}->{'voltage_min_design'};
+			}
+			if ($battery{$id}->{'charge_full'}){
+				$battery{$id}->{'energy_full'} = $battery{$id}->{'charge_full'}*$battery{$id}->{'voltage_min_design'};
+			}
+			if ($battery{$id}->{'charge_full_design'}){
+				$battery{$id}->{'energy_full_design'} = $battery{$id}->{'charge_full_design'} * $battery{$id}->{'voltage_min_design'};
+			}
+		}
 		if ( $battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'} ){
 			$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'}/$battery{$id}->{'energy_full_design'};
 			$battery{$id}->{'of_orig'} = sprintf("%.1f", $battery{$id}->{'of_orig'});
@@ -7266,25 +7295,20 @@ sub battery_data_sysctl {
 			$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'}/$battery{$id}->{'energy_full'};
 			$battery{$id}->{'capacity'} = sprintf("%.1f", $battery{$id}->{'capacity'});
 		}
+		if ($battery{$id}->{'energy_now'}){
+			$battery{$id}->{'energy_now'} = sprintf("%.1f", $battery{$id}->{'energy_now'});
+		}
+		if ($battery{$id}->{'energy_full'}){
+			$battery{$id}->{'energy_full'} = sprintf("%.1f", $battery{$id}->{'energy_full'});
+		}
+		if ($battery{$id}->{'energy_full_design'}){
+			$battery{$id}->{'energy_full_design'} = sprintf("%.1f", $battery{$id}->{'energy_full_design'});
+		}
 	}
 	print Data::Dumper::Dumper \%battery if $dbg[33];
 	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
 	eval $end if $b_log;
 	return %battery;
-}
-sub battery_data_dmesg_boot {
-	eval $start if $b_log;
-	my ($id,$battery) = @_;
-	for (@dmesg_boot){
-		if (/^acpi[\S]+:at [^:]+:\s*$id\s+model\s+(.*?)\s*serial\s+([\S]*?)\s*type\s+(.*?)\s*oem\s+(.*)/i){
-			$$battery{$id}->{'model_name'} = main::dmi_cleaner($1);
-			$$battery{$id}->{'serial_number'} = main::dmi_cleaner($2);
-			$$battery{$id}->{'technology'} = main::dmi_cleaner($3);
-			$$battery{$id}->{'manufacturer'} = main::dmi_cleaner($4);
-			last;
-		}
-	}
-	eval $end if $b_log;
 }
 # note, dmidecode does not have charge_now or charge_full
 sub battery_data_dmi {
@@ -23324,6 +23348,9 @@ sub set_dmesg_boot_data {
 			push(@temp, $_);
 			if (/^bios[0-9]:(at|vendor)/){
 				push(@sysctl_machine, $_);
+			}
+			elsif ($use{'dm-boot-battery'} && /^acpi(bat|cmb)/){
+				push(@sysctl_battery, $_);
 			}
 			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
 			# OpenBSD: 'sd' is usb device, 'wd' normal drive
