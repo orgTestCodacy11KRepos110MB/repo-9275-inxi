@@ -23399,10 +23399,7 @@ sub set_dboot_data {
 			$_ =~ s/\s\s/ /g;
 			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
 			push(@temp, $_);
-			if ($use{'dboot-machine'} && /^bios[0-9]:(at|vendor)/){
-				push(@{$sysctl{'machine'}}, $_);
-			}
-			elsif ($use{'dboot-battery'} && /^acpi(bat|cmb)/){
+			if ($use{'dboot-battery'} && /^acpi(bat|cmb)/){
 				push(@{$sysctl{'battery'}}, $_);
 			}
 			elsif ($use{'dboot-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
@@ -23414,8 +23411,8 @@ sub set_dboot_data {
 			 /^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/){
 				push (@{$dboot{'disk'}},$_);
 			}
-			elsif ($use{'dboot-ram'} && /(^spdmem)/){
-				push(@{$dboot{'ram'}}, $_);
+			if ($use{'dboot-machine'} && /^bios[0-9]:(at|vendor)/){
+				push(@{$sysctl{'machine'}}, $_);
 			}
 			elsif ($use{'dboot-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
 				push(@{$dboot{'optical'}},$_);
@@ -23423,22 +23420,27 @@ sub set_dboot_data {
 			elsif ($use{'dboot-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
 				push(@{$dboot{'pci'}},$_);
 			}
+			elsif ($use{'dboot-ram'} && /(^spdmem)/){
+				push(@{$dboot{'ram'}}, $_);
+			}
 		}
 		$dboot{'main'} = \@temp;
 		undef @temp; 
 		if ($dboot{'main'} && $b_log){
-			log_data('dump','$dboot{battery}',$dboot{'battery'});
 			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
 			log_data('dump','$dboot{disk}',$dboot{'disk'});
 			log_data('dump','$dboot{optical}',$dboot{'optical'});
 			log_data('dump','$dboot{ram}',$dboot{'ram'});
+			log_data('dump','$sysctl{battery}',$sysctl{'battery'});
+			log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		}
 		if ($dboot{'main'} && $dbg[11]){
-			print("battery:\n", Dumper $dboot{'battery'});
 			print("cpu:\n", Dumper $dboot{'cpu'});
 			print("disk:\n", Dumper $dboot{'disk'});
 			print("optical:\n", Dumper $dboot{'optical'});
 			print("memory:\n", Dumper $dboot{'ram'});
+			print("sys battery:\n", Dumper $sysctl{'battery'});
+			print("sys machine:\n", Dumper $sysctl{'machine'});
 		}
 		if ($use{'dboot-pci'} && @{$dboot{'main'}}){
 			my $bus_id = 0;
