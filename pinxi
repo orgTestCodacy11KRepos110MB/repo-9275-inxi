@@ -44,7 +44,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-23';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -23327,9 +23327,32 @@ sub set_dmesg_boot_data {
 	if ($file){
 		return if ! -r $file;
 		@dmesg_boot = reader($file);
+		# sometimes > 1 sessions stored, dump old ones
+		for (@dmesg_boot){
+			if (/^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/){
+				$counter++;
+				if ($counter > 1){
+					undef @temp; 
+				}
+			}
+			push(@temp,$_);
+		}
+		@dmesg_boot = @temp;
+		undef @temp; 
 		my @dmesg = grabber('dmesg 2>/dev/null');
 		# clear out for netbsd, only 1 space following or lines won't match
 		@dmesg = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dmesg;
+		$counter = 0;
+		for (@dmesg){
+			if (/^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/){
+				$counter++;
+				if ($counter > 1){
+					undef @temp; 
+				}
+			}
+			push(@temp,$_);
+		}
+		@dmesg = @temp;
 		push(@dmesg_boot,'~~~~~',@dmesg);
 		uniq(\@dmesg_boot); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
@@ -23338,8 +23361,6 @@ sub set_dmesg_boot_data {
 		# for some weird reason, real mem and avail mem are use a '=' separator, 
 		# who knows why, the others are ':'
 		foreach (@dmesg_boot){
-			$counter++ if /^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/;
-			# last if $counter > 1; # note: cases where incomplete first set is there
 			$_ =~ s/\s*=\s*|:\s*/:/;
 			$_ =~ s/\"//g;
 			$_ =~ s/^\s+/~/;
