@@ -44,7 +44,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-23';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
@@ -62,9 +62,9 @@ my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
 @uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
 
 ## Disk/Partition arrays 
-my (@dm_boot_disk,@dm_boot_optical,@glabel,@labels,@lsblk,@lvm,@lvm_raid,
-@md_raid,@partitions,@proc_partitions,@raw_logical,
-@sysctl_disks,@swaps,@uuids,@zfs_raid);
+my (@dm_boot_disk,@dm_boot_optical,@dm_boot_pci,@glabel,
+@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
+@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
@@ -4939,10 +4939,15 @@ sub post_process {
 	if ($show{'usb'} || $show{'audio'} || $show{'bluetooth'} || $show{'graphic'} || $show{'network'} ){
 		$use{'usb'} = 1;
 	}
-	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'audio'} || $show{'battery'} || 
-	   $show{'cpu'} || $show{'cpu-basic'} || $show{'info'} || $show{'machine'} || 
-	   $show{'process'} || $show{'ram'}  || $show{'sensor'} ) ){
+	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'audio'} || 
+	 $show{'battery'} || $show{'bluetooth'} || $show{'cpu'} || $show{'cpu-basic'} || 
+	 $show{'info'} || $show{'machine'} || $show{'process'} || $show{'ram'}  || 
+		$show{'sensor'} ) ){
 		$use{'sysctl'} = 1;
+	}
+	if ($bsd_type && $bsd_type eq 'openbsd' && ($show{'audio'} || 
+	 $show{'bluetooth'} || $show{'graphic'} || $show{'network'} || $show{'raid'})){
+		$use{'dm-boot-pci'} = 1;
 	}
 }
 sub process_updater {
@@ -13285,7 +13290,7 @@ sub machine_data_sysctl {
 				$data{'bios_rev'} = $1;
 				$data{'firmware'} = 'BIOS' if $_ =~ /BIOS/;
 			}
-			elsif ($item[1] =~ /^vendor\s(.*?)\sversion\s"?([\S]+)"?\sdate\s([\S]+)/ ){
+			elsif ($item[1] =~ /^vendor\s(.*?)\sversion\s(.*?)\sdate\s([\S]+)/ ){
 				$data{'bios_vendor'} = $1;
 				$data{'bios_version'} = $2;
 				$data{'bios_date'} = $3;
@@ -22668,13 +22673,14 @@ sub set_build_prop {
 # 12 subsystem/vendor
 # 13 subsystem vendor_id:chip id
 # 14 soc handle
+# 15 serial number
 ## DeviceData / PCI / SOC
 {
 package DeviceData;
 my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
 my ($b_bt_check);
 my ($busid,$busid_nu,$chip_id,$content,$device,$driver,$driver_nu,$file,
-$handle,$modules,$port,$rev,$temp,$type,$type_id,$vendor,$vendor_id);
+$handle,$modules,$port,$rev,$serial,$temp,$type,$type_id,$vendor,$vendor_id);
 
 sub set {
 	eval $start if $b_log;
@@ -22868,18 +22874,20 @@ sub pciconf_data {
 sub pcidump_data {
 	eval $start if $b_log;
 	my @data = pci_grabber('pcidump');
+	main::set_dmesg_boot_data() if !$loaded{'dmesg-boot'};
 	foreach (@data){
 		if ($_ =~ /^~$/ && $busid && $device) {
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
-			$rev,$port,$driver,$modules,$driver_nu);
+			$rev,$port,$driver,$modules,$driver_nu,$serial);
 			assign_data('pci',\@temp);
 			($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
-			$rev,$port,$driver,$modules,$driver_nu) = undef;
+			$rev,$port,$driver,$modules,$driver_nu,$serial) = undef;
 			next;
 		}
 		if ($_ =~ /^([0-9a-f:]+):([0-9]+):\s([^:]+)$/i){
 			$busid = $1;
 			$busid_nu = $2;
+			($driver,$driver_nu) = pcidump_driver("$busid:$busid_nu") if @dm_boot_pci;
 			$device = main::cleaner($3);
 		}
 		elsif ($_ =~ /^0x[\S]{4}:\s+Vendor ID:\s+([0-9a-f]{4}),?\s+Product ID:\s+([0-9a-f]{4})/ ){
@@ -22890,10 +22898,27 @@ sub pcidump_data {
 			$type = pci_class($1);
 			$type_id = "$1$3";
 		}
+		elsif (/^Serial Number:\s*(\S+)/){
+			$serial = $1;
+		}
 	}
 	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','pcidump @devices',\@devices) if $b_log;
 	eval $end if $b_log;
+}
+sub pcidump_driver {
+	eval $start if $b_log;
+	my $bus_id = $_[0];
+	my ($driver,$nu);
+	for (@dm_boot_pci) {
+		if (/^$bus_id:([^0-9]+)([0-9]+):/){
+			$driver = $1;
+			$nu = $2;
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return ($driver,$nu);
 }
 sub pcictl_data {
 	eval $start if $b_log;
@@ -23308,7 +23333,7 @@ sub pci_class {
 
 sub set_dmesg_boot_data {
 	eval $start if $b_log;
-	${$_[0]} = 1; # set check boolean by reference
+	$loaded{'dmesg-boot'} = 1;
 	my ($file,@temp);
 	my ($counter) = (0);
 	if (!$fake{'dboot'}){
@@ -23353,6 +23378,7 @@ sub set_dmesg_boot_data {
 			push(@temp,$_);
 		}
 		@dmesg = @temp;
+		undef @temp; 
 		push(@dmesg_boot,'~~~~~',@dmesg);
 		uniq(\@dmesg_boot); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
@@ -23383,7 +23409,13 @@ sub set_dmesg_boot_data {
 			 /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
 				push(@dm_boot_optical,$_);
 			}
+			elsif ($use{'dm-boot-pci'} &&
+			 /^(pci[0-9]+:at|\S+:at pci)/){
+				push(@dm_boot_pci,$_);
+			}
 		}
+		@dmesg_boot = @temp;
+		undef @temp; 
 		if ($use{'dm-boot-disk'} && @dmesg_boot){
 			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
 			print Dumper \@dm_boot_disk if $dbg[11];
@@ -23391,6 +23423,22 @@ sub set_dmesg_boot_data {
 		if ($use{'dm-boot-optical'} && @dmesg_boot){
 			log_data('dump','@dm_boot_optical',\@dm_boot_optical) if $b_log;
 			print Dumper \@dm_boot_optical if $dbg[11];
+		}
+		if ($use{'dm-boot-pci'} && @dmesg_boot){
+			my $bus_id = 0;
+			for (@dm_boot_pci){
+				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
+					$bus_id = $1;
+					next;
+				}
+				elsif (/:at pci[0-9]+\sdev/){
+					$_ =~ s/^(\S+):at.*?dev\s([0-9]+)\sfunction\s([0-9]+)\s/$bus_id:$2:$3:$1:/;
+					push(@temp,$_);
+				}
+			}
+			@dm_boot_pci = @temp;
+			log_data('dump','@dm_boot_pci',\@dm_boot_pci) if $b_log;
+			print Dumper \@dm_boot_pci if $dbg[11];
 		}
 	}
 	log_data('dump','@dmesg_boot full',\@dmesg_boot) if $b_log;
@@ -23907,6 +23955,7 @@ sub set_sysctl_data {
 # 18 - configuration - not used
 # 19 - power mW bsd only, not used yet
 # 20 - product rev number
+# 21 - driver_nu [bsd only]
 ## Set USBData
 {
 package USBData;
@@ -24064,7 +24113,7 @@ sub usbconfig_data {
 			$working[20] = '';
 			$usb[$j] = ([@working],);
 			assign_usb_type($usb[$j]);
-			@working = ();
+			undef @working;
 		}
 	}
 	main::log_data('dump','@usb: usbconfig',\@usb) if $b_log;
@@ -24092,7 +24141,7 @@ sub usbdevs_data {
 			}
 			($j,$ports) = (0,0);
 			($driver,$port_value) = ('','');
-			@working = ();
+			undef @working;
 		}
 		elsif (/^addr\s([0-9]+):\s([^,]+),[^,0-9]+([0-9]+ mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
 			$j = scalar @usb;
@@ -24129,10 +24178,9 @@ sub usbdevs_data {
 			$working[19] = $power;
 			$working[20] = '';
 			$usb[$j] = ([@working],);
-			@working = ();
+			undef @working;
 		}
 		elsif (/^\s+port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,0-9]*([0-9]+\s?mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
-			$j = scalar @usb;
 			$port = $1;
 			$addr_id = "$2";
 			$power = $4;
@@ -24168,31 +24216,32 @@ sub usbdevs_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
+			$j = scalar @usb;
 			$usb[$j] = ([@working],);
 			assign_usb_type($usb[$j]);
 			$usb[$k]->[10] = $ports;
-			@working = ();
+			undef @working;
 		}
 		elsif (/^\s+port\s([0-9]+)\spowered/){
 			$ports++;
 			$usb[$k]->[10] = $ports;
 		}
-		# newer openbsd usbdevs totally changed their syntax and layout, sigh...
-		elsif (/^addr\s*([0-9a-f]+):\s+([a-f0-9]{4}:[a-f0-9]{4})\s*([^,]+)?,\s+([^,]+)$/){
+		# newer openbsd usbdevs totally changed their syntax and layout, but it is better...
+		elsif (/^addr\s*([0-9a-f]+):\s+([a-f0-9]{4}:[a-f0-9]{4})\s*([^,]+)?(,\s[^,]+?)?,\s+([^,]+)$/){
 			if (@working){
+				$j = scalar @usb;
 				$usb[$j] = ([@working],);
 				assign_usb_type($usb[$j]);
-				@working = ();
+				undef @working;
 				($config,$driver,$power,$rev) = ('','','','');
 			}
-			$j = scalar @usb;
 			$addr_id = $1;
 			$chip_id = $2;
-			$vendor = $3 if $3;
+			$vendor = main::cleaner($3) if $3;
 			$vendor ||= '';
-			$name = main::remove_duplicates("$vendor $4");
+			$name = main::remove_duplicates("$vendor $5");
 			$type = check_type($name,'','');
-			$class_id = ($name =~ /hub/) ? '09': '01';
+			$class_id = ($name =~ /hub/i) ? '09': '01';
 			$path_id = "$bus_id-$addr_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
 			$b_multi = 1;
@@ -24218,22 +24267,23 @@ sub usbdevs_data {
 			$working[19] = '';
 			$working[20] = '';
 		}
-		elsif ($b_multi && /^\s+([^,]+),\s+power\s+([0-9]+\s+mA),\s+config\s([0-9]+),\s+rev\s+([0-9\.]+)/){
+		elsif ($b_multi && /^\s+([^,]+),\s+(self powered|power\s+([0-9]+\s+mA)),\s+config\s([0-9]+),\s+rev\s+([0-9\.]+)(,\s+i?Serial\s(\S*))?/i){
 			$speed = prep_speed($1);
 			$rev = usb_rev($speed);
-			$power = $2;
+			$power = $3;
 			process_power(\$power) if $power;
 			$working[8] = $rev;
+			$working[16] = $7 if $7;
 			$working[17] = $speed;
-			$working[18] = $3; # config number
+			$working[18] = $4; # config number
 			$working[19] = $power; 
-			$working[20] = $4; # product rev
+			$working[20] = $5; # product rev
 		}
 		# 1 or more drivers supported
 		elsif ($b_multi && /^\s+driver:\s*([^,]+)$/){
 			my $temp = $1;
-			$temp =~ s/[0-9]+$//;
 			$working[4] = '09' if $temp =~ /hub[0-9]/;
+			$temp =~ s/[0-9]+$//;
 			# drivers, note that when numbers trimmed off, drivers can have same name
 			$working[15] = ($working[15] && $working[15] !~ /\b$temp\b/) ? "$working[15],$temp" : $temp; 
 		}
@@ -24670,13 +24720,13 @@ sub prep_speed {
 	elsif ($_[0] =~ /super[\s-]?speed/i){
 		$speed = 5000;# 3.0; 
 	}
-	elsif ($_[0] =~ /hi[\s-]?speed/i){
+	elsif ($_[0] =~ /hi(gh)?[\s-]?speed/i){
 		$speed = 480; # 2.0, 
 	}
 	elsif ($_[0] =~ /full[\s-]?speed/i){
 		$speed = 12; # 1.1 - could be full speed 1.1/2.0
 	}
-	elsif ($_[0] =~ /low[\s-]?speed/i){
+	elsif ($_[0] =~ /low?[\s-]?speed/i){
 		$speed = 1.5; # 1.5 - could be 1.0, or low speed 1.1/2.0
 	}
 	return $speed;
@@ -24719,6 +24769,7 @@ sub generate_lines {
 	my (%row,%checks);
 	set_ps_aux() if !$loaded{'ps-aux'};
 	set_sysctl_data() if $use{'sysctl'};
+	set_dmesg_boot_data() if $bsd_type && !$loaded{'dmesg-boot'};
 	# note: ps aux loads before logging starts, so create debugger data here
 	if ($b_log){
 		# I don't think we need to see this, it's long, but leave in case we do
@@ -24726,7 +24777,6 @@ sub generate_lines {
 		log_data('dump','@ps_cmd',\@ps_cmd);
 	}
 	if ($show{'short'}){
-		set_dmesg_boot_data(\$checks{'dmesg-boot'}) if ($bsd_type && !$checks{'dmesg-boot'});
 		%row = generate_short_data();
 		assign_data(\%row);
 	}
@@ -24737,13 +24787,11 @@ sub generate_lines {
 		}
 		if ($show{'machine'}){
 			set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
-			set_dmesg_boot_data(\$checks{'dmesg-boot'}) if ($bsd_type && !$checks{'dmesg-boot'});
 			%row = line_handler('Machine','machine');
 			assign_data(\%row);
 		}
 		if ($show{'battery'}){
 			set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
-			set_dmesg_boot_data(\$checks{'dmesg-boot'}) if ($bsd_type && !$checks{'dmesg-boot'});
 			%row = line_handler('Battery','battery');
 			if (%row || $show{'battery-forced'}){
 				assign_data(\%row);
@@ -24762,7 +24810,6 @@ sub generate_lines {
 		if ($show{'cpu'} || $show{'cpu-basic'}){
 			DeviceData::set(\$checks{'device'}) if $b_arm && !$checks{'device'};
 			set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
-			set_dmesg_boot_data(\$checks{'dmesg-boot'}) if ($bsd_type && !$checks{'dmesg-boot'});
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = line_handler('CPU','cpu',$arg);
 			assign_data(\%row);
@@ -24802,7 +24849,6 @@ sub generate_lines {
 			assign_data(\%row);
 		}
 		if ($show{'disk'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'optical'}){
-			set_dmesg_boot_data(\$checks{'dmesg-boot'}) if ($bsd_type && !$checks{'dmesg-boot'});
 			%row = line_handler('Drives','disk');
 			assign_data(\%row);
 		}
