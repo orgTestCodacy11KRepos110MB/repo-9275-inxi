@@ -43,28 +43,24 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-23';
-my $self_patch='06';
+my $self_date='2021-03-24';
+my $self_patch='07';
 ## END INXI INFO ##
 
 ### INITIALIZE VARIABLES ###
 
 ## Hashes
-my (%alerts,%build_prop,%client,%colors,%dl,%files,%gpart,
+my (%alerts,%build_prop,%client,%colors,%dboot,%devices,%dl,%files,%gpart,
 %dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,
-%service_tool,%system_files);
+%service_tool,%sysctl,%system_files);
 
 ## System Arrays
-my (@app,@dmesg_boot,@devices_audio,@devices_bluetooth,@devices_graphics,
-@devices_network,@devices_hwraid,@devices_timer,@dmi,@gpudata,@ifs,@ifs_bsd,
-@paths,@ps_aux,@ps_cmd,@ps_gui,@sensors_exclude,@sensors_use,
-@sysctl,@sysctl_audio,@sysctl_battery,@sysctl_machine,@sysctl_sensors,
-@uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
+my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
+@sensors_exclude,@sensors_use,@uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
 
 ## Disk/Partition arrays 
-my (@dm_boot_disk,@dm_boot_optical,@dm_boot_pci,@glabel,
-@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
-@raw_logical,@sysctl_disks,@swaps,@uuids,@zfs_raid);
+my (@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
+@raw_logical,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
@@ -4881,7 +4877,7 @@ sub post_process {
 	$use{'man'} = 0 if (!$trigger{'use-man'} || $trigger{'no-man-force'});
 	main::update_me($self_download, $download_id) if $trigger{'updater'};
 	if ($output_type){
-		if ($output_type ne 'screen' && ! $output_file){
+		if ($output_type ne 'screen' && !$output_file){
 			main::error_handler('bad-arg', '--output', '--output-file not provided');
 		}
 	}
@@ -4898,15 +4894,6 @@ sub post_process {
 	if ($show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} 
 	 || $show{'unmounted'}){
 		$use{'mdadm'} = 1;
-	}
-	if ($bsd_type && ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'})){
-		$use{'dm-boot-disk'} = 1;
-	}
-	if ($bsd_type && ($show{'optical-basic'} || $show{'optical'})){
-		$use{'dm-boot-optical'} = 1
-	}
-	if ($bsd_type && $show{'battery'}){
-		$use{'dm-boot-battery'} = 1
 	}
 	if ($b_admin && $show{'disk'}){
 		$use{'smartctl'} = 1;
@@ -4929,25 +4916,43 @@ sub post_process {
 		$show{'disk-basic'} = 0;
 		$show{'disk-total'} = 0;
 	}
-	if ($show{'ram'} || $show{'slot'} || ($show{'cpu'} && ($extra > 1 || $bsd_type)) ||
-	     ( ( $bsd_type || $force{'dmidecode'} ) && ($show{'machine'} || $show{'battery'}) ) ){
+	if ($show{'ram'} || $show{'slot'} || ($show{'cpu'} && ($extra > 1 || $bsd_type)) || 
+	 (( $bsd_type || $force{'dmidecode'}) && ($show{'machine'} || $show{'battery'}))){
 		$use{'dmidecode'} = 1;
 	}
-	if ($show{'audio'} || $show{'graphic'} || $show{'network'} || $show{'raid'} ){
+	if ($show{'audio'} || $show{'bluetooth'} || $show{'graphic'} || 
+	 $show{'network'} || $show{'raid'} ){
 		$use{'pci'} = 1;
 	}
-	if ($show{'usb'} || $show{'audio'} || $show{'bluetooth'} || $show{'graphic'} || $show{'network'} ){
+	if ($show{'usb'} || $show{'audio'} || $show{'bluetooth'} || 
+	 $show{'graphic'} || $show{'network'} ){
 		$use{'usb'} = 1;
 	}
-	if ($bsd_type && ($show{'short'} || $show{'system'} || $show{'audio'} || 
-	 $show{'battery'} || $show{'bluetooth'} || $show{'cpu'} || $show{'cpu-basic'} || 
-	 $show{'info'} || $show{'machine'} || $show{'process'} || $show{'ram'}  || 
-		$show{'sensor'} ) ){
-		$use{'sysctl'} = 1;
-	}
-	if ($bsd_type && $bsd_type eq 'openbsd' && ($show{'audio'} || 
-	 $show{'bluetooth'} || $show{'graphic'} || $show{'network'} || $show{'raid'})){
-		$use{'dm-boot-pci'} = 1;
+	if ($bsd_type){
+		if ($show{'battery'}){
+			$use{'dboot-battery'} = 1
+		}
+		if ($show{'short'} || $show{'cpu-basic'} || $show{'cpu'}){
+			$use{'dboot-cpu'} = 1;
+		}
+		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'}){
+			$use{'dboot-disk'} = 1;
+		}
+		if ($show{'optical-basic'} || $show{'optical'}){
+			$use{'dboot-optical'} = 1
+		}
+		# strictly only used to fill in pci drivers if tool doesn't support that
+		if ($use{'pci'}){
+			$use{'dboot-pci'} = 1;
+		}
+		if ($show{'ram'}){
+			$use{'dboot-ram'} = 1
+		}
+		if ($show{'short'} || $show{'system'} || $show{'audio'} ||  $show{'battery'} || 
+		 $show{'bluetooth'} || $show{'cpu'} || $show{'cpu-basic'} || $show{'info'} || 
+		 $show{'machine'} || $show{'process'} || $show{'ram'} || $show{'sensor'}){
+			$use{'sysctl'} = 1;
+		}
 	}
 }
 sub process_updater {
@@ -5025,7 +5030,7 @@ sub show_options {
 	['1', '-A', '--audio', "Audio/sound devices(s), driver, running sound servers." ],
 	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
 	['1', '-B', '--battery', "System battery info, including charge, condition
-	voltage (if critical), plus extra info (if battery present)." ],
+	voltage (if critical), plus extra info (if battery present/detected)." ],
 	['1', '-c', '--color', "Set color scheme (0-42). For piped or redirected output,
 	you must use an explicit color selector. Example:^$self_name^-c^11" ],
 	['1', '', '', "Color selectors let you set the config file value for the 
@@ -6087,6 +6092,7 @@ sub row_defaults {
 	'arm-cpu-f' => 'Use -f option to see features',
 	'arm-pci' => 'No ARM data found for this feature.',
 	'battery-data' => 'No system Battery data found. Is one present?',
+	'battery-data-bsd' => 'No battery data found for this BSD system.',
 	'battery-data-sys' => 'No /sys data found.',
 	'bluetooth-data' => 'No Bluetooth data was found.',
 	'bluetooth-down' => "$id can't run.",
@@ -6670,7 +6676,7 @@ sub device_output {
 	eval $start if $b_log;
 	my (@rows);
 	my ($j,$num) = (0,1);
-	foreach my $row (@devices_audio){
+	foreach my $row (@{$devices{'audio'}}){
 		$num = 1;
 		$j = scalar @rows;
 		my $driver = $row->[9];
@@ -6837,7 +6843,7 @@ sub sound_server_data {
 	if (-e '/dev/sndstat' || ($program = main::check_program('ossinfo'))){
 		$server = 'OSS';
 		#$version = main::program_version('oss','\S',2);
-		$version = (grep {/^hw.snd.version:/} @sysctl_audio)[0] if @sysctl_audio;
+		$version = (grep {/^hw.snd.version:/} @{$sysctl{'audio'}})[0] if @{$sysctl{'audio'}};
 		$version = (split(/:\s*/,$version),1)[1] if $version;
 		$version =~ s|/.*$|| if $version;
 		# not a great test, but ok for now
@@ -6889,7 +6895,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,%battery,$key1,$val1);
 	my $num = 0;
-	if (($bsd_type && !@sysctl_battery) || $force{'dmidecode'}){
+	if ($force{'dmidecode'}){
 		if ($alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{'message'};
@@ -6910,7 +6916,7 @@ sub get {
 			}
 		}
 	}
-	elsif ($bsd_type && @sysctl_battery){
+	elsif ($bsd_type && @{$sysctl{'battery'}}){
 		%battery = battery_data_sysctl();
 		if (!%battery){
 			if ($show{'battery-forced'}){
@@ -6939,7 +6945,7 @@ sub get {
 	else {
 		if ($show{'battery-forced'}){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('battery-data-sys','');
+			$val1 = (!$bsd_type) ? main::row_defaults('battery-data-sys',''): main::row_defaults('battery-data-bsd','');
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 	}
@@ -7239,7 +7245,7 @@ sub battery_data_sys {
 sub battery_data_sysctl {
 	eval $start if $b_log;
 	my (%battery,$id);
-	for (@sysctl_battery){
+	for (@{$sysctl{'battery'}}){
 		if (/^(hw\.sensors\.)acpi([^\.]+)(\.|:)/){
 			$id = uc($2);
 		}
@@ -7439,7 +7445,7 @@ sub device_output {
 	eval $start if $b_log;
 	my ($bus_id,@rows);
 	my ($j,$num) = (0,1);
-	foreach my $row (@devices_bluetooth){
+	foreach my $row (@{$devices{'bluetooth'}}){
 		$num = 1;
 		$bus_id = '';
 		$j = scalar @rows;
@@ -8412,7 +8418,7 @@ sub sysctl_data {
 	my (@ids,@line,%speeds,@working);
 	my ($sep) = ('');
 	my ($die_holder,$die_id,$phys_holder,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
-	foreach (@sysctl){
+	foreach (@{$sysctl{'main'}}){
 		@line = split(/\s*:\s*/, $_);
 		next if ! $line[0];
 		# darwin shows machine, like MacBook7,1, not cpu
@@ -8535,7 +8541,7 @@ sub sysctl_data {
 		}
 	}
 	if (!$cpu{'flags'} || !$cpu{'family'}){
-		my %dmesg_boot = dmesg_boot_data();
+		my %dmesg_boot = dboot_data();
 		$cpu{'flags'} = $dmesg_boot{'flags'} if !$cpu{'flags'};
 		$cpu{'family'} = $dmesg_boot{'family'} if !$cpu{'family'};
 		$cpu{'l1-cache'} = $dmesg_boot{'l1-cache'} if !$cpu{'l1-cache'};
@@ -8556,15 +8562,15 @@ sub sysctl_data {
 	return %cpu;
 }
 
-sub dmesg_boot_data {
+sub dboot_data {
 	eval $start if $b_log;
 	my (%values);
 	my ($family,$flags,$microcode,$model,$sep,$stepping,$type) = ('','','','','','','');
 	my ($l1,$l2,$l3) = (0,0,0);
 	# this will be null if it was not readable
 	my $file = main::system_files('dmesg-boot');
-	if ( @dmesg_boot){
-		foreach (@dmesg_boot){
+	if (@{$dboot{'cpu'}}){
+		foreach (@{$dboot{'cpu'}}){
 			# can be ~Features/Features2/AMD Features
 			if ( /Features/ || ( $bsd_type eq "openbsd" && /^cpu0:\s*[a-z0-9]{2,3}(\s|,)[a-z0-9]{2,3}(\s|,)/i ) ) {
 				my @line = split(/:\s*/, lc($_));
@@ -8600,9 +8606,6 @@ sub dmesg_boot_data {
 				$family = ($6) ? uc($7) : $7;
 				$model =  ($9) ? uc($10) : $10;
 				$stepping = ($12) ? uc($13) : $13;
-			}
-			elsif (/^(ioapic|pci)/){
-				last;
 			}
 		}
 		if ($flags){
@@ -9234,8 +9237,8 @@ sub system_cpu_name {
 	}
 	# synthesize it, [4] will be like: cortex-a15-timer; sunxi-timer
 	# so far all with this directory show soc name, not cpu name for timer
-	elsif (! -d '/sys/firmware/devicetree/base' && @devices_timer){
-		foreach my $working (@devices_timer){
+	elsif (! -d '/sys/firmware/devicetree/base' && @{$devices{'timer'}}){
+		foreach my $working (@{$devices{'timer'}}){
 			next if $working->[0] ne 'timer' || !$working->[4] || $working->[4] =~ /timer-mem$/;
 			$working->[4] =~ s/(-system)?-timer$//;
 			$compat = $working->[4];
@@ -9595,7 +9598,7 @@ sub get {
 		if ($type eq 'standard'){
 			push(@rows,totals_output(\@data));
 			push(@rows,drives_output(\@data)) if $show{'disk'} && @data;
-			if ($bsd_type && !@dm_boot_disk && $type eq 'standard' && $show{'disk'} ){
+			if ($bsd_type && !@{$dboot{'disk'}} && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
 				my $file = main::system_files('dmesg-boot');
 				if ( $file && ! -r $file){
@@ -9840,7 +9843,7 @@ sub disk_data {
 		@data = proc_data($used);
 	}
 	else {
-		@data = dmesg_boot_data($used);
+		@data = dboot_data($used);
 	}
 	if ($b_admin){
 		if ( $alerts{'smartctl'} && $alerts{'smartctl'}->{'action'} eq 'use'){
@@ -10091,14 +10094,14 @@ sub proc_data_advanced {
 # camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
 # smartcl -i <device> |grep ^Serial
 # see smartctl; camcontrol devlist; gptid status;
-sub dmesg_boot_data {
+sub dboot_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives,@temp);
 	my ($id_holder,$i,$size,$working) = ('',0,0,0);
 	my $file = main::system_files('dmesg-boot');
-	if (@dm_boot_disk){
-		foreach (@dm_boot_disk){
+	if (@{$dboot{'disk'}}){
+		foreach (@{$dboot{'disk'}}){
 			my @row = split(/:\s*/, $_);
 			next if ! defined $row[1];
 			if ($id_holder ne $row[0]){
@@ -11452,7 +11455,7 @@ sub device_output {
 	eval $start if $b_log;
 	my (@rows);
 	my ($j,$num) = (0,1);
-	foreach my $row (@devices_graphics){
+	foreach my $row (@{$devices{'graphics'}}){
 		$num = 1;
 		#print "$row->[0] $row->[3]\n";
 		# not using 3D controller yet, needs research: |3D controller |display controller
@@ -12739,7 +12742,7 @@ sub get {
 	eval $start if $b_log;
 	my (%soc_machine,%data,@rows,$key1,$val1,$which);
 	my $num = 0;
-	if ($bsd_type && @sysctl_machine && !$force{'dmidecode'} ){
+	if ($bsd_type && @{$sysctl{'machine'}} && !$force{'dmidecode'} ){
 		%data = machine_data_sysctl();
 		if (%data){
 			@rows = machine_output(\%data);
@@ -13246,7 +13249,7 @@ sub machine_data_sysctl {
 	eval $start if $b_log;
 	my (%data,$vm);
 	# ^hw\.(vendor|product|version|serialno|uuid)
-	foreach (@sysctl_machine){
+	foreach (@{$sysctl{'machine'}}){
 		next if ! $_;
 		my @item = split(':', $_);
 		next if ! $item[1];
@@ -13403,7 +13406,7 @@ sub get_device_vm {
 	# this will catch many Linux systems and some BSDs
 	if (!$vm || lc($vm) eq 'bochs' ) {
 		# $device_vm is '' if nothing detected
-		my @vm_data = (@sysctl,@dmesg_boot,$device_vm);
+		my @vm_data = (@{$sysctl{'main'}},@{$dboot{'main'}},$device_vm);
 		if (-e '/dev/disk/by-id'){
 			my @dev = glob('/dev/disk/by-id/*');
 			push(@vm_data,@dev);
@@ -13494,7 +13497,7 @@ sub device_output {
 	eval $start if $b_log;
 	my ($b_wifi,@rows,%holder);
 	my ($j,$num) = (0,1);
-	foreach my $row (@devices_network){
+	foreach my $row (@{$devices{'network'}}){
 		$num = 1;
 		#print "$row->[0] $row->[3]\n"; 
 		#print "$row->[0] $row->[3]\n";
@@ -13997,7 +14000,7 @@ sub get {
 		$key1 = 'Optical Report';
 		$val1 = main::row_defaults('optical-data-bsd');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
-		if ( @dm_boot_optical){
+		if ( @{$dboot{'optical'}}){
 			%data = optical_data_bsd();
 			@rows = optical_output(\%data) if %data;
 		}
@@ -14119,7 +14122,7 @@ sub optical_data_bsd {
 	eval $start if $b_log;
 	my (%devices,@rows,@temp);
 	my ($count,$i,$working) = (0,0,'');
-	foreach (@dm_boot_optical){
+	foreach (@{$dboot{'optical'}}){
 		$_ =~ s/(cd[0-9]+)\(([^:]+):([0-9]+):([0-9]+)\):/$1:$2-$3.$4,/;
 		my @row = split(/:\s*/, $_);
 		next if ! defined $row[1];
@@ -14128,7 +14131,7 @@ sub optical_data_bsd {
 			$working = $row[0];
 		}
 		# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
-		if (! exists $devices{$working}){
+		if (!exists $devices{$working}){
 			$devices{$working}->{'links'} = ([]);
 			$devices{$working}->{'model'} = '';
 			$devices{$working}->{'rev'} = '';
@@ -15625,7 +15628,7 @@ sub raid_data {
 sub hw_data {
 	eval $start if $b_log;
 	my ($driver,$vendor,@hardware_raid);
-	foreach my $working (@devices_hwraid){
+	foreach my $working (@{$devices{'hwraid'}}){
 		$driver = ($working->[9]) ? lc($working->[9]): '';
 		$driver =~ s/-/_/g if $driver;
 		my $driver_version = ($driver) ? main::get_module_version($driver): '';
@@ -18239,7 +18242,7 @@ sub process_lm_sensors {
 sub sysctl_data {
 	eval $start if $b_log;
 	my (@data,%sensors);
-	foreach (@sysctl_sensors){
+	foreach (@{$sysctl{'sensors'}}){
 		if (/^hw.sensors\.([0-9a-z]+)\.(temp|fan|volt)([0-9])/){
 			my $sensor = $1;
 			my $type = $2;
@@ -19831,7 +19834,7 @@ sub version_bsd {
 	my (@compiler,@working);
 	if ($alerts{'sysctl'}->{'action'} && $alerts{'sysctl'}->{'action'} eq 'use'){
 		my @working;
-		foreach (@sysctl){
+		foreach (@{$sysctl{'main'}}){
 			# Not every line will have a : separator though the processor should make 
 			# most have it. This appears to be 10.x late feature add, I don't see it
 			# on earlier BSDs
@@ -21728,7 +21731,7 @@ sub bsd_data {
 	if ($alerts{'sysctl'}->{'action'} eq 'use'){
 		# for dragonfly, we will use free mem, not used because free is 0
 		my @working;
-		foreach (@sysctl){
+		foreach (@{$sysctl{'memory'}}){
 			# freebsd seems to use bytes here
 			if (!$real_mem && /^hw.physmem:/){
 				@working = split(/:\s*/, $_);
@@ -22656,8 +22659,8 @@ sub set_build_prop {
 	eval $end if $b_log;
 }
 
-## creates arrays: @devices_audio; @devices_graphics; @devices_hwraid; 
-## @devices_network; @devices_timer plus @devices for logging/debugging
+## creates arrays: $devices{'audio'}; $devices{'graphics'}; $devices{'hwraid'}; 
+## $devices{'network'}; $devices{'timer'} plus @devices for logging/debugging
 # 0 type
 # 1 type_id
 # 2 bus_id
@@ -22710,21 +22713,21 @@ sub set {
 			}
 		}
 		if ($dbg[9]){
-			print Data::Dumper::Dumper \@devices_audio;
-			print Data::Dumper::Dumper \@devices_bluetooth;
-			print Data::Dumper::Dumper \@devices_graphics;
-			print Data::Dumper::Dumper \@devices_network;
-			print Data::Dumper::Dumper \@devices_hwraid;
-			print Data::Dumper::Dumper \@devices_timer;
+			print Data::Dumper::Dumper $devices{'audio'};
+			print Data::Dumper::Dumper $devices{'bluetooth'};
+			print Data::Dumper::Dumper $devices{'graphics'};
+			print Data::Dumper::Dumper $devices{'network'};
+			print Data::Dumper::Dumper $devices{'hwraid'};
+			print Data::Dumper::Dumper $devices{'timer'};
 			print "vm: $device_vm\n";
 		}
 		if ( $b_log){
-			main::log_data('dump','@devices_audio',\@devices_audio);
-			main::log_data('dump','@devices_bluetooth',\@devices_bluetooth);
-			main::log_data('dump','@devices_graphics',\@devices_graphics);
-			main::log_data('dump','@devices_hwraid',\@devices_hwraid);
-			main::log_data('dump','@devices_network',\@devices_network);
-			main::log_data('dump','@devices_timer',\@devices_timer);
+			main::log_data('dump','$devices{audio}',$devices{'audio'});
+			main::log_data('dump','$devices{bluetooth}',$devices{'bluetooth'});
+			main::log_data('dump','$devices{graphics}',$devices{'graphics'});
+			main::log_data('dump','$devices{hwraid}',$devices{'hwraid'});
+			main::log_data('dump','$devices{network}',$devices{'network'});
+			main::log_data('dump','$devices{timer}',$devices{'timer'});
 		}
 	}
 	@devices = undef;
@@ -22874,7 +22877,7 @@ sub pciconf_data {
 sub pcidump_data {
 	eval $start if $b_log;
 	my @data = pci_grabber('pcidump');
-	main::set_dmesg_boot_data() if !$loaded{'dmesg-boot'};
+	main::set_dboot_data() if !$loaded{'dboot'};
 	foreach (@data){
 		if ($_ =~ /^~$/ && $busid && $device) {
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
@@ -22887,7 +22890,7 @@ sub pcidump_data {
 		if ($_ =~ /^([0-9a-f:]+):([0-9]+):\s([^:]+)$/i){
 			$busid = $1;
 			$busid_nu = $2;
-			($driver,$driver_nu) = pcidump_driver("$busid:$busid_nu") if @dm_boot_pci;
+			($driver,$driver_nu) = pcidump_driver("$busid:$busid_nu") if @{$dboot{'pcil'}};
 			$device = main::cleaner($3);
 		}
 		elsif ($_ =~ /^0x[\S]{4}:\s+Vendor ID:\s+([0-9a-f]{4}),?\s+Product ID:\s+([0-9a-f]{4})/ ){
@@ -22910,7 +22913,7 @@ sub pcidump_driver {
 	eval $start if $b_log;
 	my $bus_id = $_[0];
 	my ($driver,$nu);
-	for (@dm_boot_pci) {
+	for (@{$dboot{'pcil'}}) {
 		if (/^$bus_id:([^0-9]+)([0-9]+):/){
 			$driver = $1;
 			$nu = $2;
@@ -23186,28 +23189,28 @@ sub set_bluetooth {
 sub assign_data {
 	my ($tool,$data) = @_;
 	if (check_graphics($data->[0],$data->[1])){
-		push(@devices_graphics,[@$data]);
+		push(@{$devices{'graphics'}},[@$data]);
 		$use{'soc-gfx'} = 1 if $tool eq 'soc';
 	}
 	# for hdmi, we need gfx/audio both
 	if (check_audio($data->[0],$data->[1])){
-		push(@devices_audio,[@$data]);
+		push(@{$devices{'audio'}},[@$data]);
 		$use{'soc-audio'} = 1 if $tool eq 'soc';
 	}
 	if (check_bluetooth($data->[0],$data->[1])){
-		push(@devices_bluetooth,[@$data]);
+		push(@{$devices{'bluetooth'}},[@$data]);
 		$use{'soc-bluetooth'} = 1 if $tool eq 'soc';
 	}
 	elsif (check_hwraid($data->[0],$data->[1])){
-		push(@devices_hwraid,[@$data]);
+		push(@{$devices{'hwraid'}},[@$data]);
 		$use{'soc-hwraid'} = 1 if $tool eq 'soc';
 	}
 	elsif (check_network($data->[0],$data->[1])){
-		push(@devices_network,[@$data]);
+		push(@{$devices{'network'}},[@$data]);
 		$use{'soc-network'} = 1 if $tool eq 'soc';
 	}
 	elsif (check_timer($data->[0],$data->[1])){
-		push(@devices_timer,[@$data]);
+		push(@{$devices{'timer'}},[@$data]);
 		$use{'soc-timer'} = 1 if $tool eq 'soc';
 	}
 	# not used at this point, -M comes before ANG
@@ -23331,10 +23334,10 @@ sub pci_class {
 }
 }
 
-sub set_dmesg_boot_data {
+sub set_dboot_data {
 	eval $start if $b_log;
-	$loaded{'dmesg-boot'} = 1;
-	my ($file,@temp);
+	$loaded{'dboot'} = 1;
+	my ($file,@db_data,@dm_data,@temp);
 	my ($counter) = (0);
 	if (!$fake{'dboot'}){
 		$file = system_files('dmesg-boot');
@@ -23351,9 +23354,9 @@ sub set_dmesg_boot_data {
 	}
 	if ($file){
 		return if ! -r $file;
-		@dmesg_boot = reader($file);
+		@db_data = reader($file);
 		# sometimes > 1 sessions stored, dump old ones
-		for (@dmesg_boot){
+		for (@db_data){
 			if (/^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/){
 				$counter++;
 				if ($counter > 1){
@@ -23362,13 +23365,13 @@ sub set_dmesg_boot_data {
 			}
 			push(@temp,$_);
 		}
-		@dmesg_boot = @temp;
+		@db_data = @temp;
 		undef @temp; 
-		my @dmesg = grabber('dmesg 2>/dev/null');
+		my @dm_data = grabber('dmesg 2>/dev/null');
 		# clear out for netbsd, only 1 space following or lines won't match
-		@dmesg = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dmesg;
+		@dm_data = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dm_data;
 		$counter = 0;
-		for (@dmesg){
+		for (@dm_data){
 			if (/^(OpenBSD|DragonFly|FreeBSD is a registered trademark)/){
 				$counter++;
 				if ($counter > 1){
@@ -23377,16 +23380,16 @@ sub set_dmesg_boot_data {
 			}
 			push(@temp,$_);
 		}
-		@dmesg = @temp;
+		@dm_data = @temp;
 		undef @temp; 
-		push(@dmesg_boot,'~~~~~',@dmesg);
-		uniq(\@dmesg_boot); # get rid of duplicate lines
+		push(@db_data,'~~~~~',@dm_data);
+		uniq(\@db_data); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
 		# replace all indented items with ~ so we can id them easily while
 		# processing note that if user, may get error of read permissions
 		# for some weird reason, real mem and avail mem are use a '=' separator, 
 		# who knows why, the others are ':'
-		foreach (@dmesg_boot){
+		foreach (@db_data){
 			$_ =~ s/\s*=\s*|:\s*/:/;
 			$_ =~ s/\"//g;
 			$_ =~ s/^\s+/~/;
@@ -23394,39 +23397,49 @@ sub set_dmesg_boot_data {
 			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
 			push(@temp, $_);
 			if (/^bios[0-9]:(at|vendor)/){
-				push(@sysctl_machine, $_);
+				push(@{$sysctl{'machine'}}, $_);
 			}
-			elsif ($use{'dm-boot-battery'} && /^acpi(bat|cmb)/){
-				push(@sysctl_battery, $_);
+			elsif ($use{'dboot-battery'} && /^acpi(bat|cmb)/){
+				push(@{$sysctl{'battery'}}, $_);
+			}
+			elsif ($use{'dboot-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
+				push(@{$dboot{'cpu'}}, $_);
 			}
 			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
 			# OpenBSD: 'sd' is usb device, 'wd' normal drive
-			elsif ($use{'dm-boot-disk'} && 
+			elsif ($use{'dboot-disk'} && 
 			 /^(ad|ada|da|mmcblk|mmcsd|nvme[0-9]+n|sd|wd)[0-9]+(:|\sat\s)/){
-				push (@dm_boot_disk,$_);
+				push (@{$dboot{'disk'}},$_);
 			}
-			elsif ($use{'dm-boot-optical'} && 
-			 /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
-				push(@dm_boot_optical,$_);
+			elsif ($use{'dboot-ram'} && /(^spdmem)/){
+				push(@{$dboot{'ram'}}, $_);
 			}
-			elsif ($use{'dm-boot-pci'} &&
-			 /^(pci[0-9]+:at|\S+:at pci)/){
-				push(@dm_boot_pci,$_);
+			elsif ($use{'dboot-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
+				push(@{$dboot{'optical'}},$_);
+			}
+			elsif ($use{'dboot-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
+				push(@{$dboot{'pci'}},$_);
 			}
 		}
-		@dmesg_boot = @temp;
+		$dboot{'main'} = \@temp;
 		undef @temp; 
-		if ($use{'dm-boot-disk'} && @dmesg_boot){
-			log_data('dump','@dm_boot_disk',\@dm_boot_disk) if $b_log;
-			print Dumper \@dm_boot_disk if $dbg[11];
+		if ($dboot{'main'} && $b_log){
+			log_data('dump','$dboot{battery}',$dboot{'battery'});
+			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
+			log_data('dump','$dboot{disk}',$dboot{'disk'});
+			log_data('dump','$dboot{optical}',$dboot{'optical'});
+			log_data('dump','$dboot{ram}',$dboot{'ram'});
 		}
-		if ($use{'dm-boot-optical'} && @dmesg_boot){
-			log_data('dump','@dm_boot_optical',\@dm_boot_optical) if $b_log;
-			print Dumper \@dm_boot_optical if $dbg[11];
+		if ($dboot{'main'} && $dbg[11]){
+			print("battery:\n", Dumper $dboot{'battery'});
+			print("cpu:\n", Dumper $dboot{'cpu'});
+			print("disk:\n", Dumper $dboot{'disk'});
+			print("optical:\n", Dumper $dboot{'optical'});
+			print("memory:\n", Dumper $dboot{'ram'});
 		}
-		if ($use{'dm-boot-pci'} && @dmesg_boot){
+		if ($use{'dboot-pci'} && @{$dboot{'main'}}){
 			my $bus_id = 0;
-			for (@dm_boot_pci){
+			for (@{$dboot{'pci'}}){
 				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
 					$bus_id = $1;
 					next;
@@ -23436,13 +23449,13 @@ sub set_dmesg_boot_data {
 					push(@temp,$_);
 				}
 			}
-			@dm_boot_pci = @temp;
-			log_data('dump','@dm_boot_pci',\@dm_boot_pci) if $b_log;
-			print Dumper \@dm_boot_pci if $dbg[11];
+			$dboot{'pci'} = \@temp;
+			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
+			print Dumper $dboot{'pci'} if $dbg[11];
 		}
 	}
-	log_data('dump','@dmesg_boot full',\@dmesg_boot) if $b_log;
-	print Dumper \@dmesg_boot if $dbg[11];
+	log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
+	print Dumper $dboot{'main'} if $dbg[11];
 	eval $end if $b_log;
 }
 
@@ -23909,26 +23922,29 @@ sub set_sysctl_data {
 	foreach (@temp){
 		$_ =~ s/\s*=\s*|:\s+/:/;
 		$_ =~ s/\"//g;
-		push(@sysctl, $_);
+		push(@{$sysctl{'main'}}, $_);
 		# we're building these here so we can use these arrays to test 
 		# in each feature if we will try to build the feature for bsds
 		if (/^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/){
-			push(@sysctl_sensors, $_);
+			push(@{$sysctl{'sensors'}}, $_);
 		}
 		elsif (/^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
-			push(@sysctl_machine, $_);
+			push(@{$sysctl{'machine'}}, $_);
+		}
+		elsif (/^(hw\.(freemem|usermem)|Free Memory)/){
+			push(@{$sysctl{'memory'}}, $_);
 		}
 		elsif (/^hw\.snd\./){
-			push(@sysctl_audio, $_);
+			push(@{$sysctl{'audio'}}, $_);
 		}
 		elsif (/^hw\.sensors\.acpi(bat|cmb)/){
-			push(@sysctl_battery, $_);
+			push(@{$sysctl{'battery'}}, $_);
 		}
 	}
-	print Dumper \@sysctl if $dbg[7];
+	print Dumper $sysctl{'main'} if $dbg[7];
 	# this thing can get really long.
 	if ($b_log){
-		#main::log_data('dump','@sysctl',\@sysctl);
+		#main::log_data('dump','$sysctl{main}',$sysctl{'main'});
 	}
 	eval $end if $b_log;
 }
@@ -24769,7 +24785,7 @@ sub generate_lines {
 	my (%row,%checks);
 	set_ps_aux() if !$loaded{'ps-aux'};
 	set_sysctl_data() if $use{'sysctl'};
-	set_dmesg_boot_data() if $bsd_type && !$loaded{'dmesg-boot'};
+	set_dboot_data() if $bsd_type && !$loaded{'dboot'};
 	# note: ps aux loads before logging starts, so create debugger data here
 	if ($b_log){
 		# I don't think we need to see this, it's long, but leave in case we do
