@@ -14006,8 +14006,8 @@ sub get {
 		$val1 = main::row_defaults('optical-data-bsd');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		if ($dboot{'optical'}){
-			%data = optical_data_bsd();
-			@rows = optical_output(\%data) if %data;
+			%data = drive_data_bsd();
+			@rows = create_output(\%data) if %data;
 		}
 		else{
 			my $file = main::system_files('dmesg-boot');
@@ -14025,8 +14025,8 @@ sub get {
 		}
 	}
 	else {
-		%data = optical_data_linux();
-		@rows = optical_output(\%data) if %data;
+		%data = drive_data_linux();
+		@rows = create_output(\%data) if %data;
 	}
 	if (!@rows){
 		$key1 = 'Message';
@@ -14036,71 +14036,71 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub optical_output {
+sub create_output {
 	eval $start if $b_log;
-	my ($devices) = @_;
+	my ($drives) = @_;
 	my (@rows);
 	my $num = 0;
 	my $j = 0;
 	# build floppy if any
-	foreach my $key (sort keys %$devices){
-		if ($devices->{$key}{'type'} eq 'floppy'){
+	foreach my $key (sort keys %$drives){
+		if ($drives->{$key}{'type'} eq 'floppy'){
 			push(@rows, {
-			main::key($num++,0,1,ucfirst($devices->{$key}{'type'})) => "/dev/$key",
+			main::key($num++,0,1,ucfirst($drives->{$key}{'type'})) => "/dev/$key",
 			});
-			delete $devices->{$key};
+			delete $drives->{$key};
 		}
 	}
-	foreach my $key (sort keys %$devices){
+	foreach my $key (sort keys %$drives){
 		$j = scalar @rows;
 		$num = 1;
-		my $vendor = $devices->{$key}{'vendor'};
+		my $vendor = $drives->{$key}{'vendor'};
 		$vendor ||= 'N/A';
-		my $model = $devices->{$key}{'model'};
+		my $model = $drives->{$key}{'model'};
 		$model ||= 'N/A';
 		push(@rows, { 
-		main::key($num++,1,1,ucfirst($devices->{$key}{'type'})) => "/dev/$key",
+		main::key($num++,1,1,ucfirst($drives->{$key}{'type'})) => "/dev/$key",
 		main::key($num++,0,2,'vendor') => $vendor,
 		main::key($num++,0,2,'model') => $model,
 		});
 		if ($extra > 0){
-			my $rev = $devices->{$key}{'rev'};
+			my $rev = $drives->{$key}{'rev'};
 			$rev ||= 'N/A';
 			$rows[$j]->{ main::key($num++,0,2,'rev')} = $rev;
 		}
-		if ($extra > 1 && $devices->{$key}{'serial'}){
-			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::apply_filter($devices->{$key}{'serial'});
+		if ($extra > 1 && $drives->{$key}{'serial'}){
+			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::apply_filter($drives->{$key}{'serial'});
 		}
-		my $links = (@{$devices->{$key}{'links'}}) ? join(',', sort @{$devices->{$key}{'links'}}) : 'N/A' ;
+		my $links = (@{$drives->{$key}{'links'}}) ? join(',', sort @{$drives->{$key}{'links'}}) : 'N/A' ;
 		$rows[$j]->{ main::key($num++,0,2,'dev-links')} = $links;
 		if ($show{'optical'}){
 			$j = scalar @rows;
-			my $speed = $devices->{$key}{'speed'};
+			my $speed = $drives->{$key}{'speed'};
 			$speed ||= 'N/A';
 			my ($audio,$multisession) = ('','');
-			if (defined $devices->{$key}{'multisession'}){
-				$multisession = ( $devices->{$key}{'multisession'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $drives->{$key}{'multisession'}){
+				$multisession = ( $drives->{$key}{'multisession'} == 1 ) ? 'yes' : 'no' ;
 			}
 			$multisession ||= 'N/A';
-			if (defined $devices->{$key}{'audio'}){
-				$audio = ( $devices->{$key}{'audio'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $drives->{$key}{'audio'}){
+				$audio = ( $drives->{$key}{'audio'} == 1 ) ? 'yes' : 'no' ;
 			}
 			$audio ||= 'N/A';
 			my $dvd = 'N/A';
 			my (@rw,$rws);
-			if (defined $devices->{$key}{'dvd'}){
-				$dvd = ( $devices->{$key}{'dvd'} == 1 ) ? 'yes' : 'no' ;
+			if (defined $drives->{$key}{'dvd'}){
+				$dvd = ( $drives->{$key}{'dvd'} == 1 ) ? 'yes' : 'no' ;
 			}
-			if ($devices->{$key}{'cdr'}){
+			if ($drives->{$key}{'cdr'}){
 				push(@rw, 'cd-r');
 			}
-			if ($devices->{$key}{'cdrw'}){
+			if ($drives->{$key}{'cdrw'}){
 				push(@rw, 'cd-rw');
 			}
-			if ($devices->{$key}{'dvdr'}){
+			if ($drives->{$key}{'dvdr'}){
 				push(@rw, 'dvd-r');
 			}
-			if ($devices->{$key}{'dvdram'}){
+			if ($drives->{$key}{'dvdram'}){
 				push(@rw, 'dvd-ram');
 			}
 			$rws = (@rw) ? join(',', @rw) : 'none' ;
@@ -14113,19 +14113,19 @@ sub optical_output {
 			main::key($num++,0,3,'rw') => $rws,
 			});
 			if ($extra > 0 ){
-				my $state = $devices->{$key}{'state'};
+				my $state = $drives->{$key}{'state'};
 				$state ||= 'N/A';
 				$rows[$j]->{ main::key($num++,0,3,'state')} = $state;
 			}
 		}
 	}
-	#print Data::Dumper::Dumper \%devices;
+	#print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
 	return @rows;
 }
-sub optical_data_bsd {
+sub drive_data_bsd {
 	eval $start if $b_log;
-	my (%devices,@rows,@temp);
+	my (%drives,@rows,@temp);
 	my ($count,$i,$working) = (0,0,'');
 	foreach (@{$dboot{'optical'}}){
 		$_ =~ s/(cd[0-9]+)\(([^:]+):([0-9]+):([0-9]+)\):/$1:$2-$3.$4,/;
@@ -14136,78 +14136,78 @@ sub optical_data_bsd {
 			$working = $row[0];
 		}
 		# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
-		if (!exists $devices{$working}){
-			$devices{$working}->{'links'} = ([]);
-			$devices{$working}->{'model'} = '';
-			$devices{$working}->{'rev'} = '';
-			$devices{$working}->{'state'} = '';
-			$devices{$working}->{'vendor'} = '';
-			$devices{$working}->{'temp'} = '';
-			$devices{$working}->{'type'} = ($working =~ /^cd/) ? 'optical' : 'unknown';
+		if (!exists $drives{$working}){
+			$drives{$working}->{'links'} = ([]);
+			$drives{$working}->{'model'} = '';
+			$drives{$working}->{'rev'} = '';
+			$drives{$working}->{'state'} = '';
+			$drives{$working}->{'vendor'} = '';
+			$drives{$working}->{'temp'} = '';
+			$drives{$working}->{'type'} = ($working =~ /^cd/) ? 'optical' : 'unknown';
 		}
 		#print "$_\n";
 		if ($bsd_type !~ /^(net|open)bsd$/){
 			if ($row[1] && $row[1] =~ /^<([^>]+)>/){
-				$devices{$working}->{'model'} = $1;
-				$count = ($devices{$working}->{'model'} =~ tr/ //);
+				$drives{$working}->{'model'} = $1;
+				$count = ($drives{$working}->{'model'} =~ tr/ //);
 				if ($count && $count > 1){
-					@temp = split(/\s+/, $devices{$working}->{'model'});
-					$devices{$working}->{'vendor'} = $temp[0];
+					@temp = split(/\s+/, $drives{$working}->{'model'});
+					$drives{$working}->{'vendor'} = $temp[0];
 					my $index = ($#temp > 2 ) ? ($#temp - 1): $#temp;
-					$devices{$working}->{'model'} = join(' ', @temp[1..$index]);
-					$devices{$working}->{'rev'} = $temp[-1] if $count > 2;
+					$drives{$working}->{'model'} = join(' ', @temp[1..$index]);
+					$drives{$working}->{'rev'} = $temp[-1] if $count > 2;
 				}
 				if ($show{'optical'}){
 					if (/\bDVD\b/){
-						$devices{$working}->{'dvd'} = 1;
+						$drives{$working}->{'dvd'} = 1;
 					}
 					if (/\bRW\b/){
-						$devices{$working}->{'cdrw'} = 1;
-						$devices{$working}->{'dvdr'} = 1 if $devices{$working}->{'dvd'};
+						$drives{$working}->{'cdrw'} = 1;
+						$drives{$working}->{'dvdr'} = 1 if $drives{$working}->{'dvd'};
 					}
 				}
 			}
 			if ($row[1] && $row[1] =~ /^Serial/){
 				@temp = split(/\s+/,$row[1]);
-				$devices{$working}->{'serial'} = $temp[-1];
+				$drives{$working}->{'serial'} = $temp[-1];
 			}
 			if ($show{'optical'}){
 				if ($row[1] =~ /^([0-9\.]+[MGTP][B]?\/s)/){
-					$devices{$working}->{'speed'} = $1;
-					$devices{$working}->{'speed'} =~ s/\.[0-9]+//;
+					$drives{$working}->{'speed'} = $1;
+					$drives{$working}->{'speed'} =~ s/\.[0-9]+//;
 				}
 				if (/\bDVD[-]?RAM\b/){
-					$devices{$working}->{'cdr'} = 1;
-					$devices{$working}->{'dvdram'} = 1;
+					$drives{$working}->{'cdr'} = 1;
+					$drives{$working}->{'dvdram'} = 1;
 				}
 				if ($row[2] && $row[2] =~ /,\s(.*)$/){
-					$devices{$working}->{'state'} = $1;
-					$devices{$working}->{'state'} =~ s/\s+-\s+/, /;
+					$drives{$working}->{'state'} = $1;
+					$drives{$working}->{'state'} =~ s/\s+-\s+/, /;
 				}
 			}
 		}
 		else {
 			if ($row[2] && $row[2] =~ /<([^>]+)>/){
-				$devices{$working}->{'model'} = $1;
-				$count = ($devices{$working}->{'model'} =~ tr/,//);
+				$drives{$working}->{'model'} = $1;
+				$count = ($drives{$working}->{'model'} =~ tr/,//);
 				#print "c: $count $row[2]\n";
 				if ($count && $count > 1){
-					@temp = split(/,\s*/, $devices{$working}->{'model'});
-					$devices{$working}->{'vendor'} = $temp[0];
-					$devices{$working}->{'model'} = $temp[1];
-					$devices{$working}->{'rev'} = $temp[2];
+					@temp = split(/,\s*/, $drives{$working}->{'model'});
+					$drives{$working}->{'vendor'} = $temp[0];
+					$drives{$working}->{'model'} = $temp[1];
+					$drives{$working}->{'rev'} = $temp[2];
 				}
 				if ($show{'optical'}){
 					if (/\bDVD\b/){
-						$devices{$working}->{'dvd'} = 1;
+						$drives{$working}->{'dvd'} = 1;
 					}
 					if (/\bRW\b/){
-						$devices{$working}->{'cdrw'} = 1;
-						$devices{$working}->{'dvdr'} = 1 if $devices{$working}->{'dvd'};
+						$drives{$working}->{'cdrw'} = 1;
+						$drives{$working}->{'dvdr'} = 1 if $drives{$working}->{'dvd'};
 					}
 					if (/\bDVD[-]?RAM\b/){
-						$devices{$working}->{'cdr'} = 1;
-						$devices{$working}->{'dvdram'} = 1;
+						$drives{$working}->{'cdr'} = 1;
+						$drives{$working}->{'dvdram'} = 1;
 					}
 				}
 			}
@@ -14215,21 +14215,21 @@ sub optical_data_bsd {
 				#print "$row[1]\n";
 				if (($row[1] =~ tr/,//) > 1){
 					@temp = split(/,\s*/, $row[1]);
-					$devices{$working}->{'speed'} = $temp[2];
+					$drives{$working}->{'speed'} = $temp[2];
 				}
 				
 			}
 		}
 	}
 	
-	main::log_data('dump','%devices',\%devices) if $b_log;
-	#print Data::Dumper::Dumper \%devices;
+	main::log_data('dump','%drives',\%drives) if $b_log;
+	#print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
-	return %devices;
+	return %drives;
 }
-sub optical_data_linux {
+sub drive_data_linux {
 	eval $start if $b_log;
-	my (@data,%devices,@info,@rows);
+	my (@data,%drives,@info,@rows);
 	@data = main::globber('/dev/dvd* /dev/cdr* /dev/scd* /dev/sr* /dev/fd[0-9]');
 	# Newer kernel is NOT linking all optical drives. Some, but not all.
 	# Get the actual disk dev location, first try default which is easier to run, 
@@ -14241,13 +14241,13 @@ sub optical_data_linux {
 		# possible fix: puppy has these in /mnt not /dev they say
 		$working =~ s/\/(dev|media|mnt)\///;
 		$_ =~ s/\/(dev|media|mnt)\///;
-		if  (!defined $devices{$working}){
+		if  (!defined $drives{$working}){
 			my @temp = ($_ ne $working) ? ($_) : ();
-			$devices{$working}->{'links'} = \@temp;
-			$devices{$working}->{'type'} = ($working =~ /^fd/) ? 'floppy' : 'optical' ;
+			$drives{$working}->{'links'} = \@temp;
+			$drives{$working}->{'type'} = ($working =~ /^fd/) ? 'floppy' : 'optical' ;
 		}
  		else {
- 			push(@{$devices{$working}->{'links'}}, $_) if $_ ne $working;
+ 			push(@{$drives{$working}->{'links'}}, $_) if $_ ne $working;
  		}
 		#print "$working\n";
 	}
@@ -14255,22 +14255,22 @@ sub optical_data_linux {
 		@info = main::reader('/proc/sys/dev/cdrom/info','strip');
 	}
 	#print join('; ', @data), "\n";
-	foreach my $key (keys %devices){
-		next if $devices{$key}->{'type'} eq 'floppy';
+	foreach my $key (keys %drives){
+		next if $drives{$key}->{'type'} eq 'floppy';
 		my $device = "/sys/block/$key/device";
 		if ( -d $device){
 			if (-r "$device/vendor"){
-				$devices{$key}->{'vendor'} = main::reader("$device/vendor",'',0);
-				$devices{$key}->{'vendor'} = main::cleaner($devices{$key}->{'vendor'});
-				$devices{$key}->{'state'} = main::reader("$device/state",'',0);
-				$devices{$key}->{'model'} = main::reader("$device/model",'',0);
-				$devices{$key}->{'model'} = main::cleaner($devices{$key}->{'model'});
-				$devices{$key}->{'rev'} = main::reader("$device/rev",'',0);
+				$drives{$key}->{'vendor'} = main::reader("$device/vendor",'',0);
+				$drives{$key}->{'vendor'} = main::cleaner($drives{$key}->{'vendor'});
+				$drives{$key}->{'state'} = main::reader("$device/state",'',0);
+				$drives{$key}->{'model'} = main::reader("$device/model",'',0);
+				$drives{$key}->{'model'} = main::cleaner($drives{$key}->{'model'});
+				$drives{$key}->{'rev'} = main::reader("$device/rev",'',0);
 			}
 		}
 		elsif ( -r "/proc/ide/$key/model"){
-			$devices{$key}->{'vendor'} = main::reader("/proc/ide/$key/model",'',0);
-			$devices{$key}->{'vendor'} = main::cleaner($devices{$key}->{'vendor'});
+			$drives{$key}->{'vendor'} = main::reader("/proc/ide/$key/model",'',0);
+			$drives{$key}->{'vendor'} = main::cleaner($drives{$key}->{'vendor'});
 		}
 		if ($show{'optical'} && @info){
 			my $index = 0;
@@ -14285,39 +14285,39 @@ sub optical_data_linux {
 					last if ! $index; # index will be > 0 if it was found
 				}
 				elsif ($item =~/^drive speed:/) {
-					$devices{$key}->{'speed'} = $split[$index];
+					$drives{$key}->{'speed'} = $split[$index];
 				}
 				elsif ($item =~/^Can read multisession:/) {
-					$devices{$key}->{'multisession'}=$split[$index+1];
+					$drives{$key}->{'multisession'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can read MCN:/) {
-					$devices{$key}->{'mcn'}=$split[$index+1];
+					$drives{$key}->{'mcn'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can play audio:/) {
-					$devices{$key}->{'audio'}=$split[$index+1];
+					$drives{$key}->{'audio'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can write CD-R:/) {
-					$devices{$key}->{'cdr'}=$split[$index+1];
+					$drives{$key}->{'cdr'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can write CD-RW:/) {
-					$devices{$key}->{'cdrw'}=$split[$index+1];
+					$drives{$key}->{'cdrw'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can read DVD:/) {
-					$devices{$key}->{'dvd'}=$split[$index+1];
+					$drives{$key}->{'dvd'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can write DVD-R:/) {
-					$devices{$key}->{'dvdr'}=$split[$index+1];
+					$drives{$key}->{'dvdr'}=$split[$index+1];
 				}
 				elsif ($item =~/^Can write DVD-RAM:/) {
-					$devices{$key}->{'dvdram'}=$split[$index+1];
+					$drives{$key}->{'dvdram'}=$split[$index+1];
 				}
 			}
 		}
 	}
-	main::log_data('dump','%devices',\%devices) if $b_log;
-	#print Data::Dumper::Dumper \%devices;
+	main::log_data('dump','%drives',\%drives) if $b_log;
+	#print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
-	return %devices;
+	return %drives;
 }
 
 }
