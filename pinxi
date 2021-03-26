@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-26';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 ## Self data
@@ -13636,12 +13636,11 @@ sub usb_output {
 				($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
 				@data = advanced_data_sys($vendor,$chip,0,$b_wifi,$path,'');
 			}
-			# NOTE: we need the driver.number, like wlp0 to get a match, and 
-			# we can't get that from usb data, so we have to let it fall back down 
-			# to the check function for BSDs.
-			#else {
-			#	@data = advanced_data_bsd($row->[2],$b_wifi);
-			#}
+			# NOTE: we need the driver + driver nu, like wlp0 to get a match,
+			else {
+				$driver .= $row->[21] if defined $row->[21];
+				@data = advanced_data_bsd($driver,$b_wifi);
+			}
 			push(@rows,@data) if @data;
 		}
 		$j = scalar @rows;
@@ -24033,7 +24032,7 @@ sub set_sysctl_data {
 package USBData;
 my (@working);
 my (@asound_ids,$b_asound,$b_hub,$addr_id,$bus_id,$bus_id_alpha,
-$chip_id,$class_id,$device_id,$driver,$ids,$interfaces,
+$chip_id,$class_id,$device_id,$driver,$driver_nu,$ids,$interfaces,
 $name,$network_regex,$path,$path_id,$power,$product,$protocol_id,$rev,
 $serial,$speed,$subclass_id,$type,$version,$vendor,$vendor_id);
 my $b_live = 1; # debugger file data
@@ -24145,6 +24144,8 @@ sub usbconfig_data {
 			$config = $6;
 			$speed = prep_speed($9);
 			$power = $11;
+			$driver =~ s/([0-9]+)$//;
+			$driver_nu = $1;
 			($product,$vendor) = ('','');
 			# leave the ugly vendor/product ids unless chip-ID shows!
 			if ($extra > 1){
@@ -24183,6 +24184,7 @@ sub usbconfig_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
+			$working[21] = $driver_nu;
 			$j = scalar @{$usb{'main'}};
 			$usb{'main'}->[$j] = [@working];
 			assign_usb_type($usb{'main'}->[$j]);
@@ -24356,7 +24358,8 @@ sub usbdevs_data {
 		elsif ($b_multi && /^\s+driver:\s*([^,]+)$/){
 			my $temp = $1;
 			$working[4] = '09' if $temp =~ /hub[0-9]/;
-			$temp =~ s/[0-9]+$//;
+			$temp =~ s/([0-9]+)$//;
+			$working[21] = $1; # driver nu
 			# drivers, note that when numbers trimmed off, drivers can have same name
 			$working[15] = ($working[15] && $working[15] !~ /\b$temp\b/) ? "$working[15],$temp" : $temp; 
 		}
