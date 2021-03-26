@@ -52,11 +52,11 @@ my $self_patch='08';
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,%dboot,%devices,%dl,%files,%gpart,
 %dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,
-%service_tool,%sysctl,%system_files);
+%service_tool,%sysctl,%system_files,%usb);
 
 ## System Arrays
 my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
-@sensors_exclude,@sensors_use,@uname,@usb,@usb_audio,@usb_bluetooth,@usb_graphics,@usb_network);
+@sensors_exclude,@sensors_use,@uname);
 
 ## Disk/Partition arrays 
 my (@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
@@ -944,7 +944,7 @@ sub start_selector {
 sub create_color_selections {
 	my $spacer = '^^'; # printer removes double spaces, but replaces ^ with ' '
 	$count = ( main::get_color_scheme('count') - 1 );
-	for my $i (0 .. $count){
+	foreach my $i (0 .. $count){
 		if ($i > 9){
 			$spacer = '^';
 		}
@@ -1005,7 +1005,9 @@ sub get_selection {
 sub process_selection {
 	my $response = shift;
 	if ($response == ($count + 3) ){
-		@data = ([0, '', '', "Ok, exiting $self_name now. You can set the colors later."],);
+		@data = (
+		[0, '', '', "Ok, exiting $self_name now. You can set the colors later."],
+		);
 		main::print_basic(\@data); 
 		exit 0;
 	}
@@ -1312,7 +1314,7 @@ sub log_data {
 	}
 	elsif ( $one eq 'cat') {
 		if ( $b_log_full ){
-			for my $file ($two){
+			foreach my $file ($two){
 				my $contents = do { local( @ARGV, $/ ) = $file; <> }; # or: qx(cat $file)
 				$data = "$data${line3}Full file data: $file\n\n$contents\n$line3\n";
 			}
@@ -2817,12 +2819,12 @@ sub check_items {
 	['0', '', '', " " ],
 	);
 	if ($extra2){
-		$rows[scalar @rows] = (['0', '', '', $extra2]);
-		$rows[scalar @rows] = (['0', '', '', ' ']);
+		$rows[scalar @rows] = ['0', '', '', $extra2];
+		$rows[scalar @rows] = ['0', '', '', ' '];
 	}
 	if ($extra3){
-		$rows[scalar @rows] = (['0', '', '', $extra3]);
-		$rows[scalar @rows] = (['0', '', '', ' ']);
+		$rows[scalar @rows] = ['0', '', '', $extra3];
+		$rows[scalar @rows] = ['0', '', '', ' '];
 	}
 	foreach my $item (@data){
 		$install = '';
@@ -2848,23 +2850,23 @@ sub check_items {
 			push(@missing, "$item$install");
 		}
 		$row = make_row($item,$about,$result);
-		$rows[scalar @rows] = (['0', '', '', $row]);
+		$rows[scalar @rows] = ['0', '', '', $row];
 	}
-	$rows[scalar @rows] = (['0', '', '', " "]);
+	$rows[scalar @rows] = ['0', '', '', " "];
 	if (@missing){
-		$rows[scalar @rows] = (['0', '', '', "The following $type are missing$extra4:"]);
+		$rows[scalar @rows] = ['0', '', '', "The following $type are missing$extra4:"];
 		foreach (@missing) {
-			$rows[scalar @rows] = (['0', '', '', "$item: $_"]);
+			$rows[scalar @rows] = ['0', '', '', "$item: $_"];
 		}
 	}
 	if (@unreadable){
-		$rows[scalar @rows] = (['0', '', '', "The following $type are not readable: "]);
+		$rows[scalar @rows] = ['0', '', '', "The following $type are not readable: "];
 		foreach (@unreadable) {
-			$rows[scalar @rows] = (['0', '', '', "$item: $_"]);
+			$rows[scalar @rows] = ['0', '', '', "$item: $_"];
 		}
 	}
 	if (!@missing && !@unreadable){
-		$rows[scalar @rows] = (['0', '', '', "All $type are present"]);
+		$rows[scalar @rows] = ['0', '', '', "All $type are present"];
 	}
 	return @rows;
 }
@@ -6680,6 +6682,7 @@ sub get {
 
 sub device_output {
 	eval $start if $b_log;
+	return if !$devices{'audio'};
 	my (@rows);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'audio'}}){
@@ -6744,7 +6747,7 @@ sub asound_output {
 	foreach (@asound){
 		# filtering out modems and usb devices like webcams, this might get a
 		# usb audio card as well, this will take some trial and error
-		if ( !/modem|usb/i && /^\s*[0-9]/ ) {
+		if (!/modem|usb/i && /^\s*[0-9]/) {
 			$num = 1;
 			my @working = split(/:\s*/, $_);
 			# now let's get 1 2
@@ -6774,8 +6777,8 @@ sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@ids,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
-	return if !@usb_audio;
-	foreach my $row (@usb_audio){
+	return if !$usb{'audio'};
+	foreach my $row (@{$usb{'audio'}}){
 		# print Data::Dumper::Dumper $row;
 		$num = 1;
 		# make sure to reset, or second device trips last flag
@@ -6812,7 +6815,7 @@ sub sound_server_output {
 	my (@rows,$program);
 	my ($j,$num) = (0,0);
 	my @servers = sound_server_data();
-	for my $server (@servers){
+	foreach my $server (@servers){
 		next if $extra < 1 && (!$server->[2] || $server->[2] ne 'yes');
 		$j = scalar @rows;
 		$server->[1] ||= 'N/A';
@@ -7449,6 +7452,7 @@ sub get {
 
 sub device_output {
 	eval $start if $b_log;
+	return if !$devices{'bluetooth'};
 	my ($bus_id,@rows);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'bluetooth'}}){
@@ -7511,10 +7515,10 @@ sub device_output {
 }
 sub usb_output {
 	eval $start if $b_log;
-	return if !@usb_bluetooth;
+	return if !$usb{'bluetooth'};
 	my (@rows,$path_id,$product);
 	my ($j,$num) = (0,1);
-	foreach my $row (@usb_bluetooth){
+	foreach my $row (@{$usb{'bluetooth'}}){
 		#print Data::Dumper::Dumper $row;
 		$num = 1;
 		$j = scalar @rows;
@@ -8270,7 +8274,7 @@ sub cpuinfo_data {
 		elsif ( $line[0] eq 'cpu mhz' || $line[0] eq 'clock' ){
 			$speed = speed_cleaner($line[1]);
 			$cpu{'processors'}->[$proc_count-1] = $speed;
-			#$ids[$phys_id]->[$die_id] = ([($speed)]);
+			#$ids[$phys_id]->[$die_id] = [$speed];
 		}
 		elsif (!$cpu{'siblings'} && $line[0] eq 'siblings' ){
 			$cpu{'siblings'} = $line[1];
@@ -8529,8 +8533,8 @@ sub sysctl_data {
 			if ($phys_holder != $line[1] ){
 				$phys_id++;
 				$phys_holder = $line[1];
-				$ids[$phys_id] = ([(0)]);
-				$ids[$phys_id]->[$die_id] = ([(0)]);
+				$ids[$phys_id] = [0];
+				$ids[$phys_id]->[$die_id] = [0];
 			}
 		}
 		elsif ( $line[0] eq 'hw.cpu_topology.cpu0.core_id' ){
@@ -9243,7 +9247,7 @@ sub system_cpu_name {
 	}
 	# synthesize it, [4] will be like: cortex-a15-timer; sunxi-timer
 	# so far all with this directory show soc name, not cpu name for timer
-	elsif (! -d '/sys/firmware/devicetree/base' && @{$devices{'timer'}}){
+	elsif (! -d '/sys/firmware/devicetree/base' && $devices{'timer'}){
 		foreach my $working (@{$devices{'timer'}}){
 			next if $working->[0] ne 'timer' || !$working->[4] || $working->[4] =~ /timer-mem$/;
 			$working->[4] =~ s/(-system)?-timer$//;
@@ -10202,7 +10206,8 @@ sub dboot_data {
 # make sure to update if fields added in smartctl_data()
 sub smartctl_fields {
 	eval $start if $b_log;
-	my @data = ([ # age
+	my @data = (
+	[ # age
 	['smart-gsense-error-rate-ar','g-sense error rate'],
 	['smart-media-wearout-a','media wearout'],
 	['smart-media-wearout-t','threshold'],
@@ -10281,7 +10286,8 @@ sub smartctl_fields {
 	['smart-unknown-5-w','worst'],
 	['smart-unknown-5-t','threshold'],
 	['smart-unknown-5-f','alert'],
-	]);
+	]
+	);
 	eval $end if $b_log;
 	return @data;
 }
@@ -11459,6 +11465,7 @@ sub get {
 
 sub device_output {
 	eval $start if $b_log;
+	return if !$devices{'graphics'};
 	my (@rows);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'graphics'}}){
@@ -11515,8 +11522,8 @@ sub usb_output {
 	eval $start if $b_log;
 	my (@rows,@ids,$driver,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
-	return if !@usb_graphics;
-	foreach my $row (@usb_graphics){
+	return if !$usb{'graphics'};
+	foreach my $row (@{$usb{'graphics'}}){
 		# these tests only work for /sys based usb data for now
 		$num = 1;
 		$j = scalar @rows;
@@ -13503,6 +13510,7 @@ sub get {
 
 sub device_output {
 	eval $start if $b_log;
+	return if !$devices{'network'};
 	my ($b_wifi,@rows,%holder);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'network'}}){
@@ -13592,10 +13600,10 @@ sub device_output {
 }
 sub usb_output {
 	eval $start if $b_log;
-	return if !@usb_network;
+	return if !$usb{'network'};
 	my (@rows,@temp2,$b_wifi,$driver,$path,$path_id,$product,$type);
 	my ($j,$num) = (0,1);
-	foreach my $row (@usb_network){
+	foreach my $row (@{$usb{'network'}}){
 		$num = 1;
 		($driver,$path,$path_id,$product,$type) = ('','','','','');
 		$product = main::cleaner($row->[13]) if $row->[13];
@@ -14139,7 +14147,7 @@ sub drive_data_bsd {
 		}
 		# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
 		if (!exists $drives{$working}){
-			$drives{$working}->{'links'} = ([]);
+			$drives{$working}->{'links'} = [];
 			$drives{$working}->{'model'} = '';
 			$drives{$working}->{'rev'} = '';
 			$drives{$working}->{'state'} = '';
@@ -15634,6 +15642,7 @@ sub raid_data {
 # 10 modules
 sub hw_data {
 	eval $start if $b_log;
+	return if !$devices{'hwraid'};
 	my ($driver,$vendor,@hardware_raid);
 	foreach my $working (@{$devices{'hwraid'}}){
 		$driver = ($working->[9]) ? lc($working->[9]): '';
@@ -16355,7 +16364,7 @@ sub dmidecode_data {
 					$ram[$k]->{'eec'} = $temp[1];
 				}
 			}
-			$ram[$k]->{'modules'} = ([],);
+			$ram[$k]->{'modules'} = [];
 			#print Data::Dumper::Dumper \@ram;
 			$b_5 = 1;
 		}
@@ -19075,7 +19084,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows,$key1,$val1);
 	my $num = 0;
-	if (!@usb && $alerts{'lsusb'}->{'action'} ne 'use' && 
+	if (!$usb{'main'} && $alerts{'lsusb'}->{'action'} ne 'use' && 
 	 $alerts{'usbdevs'}->{'action'} ne 'use' &&
 	 $alerts{'usbconfig'}->{'action'} ne 'use' ){
 		if ($os eq 'linux' ){
@@ -19116,14 +19125,14 @@ sub get {
 }
 sub usb_output {
 	eval $start if $b_log;
-	return if ! @usb;
+	return if !$usb{'main'};
 	my (@rows);
 	my ($b_hub,$bus_id,$chip_id,$driver,$ind_sc,$path_id,$ports,$product,$serial,$speed,$type);
 	my $num = 0;
 	my $j = 0;
 	# note: the data has been presorted in USBData:
 	# bus alpah id, so we don't need to worry about the order
-	foreach my $id (@usb){
+	foreach my $id (@{$usb{'main'}}){
 		$j = scalar @rows;
 		($b_hub,$ind_sc,$num) = (0,3,1);
 		($driver,$path_id,$ports,$product,
@@ -21993,7 +22002,7 @@ sub package_counts {
 			if ($b_admin && $count && $_->[4]){
 				$libs = count_libs(\@list,$_->[5],$_->[6]);
 			}
-			$counts{$_->[0]} = ([$count,$libs]);
+			$counts{$_->[0]} = [$count,$libs];
 			$counts{'total'} += $count;
 			#print Data::Dumper::Dumper \%counts;
 		}
@@ -22006,7 +22015,7 @@ sub appimage_counts {
 	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
 		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
 		$count = scalar @list;
-		$counts{'zzz-appimage'} = ([$count,undef]) if $count;
+		$counts{'zzz-appimage'} = [$count,undef] if $count;
 		$counts{'total'} += $count;
 	}
 }
@@ -22725,15 +22734,6 @@ sub set {
 	eval $start if $b_log;
 	${$_[0]} = 1; # set check by reference
 	if ($use{'pci'}){
-		# set to avoid errors in case one is used without an array ref
-		%devices = (
-		'audio' => [],
-		'bluetooth' => [],
-		'graphics' => [],
-		'network' => [],
-		'hwraid' => [],
-		'timer' => [],
-		);
 		if (!$bsd_type){
 			if ($alerts{'lspci'}->{'action'} eq 'use' ){
 				lspci_data();
@@ -24008,7 +24008,7 @@ sub set_sysctl_data {
 	eval $end if $b_log;
 }
 
-## @usb array indexes
+## %usb array indexes
 # 0 - bus id / sort id
 # 1 - device id
 # 2 - path_id
@@ -24059,11 +24059,11 @@ sub set {
 	elsif (-d '/sys/bus/usb/devices'){
 		sys_data('main');
 	}
-	@usb = sort {$a->[0] cmp $b->[0]} @usb if @usb;
-	main::log_data('dump','@usb_audio: ',\@usb_audio) if $b_log;
-	main::log_data('dump','@usb_bluetooth: ',\@usb_bluetooth) if $b_log;
-	main::log_data('dump','@usb_graphics: ',\@usb_graphics) if $b_log;
-	main::log_data('dump','@usb_network: ',\@usb_network) if $b_log;
+	@{$usb{'main'}} = sort {$a->[0] cmp $b->[0]} @{$usb{'main'}} if $usb{'main'};
+	main::log_data('dump','$usb{audio}: ',$usb{'audio'}) if $b_log;
+	main::log_data('dump','$usb{bluetooth}: ',$usb{'bluetooth'}) if $b_log;
+	main::log_data('dump','$usb{graphics}: ',$usb{'graphics'}) if $b_log;
+	main::log_data('dump','$usb{network}: ',$usb{'network'}) if $b_log;
 	eval $end if $b_log;
 }
 
@@ -24118,13 +24118,13 @@ sub lsusb_data {
 		$working[18] = '';
 		$working[19] = '';
 		$working[20] = '';
-		push(@usb,[@working]);
+		push(@{$usb{'main'}},[@working]);
 		#print join("\n",@working),"\n\n=====\n";
 	}
-	print Data::Dumper::Dumper \@usb if $dbg[6];
-	sys_data('lsusb') if @usb;
-	print Data::Dumper::Dumper \@usb if $dbg[6];
-	main::log_data('dump','@usb: plain',\@usb) if $b_log;
+	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
+	sys_data('lsusb') if $usb{'main'};
+	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
+	main::log_data('dump','$usb{main}: plain',$usb{'main'}) if $b_log;
 	eval $end if $b_log;
 }
 #ugen0.1: <Apple OHCI root HUB> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=SAVE (0mA)
@@ -24162,7 +24162,7 @@ sub usbconfig_data {
 			$chip_id = ($vendor || $product) ? "$vendor:$product" : '';
 			$class = ($type && $type eq 'Hub') ? '09': '01';
 			process_power(\$power) if $power;
-			$j = scalar @usb;
+			$j = scalar @{$usb{'main'}};
 			$path_id = "$bus_id-$hub_id.$addr_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
 			$working[0] = $bus_id_alpha;
@@ -24186,13 +24186,13 @@ sub usbconfig_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
-			$usb[$j] = ([@working],);
-			assign_usb_type($usb[$j]);
+			$usb{'main'}->[$j] = [@working];
+			assign_usb_type($usb{'main'}->[$j]);
 			undef @working;
 		}
 	}
-	main::log_data('dump','@usb: usbconfig',\@usb) if $b_log;
-	print Data::Dumper::Dumper \@usb if $dbg[6];
+	main::log_data('dump','$usb{main}: usbconfig',$usb{'main'}) if $b_log;
+	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	eval $end if $b_log;
 }
 
@@ -24210,16 +24210,16 @@ sub usbdevs_data {
 		if (/^Controller\s\/dev\/usb([0-9]+)/){
 			$bus_id = $1;
 			if (@working){
-				$j = scalar @usb;
-				$usb[$j] = ([@working],);
-				assign_usb_type($usb[$j]);
+				$j = scalar @{$usb{'main'}};
+				$usb{'main'}->[$j] = [@working];
+				assign_usb_type($usb{'main'}->[$j]);
 			}
 			($j,$ports) = (0,0);
 			($driver,$port_value) = ('','');
 			undef @working;
 		}
 		elsif (/^addr\s([0-9]+):\s([^,]+),[^,0-9]+([0-9]+ mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
-			$j = scalar @usb;
+			$j = scalar @{$usb{'main'}};
 			$k = $j;
 			$hub_id = $1;
 			$addr_id = $1;
@@ -24252,7 +24252,7 @@ sub usbdevs_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
-			$usb[$j] = ([@working],);
+			$usb{'main'}->[$j] = [@working];
 			undef @working;
 		}
 		elsif (/^\s+port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,0-9]*([0-9]+\s?mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
@@ -24291,22 +24291,22 @@ sub usbdevs_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
-			$j = scalar @usb;
-			$usb[$j] = ([@working],);
-			assign_usb_type($usb[$j]);
-			$usb[$k]->[10] = $ports;
+			$j = scalar @{$usb{'main'}};
+			$usb{'main'}->[$j] = [@working];
+			assign_usb_type($usb{'main'}->[$j]);
+			$usb{'main'}->[$k]->[10] = $ports;
 			undef @working;
 		}
 		elsif (/^\s+port\s([0-9]+)\spowered/){
 			$ports++;
-			$usb[$k]->[10] = $ports;
+			$usb{'main'}->[$k]->[10] = $ports;
 		}
 		# newer openbsd usbdevs totally changed their syntax and layout, but it is better...
 		elsif (/^addr\s*([0-9a-f]+):\s+([a-f0-9]{4}:[a-f0-9]{4})\s*([^,]+)?(,\s[^,]+?)?,\s+([^,]+)$/){
 			if (@working){
-				$j = scalar @usb;
-				$usb[$j] = ([@working],);
-				assign_usb_type($usb[$j]);
+				$j = scalar @{$usb{'main'}};
+				$usb{'main'}->[$j] = [@working];
+				assign_usb_type($usb{'main'}->[$j]);
 				undef @working;
 				($config,$driver,$power,$rev) = ('','','','');
 			}
@@ -24363,13 +24363,13 @@ sub usbdevs_data {
 			$working[15] = ($working[15] && $working[15] !~ /\b$temp\b/) ? "$working[15],$temp" : $temp; 
 		}
 		elsif ($_ eq 'END' && @working){
-			$j = scalar @usb;
-			$usb[$j] = ([@working],);
-			assign_usb_type($usb[$j]);
+			$j = scalar @{$usb{'main'}};
+			$usb{'main'}->[$j] = [@working];
+			assign_usb_type($usb{'main'}->[$j]);
 		}
 	}
-	main::log_data('dump','@usb: usbdevs',\@usb) if $b_log;
-	print Data::Dumper::Dumper \@usb if $dbg[6];
+	main::log_data('dump','$usb{main}: usbdevs',$usb{'main'}) if $b_log;
+	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	eval $end if $b_log;
 }
 
@@ -24453,33 +24453,33 @@ sub sys_data {
 			$class_id = sprintf("%02x", $class_id) if defined $class_id && $class_id ne '';
 			$subclass_id = sprintf("%02x", $subclass_id) if defined $subclass_id && $subclass_id ne '';
 			if ($source eq 'lsusb'){
-				for ($i = 0; $i < scalar @usb; $i++){
-					if ($usb[$i]->[0] eq $bus_id && $usb[$i]->[1] == $device_id){
-						if (!$b_hub && $usb[$i]->[13] && (!$type || $type eq '<vendor specific>' )){
-							$type = check_type($usb[$i]->[13],$driver,$type);
+				for ($i = 0; $i < scalar @{$usb{'main'}}; $i++){
+					if ($usb{'main'}->[$i][0] eq $bus_id && $usb{'main'}->[$i][1] == $device_id){
+						if (!$b_hub && $usb{'main'}->[$i][13] && (!$type || $type eq '<vendor specific>' )){
+							$type = check_type($usb{'main'}->[$i][13],$driver,$type);
 						}
 						#print $type,"\n";
-						$usb[$i]->[0] = $bus_id_alpha;
-						$usb[$i]->[2] = $path_id;
-						$usb[$i]->[3] = $_;
-						$usb[$i]->[4] = $class_id;
-						$usb[$i]->[5] = $subclass_id;
-						$usb[$i]->[6] = $protocol_id;
-						$usb[$i]->[8] = $usb_version;
-						$usb[$i]->[9] = $interfaces;
-						$usb[$i]->[10] = $ports if $ports;
-						if ($type && $b_hub && (!$usb[$i]->[13] || $usb[$i]->[13] =~ /^linux foundation/i )){
-							$usb[$i]->[13] = "$type";
+						$usb{'main'}->[$i][0] = $bus_id_alpha;
+						$usb{'main'}->[$i][2] = $path_id;
+						$usb{'main'}->[$i][3] = $_;
+						$usb{'main'}->[$i][4] = $class_id;
+						$usb{'main'}->[$i][5] = $subclass_id;
+						$usb{'main'}->[$i][6] = $protocol_id;
+						$usb{'main'}->[$i][8] = $usb_version;
+						$usb{'main'}->[$i][9] = $interfaces;
+						$usb{'main'}->[$i][10] = $ports if $ports;
+						if ($type && $b_hub && (!$usb{'main'}->[$i][13] || $usb{'main'}->[$i][13] =~ /^linux foundation/i )){
+							$usb{'main'}->[$i][13] = "$type";
 						}
-						$usb[$i]->[14] = $type if ($type && !$b_hub);
-						$usb[$i]->[15] = $driver if $driver;
-						$usb[$i]->[16] = $serial if $serial;
-						$usb[$i]->[17] = $speed if $speed;
-						$usb[$i]->[18] = $configuration;
-						$usb[$i]->[19] = $power;
-						$usb[$i]->[20] = '';
-						assign_usb_type($usb[$i]);
-						#print join("\n",@{$usb[$i]}),"\n\n";# if !$b_hub; 
+						$usb{'main'}->[$i][14] = $type if ($type && !$b_hub);
+						$usb{'main'}->[$i][15] = $driver if $driver;
+						$usb{'main'}->[$i][16] = $serial if $serial;
+						$usb{'main'}->[$i][17] = $speed if $speed;
+						$usb{'main'}->[$i][18] = $configuration;
+						$usb{'main'}->[$i][19] = $power;
+						$usb{'main'}->[$i][20] = '';
+						assign_usb_type($usb{'main'}->[$i]);
+						#print join("\n",@{$usb{'main'}->[$i]}),"\n\n";# if !$b_hub; 
 						last;
 					}
 				}
@@ -24516,35 +24516,35 @@ sub sys_data {
 				#	$name = ($name) ? "$name $configuration" : $configuration;
 				#}
 				$type = 'Hub' if $b_hub;
-				$usb[$i]->[0] = $bus_id_alpha;
-				$usb[$i]->[1] = $device_id;
-				$usb[$i]->[2] = $path_id;
-				$usb[$i]->[3] = $_;
-				$usb[$i]->[4] = $class_id;
-				$usb[$i]->[5] = $subclass_id;
-				$usb[$i]->[6] = $protocol_id;
-				$usb[$i]->[7] = "$vendor_id:$chip_id";
-				$usb[$i]->[8] = $usb_version;
-				$usb[$i]->[9] = $interfaces;
-				$usb[$i]->[10] = $ports;
-				$usb[$i]->[11] = $vendor;
-				$usb[$i]->[12] = $product;
-				$usb[$i]->[13] = $name;
-				$usb[$i]->[14] = $type;
-				$usb[$i]->[15] = $driver;
-				$usb[$i]->[16] = $serial;
-				$usb[$i]->[17] = $speed;
-				$usb[$i]->[18] = $configuration;
-				$usb[$i]->[19] = $power;
-				$usb[$i]->[20] = '';
-				assign_usb_type($usb[$i]);
+				$usb{'main'}->[$i][0] = $bus_id_alpha;
+				$usb{'main'}->[$i][1] = $device_id;
+				$usb{'main'}->[$i][2] = $path_id;
+				$usb{'main'}->[$i][3] = $_;
+				$usb{'main'}->[$i][4] = $class_id;
+				$usb{'main'}->[$i][5] = $subclass_id;
+				$usb{'main'}->[$i][6] = $protocol_id;
+				$usb{'main'}->[$i][7] = "$vendor_id:$chip_id";
+				$usb{'main'}->[$i][8] = $usb_version;
+				$usb{'main'}->[$i][9] = $interfaces;
+				$usb{'main'}->[$i][10] = $ports;
+				$usb{'main'}->[$i][11] = $vendor;
+				$usb{'main'}->[$i][12] = $product;
+				$usb{'main'}->[$i][13] = $name;
+				$usb{'main'}->[$i][14] = $type;
+				$usb{'main'}->[$i][15] = $driver;
+				$usb{'main'}->[$i][16] = $serial;
+				$usb{'main'}->[$i][17] = $speed;
+				$usb{'main'}->[$i][18] = $configuration;
+				$usb{'main'}->[$i][19] = $power;
+				$usb{'main'}->[$i][20] = '';
+				assign_usb_type($usb{'main'}->[$i]);
 				$i++;
 			}
 			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $dbg[6];;
 		}
 	}
-	print Data::Dumper::Dumper \@usb if $source eq 'main' && $dbg[6];
-	main::log_data('dump','@usb: sys',\@usb) if $source eq 'main' && $b_log;
+	print Data::Dumper::Dumper $usb{'main'} if $source eq 'main' && $dbg[6];
+	main::log_data('dump','$usb{main}: sys',$usb{'main'}) if $source eq 'main' && $b_log;
 	eval $end if $b_log;
 }
 # get driver, interface [type:] data
@@ -24626,25 +24626,25 @@ sub assign_usb_type {
 	  ($row->[14] =~ /Audio/) || 
 	  ($row->[15] && $row->[15] =~ /audio/) ||
 	  ($row->[13] && lc($row->[13]) =~ /(audio|\bdac[0-9]*\b|headphone|\bmic(rophone)?\b)/))){
-		push(@usb_audio,$row);
+		push(@{$usb{'audio'}},$row);
 	}
 	elsif ($show{'bluetooth'} && (
 	  $row->[14] && $row->[14] =~ /Bluetooth/ || 
 	  ($row->[15] && $row->[15] =~ /btusb/))){
-		push(@usb_bluetooth,$row);
+		push(@{$usb{'bluetooth'}},$row);
 	}
 	elsif ($show{'graphic'} && (
 	  $row->[14] && ($row->[14] =~ /Video/ ) ||
 	  ($row->[15] && $row->[15] =~ /video/) || 
 	  ($row->[13] && lc($row->[13]) =~ /(camera|\bdvb-t|\b(pc)?tv\b|video|webcam)/))){
-		push(@usb_graphics,$row);
+		push(@{$usb{'graphics'}},$row);
 	}
 	elsif ($show{'network'} && (
 	   ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
 	   ($row->[15] && $row->[15] =~ /(^ipw|^iwl|wifi)/) || 
 	   ($row->[13] && $row->[13] =~ /($network_regex)/i))){
 		#print "$1\n";
-		push(@usb_network,$row);
+		push(@{$usb{'network'}},$row);
 	}
 }
 sub device_type {
