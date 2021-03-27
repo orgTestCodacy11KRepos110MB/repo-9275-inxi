@@ -4957,6 +4957,9 @@ sub post_process {
 		 $show{'machine'} || $show{'process'} || $show{'ram'} || $show{'sensor'}){
 			$use{'sysctl'} = 1;
 		}
+		if ($use{'usb'}){
+			$use{'dboot-usb'} = 1;
+		}
 	}
 }
 sub process_updater {
@@ -23378,7 +23381,7 @@ sub pci_class {
 sub set_dboot_data {
 	eval $start if $b_log;
 	$loaded{'dboot'} = 1;
-	my ($file,@db_data,@dm_data,@temp);
+	my ($b_ugen,$file,@db_data,@dm_data,@temp);
 	my ($counter) = (0);
 	if (!$fake{'dboot'}){
 		$file = system_files('dmesg-boot');
@@ -23458,10 +23461,18 @@ sub set_dboot_data {
 			elsif ($use{'dboot-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
 				push(@{$dboot{'pci'}},$_);
 			}
+
 			elsif ($use{'dboot-ram'} && /(^spdmem)/){
 				push(@{$dboot{'ram'}}, $_);
 			}
+			elsif ($use{'dboot-usb'} && 
+			 (/^ugen[0-9]+\.[0-9]+:/ || ($b_ugen && /^[a-z]+[0-9]+\son\s[a-z]+[0-9]+$/))){
+				$b_ugen = (/^ugen/) ? 1: 0;
+				push(@{$dboot{'usb'}},$_);
+			}
 		}
+		log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
+		print Dumper $dboot{'main'} if $dbg[11];
 		if ($dboot{'main'} && $b_log){
 			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
 			log_data('dump','$dboot{disk}',$dboot{'disk'});
@@ -23480,6 +23491,7 @@ sub set_dboot_data {
 		}
 		if ($use{'dboot-pci'} && $dboot{'pci'}){
 			my $bus_id = 0;
+			my @temp;
 			for (@{$dboot{'pci'}}){
 				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
 					$bus_id = $1;
@@ -23492,11 +23504,28 @@ sub set_dboot_data {
 			}
 			$dboot{'pci'} = \@temp;
 			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
-			print Dumper $dboot{'pci'} if $dbg[11];
+			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
+		}
+		if ($use{'dboot-usb'} && $dboot{'usb'}){
+			my ($bus_id,$device,$driver) = ('','','');
+			my @temp;
+			for (@{$dboot{'usb'}}){
+				if (/^(ugen[0-9]+\.[0-9]+):/){
+					$bus_id = $1;
+					$device = $_;
+					next;
+				}
+				else {
+					$_ =~ s/^[a-z]+[0-9]+\son\s([a-z]+[0-9]+)$/$1/;
+					$device =~ s/^$bus_id:(.*)/$bus_id:$_:$1/;
+					push(@temp,$device);
+				}
+			}
+			$dboot{'usb'} = \@temp;
+			log_data('dump','$dboot{usb}',$dboot{'usb'}) if $b_log;
+			print("usb\n", Dumper $dboot{'usb'}) if $dbg[11];
 		}
 	}
-	log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
-	print Dumper $dboot{'main'} if $dbg[11];
 	eval $end if $b_log;
 }
 
@@ -24139,13 +24168,13 @@ sub usbconfig_data {
 			$addr_id = $3;
 			$bus_id = $5;
 			$driver = $1;
-			$name = main::remove_duplicates($4);
+			$driver_nu = $hub_id;
+			$name = main::cleaner($4);
+			$name = main::remove_duplicates($name) if $name;
 			$type = check_type($name,'','');
 			$config = $6;
 			$speed = prep_speed($9);
 			$power = $11;
-			$driver =~ s/([0-9]+)$//;
-			$driver_nu = $1;
 			($product,$vendor) = ('','');
 			# leave the ugly vendor/product ids unless chip-ID shows!
 			if ($extra > 1){
