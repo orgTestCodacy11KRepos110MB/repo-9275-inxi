@@ -23516,7 +23516,7 @@ sub set_dboot_data {
 					next;
 				}
 				else {
-					$_ =~ s/^[a-z]+[0-9]+\son\s([a-z]+[0-9]+)$/$1/;
+					$_ =~ s/^([a-z]+[0-9]+)\son\s[a-z]+[0-9]+$/$1/;
 					$device =~ s/^$bus_id:(.*)/$bus_id:$_:$1/;
 					push(@temp,$device);
 				}
@@ -24167,8 +24167,7 @@ sub usbconfig_data {
 			$hub_id = $2;
 			$addr_id = $3;
 			$bus_id = $5;
-			$driver = $1;
-			$driver_nu = $hub_id;
+			($driver,$driver_nu) = usbconfig_driver("$1$2.$3");
 			$name = main::cleaner($4);
 			$name = main::remove_duplicates($name) if $name;
 			$type = check_type($name,'','');
@@ -24223,6 +24222,20 @@ sub usbconfig_data {
 	main::log_data('dump','$usb{main}: usbconfig',$usb{'main'}) if $b_log;
 	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	eval $end if $b_log;
+}
+sub usbconfig_driver {
+	eval $start if $b_log;
+	my $bus_id = $_[0];
+	my ($driver,$nu);
+	for (@{$dboot{'usb'}}) {
+		if (/^$bus_id:([^0-9]+)([0-9]+):/){
+			$driver = $1;
+			$nu = $2;
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return ($driver,$nu);
 }
 
 # Controller /dev/usb2:
