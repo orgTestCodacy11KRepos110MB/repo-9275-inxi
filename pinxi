@@ -4958,11 +4958,8 @@ sub post_process {
 		if ($show{'ram'}){
 			$use{'dboot-ram'} = 1
 		}
-		if ($show{'short'} || $show{'system'} || $show{'audio'} ||  $show{'battery'} || 
-		 $show{'bluetooth'} || $show{'cpu'} || $show{'cpu-basic'} || $show{'info'} || 
-		 $show{'machine'} || $show{'process'} || $show{'ram'} || $show{'sensor'}){
-			$use{'sysctl'} = 1;
-		}
+		# always use this, it's too core
+		$use{'sysctl'} = 1;
 		if ($use{'usb'}){
 			$use{'dboot-usb'} = 1;
 		}
@@ -17929,7 +17926,7 @@ sub ipmi_data {
 		# Platform Control Hub (PCH), it is the X370 chip on the Crosshair VI Hero.
 		# VRM: voltage regulator module
 		# NOTE: CPU0_TEMP CPU1_TEMP is possible, unfortunately; CPU Temp Interf 
-		elsif ( !$sensors{'cpu-temp'} && $row[$i_key] =~ /^CPU([01])?([\s_]Temp)?$/i) {
+		elsif (!$sensors{'cpu-temp'} && $row[$i_key] =~ /^CPU([01])?([\s_]Temp)?$/i) {
 			$b_cpu_0 = 1 if defined $1 && $1 == 0;
 			$sensors{'cpu-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
@@ -17990,10 +17987,10 @@ sub ipmi_data {
 			$sys_fan_nu = hex($2);
 			$fan_working = int($row[$i_value]);
 			$sensors{'fan-default'} = () if !$sensors{'fan-default'};
-			if ( $sys_fan_nu =~ /^([0-9]+)$/ ) {
+			if ($sys_fan_nu =~ /^([0-9]+)$/) {
 				# add to array if array index does not exist OR if number is > existing number
 				if ( defined $sensors{'fan-default'}->[$sys_fan_nu] ) {
-					if ( $fan_working >= $sensors{'fan-default'}->[$sys_fan_nu] ) {
+					if ($fan_working >= $sensors{'fan-default'}->[$sys_fan_nu]) {
 						$sensors{'fan-default'}->[$sys_fan_nu] = $fan_working;
 					}
 				}
@@ -18028,7 +18025,7 @@ sub ipmi_data {
 			elsif (!$sensors{'volts-dimm-p1'} && $row[$i_key] =~ /^(P1_VMEM|VDimmP1|MEM RSR A PG|DIMM_VR1_VOLT)/i) {
 				$sensors{'volts-dimm-p1'} = $row[$i_value];
 			}
-			elsif (! $sensors{'volts-dimm-p2'} && $row[$i_key] =~ /^(P2_VMEM|VDimmP2|MEM RSR B PG|DIMM_VR2_VOLT)/i) {
+			elsif (!$sensors{'volts-dimm-p2'} && $row[$i_key] =~ /^(P2_VMEM|VDimmP2|MEM RSR B PG|DIMM_VR2_VOLT)/i) {
 				$sensors{'volts-dimm-p2'} = $row[$i_value];
 			}
 			elsif (!$sensors{'volts-soc-p1'} && $row[$i_key] =~ /^(P1_SOC_RUN$)/i) {
@@ -18184,9 +18181,9 @@ sub lm_sensors_data {
 			elsif ($_ =~ /^FAN([2-9]|1[0-9]).*:([0-9]+)[\s]RPM/i) {
 				$fan_working = $2;
 				$sys_fan_nu = $1;
-				if ( $sys_fan_nu =~ /^([0-9]+)$/ ) {
+				if ($sys_fan_nu =~ /^([0-9]+)$/) {
 					# add to array if array index does not exist OR if number is > existing number
-					if ( defined $sensors{'fan-default'}->[$sys_fan_nu] ) {
+					if (defined $sensors{'fan-default'}->[$sys_fan_nu]) {
 						if ( $fan_working >= $sensors{'fan-default'}->[$sys_fan_nu] ) {
 							$sensors{'fan-default'}->[$sys_fan_nu] = $fan_working;
 						}
@@ -18303,10 +18300,14 @@ sub sysctl_data {
 	my (@data,%sensors);
 	my ($add) = (0);
 	foreach (@{$sysctl{'sensors'}}){
-		if (/^hw.sensors\.([0-9a-z]+)\.(cpu|temp|fan|volt)([0-9])/){
+		if (/^hw.sensors\.([a-z]+)([0-9]+)\.(cpu|temp|fan|volt)([0-9])/){
 			my $sensor = $1;
-			my $type = $2;
-			my $number = $3;
+			my $type = $3;
+			my $number = $4;
+			if ((@sensors_use && !(grep {/$sensor/} @sensors_use)) ||
+			(@sensors_exclude && (grep {/$sensor/} @sensors_exclude))){
+				next;
+			}
 			$add = 1 if $number == 0;
 			$number += $add;
 			my $working = (split(':\s*', $_))[1];
@@ -18314,8 +18315,8 @@ sub sysctl_data {
 			$sensors{'temp-unit'} = $2 if $2 && !$sensors{'temp-unit'};
 			$working =~ /^([0-9\.]+)\s(.*)/;
 			my $value = $1;
-			if ($type eq 'cpu' && !defined $sensors{'cpu' . $number}){
-				$sensors{'cpu' . $number} = $value;
+			if ($type eq 'cpu' && !defined $sensors{'cpu-temp'}){
+				$sensors{'cpu-temp'} = $value;
 			}
 			elsif ($type eq 'temp' && !defined $sensors{'temp' . $number}){
 				$sensors{'temp' . $number} = $value;
@@ -18334,7 +18335,7 @@ sub sysctl_data {
 sub set_temp_unit {
 	my ($sensors,$working) = @_;
 	my $return_unit = '';
-	if ( !$sensors && $working ){
+	if (!$sensors && $working){
 		$return_unit = $working;
 	}
 	elsif ($sensors){
@@ -18355,23 +18356,23 @@ sub process_data {
 	# note, for rare cases of weird cool cpus, user can override in their prefs and force the assignment
 	# this is wrong for systems with > 2 tempX readings, but the logic is too complex with 3 variables
 	# so have to accept that it will be wrong in some cases, particularly for motherboard temp readings.
-	if ( $sensors{'temp1'} && $sensors{'temp2'} ){
-		if ( $sensors_cpu_nu ) {
+	if ($sensors{'temp1'} && $sensors{'temp2'}){
+		if ($sensors_cpu_nu) {
 			$fan_type = $sensors_cpu_nu;
 		}
 		else {
 			# first some fringe cases with cooler cpu than mobo: assume which is cpu temp based on fan speed
 			# but only if other fan speed is 0.
-			if ( $sensors{'temp1'} >= $sensors{'temp2'} && 
-			     defined $fan_default[1] && defined $fan_default[2] && $fan_default[1] == 0 && $fan_default[2] > 0 ) {
+			if ($sensors{'temp1'} >= $sensors{'temp2'} && 
+			 defined $fan_default[1] && defined $fan_default[2] && $fan_default[1] == 0 && $fan_default[2] > 0) {
 				$fan_type = 2;
 			}
-			elsif ( $sensors{'temp2'} >= $sensors{'temp1'} && 
-			        defined $fan_default[1] && defined $fan_default[2] && $fan_default[2] == 0 && $fan_default[1] > 0 ) {
+			elsif ($sensors{'temp2'} >= $sensors{'temp1'} && 
+			 defined $fan_default[1] && defined $fan_default[2] && $fan_default[2] == 0 && $fan_default[1] > 0) {
 				$fan_type = 1;
 			}
 			# then handle the standard case if these fringe cases are false
-			elsif ( $sensors{'temp1'} >= $sensors{'temp2'} ) {
+			elsif ($sensors{'temp1'} >= $sensors{'temp2'}) {
 				$fan_type = 1;
 			}
 			else {
@@ -18380,24 +18381,24 @@ sub process_data {
 		}
 	}
 	# need a case for no temps at all reported, like with old intels
-	elsif ( !$sensors{'temp2'} && !$sensors{'cpu-temp'} ){
-		if ( !$sensors{'temp1'} && !$sensors{'mobo-temp'} ){
+	elsif (!$sensors{'temp2'} && !$sensors{'cpu-temp'}){
+		if (!$sensors{'temp1'} && !$sensors{'mobo-temp'}){
 			$fan_type = 1;
 		}
-		elsif ( $sensors{'temp1'} && !$sensors{'mobo-temp'} ){
+		elsif ($sensors{'temp1'} && !$sensors{'mobo-temp'}){
 			$fan_type = 1;
 		}
-		elsif ( $sensors{'temp1'} && $sensors{'mobo-temp'} ){
+		elsif ($sensors{'temp1'} && $sensors{'mobo-temp'}){
 			$fan_type = 1;
 		}
 	}
 	# convert the diff number for F, it needs to be bigger that is
-	if ( $sensors{'temp-unit'} && $sensors{'temp-unit'} eq "F" ) {
+	if ($sensors{'temp-unit'} && $sensors{'temp-unit'} eq "F") {
 		$temp_diff = $temp_diff * 1.8
 	}
-	if ( $sensors{'cpu-temp'} ) {
+	if ($sensors{'cpu-temp'}) {
 		# specific hack to handle broken CPUTIN temps with PECI
-		if ( $sensors{'cpu-peci-temp'} && ( $sensors{'cpu-temp'} - $sensors{'cpu-peci-temp'} ) > $temp_diff ){
+		if ($sensors{'cpu-peci-temp'} && ($sensors{'cpu-temp'} - $sensors{'cpu-peci-temp'}) > $temp_diff){
 			$cpu_temp = $sensors{'cpu-peci-temp'};
 		}
 		# then get the real cpu temp, best guess is hottest is real, though only within narrowed diff range
@@ -18406,10 +18407,10 @@ sub process_data {
 		}
 	}
 	else {
-		if ($fan_type ){
+		if ($fan_type){
 			# there are some weird scenarios
-			if ( $fan_type == 1 ){
-				if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp2'} > $sensors{'temp1'} ) {
+			if ($fan_type == 1){
+				if ($sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp2'} > $sensors{'temp1'}) {
 					$cpu_temp = $sensors{'temp2'};
 				}
 				else {
@@ -18417,7 +18418,7 @@ sub process_data {
 				}
 			}
 			else {
-				if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp1'} > $sensors{'temp2'} ) {
+				if ($sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp1'} > $sensors{'temp2'}) {
 					$cpu_temp = $sensors{'temp1'};
 				}
 				else {
@@ -18428,36 +18429,36 @@ sub process_data {
 		else {
 			$cpu_temp = $sensors{'temp1'}; # can be null, that is ok
 		}
-		if ( $cpu_temp ) {
+		if ($cpu_temp) {
 			# using $sensors{'temp3'} is just not reliable enough, more errors caused than fixed imo
 			#if ( $sensors{'temp3'} && $sensors{'temp3'} > $cpu_temp ) {
 			#	$cpu_temp = $sensors{'temp3'};
 			#}
 			# there are some absurdly wrong $sensors{'temp1'}: acpitz-virtual-0 $sensors{'temp1'}: +13.8°C
-			if ( $sensors{'core-0-temp'} && ($sensors{'core-0-temp'} - $cpu_temp) > $temp_diff ) {
+			if ($sensors{'core-0-temp'} && ($sensors{'core-0-temp'} - $cpu_temp) > $temp_diff) {
 				$cpu_temp = $sensors{'core-0-temp'};
 			}
 		}
 	}
 	# if all else fails, use core0/peci temp if present and cpu is null
-	if ( !$cpu_temp ) {
-		if ( $sensors{'core-0-temp'} ) {
+	if (!$cpu_temp) {
+		if ($sensors{'core-0-temp'}) {
 			$cpu_temp = $sensors{'core-0-temp'};
 		}
 		# note that peci temp is known to be colder than the actual system
 		# sometimes so it is the last fallback we want to use even though in theory
 		# it is more accurate, but fact suggests theory wrong.
-		elsif ( $sensors{'cpu-peci-temp'} ) {
+		elsif ($sensors{'cpu-peci-temp'}) {
 			$cpu_temp = $sensors{'cpu-peci-temp'};
 		}
 	}
 	# then the real mobo temp
-	if ( $sensors{'mobo-temp'} ){
+	if ($sensors{'mobo-temp'}){
 		$mobo_temp = $sensors{'mobo-temp'};
 	}
-	elsif ( $fan_type ){
-		if ( $fan_type == 1 ) {
-			if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp2'} > $sensors{'temp1'} ) {
+	elsif ($fan_type){
+		if ($fan_type == 1) {
+			if ($sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp2'} > $sensors{'temp1'}) {
 				$mobo_temp = $sensors{'temp1'};
 			}
 			else {
@@ -18465,7 +18466,7 @@ sub process_data {
 			}
 		}
 		else {
-			if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp1'} > $sensors{'temp2'} ) {
+			if ($sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp1'} > $sensors{'temp2'}) {
 				$mobo_temp = $sensors{'temp2'};
 			}
 			else {
@@ -18485,23 +18486,23 @@ sub process_data {
 	@fan_default = @{$sensors{'fan-default'}} if $sensors{'fan-default'};
 	$index_count_fan_default = (@fan_default) ? scalar @fan_default : 0;
 	# then set the cpu fan speed
-	if ( ! $fan_main[1] ) {
+	if (!$fan_main[1]) {
 		# note, you cannot test for $fan_default[1] or [2] != "" 
 		# because that creates an array item in gawk just by the test itself
-		if ( $fan_type == 1 && defined $fan_default[1] ) {
+		if ($fan_type == 1 && defined $fan_default[1]) {
 			$fan_main[1] = $fan_default[1];
 			$fan_default[1] = undef;
 		}
-		elsif ( $fan_type == 2 && defined $fan_default[2] ) {
+		elsif ($fan_type == 2 && defined $fan_default[2]) {
 			$fan_main[1] = $fan_default[2];
 			$fan_default[2] = undef;
 		}
 	}
 	# clear out any duplicates. Primary fan real trumps fan working always if same speed
 	for ($i = 1; $i <= $index_count_fan_main; $i++) {
-		if ( defined $fan_main[$i] && $fan_main[$i] ) {
+		if (defined $fan_main[$i] && $fan_main[$i]) {
 			for ($j = 1; $j <= $index_count_fan_default; $j++) {
-				if ( defined $fan_default[$j] && $fan_main[$i] == $fan_default[$j] ) {
+				if (defined $fan_default[$j] && $fan_main[$i] == $fan_default[$j]) {
 					$fan_default[$j] = undef;
 				}
 			}
@@ -18516,17 +18517,17 @@ sub process_data {
 	# Note: gensub is the culprit I think, assigning type string for range 501-1000 but 
 	# type integer for all others, this triggers true for >
 	for ($j = 1; $j <= $index_count_fan_default; $j++) {
-		if ( defined $fan_default[$j] && $fan_default[$j] > 5000 && !$fan_main[2] ) {
+		if (defined $fan_default[$j] && $fan_default[$j] > 5000 && !$fan_main[2]) {
 			$fan_main[2] = $fan_default[$j];
 			$fan_default[$j] = '';
 			# then add one if required for output
-			if ( $index_count_fan_main < 2 ) {
+			if ($index_count_fan_main < 2) {
 				$index_count_fan_main = 2;
 			}
 		}
 	}
 	# if they are ALL null, print error message. psFan is not used in output currently
-	if ( !$cpu_temp && !$mobo_temp && !$fan_main[1] && !$fan_main[2] && !$fan_main[1] && !@fan_default ) {
+	if (!$cpu_temp && !$mobo_temp && !$fan_main[1] && !$fan_main[2] && !$fan_main[1] && !@fan_default) {
 		%sensors = ();
 	}
 	else {
@@ -18544,7 +18545,7 @@ sub process_data {
 		$psu2_fan = $sensors{'fan-psu-2'} if $sensors{'fan-psu-2'};
 		# so far only for ipmi, sensors data is junk for volts
 		if ($extra > 0 && 
-		    ($sensors{'volts-12'} || $sensors{'volts-5'} || $sensors{'volts-3.3'} || $sensors{'volts-vbat'}) ){
+		    ($sensors{'volts-12'} || $sensors{'volts-5'} || $sensors{'volts-3.3'} || $sensors{'volts-vbat'})){
 			$v_12 = $sensors{'volts-12'} if $sensors{'volts-12'};
 			$v_5 = $sensors{'volts-5'} if $sensors{'volts-5'};
 			$v_3_3 = $sensors{'volts-3.3'} if  $sensors{'volts-3.3'};
@@ -23489,7 +23490,6 @@ sub set_dboot_data {
 			elsif ($use{'dboot-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
 				push(@{$dboot{'pci'}},$_);
 			}
-
 			elsif ($use{'dboot-ram'} && /(^spdmem)/){
 				push(@{$dboot{'ram'}}, $_);
 			}
@@ -23501,6 +23501,7 @@ sub set_dboot_data {
 		}
 		log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
 		print Dumper $dboot{'main'} if $dbg[11];
+		
 		if ($dboot{'main'} && $b_log){
 			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
 			log_data('dump','$dboot{disk}',$dboot{'disk'});
@@ -23516,6 +23517,21 @@ sub set_dboot_data {
 			print("memory:\n", Dumper $dboot{'ram'});
 			print("sys battery:\n", Dumper $sysctl{'battery'});
 			print("sys machine:\n", Dumper $sysctl{'machine'});
+		}
+		# this should help get rid of dmesg usb mounts not present
+		# note if you take out one, put in another, it will always show the first 
+		# one, I think. Not great.
+		if ($dboot{'disk'} && (my @disks = grep {/^hw\.disknames/} @{$dboot{'disk'}})){
+			# hw.disknames:sd0:,sd1:3242432,sd2:
+			$disks[0] =~ s/(^hw\.disknames:|:[^,]*)//g; 
+			@disks = split(',',$disks[0]) if $disks[0];
+			my @temp;
+			for my $row (@{$dboot{'disk'}}){
+				push(@temp,$row) if grep {$row =~ /^$_:/} @disks;
+			}
+			$dboot{'disk'} = \@temp;
+			log_data('dump','post: $dboot{disk}',$dboot{'disk'}) if $b_log;
+			print("post: disk:\n",Dumper $dboot{'disk'}) if $dbg[11];
 		}
 		if ($use{'dboot-pci'} && $dboot{'pci'}){
 			my $bus_id = 0;
@@ -24031,6 +24047,9 @@ sub set_sysctl_data {
 		}
 		elsif (/^dev\.cpu\./){
 			push(@{$sysctl{'cpu'}}, $_);
+		}
+		elsif (/^hw\.disknames/){
+			push(@{$dboot{'disk'}}, $_);
 		}
 		elsif (/^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@{$sysctl{'machine'}}, $_);
