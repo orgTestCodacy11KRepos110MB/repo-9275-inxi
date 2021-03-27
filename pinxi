@@ -8491,6 +8491,10 @@ sub sysctl_data {
 		elsif ($line[0] eq 'hw.busfrequency_max') {
 			$cpu{'max-freq'} = $line[1]/1000000;
 		}
+		elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\.freq$/){
+			$speed = speed_cleaner($line[1]);
+			$cpu{'processors'}->[$1] = $speed;
+		}
 		elsif ($line[0] eq 'machdep.cpu.vendor') {
 			$cpu{'type'} = cpu_vendor($line[1]);
 		}
@@ -8860,8 +8864,8 @@ sub cpu_properties {
 	# xeon may show wrong core / physical id count, if it does, fix it. A xeon
 	# may show a repeated core id : 0 which gives a fake num_of_cores=1
 	if ($b_intel){
-		if ($cpu->{'siblings'} && $cpu->{'siblings'} > 1 && $cpu->{'cores'} && $cpu->{'cores'} > 1 ){
-			if ( $cpu->{'siblings'}/$cpu->{'cores'} == 1 ){
+		if ($cpu->{'siblings'} && $cpu->{'siblings'} > 1 && $cpu->{'cores'} && $cpu->{'cores'} > 1){
+			if ($cpu->{'siblings'}/$cpu->{'cores'} == 1){
 				$b_intel = 0;
 				$b_ht = 0;
 			}
@@ -8932,7 +8936,7 @@ sub cpu_properties {
 	# if > 1 processor && processor id (physical id) != core id then Multi-Core Processors (MCP)
 	# if > 1 processor && processor ids (physical id) > 1 then Symmetric Multi Processing (SMP)
 	# if = 1 processor then single core/processor Uni-Processor (UP)
-	if ( $processors_count > 1 || ( $b_intel && $cpu->{'siblings'} > 0 ) ) {
+	if ($processors_count > 1 || ($b_intel && $cpu->{'siblings'} > 0)) {
 		# non-multicore MT
 		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
 			#print "mt:1\n";
@@ -24025,13 +24029,18 @@ sub set_sysctl_data {
 		elsif (/^hw\.sensors\.acpi(bat|cmb)/){
 			push(@{$sysctl{'battery'}}, $_);
 		}
+		elsif (/^dev\.cpu\./){
+			push(@{$sysctl{'cpu'}}, $_);
+		}
 		elsif (/^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@{$sysctl{'machine'}}, $_);
 		}
 		elsif (/^(hw\.(physmem|usermem)|Free Memory)/){
 			push(@{$sysctl{'memory'}}, $_);
 		}
-		# hw.cpufreq.temperature: 40780
+		# hw.cpufreq.temperature: 40780 ; dev.cpu0.temperature 
+		# hw.acpi.thermal.tz2.temperature: 27.9C hw.acpi.thermal.tz1.temperature: 42.1C
+		# hw.acpi.thermal.tz0.temperature: 42.1C
 		elsif (( /^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/ ) ||
 		 (/^hw\.cpufreq/)){
 			push(@{$sysctl{'sensors'}}, $_);
@@ -24041,15 +24050,17 @@ sub set_sysctl_data {
 		print("main\n", Dumper $sysctl{'main'});
 		print("audio\n", Dumper $sysctl{'audio'});
 		print("battery\n", Dumper $sysctl{'battery'});
+		print("cpu\n", Dumper $sysctl{'cpu'});
 		print("machine\n", Dumper $sysctl{'machine'});
 		print("memory\n", Dumper $sysctl{'memory'});
 		print("sensors\n", Dumper $sysctl{'sensors'});
 	}
 	# this thing can get really long.
 	if ($b_log){
-		#main::log_data('dump','$sysctl{main}',$sysctl{'main'});
+		main::log_data('dump','$sysctl{main}',$sysctl{'main'});
 		main::log_data('dump','$sysctl{audio}',$sysctl{'audio'});
 		main::log_data('dump','$sysctl{battery}',$sysctl{'battery'});
+		main::log_data('dump','$sysctl{cpu}',$sysctl{'cpu'});
 		main::log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		main::log_data('dump','$sysctl{memory}',$sysctl{'memory'});
 		main::log_data('dump','$sysctl{sensors}',$sysctl{'sensors'});
