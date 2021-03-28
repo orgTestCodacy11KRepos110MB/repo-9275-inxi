@@ -45,8 +45,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-27';
-my $self_patch='14';
+my $self_date='2021-03-28';
+my $self_patch='15';
 ## END INXI INFO ##
 
 ## Self data
@@ -7918,6 +7918,9 @@ sub full_output {
 		if ($extra > 1 && $properties{'l3-cache'}){
 			$rows[$j]->{main::key($num++,0,3,'L3')} = main::get_size($properties{'l3-cache'},'string');
 		}
+		if ($properties{'cache-check'}){
+			$rows[$j]->{main::key($num++,0,3,'note')} = $properties{'cache-check'};
+		}
 	}
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
@@ -8791,6 +8794,7 @@ sub cpu_dmi_data {
 sub cpu_properties {
 	my ($cpu) = @_;
 	my ($b_amd_zen,$b_epyc,$b_ht,$b_elbrus,$b_intel,$b_ryzen,$b_xeon);
+	my ($bsd_x,$cache_check) = (1,'');
 	if ($cpu->{'type'} ){
 		if ($cpu->{'type'} eq 'intel'){
 			$b_intel = 1;
@@ -8933,6 +8937,17 @@ sub cpu_properties {
 			$cpu->{'processors'}[$_] = 0;
 		}
 	}
+	# so far only OpenBSD has a way to detect MT cpus
+	if ($bsd_type){
+		if ($cpu->{'siblings'}){
+			$bsd_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
+		}
+		# if no siblings we couldn't get MT status of cpu so can't trust cache
+		# we'll trust the L cache data from dmidecode however
+		else {
+			$cache_check = main::row_defaults('note-check');
+		}
+	}
 	# last test to catch some corner cases 
 	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
 	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
@@ -8950,13 +8965,13 @@ sub cpu_properties {
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
 		my %cpu_dmi = cpu_dmi_data();
 		my $multi = ($bsd_type) ? $cpu_cores: 1;
-		$l1_cache = $cpu_dmi{'L1'} * $multi * $phyical_count if $cpu_dmi{'L1'};
+		$l1_cache = $cpu_dmi{'L1'} * $phyical_count if $cpu_dmi{'L1'};
 		# note: bsds often won't have L2 catch data found yet
 		$cpu->{'l2-cache'} = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
-		$l3_cache = $cpu_dmi{'L3'} * $multi * $phyical_count if $cpu_dmi{'L3'};
+		$l3_cache = $cpu_dmi{'L3'} * $phyical_count if $cpu_dmi{'L3'};
 		# bsd sysctl can have these values so let's check just in case
-		$l1_cache = $cpu->{'l1-cache'} * $multi * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
-		# leave off $multi *  for now, not sure about that one.
+		$l1_cache = $cpu->{'l1-cache'} * $bsd_x * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
+		# leave off $bsd_x *  for now, not sure about that one.
 		$l3_cache = $cpu->{'l3-cache'} * $phyical_count if !$l3_cache && $cpu->{'l3-cache'};
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
@@ -9017,7 +9032,7 @@ sub cpu_properties {
 	# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
 	# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
 	elsif ($bsd_type){
-		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $phyical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $bsd_x * $phyical_count;
 	}
 	# AMD SOS chips appear to report full L2 cache per core
 	elsif ($cpu->{'type'} eq 'amd' && ($cpu->{'family'} eq '14' || $cpu->{'family'} eq '15' || $cpu->{'family'} eq '16')){
@@ -9063,6 +9078,7 @@ sub cpu_properties {
 	}
 	my %cpu_properties = (
 	'bits-sys' => $bits_sys,
+	'cache-check' => $cache_check,
 	'cpu-layout' => $cpu_layout,
 	'cpu-type' => $cpu_type,
 	'dmi-max-speed' => $dmi_max_speed,
