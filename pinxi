@@ -8566,6 +8566,9 @@ sub sysctl_data {
 		$cpu{'l3-cache'} = $dmesg_boot{'l3-cache'} if !$cpu{'l3-cache'};
 		$cpu{'microcode'} = $dmesg_boot{'microcode'} if !$cpu{'microcode'};
 		$cpu{'model_id'} = $dmesg_boot{'model_id'} if !$cpu{'model_id'};
+		$cpu{'max-freq'} = $dmesg_boot{'max-freq'} if !$cpu{'max-freq'};
+		$cpu{'min-freq'} = $dmesg_boot{'min-freq'} if !$cpu{'min-freq'};
+		$cpu{'scalings'} = $dmesg_boot{'scalings'} if !$cpu{'scalings'};
 		$cpu{'siblings'} = $dmesg_boot{'siblings'} if !$cpu{'siblings'};
 		$cpu{'stepping'} = $dmesg_boot{'stepping'} if !$cpu{'stepping'};
 		$cpu{'type'} = $dmesg_boot{'type'} if !$cpu{'type'};
@@ -8582,7 +8585,7 @@ sub sysctl_data {
 
 sub dboot_data {
 	eval $start if $b_log;
-	my (%values);
+	my ($max_freq,$min_freq,@scalings,%values);
 	my ($family,$flags,$microcode,$model,$sep,$stepping,$type) = ('','','','','','','');
 	my ($cores,$siblings) = (0,0);
 	my ($l1,$l2,$l3) = (0,0,0);
@@ -8591,7 +8594,8 @@ sub dboot_data {
 	if ($dboot{'cpu'}){
 		foreach (@{$dboot{'cpu'}}){
 			# can be ~Features/Features2/AMD Features
-			if ( /Features/ || ( $bsd_type eq "openbsd" && /^cpu0:\s*[a-z0-9]{2,3}(\s|,)[a-z0-9]{2,3}(\s|,)/i ) ) {
+			if (/Features/ || ( $bsd_type eq "openbsd" && 
+			 /^cpu0:\s*[a-z0-9]{2,3}(\s|,)[a-z0-9]{2,3}(\s|,)/i )) {
 				my @line = split(/:\s*/, lc($_));
 				# free bsd has to have weird syntax: <....<b23>,<b34>>
 				# Features2=0x1e98220b<SSE3,PCLMULQDQ,MON,SSSE3,CX16,SSE4.1,SSE4.2,POPCNT,AESNI,XSAVE,OSXSAVE,AVX>
@@ -8603,30 +8607,54 @@ sub dboot_data {
 				$flags .= $sep . $line[1];
 				$sep = ' ';
 			}
+			# cpu0:AMD E1-1200 APU with Radeon(tm) HD Graphics, 1398.66 MHz, 14-02-00
 			elsif (/^cpu0:\s*([^,]+),\s+([0-9\.]+\s*MHz),\s+([0-9a-f]+)-([0-9a-f]+)-([0-9a-f]+)/){
 				$type = cpu_vendor($1);
 				$family = uc($3);
 				$model =  uc($4);
 				$stepping = uc($5);
-				$family =~ s/^0+//;
-				$model =~ s/^0+//;
-				$stepping =~ s/^0+//;
+				$family =~ s/^0//;
+				$model =~ s/^0//;
+				$stepping =~ s/^0//; # can be 00
 			}
 			# note: cpu cache is in KiB MiB even though they call it KB and MB
-			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/ && 
-			 /^cpu0:\s*(([0-9\.]+[KMG])i?B.*?\sI[\s-]?cache)?(,?\s*([0-9\.]+[KMG])i?B.*?\sD[\s-]?cache)?(,?\s*([0-9\s]+[KMG])i?B.*?\sL2[\s-]?cache)?(,?\s*([0-9\.]+[KMG])i?B.*?\sL3[\s-]?cache)?/){
-				$l1 = main::translate_size($2) if $2;
-				$l2 = main::translate_size($6) if $6;
-				$l3 = main::translate_size($8) if $8;
+			# cpu31: 32KB 64b/line 8-way I-cache, 32KB 64b/line 8-way D-cache, 512KB 64b/line 8-way L2 cache
+			# 8-way means 1 per core, 16-way means 1/2 per core
+			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/){
+				if (/\b([0-9\.]+[KMG])i?B.*?\s([0-9]+)-way\sI[\s-]?cache/){
+					$l1 = main::translate_size($1);
+				}
+				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sD[\s-]?cache/){
+					# do nothing, we aren't going to use the D cache
+				}
+				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sL2[\s-]?cache/){
+					$l2 = main::translate_size($1);
+				}
+				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sL3[\s-]?cache/){
+					$l3 = main::translate_size($1);
+				}
 			}
-			elsif (/^~*Origin:\s*(.+?)[\s,]+(Id\s*=\s*(0x)?([0-9a-f]+)[\s,]*)?(Family\s*=\s*(0x)?([a-f0-9]+)[\s,]*)?(Model\s*=\s*(0x)([a-f0-9]+)[\s,]*)?(Stepping\s*=\s*(0x)?([0-9a-f]+))?/){
-				$type = cpu_vendor($1) if $1;
-				$microcode = ($3) ? uc($4) : $4;
-				$family = ($6) ? uc($7) : $7;
-				$model =  ($9) ? uc($10) : $10;
-				$stepping = ($12) ? uc($13) : $13;
+			elsif (/^~Origin:(.+?)[\s,]+(Id|Family|Model|Stepping)/){
+				$type = cpu_vendor($1);
+				if (/\bId\s*=\s*(0x)?([0-9a-f]+)\b/){
+					$microcode = ($1) ? uc($2) : $2;
+				}
+				if (/\bFamily\s*=\s*(0x)?([a-f0-9]+)\b/){
+					$family = ($1) ? uc($2) : $2;
+				}
+				if (/\bModel\s*=\s*(0x)?([a-f0-9]+)\b/){
+					$model = ($1) ? uc($2) : $2;
+				}
+				if (/\bStepping\s*=\s*(0x)?([0-9a-f]+)\b/){
+					$stepping = ($1) ? uc($2) : $2;
+				}
 			}
-			# 2 core MT Intel Core:
+			elsif (/^cpu0:.*?[0-9\.]+\s?MHz:\sspeeds:\s(.*?)\s?MHz/){
+				@scalings = split(/[,\s]+/,$1);
+				$min_freq = $scalings[-1];
+				$max_freq = $scalings[0];
+			}
+			# 2 core MT Intel Core/Rzyen similar, use smt 0 as trigger to count:
 			# cpu2:smt 0, core 1, package 0
 			# cpu3:smt 1, core 1, package 0
 			## but: older AMD Athlon 2 core:
@@ -8654,8 +8682,11 @@ sub dboot_data {
 	'l1-cache' => $l1,
 	'l2-cache' => $l2,
 	'l3-cache' => $l3,
+	'max-freq' => $max_freq,
 	'microcode' => $microcode,
+	'min-freq' => $min_freq,
 	'model_id' => $model,
+	'scalings' => \@scalings,
 	'siblings' => $siblings,
 	'stepping' => $stepping,
 	'type' => $type,
@@ -9601,9 +9632,9 @@ sub cpu_cleaner {
 }
 sub hex_and_decimal {
 	my ($data) = @_; 
-	$data ||= '';
+	$data = '' if !defined $data;
 	if ($data =~ /\S/){
-		$data .=  ' (' . hex($data) . ')' if hex($data) ne $data;
+		$data .= ' (' . hex($data) . ')' if hex($data) ne $data;
 	}
 	else {
 		$data = 'N/A';
