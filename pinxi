@@ -8810,24 +8810,6 @@ sub cpu_properties {
 		# print 'model id: ' . $cpu->{'model_id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
 	}
 	$phyical_count ||= 1; # assume 1 if no id found, as with ARM
-	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
-		# note: dmidecode has one entry per cpu per cache type, so this already 
-		# has done the arithmetic on > 1 cpus for L1 and L3. 
-		my %cpu_dmi = cpu_dmi_data();
-		$l1_cache = $cpu_dmi{'L1'} if $cpu_dmi{'L1'};
-		# note: bsds often won't have L2 catch data found yet
-		$l2_cache = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
-		$l3_cache = $cpu_dmi{'L3'} if $cpu_dmi{'L3'};
-		# bsd sysctl can have these values so let's check just in case
-		$l1_cache = $cpu->{'l1-cache'} * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
-		$l3_cache = $cpu->{'l3-cache'} * $phyical_count if !$l3_cache && $cpu->{'l3-cache'};
-		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
-		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
-		$upgrade = $cpu_dmi{'upgrade'} if $cpu_dmi{'upgrade'};
-		$dmi_speed = $cpu_dmi{'speed'} if $cpu_dmi{'speed'};
-		$ext_clock = $cpu_dmi{'ext-clock'} if $cpu_dmi{'ext-clock'};
-		$volts = $cpu_dmi{'volts'} if $cpu_dmi{'volts'};
-	}
 	foreach my $die_ref (@phys){
 		next if ref $die_ref ne 'ARRAY';
 		$core_count = 0;
@@ -8930,6 +8912,25 @@ sub cpu_properties {
 		$core_count = 1;
 		$cpu->{'siblings'} = 1;
 	}
+	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
+		# note: dmidecode has one entry per cpu per cache type, so this already 
+		# has done the arithmetic on > 1 cpus for L1 and L3. 
+		my %cpu_dmi = cpu_dmi_data();
+		my $multi = ($bsd_type) ? $cpu_cores: 1;
+		$l1_cache = $cpu_dmi{'L1'} * $multi * $phyical_count if $cpu_dmi{'L1'};
+		# note: bsds often won't have L2 catch data found yet
+		$cpu->{'l2-cache'} = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
+		$l3_cache = $cpu_dmi{'L3'} * $multi * $phyical_count if $cpu_dmi{'L3'};
+		# bsd sysctl can have these values so let's check just in case
+		$l1_cache = $cpu->{'l1-cache'} * $multi * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
+		$l3_cache = $cpu->{'l3-cache'} * $multi * $phyical_count if !$l3_cache && $cpu->{'l3-cache'};
+		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
+		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
+		$upgrade = $cpu_dmi{'upgrade'} if $cpu_dmi{'upgrade'};
+		$dmi_speed = $cpu_dmi{'speed'} if $cpu_dmi{'speed'};
+		$ext_clock = $cpu_dmi{'ext-clock'} if $cpu_dmi{'ext-clock'};
+		$volts = $cpu_dmi{'volts'} if $cpu_dmi{'volts'};
+	}
 	#print "pc: $processors_count s: $cpu->{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
 	# Algorithm:
 	# if > 1 processor && processor id (physical id) == core id then Multi threaded (MT)
@@ -8979,14 +8980,10 @@ sub cpu_properties {
 		# do nothing
 	}
 	# the only possible change for bsds is if we can get phys counts in the future
-	# Looks like Intel on bsd shows L2 per core, not total
+	# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
+	# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
 	elsif ($bsd_type){
-		if ($cpu->{'type'} eq 'intel'){
-			$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $phyical_count;
-		}
-		else {
-			$l2_cache = $cpu->{'l2-cache'} * $phyical_count;
-		}
+		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $phyical_count;
 	}
 	# AMD SOS chips appear to report full L2 cache per core
 	elsif ($cpu->{'type'} eq 'amd' && ($cpu->{'family'} eq '14' || $cpu->{'family'} eq '15' || $cpu->{'family'} eq '16')){
