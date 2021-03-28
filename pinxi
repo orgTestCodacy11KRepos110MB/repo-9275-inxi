@@ -24289,7 +24289,7 @@ sub usbconfig_data {
 			($driver,$driver_nu) = usbconfig_driver("$1$2.$3");
 			$name = main::cleaner($4);
 			$name = main::remove_duplicates($name) if $name;
-			$type = check_type($name,'','');
+			$type = check_type($name,$driver,'');
 			$config = $6;
 			$speed = prep_speed($9);
 			$power = $11;
@@ -24523,6 +24523,11 @@ sub usbdevs_data {
 			$working[21] = $1; # driver nu
 			# drivers, note that when numbers trimmed off, drivers can have same name
 			$working[15] = ($working[15] && $working[15] !~ /\b$temp\b/) ? "$working[15],$temp" : $temp; 
+			# now that we have the driver, let's recheck the type
+			if (!$type && $name && $working[15]){
+				$type = check_type($name,$working[15],'');
+				$working[14] = $type if $type;
+			}
 		}
 		elsif ($_ eq 'END' && @working){
 			$j = scalar @{$usb{'main'}};
@@ -24876,7 +24881,7 @@ sub check_type {
 		$type = 'Audio';
 	}
 	# Broadcom HP Portable SoftSailing
-	elsif (($driver && $driver =~ /btusb/) || $name =~ /(bluetooth)/){
+	elsif (($driver && $driver =~ /\b(btusb|ubt)\b/) || $name =~ /(bluetooth)/){
 		$type = 'Bluetooth'
 	}
 	elsif (($driver && $driver =~ /video/) || 
