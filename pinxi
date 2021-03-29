@@ -45,8 +45,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-28';
-my $self_patch='16';
+my $self_date='2021-03-29';
+my $self_patch='17';
 ## END INXI INFO ##
 
 ## Self data
@@ -6106,13 +6106,13 @@ sub row_defaults {
 	'battery-data' => 'No system Battery data found. Is one present?',
 	'battery-data-bsd' => 'No battery data found. Try with --dmidecode',
 	'battery-data-sys' => 'No /sys data found.',
-	'bluetooth-data' => 'No Bluetooth data was found.',
+	'bluetooth-data' => 'No Bluetooth data found.',
 	'bluetooth-down' => "$id can't run.",
 	'cpu-bugs-null' => 'No CPU vulnerability/bugs data available.',
 	'cpu-model-null' => 'Model N/A',
 	'cpu-speeds' => "No speed data found for $id cores.",
 	'darwin-feature' => 'Feature not supported iu Darwin/OSX.',
-	'disk-data' => 'No Disk data was found.',
+	'disk-data' => 'No Disk data found.',
 	'disk-data-bsd' => 'No Disk data found for this BSD system.',
 	'disk-size-0' => 'Total N/A',
 	'display-console' => 'No advanced graphics data found on this system in console.',
@@ -6132,8 +6132,8 @@ sub row_defaults {
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
 	'IP-no-dig' => "No $id found. Connected to web? SSL issues? Try enabling dig",
-	'lvm-data' => 'No LVM data was found.',
-	'lvm-data-bsd' => 'No BSD support for LVM data.',
+	'logical-data' => 'No Logical block device data found.',
+	'logical-data-bsd' => "No $id support for Logical block devices.",
 	'machine-data' => 'No Machine data: try newer kernel.',
 	'machine-data-bsd' => 'No Machine data: Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-dmidecode' => 'No Machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
@@ -6141,24 +6141,24 @@ sub row_defaults {
 	'mips-pci' => 'No MIPS data found for this feature.',
 	'note-check' => 'check',
 	'note-est' => 'est.',
-	'optical-data' => 'No Optical or Floppy data was found.',
-	'optical-data-bsd' => 'No Optical or Floppy data found for this BSD system.',
+	'optical-data' => 'No Optical or Floppy data found.',
+	'optical-data-bsd' => 'No Optical or Floppy data found.',
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
 	'packages' => 'No packages detected. Unsupported package manager?',
-	'partition-data' => 'No Partition data was found.',
+	'partition-data' => 'No Partition data found.',
 	'partition-hidden' => 'N/A (hidden?)',
 	'pci-advanced-data' => 'bus/chip ids unavailable',
 	'pci-card-data' => 'No Device data found.',
 	'pci-card-data-root' => 'Device data requires root.',
 	'pci-slot-data' => 'No PCI Slot data found.',
 	'ps-data-null' => 'No Process data available.',
-	'raid-data' => 'No RAID data was found.',
-	'ram-data' => 'No RAM data was found.',
+	'raid-data' => 'No RAID data found.',
+	'ram-data' => 'No RAM data found.',
 	'root-required' => '<superuser required>',
 	'root-suggested' => 'try sudo/root',
-	'sensors-data-bsd' => 'No sensors data available for your BSD system.',
-	'sensors-data-ipmi' => 'No ipmi sensors data was found.',
-	'sensors-data-linux' => 'No sensors data was found. Is sensors configured?',
+	'sensors-data-bsd' => "$id sensors data found but not usable.",
+	'sensors-data-ipmi' => 'No ipmi sensors data found.',
+	'sensors-data-linux' => 'No sensors data found. Is sensors configured?',
 	'sensors-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
 	'smartctl-command-failed' => 'A mandatory SMART command failed. Various possible causes.',
 	'smartctl-udma-crc' => 'Bad cable/connection?',
@@ -6176,9 +6176,9 @@ sub row_defaults {
 	'tools-missing' => "This feature requires one of these tools: $id",
 	'tools-missing-bsd' => "This feature requires one of these BSD tools: $id",
 	'unmounted-data' => 'No Unmounted partitions found.',
-	'unmounted-data-bsd' => 'No Unmounted partition data found for this BSD system.',
+	'unmounted-data-bsd' => "Unmounted partition data unavailable for $id.",
 	'unmounted-file' => 'No /proc/partitions file found.',
-	'usb-data' => 'No USB data was found. Server?',
+	'usb-data' => 'No USB data found. Server?',
 	'unknown-desktop-version' => 'ERR-101',
 	'unknown-dev' => 'ERR-102',
 	'unknown-shell' => 'ERR-100',
@@ -12478,17 +12478,17 @@ sub get {
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('lvm-data-bsd');
+		$val1 = main::row_defaults('logical-data-bsd',ucfirst($bsd_type));
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
  	else {
 		main::set_lsblk() if !$loaded{'lsblk'};
 		if ($fake{'logical'} || $alerts{'lvs'}->{'action'} eq 'use'){
-			lvm_data() if !$loaded{'lvm-data'};
+			lvm_data() if !$loaded{'logical-data'};
 			if (!@lvm){
 				my $key = 'Message';
 				# note: arch linux has a bug where lvs returns 0 if non root start
-				my $message = ($use{'logical-lvm'}) ? main::row_defaults('tool-permissions','lvs') : main::row_defaults('lvm-data','');
+				my $message = ($use{'logical-lvm'}) ? main::row_defaults('tool-permissions','lvs') : main::row_defaults('logical-data','');
 				push(@rows, {
 				main::key($num++,0,1,$key) => $message,
 				},);
@@ -12508,7 +12508,7 @@ sub get {
 		       $alerts{'lvs'}->{'action'} eq 'missing')){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults('lvm-data',''),
+			main::key($num++,0,1,$key) => main::row_defaults('logical-data',''),
 			},);
 		}
 		elsif ($alerts{'lvs'}->{'action'} ne 'use'){
@@ -12719,7 +12719,7 @@ sub general_data {
 # note: called for disk totals, raid, and logical
 sub lvm_data {
 	eval $start if $b_log;
-	$loaded{'lvm-data'} = 1;
+	$loaded{'logical-data'} = 1;
 	my (@args,@data,%totals);
 	@args = qw(vg_name vg_fmt vg_size vg_free lv_name lv_layout lv_size 
 	lv_kernel_major lv_kernel_minor segtype seg_count seg_start_pe seg_size_pe 
@@ -15766,7 +15766,7 @@ sub hw_data {
 }
 sub lvm_data {
 	eval $start if $b_log;
-	LogicalData::lvm_data() if !$loaded{'lvm-data'};
+	LogicalData::lvm_data() if !$loaded{'logical-data'};
 	return if !@lvm;
 	my (@lvraid,$maj_min,$vg_used,@working);
 	foreach my $item (@lvm){
@@ -17751,7 +17751,7 @@ sub get {
 		@data = sensors_output('sysctl-sensors',\%sensors);
 		if (!@data){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('sensors-data-bsd');
+			$val1 = main::row_defaults('sensors-data-bsd',ucfirst($bsd_type));
 			@data = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 		push(@rows,@data);
@@ -18979,7 +18979,7 @@ sub get {
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('unmounted-data-bsd');
+		$val1 = main::row_defaults('unmounted-data-bsd',ucfirst($bsd_type));
 	}
  	else {
 		if (main::system_files('partitions')){
