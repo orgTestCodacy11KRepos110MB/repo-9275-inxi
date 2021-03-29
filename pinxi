@@ -8067,16 +8067,16 @@ sub short_data {
 	my $num = 0;
 	my (%cpu,@data,%speeds);
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
-	my $sleep = $cpu_sleep * 1000000;
-	if ($b_hires){
-		eval 'Time::HiRes::usleep( $sleep )';
-	}
-	else {
-		select(undef, undef, undef, $cpu_sleep);
-	}
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
 	if (my $file = main::system_files('cpuinfo')){
+		my $sleep = $cpu_sleep * 1000000;
+		if ($b_hires){
+			eval 'Time::HiRes::usleep( $sleep )';
+		}
+		else {
+			select(undef, undef, undef, $cpu_sleep);
+		}
 		%cpu = cpuinfo_data($file,$type);
 	}
 	elsif ($bsd_type ){
@@ -24096,7 +24096,9 @@ sub set_sysctl_data {
 	my (@temp);
 	# darwin sysctl has BOTH = and : separators, and repeats data. Why? 
 	if (!$fake{'sysctl'}){
-		if ($use{'sysctl-sleep'}){
+		# just on odd chance we hit a bsd with /proc/cpuinfo, don't want to
+		# sleep 2x
+		if ($use{'sysctl-sleep'} && !main::system_files('cpuinfo')){
 			if ($b_hires){
 				eval 'Time::HiRes::usleep( $sleep )';
 			}
