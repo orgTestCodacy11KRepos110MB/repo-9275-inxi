@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-29';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 ## Self data
@@ -178,7 +178,7 @@ sub initialize {
 	set_path();
 	set_user_paths();
 	set_basics();
-	system_files('set');
+	set_system_files();
 	get_configs();
 	# set_downloader();
 	set_display_width('live');
@@ -547,6 +547,30 @@ sub set_sudo {
 	}
 }
 
+sub set_system_files {
+	%files = (
+	'asound-cards' => '/proc/asound/cards',
+	'asound-modules' => '/proc/asound/modules',
+	'asound-version' => '/proc/asound/version',
+	'dmesg-boot' => '/var/run/dmesg.boot',
+	'lsb-release' => '/etc/lsb-release',
+	'os-release' => '/etc/os-release',
+	'proc-cmdline' => '/proc/cmdline',
+	'proc-cpuinfo' => '/proc/cpuinfo',
+	'proc-mdstat' => '/proc/mdstat',
+	'proc-meminfo' => '/proc/meminfo',
+	'proc-modules' => '/proc/modules', # not used
+	'proc-mounts' => '/proc/mounts',# not used
+	'proc-partitions' => '/proc/partitions',
+	'proc-scsi' => '/proc/scsi/scsi',
+	'proc-version' => '/proc/version',
+	# note: 'xorg-log' is set only if -G is triggered
+	);
+	foreach (keys %files){
+		$system_files{$_} = (-e $files{$_}) ? $files{$_} : '';
+	}
+}
+
 sub set_user_paths {
 	my ( $b_conf, $b_data );
 	# this needs to be set here because various options call the parent 
@@ -597,36 +621,6 @@ sub set_user_paths {
 	# print "scd: $user_config_dir sdd: $user_data_dir \n";
 }
 
-# args: 1: set|hash key to return either null or path
-sub system_files {
-	my ($file) = @_;
-	if ( $file eq 'set'){
-		%files = (
-		'asound-cards' => '/proc/asound/cards',
-		'asound-modules' => '/proc/asound/modules',
-		'asound-version' => '/proc/asound/version',
-		'cmdline' => '/proc/cmdline',
-		'cpuinfo' => '/proc/cpuinfo',
-		'dmesg-boot' => '/var/run/dmesg.boot',
-		'lsb-release' => '/etc/lsb-release',
-		'mdstat' => '/proc/mdstat',
-		'meminfo' => '/proc/meminfo',
-		'modules' => '/proc/modules',
-		'mounts' => '/proc/mounts',
-		'os-release' => '/etc/os-release',
-		'partitions' => '/proc/partitions',
-		'scsi' => '/proc/scsi/scsi',
-		'version' => '/proc/version',
-		# note: 'xorg-log' is set only if -G is triggered
-		);
-		foreach ( keys %files ){
-			$system_files{$_} = ( -e $files{$_} ) ? $files{$_} : '';
-		}
-	}
-	else {
-		return $system_files{$file};
-	}
-}
 sub set_xorg_log {
 	eval $start if $b_log;
 	my (@temp,@x_logs);
@@ -6666,8 +6660,8 @@ sub get {
 	else {
 		push(@rows,device_output());
 	}
-	if ( ( (($b_arm || $b_mips) && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows ) && 
-	   (my $file = main::system_files('asound-cards') ) ){
+	if (((($b_arm || $b_mips) && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows ) && 
+	   (my $file = $system_files{'asound-cards'})){
 		push(@rows,asound_output($file));
 	}
 	push(@rows,usb_output());
@@ -6838,7 +6832,7 @@ sub sound_server_output {
 sub sound_server_data {
 	eval $start if $b_log;
 	my (@servers,$program,$running,$server,$version);
-	if (my $file = main::system_files('asound-version') ){
+	if (my $file = $system_files{'asound-version'}){
 		# avoid possible second line if compiled by user
 		my $content = main::reader($file,'',0);
 		# some alsa strings have the build date in (...)
@@ -7831,7 +7825,7 @@ sub full_output {
 	my $num = 0;
 	my ($b_flags,$b_speeds,$core_speeds_value,$flag_key,@flags,%cpu,@rows);
 	my $sleep = $cpu_sleep * 1000000;
-	if (my $file = main::system_files('cpuinfo')){
+	if (my $file = $system_files{'proc-cpuinfo'}){
 		# bsd sleep is set before sysctl runs, same idea
 		if ($b_hires){
 			eval 'Time::HiRes::usleep( $sleep )';
@@ -8069,7 +8063,7 @@ sub short_data {
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
-	if (my $file = main::system_files('cpuinfo')){
+	if (my $file = $system_files{'proc-cpuinfo'}){
 		my $sleep = $cpu_sleep * 1000000;
 		if ($b_hires){
 			eval 'Time::HiRes::usleep( $sleep )';
@@ -8597,7 +8591,7 @@ sub dboot_data {
 	my ($cores,$siblings) = (0,0);
 	my ($l1,$l2,$l3) = (0,0,0);
 	# this will be null if it was not readable
-	my $file = main::system_files('dmesg-boot');
+	my $file = $system_files{'dmesg-boot'};
 	if ($dboot{'cpu'}){
 		foreach (@{$dboot{'cpu'}}){
 			# can be ~Features/Features2/AMD Features
@@ -9688,7 +9682,7 @@ sub get {
 			push(@rows,drive_output(\@data)) if $show{'disk'} && @data;
 			if ($bsd_type && !$dboot{'disk'} && $type eq 'standard' && $show{'disk'} ){
 				$key1 = 'Drive Report';
-				my $file = main::system_files('dmesg-boot');
+				my $file = $system_files{'dmesg-boot'};
 				if ( $file && ! -r $file){
 					$val1 = main::row_defaults('dmesg-boot-permissions');
 				}
@@ -10044,7 +10038,7 @@ sub proc_data_advanced {
 		}
 	}
 	# scsi stuff
-	if ($file = main::system_files('scsi')){
+	if ($file = $system_files{'proc-scsi'}){
 		@scsi = scsi_data($file);
 	}
 	# print 'drives:', Data::Dumper::Dumper $drives;
@@ -10187,7 +10181,7 @@ sub dboot_data {
 	my ($used) = @_;
 	my (@data,@drives,@temp);
 	my ($id_holder,$i,$size,$working) = ('',0,0,0);
-	my $file = main::system_files('dmesg-boot');
+	my $file = $system_files{'dmesg-boot'};
 	if ($dboot{'disk'}){
 		foreach (@{$dboot{'disk'}}){
 			my @row = split(/:\s*/, $_);
@@ -12266,7 +12260,7 @@ sub x_drivers {
 	eval $start if $b_log;
 	my ($driver,@driver_data,,%drivers);
 	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
-	if (my $log = main::system_files('xorg-log')){
+	if (my $log = $system_files{'xorg-log'}){
 		if ($fake{'xorg-log'}) {
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/loading-unload-failed-all41-mint.txt";
@@ -13134,7 +13128,7 @@ sub machine_data_sys {
 sub machine_data_soc {
 	eval $end if $b_log;
 	my (%data,@temp);
-	if (my $file = main::system_files('cpuinfo')){
+	if (my $file = $system_files{'proc-cpuinfo'}){
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
 		my @data = main::reader($file);
 		foreach (@data){
@@ -13520,7 +13514,7 @@ sub get_device_vm {
 		elsif (grep {/Virtual HD/i} @vm_data){
 			$vm = 'hyper-v';
 		}
-		if (!$vm && (my $file = main::system_files('cpuinfo'))){
+		if (!$vm && (my $file = $system_files{'proc-cpuinfo'})){
 			my @info = main::reader($file);
 			$vm = 'virtual-machine' if grep {/^flags.*hypervisor/} @info;
 		}
@@ -14116,7 +14110,7 @@ sub get {
 			@rows = drive_output(\%data) if %data;
 		}
 		else{
-			my $file = main::system_files('dmesg-boot');
+			my $file = $system_files{'dmesg-boot'};
 			if ( $file && ! -r $file ){
 				$val1 = main::row_defaults('dmesg-boot-permissions');
 			}
@@ -15717,7 +15711,7 @@ sub raid_data {
 	    ($alerts{'lvs'}->{'action'} && $alerts{'lvs'}->{'action'} eq 'use')){
 		@lvm_raid = lvm_data();
 	}
-	if ($fake{'raid-md'} || (my $file = main::system_files('mdstat') )){
+	if ($fake{'raid-md'} || (my $file = $system_files{'proc-mdstat'})){
 		@md_raid = md_data($file);
 	}
 	if ($fake{'raid-zfs'} || (my $path = main::check_program('zpool') )){
@@ -18984,7 +18978,7 @@ sub get {
 		$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
 	}
  	else {
-		if (main::system_files('partitions')){
+		if ($system_files{'proc-partitions'}){
 			@data = unmounted_data();
 			if (!@data){
 				$key1 = 'Message';
@@ -19962,7 +19956,7 @@ package CompilerVersion;
 sub get {
 	eval $start if $b_log;
 	my (@compiler);
-	if (my $file = main::system_files('version') ) {
+	if (my $file = $system_files{'proc-version'}) {
 		@compiler = version_proc($file);
 	}
 	elsif ($bsd_type) {
@@ -21674,7 +21668,7 @@ package KernelParameters;
 sub get {
 	eval $start if $b_log;
 	my ($parameters);
-	if (my $file = main::system_files('cmdline') ) {
+	if (my $file = $system_files{'proc-cmdline'}) {
 		$parameters = parameters_linux($file);
 	}
 	elsif ($bsd_type) {
@@ -21726,7 +21720,7 @@ sub get {
 	$loaded{'memory'} = 1;
 	# netbsd uses meminfo, but it uses it in a weird way
 	if (!$force{'vmstat'} && (!$bsd_type || ($force{'meminfo'} && $bsd_type)) && 
-	 (my $file = main::system_files('meminfo'))) {
+	 (my $file = $system_files{'proc-meminfo'})) {
 		$memory = meminfo_data($type,$file);
 	}
 	else {
@@ -23486,7 +23480,7 @@ sub set_dboot_data {
 	my ($b_ugen,$file,@db_data,@dm_data,@temp);
 	my ($counter) = (0);
 	if (!$fake{'dboot'}){
-		$file = system_files('dmesg-boot');
+		$file = $system_files{'dmesg-boot'};
 	}
 	else {
 		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
@@ -23969,7 +23963,7 @@ sub set_mapper {
 sub set_proc_partitions {
 	eval $start if $b_log;
 	$loaded{'proc-partitions'} = 1;
-	if (my $file = main::system_files('partitions')){
+	if (my $file = $system_files{'proc-partitions'}){
 		my @parts = main::reader($file,'strip');
 		#print Dumper \@parts;
 		shift @parts if @parts; # get rid of headers
@@ -24098,7 +24092,7 @@ sub set_sysctl_data {
 	if (!$fake{'sysctl'}){
 		# just on odd chance we hit a bsd with /proc/cpuinfo, don't want to
 		# sleep 2x
-		if ($use{'sysctl-sleep'} && !main::system_files('cpuinfo')){
+		if ($use{'sysctl-sleep'} && !$system_files{'proc-cpuinfo'}){
 			if ($b_hires){
 				eval 'Time::HiRes::usleep( $sleep )';
 			}
