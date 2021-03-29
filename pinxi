@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-29';
-my $self_patch='17';
+my $self_patch='18';
 ## END INXI INFO ##
 
 ## Self data
@@ -4943,6 +4943,7 @@ sub post_process {
 		}
 		if ($show{'short'} || $show{'cpu-basic'} || $show{'cpu'}){
 			$use{'dboot-cpu'} = 1;
+			$use{'sysctl-sleep'} = 1;
 		}
 		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'}){
 			$use{'dboot-disk'} = 1;
@@ -7830,13 +7831,14 @@ sub full_output {
 	my $num = 0;
 	my ($b_flags,$b_speeds,$core_speeds_value,$flag_key,@flags,%cpu,@rows);
 	my $sleep = $cpu_sleep * 1000000;
-	if ($b_hires){
-		eval 'Time::HiRes::usleep( $sleep )';
-	}
-	else {
-		select(undef, undef, undef, $cpu_sleep);
-	}
 	if (my $file = main::system_files('cpuinfo')){
+		# bsd sleep is set before sysctl runs, same idea
+		if ($b_hires){
+			eval 'Time::HiRes::usleep( $sleep )';
+		}
+		else {
+			select(undef, undef, undef, $cpu_sleep);
+		}
 		%cpu = cpuinfo_data($file,'full');
 	}
 	elsif ($bsd_type ){
@@ -24094,6 +24096,14 @@ sub set_sysctl_data {
 	my (@temp);
 	# darwin sysctl has BOTH = and : separators, and repeats data. Why? 
 	if (!$fake{'sysctl'}){
+		if ($use{'sysctl-sleep'}){
+			if ($b_hires){
+				eval 'Time::HiRes::usleep( $sleep )';
+			}
+			else {
+				select(undef, undef, undef, $cpu_sleep);
+			}
+		}
 		@temp = grabber($alerts{'sysctl'}->{'path'} . " -a 2>/dev/null");
 	}
 	else {
