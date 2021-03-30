@@ -45,8 +45,8 @@ use POSIX qw(uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-03-29';
-my $self_patch='20';
+my $self_date='2021-03-30';
+my $self_patch='21';
 ## END INXI INFO ##
 
 ## Self data
@@ -10242,7 +10242,8 @@ sub proc_data_advanced {
 			}
 		}
 	}
-	# print Data::Dumper::Dumper $drives;
+	main::log_data('dump','$drives',\$drives) if $b_log;
+	print Data::Dumper::Dumper $drives if $dbg[24];
 	eval $end if $b_log;
 	return @$drives;
 }
@@ -10253,82 +10254,83 @@ sub dboot_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives,@temp);
-	my ($id_holder,$i,$size,$working) = ('',0,0,0);
+	my ($i,$size,$working) = (0,0,0);
 	my $file = $system_files{'dmesg-boot'};
 	if ($dboot{'disk'}){
-		foreach (@{$dboot{'disk'}}){
-			my @row = split(/:\s*/, $_);
-			next if ! defined $row[1];
-			if ($id_holder ne $row[0]){
-				$i++ if $id_holder;
-				# print "$i $id_holder $row[0]\n";
-				$id_holder = $row[0];
-			}
-			# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
-			if (! exists $drives[$i]){
-				$drives[$i]->{'id'} = $row[0];
-				$drives[$i]->{'firmware'} = '';
-				$drives[$i]->{'temp'} = '';
-				$drives[$i]->{'type'} = '';
-				$drives[$i]->{'vendor'} = '';
-			}
-			#print "$_ i: $i\n";
-			# openbsd/netbsd matches will often work
-			if ($row[1] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
-				$working = main::translate_size($2);
-				$drives[$i]->{'block-physical'} = ($working/$3)*1024 if $3;
-				$size += $working if $working;
-				$drives[$i]->{'size'} = $working;
-			}
-			# don't set both, if smartctl installed, we want to use its data so having
-			# only one of logical/physical will trip use of smartctl values
-			if ($row[1] =~ /[\s,]+([0-9]+)\sbytes?[\s\/]sect/ ){
-				#$drives[$i]->{'block-logical'} = $1;
-				$drives[$i]->{'block-physical'} = $1;
-			}
-			if ($row[2] && $row[2] =~ /<([^>]+)>/){
-				$drives[$i]->{'model'} = $1 if $1;
-				$drives[$i]->{'type'} = 'removable' if $_ =~ /removable/;
-				# <Generic-, Compact Flash, 1.00>
-				my $count = ($drives[$i]->{'model'} =~ tr/,//);
-				if ($count && $count > 1){
-					@temp = split(/,\s*/, $drives[$i]->{'model'});
-					$drives[$i]->{'model'} = $temp[1];
+		foreach my $id (sort keys %{$dboot{'disk'}}){
+			next if !@{$dboot{'disk'}->{$id}};
+			foreach (@{$dboot{'disk'}->{$id}}){
+				my @row = split(/:\s*/, $_);
+				next if !$row[0];
+				# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
+				if (!exists $drives[$i]){
+					$drives[$i]->{'id'} = $id;
+					$drives[$i]->{'firmware'} = '';
+					$drives[$i]->{'temp'} = '';
+					$drives[$i]->{'type'} = '';
+					$drives[$i]->{'vendor'} = '';
 				}
+				#print "$_ i: $i\n";
+				# openbsd/netbsd matches will often work
+				if ($row[0] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
+					$working = main::translate_size($2);
+					$drives[$i]->{'block-physical'} = ($working/$3)*1024 if $3;
+					$size += $working if $working;
+					$drives[$i]->{'size'} = $working;
+				}
+				# don't set both, if smartctl installed, we want to use its data so having
+				# only one of logical/physical will trip use of smartctl values
+				if ($row[0] =~ /[\s,]+([0-9]+)\sbytes?[\s\/]sect/ ){
+					#$drives[$i]->{'block-logical'} = $1;
+					$drives[$i]->{'block-physical'} = $1;
+				}
+				if ($row[1]){
+					if ($row[1] =~ /<([^>]+)>/){
+						$drives[$i]->{'model'} = $1 if $1;
+						$drives[$i]->{'type'} = 'removable' if $_ =~ /removable/;
+						# <Generic-, Compact Flash, 1.00>
+						my $count = ($drives[$i]->{'model'} =~ tr/,//);
+						if ($count && $count > 1){
+							@temp = split(/,\s*/, $drives[$i]->{'model'});
+							$drives[$i]->{'model'} = $temp[1];
+						}
+					}
+					if ($row[1] =~ /\bserial\.(\S*)/){
+						$drives[$i]->{'serial'} = $1;
+					}
+				}
+				if (!$drives[$i]->{'serial'} && $row[0] =~ /^Serial\sNumber\s(.*)/){
+					$drives[$i]->{'serial'} = $1;
+				}
+				# mmcsd0:32GB <SDHC SL32G 8.0 SN 27414E9E MFG 07/2014 by 3 SD> at mmc0 50.0MHz/4bit/65535-block
+				if (!$drives[$i]->{'serial'} && $row[0] =~ /(\s(SN|s\/n)\s(\S+))[>\s]/){
+					$drives[$i]->{'serial'} = $3;
+					# strip out the SN/MFG so it won't show in model
+					$row[0] =~ s/$1//;
+					$row[0] =~ s/\sMFG\s[^>]+//;
+				}
+				# these were mainly FreeBSD/Dragonfly matches
+				if (!$drives[$i]->{'size'} && $row[0] =~ /^([0-9]+\s*[KMGTPE])i?B?[\s,]/){
+					$working = main::translate_size($1);
+					$size += $working if $working;
+					$drives[$i]->{'size'} = $working;
+				}
+				if ($row[0] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
+					$row[0] =~ s/\bdevice$//g;
+					$row[0] =~ /<([^>]*)>(\s(.*))?/;
+					$drives[$i]->{'model'} = $1 if $1;
+					$drives[$i]->{'spec'} = $3 if $3;
+				}
+				if ($row[0] =~ /^([0-9\.]+[MG][B]?\/s)/){
+					$drives[$i]->{'speed'} = $1;
+					$drives[$i]->{'speed'} =~ s/\.[0-9]+// if $drives[$i]->{'speed'};
+				}
+				$drives[$i]->{'model'} = main::disk_cleaner($drives[$i]->{'model'});
+				my @device_data = device_vendor($drives[$i]->{'model'},'');
+				$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
+				$drives[$i]->{'model'} = $device_data[1] if $device_data[1];
 			}
-			if ($row[2] && $row[2] =~ /\sserial\.(\S*)/){
-				$drives[$i]->{'serial'} = $1;
-			}
-			if (!$drives[$i]->{'serial'} && $row[1] =~ /^Serial\sNumber\s(.*)/){
-				$drives[$i]->{'serial'} = $1;
-			}
-			# mmcsd0:32GB <SDHC SL32G 8.0 SN 27414E9E MFG 07/2014 by 3 SD> at mmc0 50.0MHz/4bit/65535-block
-			if (!$drives[$i]->{'serial'} && $row[1] =~ /(\sSN\s(\S+))[>\s]/){
-				$drives[$i]->{'serial'} = $2;
-				# strip out the SN/MFG so it won't show in model
-				$row[1] =~ s/$1//;
-				$row[1] =~ s/\sMFG\s[^>]+//;
-			}
-			# these were mainly FreeBSD/Dragonfly matches
-			if (!$drives[$i]->{'size'} && $row[1] =~ /^([0-9]+\s*[KMGTPE])i?B?[\s,]/){
-				$working = main::translate_size($1);
-				$size += $working if $working;
-				$drives[$i]->{'size'} = $working;
-			}
-			if ($row[1] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
-				$row[1] =~ s/\sdevice$//g;
-				$row[1] =~ /<([^>]*)>(\s(.*))?/;
-				$drives[$i]->{'model'} = $1 if $1;
-				$drives[$i]->{'spec'} = $3 if $3;
-			}
-			if ($row[1] =~ /^([0-9\.]+[MG][B]?\/s)/){
-				$drives[$i]->{'speed'} = $1;
-				$drives[$i]->{'speed'} =~ s/\.[0-9]+// if $drives[$i]->{'speed'};
-			}
-			$drives[$i]->{'model'} = main::disk_cleaner($drives[$i]->{'model'});
-			my @device_data = device_vendor($drives[$i]->{'model'},'');
-			$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
-			$drives[$i]->{'model'} = $device_data[1] if $device_data[1];
+			$i++;
 		}
 		if (!$size){
 			$size = main::row_defaults('data-bsd');
@@ -10344,12 +10346,13 @@ sub dboot_data {
 	'size' => $size,
 	'used' => $used,
 	});
-	#main::log_data('dump','@data',\@data) if $b_log;
+	#main::log_data('dump','$data',\@data) if $b_log;
 	if ( $show{'disk'} ){
 		push(@data,@drives);
-		# print 'drives:', Data::Dumper::Dumper \@drives;
+		# print 'data:', Data::Dumper::Dumper \@data;
 	}
-	# print Data::Dumper::Dumper \@data;
+	main::log_data('dump','$data',\@data) if $b_log;
+	print Data::Dumper::Dumper \@data if $dbg[24];
 	eval $end if $b_log;
 	return @data;
 }
@@ -23589,8 +23592,12 @@ sub set_dboot_data {
 		# clear out for netbsd, only 1 space following or lines won't match
 		@dm_data = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dm_data;
 		$counter = 0;
+		# dump previous sessions, and also everything roughly before dmesg.boot 
+		# ends, it does't need to be perfect, we just only want the actual post 
+		# boot data
 		for (@dm_data){
-			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/){
+			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/ ||
+				/^(smbus[0-9]:|Security policy loaded|root on)/){
 				$counter++;
 				undef @temp if $counter > 1; 
 			}
@@ -23599,7 +23606,7 @@ sub set_dboot_data {
 		@dm_data = @temp;
 		undef @temp; 
 		push(@db_data,'~~~~~',@dm_data);
-		uniq(\@db_data); # get rid of duplicate lines
+		# uniq(\@db_data); # get rid of duplicate lines
 		# some dmesg repeats, so we need to dump the second and > iterations
 		# replace all indented items with ~ so we can id them easily while
 		# processing note that if user, may get error of read permissions
@@ -23627,7 +23634,8 @@ sub set_dboot_data {
 			# sd1 at scsibus2 targ 1 lun 0: <NVMe, OWC Aura P12 1.0, ECFM>
 			# sd1: 915715MB, 4096 bytes/sector, 234423126 sectors
 			elsif ($use{'dboot-disk'} && 
-			 /^(ad|ada|da|mmcblk|mmcsd|nvme([0-9]+n)?|sd|wd)[0-9]+(:|\sat\s)/){
+			 /^(ad|ada|da|mmcblk|mmcsd|nvme([0-9]+n)?|sd|wd)[0-9]+(:|\sat\s|.*?\sdetached$)/){
+				$_ =~ s/^\(//;
 				push (@{$dboot{'disk'}},$_);
 			}
 			if ($use{'dboot-machine'} && /^bios[0-9]:(at|vendor)/){
@@ -23671,15 +23679,34 @@ sub set_dboot_data {
 		# note if you take out one, put in another, it will always show the first 
 		# one, I think. Not great. Not using this means all drives attached
 		# current session are shown, using it, possibly wrong drive shown, which is bad
-		if ($dboot{'disk'} && (my @disks = grep {/^hw\.disknames/} @{$dboot{'disk'}})){
+		# not using this for now: && (my @disks = grep {/^hw\.disknames/} @{$dboot{'disk'}}
+		if ($dboot{'disk'}){
 			# hw.disknames:sd0:,sd1:3242432,sd2:
-			$disks[0] =~ s/(^hw\.disknames:|:[^,]*)//g; 
-			@disks = split(',',$disks[0]) if $disks[0];
-			my @temp;
-			for my $row (@{$dboot{'disk'}}){
-				push(@temp,$row) if grep {$row =~ /^$_:/} @disks;
+			#$disks[0] =~ s/(^hw\.disknames:|:[^,]*)//g; 
+			#@disks = split(',',$disks[0]) if $disks[0];
+			my ($id,$value,%dboot_disks,@disks_live,@temp);
+			# first, since openbsd has this, let's use it
+			for (@{$dboot{'disk'}}){
+				if (!@disks_live && /^hw\.disknames/){
+					$_ =~ s/(^hw\.disknames:|:[^,]*)//g; 
+					@disks_live = split(',',$_) if $_;
+				}
+				else {
+					push(@temp,$_);
+				}
 			}
-			$dboot{'disk'} = \@temp;
+			@{$dboot{'disk'}} = @temp if @temp;
+			for my $row (@temp){
+				$row =~ /^([^:\s]+)[:\s]+(.+)/;
+				$id = $1;
+				$value = $2;
+				push(@{$dboot_disks{$id}},$value);
+				if ((@disks_live && !(grep {$id =~ /^$_/} @disks_live)) || 
+				 $value =~ /\b(destroyed|detached)$/){
+					delete $dboot_disks{$id};
+				}
+			}
+			$dboot{'disk'} = \%dboot_disks;
 			log_data('dump','post: $dboot{disk}',$dboot{'disk'}) if $b_log;
 			print("post: disk:\n",Dumper $dboot{'disk'}) if $dbg[11];
 		}
