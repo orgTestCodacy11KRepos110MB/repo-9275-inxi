@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-03-29';
-my $self_patch='19';
+my $self_patch='20';
 ## END INXI INFO ##
 
 ## Self data
@@ -6100,7 +6100,7 @@ sub row_defaults {
 	'battery-data-bsd' => 'No battery data found. Try with --dmidecode',
 	'battery-data-sys' => 'No /sys data found.',
 	'bluetooth-data' => 'No Bluetooth data found.',
-	'bluetooth-down' => "$id can't run.",
+	'bluetooth-down' => "tool can't run",
 	'cpu-bugs-null' => 'No CPU vulnerability/bugs data available.',
 	'cpu-model-null' => 'Model N/A',
 	'cpu-speeds' => "No speed data found for $id cores.",
@@ -7410,7 +7410,7 @@ sub upower_data {
 ## BluetoothData 
 {
 package BluetoothData;
-my ($b_bluetooth,$b_hci_error,$b_hci,$b_service);
+my ($b_bluetooth,$b_hci_error,$b_hci,$b_rfk,$b_service);
 my ($service);
 my (%hci);
 sub get {
@@ -7557,12 +7557,18 @@ sub advanced_output {
 	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
 	my (@rows,@temp);
-	my ($j,$num,$k,$l,$m,$id,$id2) = (0,1,2,3,4,'','');
-	if (!$b_hci && $alerts{'hciconfig'}->{'action'} eq 'use'){
+	my ($j,$num,$k,$l,$m,$n,$id,$note,$tool) = (0,1,2,3,4,5,'','','');
+	if (!$b_hci && $alerts{'hciconfig'}->{'action'} eq 'xuse'){
 		hciconfig_data();
+		$tool = 'hciconfig';
 	}
-	elsif (!$b_hci && $alerts{'bt-adapter'}->{'action'} eq 'use'){
+	elsif (!$b_hci && $alerts{'bt-adapter'}->{'action'} eq 'xuse'){
 		bt_tool_data();
+		$tool = 'bt-adapter';
+	}
+	if (!$b_rfk && -e '/sys/class/bluetooth/'){
+		rfkill_data();
+		$tool = 'rfkill' if !$tool;
 	}
 	#print "bid: $bus_id\n";
 	if ($type ne 'check'){
@@ -7576,30 +7582,52 @@ sub advanced_output {
 	elsif ($type eq 'check' && %hci){
 		@temp = keys %hci;
 		$id = '-ID';
-		($k,$l,$m) = (1,2,3);
+		($k,$l,$m,$n) = (1,2,3,4);
 	}
 	if (@temp && %hci){
 		if ($hci{'alert'}){
-			check_service(); # sets $service
-			$j = scalar @rows;
-			$rows[$j]->{main::key($num++,1,$k,'Report')} = '';
-			$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
-			$rows[$j]->{main::key($num++,0,$l,'note')} = $hci{'alert'};
+			if (keys %hci == 1) {
+				check_service(); # sets $service
+				$j = scalar @rows;
+				$rows[$j]->{main::key($num++,1,$k,'Report')} = $tool;
+				$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
+				$rows[$j]->{main::key($num++,0,$l,'note')} = $hci{'alert'};
+			}
+			else {
+				$note = $hci{'alert'};
+			}
 			delete $hci{'alert'};
 		}
 		foreach my $item (@temp){
 			if ($hci{$item}){
-				$id2 = $item if $id;
 				$j = scalar @rows;
 				push(@rows,{
-				main::key($num++,1,$k,'Report' . $id) => $id2,
+				main::key($num++,1,$k,'Report' . $id) => $tool,
 				},);
-				$rows[$j]->{main::key($num++,0,$l,'ID')} = $item if !$id;
-				$rows[$j]->{main::key($num++,0,$l,'state')} = $hci{$item}->{'state'};
+				if ($note){
+					$rows[$j]->{main::key($num++,0,$l,'note')} = $note;
+				}
+				# synthesize for rfkill
+				if (!$hci{$item}->{'state'}){
+					$hci{$item}->{'state'} = ($b_bluetooth) ? 'up' : 'down';
+				}
+				$rows[$j]->{main::key($num++,0,$l,'ID')} = $item;
+				if (defined $hci{$item}->{'rf-index'} && 
+				 ($extra > 0 || $hci{$item}->{'state'} eq 'down')){
+					$rows[$j]->{main::key($num++,0,$m,'rfk-id')} = $hci{$item}->{'rf-index'};
+				}
+				$rows[$j]->{main::key($num++,1,$l,'state')} = $hci{$item}->{'state'};
 				# this only appears for hciconfig, bt-adapter does not run without bt service
 				if (!$b_bluetooth || $hci{$item}->{'state'} eq 'down'){
-					check_service(); # sets $service
-					$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
+					if (!$b_bluetooth || $hci{$item}->{'state'} eq 'down'){
+						check_service(); # sets $service
+						$rows[$j]->{main::key($num++,0,$m,'bt-service')} = $service;
+					}
+					if ($hci{$item}->{'hard-blocked'}){
+						$rows[$j]->{main::key($num++,1,$m,'rfk-block')} = '';
+						$rows[$j]->{main::key($num++,0,$n,'hardware')} = $hci{$item}->{'hard-blocked'};
+						$rows[$j]->{main::key($num++,0,$n,'software')} = $hci{$item}->{'soft-blocked'};
+					}
 				}
 				$rows[$j]->{main::key($num++,0,$l,'address')} = main::apply_filter($hci{$item}->{'address'});
 				# lmp/hci version only hciconfig sadly
@@ -7656,7 +7684,7 @@ sub advanced_output {
 			}
 		}
 	}
-	if (!$b_hci_error && ($alerts{'hciconfig'}->{'action'} ne 'use' &&
+	if (!@rows && !$b_hci_error && ($alerts{'hciconfig'}->{'action'} ne 'use' &&
 	  $alerts{'bt-adapter'}->{'action'} ne 'use')){
 		my $key = 'Report';
 		my $value = '';
@@ -7770,6 +7798,42 @@ sub hciconfig_data {
 		}
 		elsif (/^Service Classes?:\s+(.+)/){
 			$hci{$id}->{'service-classes'} = main::general_cleaner(lc($1));
+		}
+	}
+	print Data::Dumper::Dumper \%hci if $dbg[27];
+	main::log_data('dump','%hci', \%hci) if $b_log;
+	eval $end if $b_log;
+}
+sub rfkill_data {
+	eval $start if $b_log;
+	$b_rfk = 1;
+	my (@data,$id,$value);
+	if ($fake{'bluetooth'}){
+		my $file;
+		$file = "";
+		@data = main::reader($file,'strip');
+	}
+	else {
+		# /state is the state of rfkill, NOT bluetooth!
+		@data = main::globber('/sys/class/bluetooth/hci*/rfkill*/{hard,index,soft}');
+	}
+	# print Data::Dumper::Dumper \@data;
+	main::log_data('dump','@data', \@data) if $b_log;
+	foreach (@data){
+		$id = (split(/\//,$_))[4];
+		if (m|/soft$|){
+			$value = main::reader($_,'strip',0);
+			$hci{$id}->{'soft-blocked'} = ($value) ? 'yes': 'no';
+			$hci{$id}->{'state'} = 'down' if $hci{$id}->{'soft-blocked'} eq 'yes';
+		}
+		elsif (m|/hard$|){
+			$value = main::reader($_,'strip',0);
+			$hci{$id}->{'hard-blocked'} = ($value) ? 'yes': 'no';
+			$hci{$id}->{'state'} = 'down' if $hci{$id}->{'hard-blocked'} eq 'yes';
+		}
+		elsif (m|/index$|){
+			$value = main::reader($_,'strip',0);
+			$hci{$id}->{'rf-index'} = $value;
 		}
 	}
 	print Data::Dumper::Dumper \%hci if $dbg[27];
