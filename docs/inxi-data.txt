@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE:    inxi-data.txt
-VERSION: 1.7
-DATE:    2021-03-11
+VERSION: 1.8
+DATE:    2021-03-31
 
 ----------------------------------------
 Docs:
@@ -35,7 +35,9 @@ Sections:
 2. SECONDARY DATA
   DISTRO DATA
   LIVE CD LOGINS
-2. DATA ANALYSIS
+3. DATA ANALYSIS
+4. OS DATA
+  BSD DATA
 
 ================================================================================
 CORE DATA
@@ -1698,3 +1700,118 @@ grep -En '[a-z]\([^(]*@[^)]+\)' pinxi | grep -Ev '(#|log_data\(|scalar[\( ]|sort
 grep -En '[a-z]\([^(]*@[^)]+\)' pinxi | grep -Ev '(^[[:space:]]*#|log_data\(|scalar[\( ]|sort\(|\\@|chomp)'
 
 grep -En '[a-z]\([^(]*%[^)]+\)' pinxi | grep -Ev '(#|sprint|log_data\(|scalar[\( ]|sort {|sort\(|\\%|chomp|if )'
+
+
+================================================================================
+OS DATA
+--------------------------------------------------------------------------------
+
+========================================
+BSD DATA
+----------------------------------------
+
+----------------------------------------
+Multibooting OpenBSD
+----------------------------------------
+source https://srobb.net/openbsdmultiboot.html
+
+Preserving this here because websites have a tendency to go away, especially 
+ones like this.
+
+Note: make the type a6 partition in linux, not the openbsd installer, it's 
+super easy to make a mistake with fdisk. I prefer cfisk, it's more human 
+friendly, but otherwise, it's pretty much as simple as he says here, OpenBSD
+will find its openbsd formatted partiton, figure that is the one you want 
+to put openbsd on. Keep in mind, openbsd will put itself onto that partition 
+in many slices, so make sure it's big enough for your needs, I don't know
+how ffs handles resizings etc.
+
+----------------------------------------
+
+I've used this method from 5.6 up through -current (while 6.2 is the release).
+
+According to the OpenBSD FAQ, multibooting is non-trivial. Despite their 
+somewhat dire warnings, it's not that difficult if you know how to do it. 
+The usual caveats apply, it's always better to have backups, there is always 
+the risk of losing what is already on the disk.
+
+This is assuming the newcomer has a bit of knowledge, a machine with Linux 
+installed, and a free partition. It does not have to be a primary partition, 
+a logical partition inside a Linux extended partition works just as well. 
+I've used this method with OpenBSD-5.6 through snapshots following 6.2.
+
+Once one has said free partition, begin the OpenBSD installation. When it 
+comes to what part of the disk to use, you can choose e, as in edit. In our 
+example, we have a 4 partition MBR layout. We will use the last partition, 
+partition 4 in Linux fdisk. It will show as 3 in OpenBSD's, with partitions 
+labeled 0-3. Once we've chosen e, we will see fdisk: 1>. We then type
+
+edit 3
+
+3 is the Linux /dev/sda4 partition.
+
+It will print the disk id (in this case, the filesystem type, which would 
+be 83 if it had been a Linux partition), and some other information such as 
+cylinders, heads and sectors. Type in a6, as we would in Linux fdisk. It will 
+ask if you wish to edit in CHS mode (Cylinder, Head, Sector) with a default 
+of n for no. Hit enter to take the default. It will then show the offset (start) 
+and size, which will be what you see if you had just typed p for print. Accept 
+the defaults given. Now hit p to be sure it's what you want. It should now 
+show partition 3 as id A6, OpenBSD.
+
+If you're confident of your changes, you can type write and then quit. (Or just 
+quit, either one will save the changes). Typing exit will exit fdisk without 
+saving changes. Many other programs use opposite terminology, exit saves changes 
+and quit discards, so be careful. You can also type abort, which will, as expected, 
+just exit the program without saving changes, though if this is done during 
+installation (as opposed to using a shell and just typing fdisk -e sd0, the 
+OpenBSD terminology for the disk), it won't exit completely, it will bring 
+you back to the dialog of whether you wish to use the whole disk, or edit.
+
+OpenBSD can also be installed on an extended partition. In that case, it may 
+be easier to use Linux's fdisk prior to installation. In this case, let's say 
+we have 3 primary and one extended partition, with, in Linux terminology, 
+drives 5 and 6 as logical partitions. We're going to use partition 6 for 
+OpenBSD. So, while in Linux use the following sequence
+
+fdisk /dev/sda
+t  
+6 
+a6  
+w 
+
+Toggle the type of partition
+Choosing partition 6 in response to fdisk's question
+a6 is the hex code number for an OpenBSD partition
+write your changes.
+
+You now have an OpenBSD partition. At this point, you can reboot with 
+your OpenBSD install media, whether it be USB, CD, or anything else. 
+After being asked the usual install questions, after it chooses the disk 
+and asks if you'd prefer to use DUIDs rather than device names in fstab, 
+you should then see a listing of your partitions, including an OpenBSD 
+partition. The choices should be
+
+Use (W)hole disk, use the (O)penBSD area, or (E)dit the MBR [OpenBSD]
+
+or something similar. Choose o, (case insensitive). That's it. The next 
+screen allows you to edit the partitions within the OpenBSD slice or use 
+installer auto defaults. Regardless, any changes you make to the disk will 
+only affect that partition. Assuming you boot from grub2, used by most Linux 
+distros these days, after installation, boot back into Linux and create 
+a /boot/grub/custom.cfg (or /boot/grub2/custom.cfg in RedHat and RedHat 
+based systems, such as CentOS and Fedora) that reads, if you installed 
+to the fourth partition.
+
+menuentry "OpenBSD" {
+set root='(hd0,4)'
+chainloader (hd0,4)+1
+}
+
+If you used partition 6 as we did with Linux's fdisk, you would change the 
+hd0,4 entries above to hd0,6. If you reboot and select that menu entry, you 
+will then boot into your OpenBSD installation.
+
+This doesn't work on UEFI installs. It seems that one has to create an EFI 
+partition, even if one already exists, but at present, I am still experimenting 
+and hope to update this page at some point.
