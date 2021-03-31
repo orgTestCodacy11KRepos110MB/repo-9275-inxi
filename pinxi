@@ -18445,23 +18445,30 @@ sub process_lm_sensors {
 sub sysctl_data {
 	eval $start if $b_log;
 	my (@data,%sensors);
-	my ($add) = (0);
+	# assume always starts at 0, can't do dynamic because freebsd shows tz1 first
+	my $add = 1; 
 	foreach (@{$sysctl{'sensors'}}){
-		if (/^hw.sensors\.([a-z]+)([0-9]+)\.(cpu|temp|fan|volt)([0-9])/){
-			my $sensor = $1;
-			my $type = $3;
-			my $number = $4;
-			if ((@sensors_use && !(grep {/$sensor/} @sensors_use)) ||
-			(@sensors_exclude && (grep {/$sensor/} @sensors_exclude))){
+		if (/^hw\.(sensors\.([a-z]+)([0-9]+)\.(cpu|temp|fan|volt)([0-9])|(acpi)\.(thermal)\.(tz)([0-9]+)\.(temperature))/){
+			my ($sensor,$type,$number);
+			if (!$6){
+				$sensor = $2;
+				$type = $4;
+				$number = $5;
+			}
+			else {
+				$sensor = $6 . $8; # eg acpitz
+				$type = ($10 eq 'temperature') ? 'temp': $10;
+				$number = $9;
+			}
+			if ($sensor && ((@sensors_use && !(grep {/$sensor/} @sensors_use)) ||
+			(@sensors_exclude && (grep {/$sensor/} @sensors_exclude)))){
 				next;
 			}
-			$add = 1 if $number == 0;
 			$number += $add;
 			my $working = (split(':\s*', $_))[1];
-			$working =~ /\s(deg)?([CF])$/;
-			$sensors{'temp-unit'} = $2 if $2 && !$sensors{'temp-unit'};
-			$working =~ /^([0-9\.]+)\s(.*)/;
+			$working =~ /([0-9\.]+)\s?(deg)?([CF])\b/;
 			my $value = $1;
+			$sensors{'temp-unit'} = $3 if $3 && !$sensors{'temp-unit'};
 			if ($type eq 'cpu' && !defined $sensors{'cpu-temp'}){
 				$sensors{'cpu-temp'} = $value;
 			}
@@ -24258,7 +24265,7 @@ sub set_sysctl_data {
 		# hw.acpi.thermal.tz2.temperature: 27.9C hw.acpi.thermal.tz1.temperature: 42.1C
 		# hw.acpi.thermal.tz0.temperature: 42.1C
 		elsif (( /^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/ ) ||
-		 (/^hw\.cpufreq/)){
+		 (/^hw\.acpi\.thermal/)){
 			push(@{$sysctl{'sensors'}}, $_);
 		}
 	}
