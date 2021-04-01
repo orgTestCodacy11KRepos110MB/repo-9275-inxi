@@ -287,7 +287,7 @@ sub set_commands {
 		if ($use{'pci'} ){
 			$commands{'lspci'} = ['exec-sys','','-n'];
 		}
-		if ($use{'lvm'}){
+		if ($use{'logical'}){
 			$commands{'lvs'} = ['exec-sys','',''];
 		}
 	}
@@ -4914,7 +4914,7 @@ sub post_process {
 	# triggers may extend to -D, -pP
 	if ($show{'short'} || $show{'logical'} || $show{'raid'} || $show{'disk'} || 
 	    $show{'disk-total'} || $show{'disk-basic'} || $show{'unmounted'}){
-		$use{'lvm'} = 1;
+		$use{'logical'} = 1;
 	}
 	main::set_sudo() if ( $show{'unmounted'} || ($extra > 0 && $show{'disk'}) );
 	$extra = 3 if $b_admin;
@@ -4942,34 +4942,32 @@ sub post_process {
 		$use{'usb'} = 1;
 	}
 	if ($bsd_type){
+		if ($show{'audio'}){
+			$use{'bsd-audio'} = 1;}
 		if ($show{'battery'}){
-			$use{'dboot-battery'} = 1
-		}
+			$use{'bsd-battery'} = 1;}
 		if ($show{'short'} || $show{'cpu-basic'} || $show{'cpu'}){
-			$use{'dboot-cpu'} = 1;
-			$use{'sysctl-sleep'} = 1;
-		}
+			$use{'bsd-cpu'} = 1;
+			$use{'bsd-sleep'} = 1;}
 		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'}){
-			$use{'dboot-disk'} = 1;
-		}
+			$use{'bsd-disk'} = 1;}
 		if ($show{'machine'}){
-			$use{'dboot-machine'} = 1
-		}
+			$use{'bsd-machine'} = 1;}
+		if ($show{'short'} || $show{'info'} || $show{'ps-mem'} || $show{'ram'}){
+			$use{'bsd-memory'} = 1;}
 		if ($show{'optical-basic'} || $show{'optical'}){
-			$use{'dboot-optical'} = 1
-		}
+			$use{'bsd-optical'} = 1;}
 		# strictly only used to fill in pci drivers if tool doesn't support that
 		if ($use{'pci'}){
-			$use{'dboot-pci'} = 1;
-		}
+			$use{'bsd-pci'} = 1;}
 		if ($show{'ram'}){
-			$use{'dboot-ram'} = 1
-		}
+			$use{'bsd-ram'} = 1;}
+		if ($show{'sensor'}){
+			$use{'bsd-sensor'} = 1;}
 		# always use this, it's too core
 		$use{'sysctl'} = 1;
 		if ($use{'usb'}){
-			$use{'dboot-usb'} = 1;
-		}
+			$use{'bsd-usb'} = 1;}
 	}
 }
 sub process_updater {
@@ -8512,12 +8510,13 @@ sub sysctl_data {
 	my (@ids,@line,%speeds,@working);
 	my ($sep) = ('');
 	my ($die_holder,$die_id,$phys_holder,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
-	foreach (@{$sysctl{'main'}}){
+	@{$sysctl{'cpu'}} = () if !$sysctl{'cpu'}; # don't want error next!
+	foreach (@{$sysctl{'cpu'}}){
 		@line = split(/\s*:\s*/, $_);
 		next if ! $line[0];
 		# darwin shows machine, like MacBook7,1, not cpu
 		# machdep.cpu.brand_string: Intel(R) Core(TM)2 Duo CPU     P8600  @ 2.40GHz
-		if ( ($bsd_type ne 'darwin' && $line[0] eq 'hw.model' ) || 
+		if (($bsd_type ne 'darwin' && $line[0] eq 'hw.model' ) || 
 		      $line[0] eq 'machdep.cpu.brand_string' ){
 			# cut L2 cache/cpu max speed out of model string, if available
 			# openbsd 5.6: AMD Sempron(tm) Processor 3400+ ("AuthenticAMD" 686-class, 256KB L2 cache)
@@ -17827,7 +17826,7 @@ sub get {
 			push(@rows,@data);
 		}
 	}
-	if ($sysctl{'sensors'}){
+	if ($sysctl{'sensor'}){
 		%sensors = sysctl_data();
 		@data = sensors_output('sysctl-sensors',\%sensors);
 		if (!@data){
@@ -18447,7 +18446,7 @@ sub sysctl_data {
 	my (@data,%sensors);
 	# assume always starts at 0, can't do dynamic because freebsd shows tz1 first
 	my $add = 1; 
-	foreach (@{$sysctl{'sensors'}}){
+	foreach (@{$sysctl{'sensor'}}){
 		if (/^hw\.(sensors\.([a-z]+)([0-9]+)\.(cpu|temp|fan|volt)([0-9])|(acpi)\.(thermal)\.(tz)([0-9]+)\.(temperature))/){
 			my ($sensor,$type,$number,$value);
 			if (!$6){
@@ -23639,10 +23638,10 @@ sub set_dboot_data {
 			$_ =~ s/\s\s/ /g;
 			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
 			push(@{$dboot{'main'}}, $_);
-			if ($use{'dboot-battery'} && /^acpi(bat|cmb)/){
+			if ($use{'bsd-battery'} && /^acpi(bat|cmb)/){
 				push(@{$sysctl{'battery'}}, $_);
 			}
-			elsif ($use{'dboot-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
+			elsif ($use{'bsd-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
 				push(@{$dboot{'cpu'}}, $_);
 			}
 			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
@@ -23653,24 +23652,24 @@ sub set_dboot_data {
 			# scsibus2 at nvme1: 2 targets, initiator 0
 			# sd1 at scsibus2 targ 1 lun 0: <NVMe, OWC Aura P12 1.0, ECFM>
 			# sd1: 915715MB, 4096 bytes/sector, 234423126 sectors
-			elsif ($use{'dboot-disk'} && 
+			elsif ($use{'bsd-disk'} && 
 			 /^(ad|ada|da|mmcblk|mmcsd|nvme([0-9]+n)?|sd|wd)[0-9]+(:|\sat\s|.*?\sdetached$)/){
 				$_ =~ s/^\(//;
 				push (@{$dboot{'disk'}},$_);
 			}
-			if ($use{'dboot-machine'} && /^bios[0-9]:(at|vendor)/){
+			if ($use{'bsd-machine'} && /^bios[0-9]:(at|vendor)/){
 				push(@{$sysctl{'machine'}}, $_);
 			}
-			elsif ($use{'dboot-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
+			elsif ($use{'bsd-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
 				push(@{$dboot{'optical'}},$_);
 			}
-			elsif ($use{'dboot-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
+			elsif ($use{'bsd-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
 				push(@{$dboot{'pci'}},$_);
 			}
-			elsif ($use{'dboot-ram'} && /(^spdmem)/){
+			elsif ($use{'bsd-ram'} && /(^spdmem)/){
 				push(@{$dboot{'ram'}}, $_);
 			}
-			elsif ($use{'dboot-usb'} && 
+			elsif ($use{'bsd-usb'} && 
 			 (/^ugen[0-9]+\.[0-9]+:/ || ($b_ugen && /^[a-z]+[0-9]+\son\s[a-z]+[0-9]+$/))){
 				$b_ugen = (/^ugen/) ? 1: 0;
 				push(@{$dboot{'usb'}},$_);
@@ -23730,7 +23729,7 @@ sub set_dboot_data {
 			log_data('dump','post: $dboot{disk}',$dboot{'disk'}) if $b_log;
 			print("post: disk:\n",Dumper $dboot{'disk'}) if $dbg[11];
 		}
-		if ($use{'dboot-pci'} && $dboot{'pci'}){
+		if ($use{'bsd-pci'} && $dboot{'pci'}){
 			my $bus_id = 0;
 			my @temp;
 			for (@{$dboot{'pci'}}){
@@ -23747,7 +23746,7 @@ sub set_dboot_data {
 			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
 			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
 		}
-		if ($use{'dboot-usb'} && $dboot{'usb'}){
+		if ($use{'bsd-usb'} && $dboot{'usb'}){
 			my ($bus_id,$device,$driver) = ('','','');
 			my @temp;
 			for (@{$dboot{'usb'}}){
@@ -24219,7 +24218,7 @@ sub set_sysctl_data {
 	if (!$fake{'sysctl'}){
 		# just on odd chance we hit a bsd with /proc/cpuinfo, don't want to
 		# sleep 2x
-		if ($use{'sysctl-sleep'} && !$system_files{'proc-cpuinfo'}){
+		if ($use{'bsd-sleep'} && !$system_files{'proc-cpuinfo'}){
 			if ($b_hires){
 				eval 'Time::HiRes::usleep( $sleep )';
 			}
@@ -24246,31 +24245,35 @@ sub set_sysctl_data {
 		push(@{$sysctl{'main'}}, $_);
 		# we're building these here so we can use these arrays to test 
 		# in each feature if we will try to build the feature for bsds
-		if (/^hw\.snd\./){
+		if ($use{'bsd-audio'} && /^hw\.snd\./){
 			push(@{$sysctl{'audio'}}, $_);
 		}
-		elsif (/^hw\.sensors\.acpi(bat|cmb)/){
+		# note: we could use ac0 to indicate plugged in but messes with battery output
+		elsif ($use{'bsd-battery'} && /^hw\.sensors\.acpi(bat|cmb)/){
 			push(@{$sysctl{'battery'}}, $_);
 		}
-		elsif (/^dev\.cpu\./){
+		# hw.l1dcachesize hw.l2cachesize
+		elsif ($use{'bsd-cpu'} && (/^hw\.(busfreq|clock|n?cpu|l[123].?cach|model)/ || 
+			/^dev\.cpu/ || /^machdep\.cpu/)){
 			push(@{$sysctl{'cpu'}}, $_);
 		}
 		# only activate if using the diskname feature in dboot!!
-		elsif (/^hw\.disknames/){
+		elsif ($use{'bsd-disk'} && /^hw\.disknames/){
 			push(@{$dboot{'disk'}}, $_);
 		}
-		elsif (/^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
+		elsif ($use{'bsd-machine'} && 
+		 /^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@{$sysctl{'machine'}}, $_);
 		}
-		elsif (/^(hw\.(physmem|usermem)|Free Memory)/){
+		elsif ($use{'bsd-memory'} && /^(hw\.(physmem|usermem)|Free Memory)/){
 			push(@{$sysctl{'memory'}}, $_);
 		}
 		# hw.cpufreq.temperature: 40780 ; dev.cpu0.temperature 
 		# hw.acpi.thermal.tz2.temperature: 27.9C hw.acpi.thermal.tz1.temperature: 42.1C
 		# hw.acpi.thermal.tz0.temperature: 42.1C
-		elsif (( /^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && !/^hw.sensors.softraid/ ) ||
-		 (/^hw\.acpi\.thermal/)){
-			push(@{$sysctl{'sensors'}}, $_);
+		elsif ($use{'bsd-sensor'} &&((/^hw\.sensors/ && !/^hw\.sensors\.acpi(bat|cmb)/ && 
+		 !/^hw\.sensors\.softraid/) || /^hw\.acpi\.thermal/)){
+			push(@{$sysctl{'sensor'}}, $_);
 		}
 	}
 	if ($dbg[7]){
@@ -24280,7 +24283,7 @@ sub set_sysctl_data {
 		print("cpu\n", Dumper $sysctl{'cpu'});
 		print("machine\n", Dumper $sysctl{'machine'});
 		print("memory\n", Dumper $sysctl{'memory'});
-		print("sensors\n", Dumper $sysctl{'sensors'});
+		print("sensors\n", Dumper $sysctl{'sensor'});
 	}
 	# this thing can get really long.
 	if ($b_log){
@@ -24290,7 +24293,7 @@ sub set_sysctl_data {
 		main::log_data('dump','$sysctl{cpu}',$sysctl{'cpu'});
 		main::log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		main::log_data('dump','$sysctl{memory}',$sysctl{'memory'});
-		main::log_data('dump','$sysctl{sensors}',$sysctl{'sensors'});
+		main::log_data('dump','$sysctl{sensors}',$sysctl{'sensor'});
 	}
 	eval $end if $b_log;
 }
