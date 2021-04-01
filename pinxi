@@ -24548,6 +24548,8 @@ sub usbdevs_data {
 	my @data = usb_grabber('usbdevs');
 	foreach (@data){
 		if ($_ eq '~' && @working){
+			# used to assign port to right array index
+			$working[10] = $ports;
 			push(@{$usb{'main'}},[@working]);
 			assign_usb_type([@working]);
 			undef @working;
@@ -24589,8 +24591,6 @@ sub usbdevs_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
-			# used to assign port to right array index
-			$k = ($usb{'main'}) ? scalar @{$usb{'main'}}: 0;
 		}
 		elsif (/^port\s([0-9]+)\saddr\s([0-9]+):\s([^,]+),[^,0-9]*([0-9]+\s?mA)?,\s+config\s+([0-9]+),\s?([^,]+)\(0x([0-9a-f]{4})\),\s?([^,]+)\s?\(0x([0-9a-f]{4})\)/){
 			$port = $1;
@@ -24628,11 +24628,9 @@ sub usbdevs_data {
 			$working[18] = $config;
 			$working[19] = $power;
 			$working[20] = '';
-			$usb{'main'}->[$k][10] = $ports;
 		}
 		elsif (/^port\s([0-9]+)\spowered/){
 			$ports++;
-			$usb{'main'}->[$k][10] = $ports;
 		}
 		# newer openbsd usbdevs totally changed their syntax and layout, but it is better...
 		elsif (/^addr\s*([0-9a-f]+):\s+([a-f0-9]{4}:[a-f0-9]{4})\s*([^,]+)?(,\s[^,]+?)?,\s+([^,]+)$/){
@@ -24645,7 +24643,10 @@ sub usbdevs_data {
 			$class_id = ($name =~ /hub/i) ? '09': '01';
 			$path_id = "$bus_id-$addr_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
+			$ports = 0;
 			$b_multi = 1;
+			# used to assign port to right array index
+			$k = ($usb{'main'}) ? scalar @{$usb{'main'}}: 0;
 			$working[0] = $bus_id_alpha;
 			$working[1] = $addr_id;
 			$working[2] = $path_id;
@@ -24656,7 +24657,7 @@ sub usbdevs_data {
 			$working[7] = $chip_id;
 			$working[8] = '';
 			$working[9] = '';
-			$working[10] = 0;
+			$working[10] = $ports;
 			$working[11] = '';
 			$working[12] = '';
 			$working[13] = $name;
@@ -24695,6 +24696,9 @@ sub usbdevs_data {
 				$working[14] = $type if $type;
 			}
 		}
+		elsif ($b_multi && /^port\s[0-9]/){
+			$ports++;
+		}
 	}
 	main::log_data('dump','$usb{main}: usbdevs',$usb{'main'}) if $b_log;
 	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
@@ -24716,7 +24720,7 @@ sub usb_grabber {
 		$pattern = '^[a-z_-]+[0-9]+\.[0-9]+:';
 	}
 	elsif ($program eq 'usbdevs'){
-		$args = '-v';
+		$args = '-vv';
 		$path = $alerts{'usbdevs'}->{'path'};
 		$pattern = '^(addr\s[0-9a-f]+:|port\s[0-9]+\saddr\s[0-9]+:)';
 	}
