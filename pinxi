@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-01';
-my $self_patch='23';
+my $self_patch='24';
 ## END INXI INFO ##
 
 ## Self data
@@ -23672,7 +23672,7 @@ sub set_dboot_data {
 				push(@{$dboot{'ram'}}, $_);
 			}
 			elsif ($use{'bsd-usb'} && 
-			 (/^ugen[0-9]+\.[0-9]+:/ || ($b_ugen && /^[a-z]+[0-9]+\son\s[a-z]+[0-9]+$/))){
+			 (/^ugen[0-9]+\.[0-9]+:/ || /^[a-z]+[0-9]+[\s:].*on\s[a-z]+[0-9]+$/ || /^uhub[0-9]+:[0-9]+\sports/)){
 				$b_ugen = (/^ugen/) ? 1: 0;
 				push(@{$dboot{'usb'}},$_);
 			}
@@ -23685,6 +23685,7 @@ sub set_dboot_data {
 			log_data('dump','$dboot{disk}',$dboot{'disk'});
 			log_data('dump','$dboot{optical}',$dboot{'optical'});
 			log_data('dump','$dboot{ram}',$dboot{'ram'});
+			log_data('dump','$dboot{usb}',$dboot{'usb'});
 			log_data('dump','$sysctl{battery}',$sysctl{'battery'});
 			log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		}
@@ -23693,6 +23694,7 @@ sub set_dboot_data {
 			print("disk:\n", Dumper $dboot{'disk'});
 			print("optical:\n", Dumper $dboot{'optical'});
 			print("memory:\n", Dumper $dboot{'ram'});
+			print("usb:\n", Dumper $dboot{'usb'});
 			print("sys battery:\n", Dumper $sysctl{'battery'});
 			print("sys machine:\n", Dumper $sysctl{'machine'});
 		}
@@ -23707,7 +23709,7 @@ sub set_dboot_data {
 			#@disks = split(',',$disks[0]) if $disks[0];
 			my ($id,$value,%dboot_disks,@disks_live,@temp);
 			# first, since openbsd has this, let's use it
-			for (@{$dboot{'disk'}}){
+			foreach (@{$dboot{'disk'}}){
 				if (!@disks_live && /^hw\.disknames/){
 					$_ =~ s/(^hw\.disknames:|:[^,]*)//g; 
 					@disks_live = split(/[,\s]/,$_) if $_;
@@ -23717,7 +23719,7 @@ sub set_dboot_data {
 				}
 			}
 			@{$dboot{'disk'}} = @temp if @temp;
-			for my $row (@temp){
+			foreach my $row (@temp){
 				$row =~ /^([^:\s]+)[:\s]+(.+)/;
 				$id = $1;
 				$value = $2;
@@ -23733,8 +23735,7 @@ sub set_dboot_data {
 		}
 		if ($use{'bsd-pci'} && $dboot{'pci'}){
 			my $bus_id = 0;
-			my @temp;
-			for (@{$dboot{'pci'}}){
+			foreach (@{$dboot{'pci'}}){
 				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
 					$bus_id = $1;
 					next;
@@ -23744,26 +23745,66 @@ sub set_dboot_data {
 					push(@temp,$_);
 				}
 			}
-			$dboot{'pci'} = \@temp;
+			$dboot{'pci'} = [@temp];
 			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
 			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
 		}
+		#  this is all because freebsd fails to report usb drivers/ports... sigh
 		if ($use{'bsd-usb'} && $dboot{'usb'}){
-			my ($bus_id,$device,$driver) = ('','','');
-			my @temp;
-			for (@{$dboot{'usb'}}){
-				if (/^(ugen[0-9]+\.[0-9]+):/){
-					$bus_id = $1;
-					$device = $_;
-					next;
-				}
-				else {
-					$_ =~ s/^([a-z]+[0-9]+)\son\s[a-z]+[0-9]+$/$1/;
-					$device =~ s/^$bus_id:(.*)/$bus_id:$_:$1/;
-					push(@temp,$device);
+			my ($bus_id,$device,$driver,%data);
+			# 0: busID; 1: hub; 2: $driver; 3: ports
+			foreach (@{$dboot{'usb'}}){
+				if (/^((ugen[0-9]+)\.[0-9]+):.*at\s(\S+)$/){
+					$data{$1} = [$3,'',$2,0];
 				}
 			}
-			$dboot{'usb'} = \@temp;
+			if (%data){
+				my ($cnt,$id_live) = (0,'');
+				foreach my $main (@{$dboot{'usb'}}){
+					# fails to find nested hubs
+					if ($main =~ /^(ugen[0-9]+\.[0-9]+):/){
+						$cnt = 0;
+						$id_live = $1;
+						next;
+					}
+					else {
+						$cnt++;
+						if ($id_live){
+							# comes right after ugen item
+							if ($cnt == 1 && $main =~ /^(uhub[0-9]+) on uhub/){
+								#print "$id_live lhd:$1\n";
+								$data{$id_live}->[1] = $1;
+								$data{$id_live}->[2] = $1;
+								next;
+							}
+							elsif ($main !~ /^uhub/ && 
+							 ($main =~ /^([\D]+[0-9]+) on $data{$id_live}->[1]/ || 
+							 ($data{$id_live}->[2] && 
+							 $main =~ /^((u\S+)[0-9]+).* on $data{$id_live}->[2]/ ))){
+								#print "$id_live dd:$1\n";
+								$data{$id_live}->[2] = $1;
+								next;
+							}
+						}
+					}
+					foreach my $id (sort keys %data){
+						# these are wrong, sigh, will just catch first one in loop
+						# for > 1 hubs on bus
+						if (!$data{$id}->[1] && $main =~ /^(uhub[0-9]+).* on $data{$id}->[0]$/){
+							#print "$id hd:$1\n";
+							$data{$id}->[1] = $1;
+							$data{$id}->[2] = $1;
+							last;
+						}
+						elsif (!$data{$id}->[3] && $main =~ /^$data{$id}->[1]:([0-9]+) port/){
+							#print "$id pt:$1\n";
+							$data{$id}->[3] = $1;
+							last;
+						}
+					}
+				}
+			}
+			$dboot{'usb'} = \%data;
 			log_data('dump','$dboot{usb}',$dboot{'usb'}) if $b_log;
 			print("usb\n", Dumper $dboot{'usb'}) if $dbg[11];
 		}
@@ -24423,7 +24464,7 @@ sub lsusb_data {
 #ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
 sub usbconfig_data {
 	eval $start if $b_log;
-	my ($cfg,$hub_id);
+	my ($cfg,$hub_id,$ports);
 	my @data = usb_grabber('usbconfig');
 	foreach (@data){
 		if ($_ eq '~' && @working){
@@ -24456,7 +24497,7 @@ sub usbconfig_data {
 			$bus_id = $4;
 			$path_id = "$bus_id-$hub_id.$addr_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
-			($driver,$driver_nu) = usbconfig_driver("$1$2.$3");
+			($driver,$driver_nu,$ports) = usbconfig_extra_data("$1$2.$3");
 			if (/\bcfg\s*=\s*([0-9]+)/){
 				$cfg = $1;
 			}
@@ -24478,7 +24519,7 @@ sub usbconfig_data {
 			$working[3] = '';
 			$working[8] = usb_rev($speed);
 			$working[9] = '';
-			$working[10] = 0;
+			$working[10] = $ports;
 			$working[15] = $driver;
 			$working[17] = $speed;
 			$working[18] = $cfg;
@@ -24522,19 +24563,21 @@ sub usbconfig_data {
 	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	eval $end if $b_log;
 }
-sub usbconfig_driver {
+sub usbconfig_extra_data {
 	eval $start if $b_log;
 	my $bus_id = $_[0];
-	my ($driver,$nu);
-	for (@{$dboot{'usb'}}) {
-		if (/^$bus_id:([^0-9]+)([0-9]+):/){
+	my ($driver,$nu,$ports);
+	return if !$dboot{'usb'};
+	if ($dboot{'usb'}->{$bus_id} && ref $dboot{'usb'}->{$bus_id} eq 'ARRAY'){
+		$driver = $dboot{'usb'}->{$bus_id}[2];
+		$ports = $dboot{'usb'}->{$bus_id}[3];
+		if ($driver && $driver =~ /^([^0-9]+)([0-9]+)$/){
 			$driver = $1;
 			$nu = $2;
-			last;
 		}
 	}
 	eval $end if $b_log;
-	return ($driver,$nu);
+	return ($driver,$nu,$ports);
 }
 
 # Controller /dev/usb2:
