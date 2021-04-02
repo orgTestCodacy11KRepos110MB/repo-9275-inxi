@@ -23751,60 +23751,66 @@ sub set_dboot_data {
 		}
 		#  this is all because freebsd fails to report usb drivers/ports... sigh
 		if ($use{'bsd-usb'} && $dboot{'usb'}){
-			my ($bus_id,$device,$driver,%data);
-			# 0: busID; 1: hub; 2: $driver; 3: ports
+			my ($bus_id,$device,$driver,@data);
+			# busID; 0: ugenID 1: device; 2: $driver; 3: ports
 			foreach (@{$dboot{'usb'}}){
-				if (/^((ugen[0-9]+)\.[0-9]+):.*at\s(\S+)$/){
-					$data{$1} = [$3,'',$2,0];
+				if (/^(ugen([\d]+))\.([\d]+):.*at\s\S+$/){
+					$data[$2]->[$3] = {'driver' => $1};
+					#push(@{$data{$3}},{'uid' => $1, 'device' => {'type' => '', 'driver' => $2, 'ports' => 0}});
 				}
 			}
-			if (%data){
+			if (@data){
 				my ($cnt,$id_live) = (0,'');
 				foreach my $main (@{$dboot{'usb'}}){
-					# fails to find nested hubs
-					if ($main =~ /^(ugen[0-9]+\.[0-9]+):/){
-						$cnt = 0;
-						$id_live = $1;
-						next;
+					
+					if ($main =~ /^(uhub[\d]+) on (usbbus[\d]+)/){
+						#$data{$3}->
 					}
-					else {
-						$cnt++;
-						if ($id_live){
-							# comes right after ugen item
-							if ($cnt == 1 && $main =~ /^(uhub[0-9]+) on uhub/){
-								#print "$id_live lhd:$1\n";
-								$data{$id_live}->[1] = $1;
-								$data{$id_live}->[2] = $1;
-								next;
-							}
-							elsif ($main !~ /^uhub/ && 
-							 ($main =~ /^([\D]+[0-9]+) on $data{$id_live}->[1]/ || 
-							 ($data{$id_live}->[2] && 
-							 $main =~ /^((u\S+)[0-9]+).* on $data{$id_live}->[2]/ ))){
-								#print "$id_live dd:$1\n";
-								$data{$id_live}->[2] = $1;
-								next;
-							}
-						}
-					}
-					foreach my $id (sort keys %data){
-						# these are wrong, sigh, will just catch first one in loop
-						# for > 1 hubs on bus
-						if (!$data{$id}->[1] && $main =~ /^(uhub[0-9]+).* on $data{$id}->[0]$/){
-							#print "$id hd:$1\n";
-							$data{$id}->[1] = $1;
-							$data{$id}->[2] = $1;
-							last;
-						}
-						elsif (!$data{$id}->[3] && $main =~ /^$data{$id}->[1]:([0-9]+) port/){
-							#print "$id pt:$1\n";
-							$data{$id}->[3] = $1;
-							last;
-						}
-					}
+# 					# fails to find nested hubs
+# 					if ($main =~ /^(ugen[0-9]+\.[0-9]+):/){
+# 						$cnt = 0;
+# 						$id_live = $1;
+# 						next;
+# 					}
+# 					else {
+# 						$cnt++;
+# 						if ($id_live){
+# 							# comes right after ugen item
+# 							if ($cnt == 1 && $main =~ /^(uhub[0-9]+) on uhub/){
+# 								print "$id_live lhd:$1\n";
+# 								$data{$id_live}->[1] = $1;
+# 								$data{$id_live}->[2] = $1;
+# 								next;
+# 							}
+# 							# 
+# 							#elsif ($main !~ /^uhub/ && $main =~ /^([\D]+[0-9]+) on $data{$id_live}->[1]/){
+# 							elsif ($main !~ /^uhub/ && 
+# 							 ($main =~ /^([\D]+[0-9]+) on $data{$id_live}->[1]/ || 
+# 							 $main =~ /^((u\S+)[0-9]+).* on $data{$id_live}->[2]/ )){
+# 								print "$id_live dd:$1\n";
+# 								$data{$id_live}->[2] = ($1) ? $1 : $2;
+# 								next;
+# 							}
+# 						}
+# 					}
+# 					foreach my $id (sort keys %data){
+# 						# these are wrong, sigh, will just catch first one in loop
+# 						# for > 1 hubs on bus
+# 						if (!$data{$id}->[1] && $main =~ /^(uhub[0-9]+).* on $data{$id}->[0]$/){
+# 							print "$id hd:$1\n";
+# 							$data{$id}->[1] = $1;
+# 							$data{$id}->[2] = $1;
+# 							last;
+# 						}
+# 						elsif (!$data{$id}->[3] && $main =~ /^$data{$id}->[1]:([0-9]+) port/){
+# 							print "$id pt:$1\n";
+# 							$data{$id}->[3] = $1;
+# 							last;
+# 						}
+# 					}
 				}
 			}
-			$dboot{'usb'} = \%data;
+			$dboot{'usb'} = \@data;
 			log_data('dump','$dboot{usb}',$dboot{'usb'}) if $b_log;
 			print("usb\n", Dumper $dboot{'usb'}) if $dbg[11];
 		}
