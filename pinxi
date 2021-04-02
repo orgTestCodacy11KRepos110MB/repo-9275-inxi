@@ -23671,10 +23671,6 @@ sub set_dboot_data {
 			elsif ($use{'bsd-ram'} && /(^spdmem)/){
 				push(@{$dboot{'ram'}}, $_);
 			}
-# 			elsif ($use{'bsd-usb'} && 
-# 			 (/^ugen[0-9]+\.[0-9]+:/ || /^[a-z]+[0-9]+[\s:].*on\s[a-z]+[0-9]+$/ || /^uhub[0-9]+:[0-9]+\sports/)){
-# 				push(@{$dboot{'usb'}},$_);
-# 			}
 		}
 		log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
 		print Dumper $dboot{'main'} if $dbg[11];
@@ -23747,13 +23743,6 @@ sub set_dboot_data {
 			$dboot{'pci'} = [@temp];
 			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
 			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
-		}
-		# tried, impossible to match a 1 or 2D structure to 3D reality, sorry
-		if ($use{'bsd-usb'} && $dboot{'usb'}){
-# 			my ($bus_id,$device,$driver,@data);
-# 			$dboot{'usb'} = \@data;
-# 			log_data('dump','$dboot{usb}',$dboot{'usb'}) if $b_log;
-# 			print("usb\n", Dumper $dboot{'usb'}) if $dbg[11];
 		}
 	}
 	eval $end if $b_log;
@@ -24409,6 +24398,7 @@ sub lsusb_data {
 }
 #ugen0.1: <Apple OHCI root HUB> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=SAVE (0mA)
 #ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
+# note: tried getting driver/ports from dmesg, impossible, waste of time
 sub usbconfig_data {
 	eval $start if $b_log;
 	my ($cfg,$hub_id,$ports);
@@ -24429,7 +24419,7 @@ sub usbconfig_data {
 				$type = device_type("$class_id/$subclass_id/$protocol_id");
 			}
 			if ($working[13] && (!$type || $type eq '<vendor defined>')){
-				$type = check_type($working[13],$driver,'');
+				$type = check_type($working[13],'','');
 			}
 			$working[14] = $type;
 			push(@{$usb{'main'}},[@working]);
@@ -24444,7 +24434,6 @@ sub usbconfig_data {
 			$bus_id = $4;
 			$path_id = "$bus_id-$hub_id.$addr_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
-			#($driver,$driver_nu,$ports) = usbconfig_extra_data("$1$2.$3");
 			if (/\bcfg\s*=\s*([0-9]+)/){
 				$cfg = $1;
 			}
@@ -24510,23 +24499,6 @@ sub usbconfig_data {
 	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	eval $end if $b_log;
 }
-sub usbconfig_extra_data {
-	eval $start if $b_log;
-	my $bus_id = $_[0];
-	my ($driver,$nu,$ports);
-	return if !$dboot{'usb'};
-	if ($dboot{'usb'}->{$bus_id} && ref $dboot{'usb'}->{$bus_id} eq 'ARRAY'){
-		$driver = $dboot{'usb'}->{$bus_id}[2];
-		$ports = $dboot{'usb'}->{$bus_id}[3];
-		if ($driver && $driver =~ /^([^0-9]+)([0-9]+)$/){
-			$driver = $1;
-			$nu = $2;
-		}
-	}
-	eval $end if $b_log;
-	return ($driver,$nu,$ports);
-}
-
 # Controller /dev/usb2:
 # addr 1: full speed, self powered, config 1, UHCI root hub(0x0000), Intel(0x8086), rev 1.00
 #  port 1 addr 2: full speed, power 98 mA, config 1, USB Receiver(0xc52b), Logitech(0x046d), rev 12.01
