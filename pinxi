@@ -321,7 +321,6 @@ sub set_commands {
 	if ($show{'sensor'}){
 		$commands{'sensors'} = ['missing','linux','',''];
 	}
-	
 	if ($show{'ip'} || ($bsd_type && $show{'network-advanced'})){
 		$commands{'ip'} = ['missing','linux','',''];
 		$commands{'ifconfig'} = ['missing','','',''];
@@ -336,6 +335,9 @@ sub set_commands {
 	}
 	if ($use{'smartctl'}){
 		$commands{'smartctl'} = ['missing','','',''];
+	}
+	if ($show{'unmounted'}){
+		$commands{'disklabel'} = ['missing','bsd','xx'];
 	}
 }
 sub set_forced_tools {
@@ -371,6 +373,9 @@ sub set_fake_bsd_tools {
 		'action' => 'missing',
 		'message' => 'Required program lsusb not available',
 		};
+	}
+	if ($fake{'disklabel'}){
+		$alerts{'disklabel'}->{'action'} = 'use';
 	}
 }
 }
@@ -4949,7 +4954,8 @@ sub post_process {
 		if ($show{'short'} || $show{'cpu-basic'} || $show{'cpu'}){
 			$use{'bsd-cpu'} = 1;
 			$use{'bsd-sleep'} = 1;}
-		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || $show{'disk'}){
+		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || 
+		 $show{'disk'} || $show{'unmounted'}){
 			$use{'bsd-disk'} = 1;}
 		if ($show{'machine'}){
 			$use{'bsd-machine'} = 1;}
@@ -6644,11 +6650,11 @@ sub print_line {
 }
 
 ########################################################################
-#### DATA PROCESSORS
+#### ITEM PROCESSORS
 ########################################################################
 
 #### -------------------------------------------------------------------
-#### PRIMARY DATA GENERATORS
+#### PRIMARY ITEM GENERATORS
 #### -------------------------------------------------------------------
 
 ## AudioItem 
@@ -20045,9 +20051,8 @@ sub complete_location {
 }
 
 #### -------------------------------------------------------------------
-#### UTILITIES FOR ITEMS
+#### ITEM UTILITIES
 #### -------------------------------------------------------------------
-
 
 # android only, for distro / OS id and machine data
 sub set_build_prop {
@@ -20313,6 +20318,7 @@ sub set_dboot_data {
 				$id = $1;
 				$value = $2;
 				push(@{$dboot_disks{$id}},$value);
+				# get rid of detached or non present drives
 				if ((@disks_live && !(grep {$id =~ /^$_/} @disks_live)) || 
 				 $value =~ /\b(destroyed|detached)$/){
 					delete $dboot_disks{$id};
@@ -20999,6 +21005,7 @@ sub set_xprop {
 }
 
 }
+
 ## DeviceData / PCI / SOC
 ## creates arrays: $devices{'audio'}; $devices{'graphics'}; $devices{'hwraid'}; 
 ## $devices{'network'}; $devices{'timer'} and local @devices for logging/debugging
@@ -22461,6 +22468,7 @@ sub get_driver_modules {
 	eval $end if $b_log;
 	return $modules;
 }
+
 # 1: driver; 2: modules, comma separated, return only modules 
 # which do not equal the driver string itself. Sometimes the module
 # name is different from the driver name, even though it's the same thing.
@@ -22592,6 +22600,7 @@ sub set {
 	eval $end if $b_log;
 }
 }
+
 sub get_hostname {
 	eval $start if $b_log;
 	my $hostname = '';
@@ -22946,7 +22955,8 @@ sub parameters_bsd {
 	return $parameters;
 }
 }
-# LsblkData
+
+# LsblkData - set/get
 {
 package LsblkData;
 # 1 - partition name
@@ -23291,6 +23301,7 @@ sub get_module_version {
 	eval $end if $b_log;
 	return $version;
 }
+
 # Note: this outputs the key/value pairs ready to go and is
 # called from either -r or -Ix, -r precedes. 
 ## Get PackageData
@@ -23450,7 +23461,7 @@ sub count_libs {
 }
 }
 
-# PartitionData
+# PartitionData - set/get
 {
 package PartitionData;
 sub set {
@@ -23462,6 +23473,7 @@ sub set {
 		}
 	}
 	elsif ($type eq 'bsd'){
+		# we can't check permissions without knowing the disk ID
 		if ($alerts{'disklabel'}->{'action'} eq 'use'){
 			disklabel_data();
 		}
@@ -23498,7 +23510,10 @@ sub proc_data {
 }
 sub bsd_disklabel {
 	eval $start if $b_log;
-	
+	return if !$dboot{'disks'};
+	foreach (keys %{$dboot{'disks'}}){
+		my $cmd = "$alerts{'disklabel'}->{'path'} $_ 2>/dev/null";
+	}
 	eval $end if $b_log;
 }
 }
@@ -23566,6 +23581,7 @@ sub set_ps_aux {
 	# print Dumper \@ps_cmd; # if $dbg[5];
 	eval $end if $b_log;
 }
+
 sub set_ps_gui {
 	eval $start if $b_log;
 	$loaded{'ps-gui'} = 1;
@@ -25159,6 +25175,7 @@ sub bus_id_alpha {
 	return $id;
 }
 }
+
 #  note: seen instance in android where reading file hangs endlessly!!!
 sub get_wakeups {
 	eval $start if $b_log;
