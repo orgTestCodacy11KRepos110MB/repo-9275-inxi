@@ -12561,7 +12561,7 @@ sub get {
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
  	else {
-		main::set_lsblk() if !$loaded{'lsblk'};
+		LsblkData::set() if !$loaded{'lsblk'};
 		if ($fake{'logical'} || $alerts{'lvs'}->{'action'} eq 'use'){
 			lvm_data() if !$loaded{'logical-data'};
 			if (!@lvm){
@@ -12745,7 +12745,7 @@ sub general_data {
 	foreach my $row (@lsblk){
 		# bcache doesn't have mapped name: !$mapper{$row->{'name'}} || 
 		next if !$row->{'parent'};
-		%parent = main::get_lsblk($row->{'parent'});
+		%parent = LsblkData::get($row->{'parent'});
 		next if !$parent{'fs'};
 		if ($row->{'type'} && (($row->{'type'} eq 'crypt' || 
 		    $row->{'type'} eq 'mpath' || $row->{'type'} eq 'multipath')  ||
@@ -14624,7 +14624,7 @@ sub set_partitions {
 	}
 	# for raw partition sizes, maj_min
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
-	main::set_lsblk() if !$bsd_type && !$loaded{'lsblk'};
+	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
 	# set @labels, @uuid, %gpart
 	if (!$bsd_type){
 		set_label_uuid() if !$loaded{'label-uuid'};
@@ -14720,7 +14720,7 @@ sub set_partitions {
 			}
 			$dev_base = $row[0];
 			$dev_base =~ s|^/.*/||;
-			%part = main::get_lsblk($dev_base) if @lsblk;
+			%part = LsblkData::get($dev_base) if @lsblk;
 			$maj_min = get_maj_min($dev_base) if @proc_partitions;
 		}
 		# this handles zfs type devices/partitions, which do not start with / but contain /
@@ -15783,7 +15783,7 @@ sub components_output {
 
 sub raid_data {
 	eval $start if $b_log;
-	main::set_lsblk() if !$bsd_type && !$loaded{'lsblk'};
+	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
 	main::set_mapper() if !$bsd_type && !$loaded{'mapper'};
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	my (@data);
@@ -15962,7 +15962,7 @@ sub md_data {
 				}
 			}
 			if ((!$maj_min || !$size) && @lsblk){
-				%device = main::get_lsblk($id) if @lsblk;
+				%device = LsblkData::get($id) if @lsblk;
 				$maj_min = $device{'maj-min'} if $device{'maj-min'};
 				$size = $device{'size'} if $device{'size'};
 			}
@@ -15993,7 +15993,7 @@ sub md_data {
 					}
 				}
 				if ((!$maj_min || !$part_size) && @lsblk) {
-					%data= main::get_lsblk($name);
+					%data= LsblkData::get($name);
 					$maj_min = $data{'maj-min'} if !$maj_min;
 					$part_size = $data{'size'}if !$part_size;
 				}
@@ -16240,7 +16240,7 @@ sub zfs_data {
 				}
 			}
 			if ((!$maj_min || !$part_size) && @lsblk){
-				my %data= main::get_lsblk($working);
+				my %data= LsblkData::get($working);
 				$maj_min = $data{'maj-min'};
 				$part_size = $data{'size'};
 			}
@@ -19169,7 +19169,7 @@ sub unmounted_data {
 			$dev_mapped = $dmmapper{$row->[-1]} if $dmmapper{$row->[-1]};
 			if (@lsblk){
 				my $id = ($dev_mapped) ? $dev_mapped: $row->[-1];
-				%part = main::get_lsblk($id);
+				%part = LsblkData::get($id);
 				if (%part){
 					$fs = $part{'fs'};
 					$label = $part{'label'};
@@ -20045,7 +20045,7 @@ sub complete_location {
 }
 
 #### -------------------------------------------------------------------
-#### UTILITIES FOR DATA LINES
+#### UTILITIES FOR ITEMS
 #### -------------------------------------------------------------------
 
 
@@ -22946,8 +22946,11 @@ sub parameters_bsd {
 	return $parameters;
 }
 }
+# LsblkData
+{
+package LsblkData;
 # 1 - partition name
-sub get_lsblk {
+sub get {
 	eval $start if $b_log;
 	my $item = $_[0];
 	return if !@lsblk;
@@ -22961,7 +22964,7 @@ sub get_lsblk {
 	eval $start if $b_log;
 	return %device;
 }
-sub set_lsblk {
+sub set {
 	eval $start if $b_log;
 	$loaded{'lsblk'} = 1;
 	if ($alerts{'lsblk'} && $alerts{'lsblk'}->{'path'}){
@@ -23009,6 +23012,7 @@ sub set_lsblk {
 	print Data::Dumper::Dumper \@lsblk if $dbg[32];
 	main::log_data('dump','@lsblk',\@lsblk) if $b_log;
 	eval $end if $b_log;
+}
 }
 
 sub set_mapper {
