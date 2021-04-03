@@ -10025,7 +10025,7 @@ sub proc_data {
 	my ($used) = @_;
 	my (@data,@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^(fio[a-z]+|[hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
@@ -12740,7 +12740,7 @@ sub components_recursive_output {
 sub general_data {
 	eval $start if $b_log;
 	my (@found,@general_data,%parent,$parent_fs);
-	PartitionData::set('proc') if !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	foreach my $row (@lsblk){
 		# bcache doesn't have mapped name: !$mapper{$row->{'name'}} || 
@@ -12805,7 +12805,7 @@ sub lvm_data {
 	stripes devices raid_mismatch_count raid_sync_action raid_write_behind
 	copy_percent);
 	my $num = 0;
-	PartitionData::set('proc') if !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	if ($fake{'logical'}){
 		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
@@ -12893,7 +12893,7 @@ sub component_recursive_data {
 	# return @devices if !$b_admin;
 	foreach my $device (@devices){
 		my ($mapped,$mm2,@part);
-		@part = main::get_proc_partition($device) if @proc_partitions; 
+		@part = PartitionData::get_proc($device) if @proc_partitions; 
 		$mm2 = $part[0] . ':' . $part[1] if @part;
 		if ($device =~ /^(bcache|dm-|md)[0-9]+$/){
 			$mapped = $dmmapper{$device};
@@ -14623,7 +14623,7 @@ sub set_partitions {
 		$blockdev = $alerts{'blockdev'}->{'path'} if $alerts{'blockdev'}->{'path'};
 	}
 	# for raw partition sizes, maj_min
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	main::set_lsblk() if !$bsd_type && !$loaded{'lsblk'};
 	# set @labels, @uuid, %gpart
 	if (!$bsd_type){
@@ -15785,7 +15785,7 @@ sub raid_data {
 	eval $start if $b_log;
 	main::set_lsblk() if !$bsd_type && !$loaded{'lsblk'};
 	main::set_mapper() if !$bsd_type && !$loaded{'mapper'};
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	my (@data);
 	$loaded{'raid'} = 1;
 	if ($fake{'raid-lvm'} || 
@@ -15862,7 +15862,7 @@ sub lvm_data {
 		foreach my $part (@working){
 			my (@data,$dev,$maj_min,$mapped,$size);
 			if (@proc_partitions){
-				@data = main::get_proc_partition($part);
+				@data = PartitionData::get_proc($part);
 				$maj_min = $data[0] . ':' . $data[1] if defined $data[1];
 				$size = $data[2];
 				$raw_logical[1] += $size if $part =~ /^dm-/ && $size;
@@ -15955,7 +15955,7 @@ sub md_data {
 			@temp = ();
 			# cascade of tests, light to cpu intense
 			if ((!$maj_min || !$size) && @proc_partitions){
-				@part = main::get_proc_partition($id);
+				@part = PartitionData::get_proc($id);
 				if (@part){
 					$maj_min = $part[0] . ':' . $part[1];
 					$size = $part[2];
@@ -15986,7 +15986,7 @@ sub md_data {
 					$state = $details{'devices'}->{$name}{'state'};
 				}
 				if ((!$maj_min || !$part_size) && @proc_partitions){
-					@part = main::get_proc_partition($name);
+					@part = PartitionData::get_proc($name);
 					if (@part){
 						$maj_min = $part[0] . ':' . $part[1] if !$maj_min;
 						$part_size = $part[2] if !$part_size;
@@ -16233,7 +16233,7 @@ sub zfs_data {
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
 			if ((!$maj_min || !$part_size) && @proc_partitions){
-				my @part = main::get_proc_partition($working);
+				my @part = PartitionData::get_proc($working);
 				if (@part){
 					$maj_min = $part[0] . ':' . $part[1];
 					$part_size = $part[2];
@@ -16603,7 +16603,7 @@ sub dmidecode_data {
 					$max_cap_16 = calculate_size($temp[1],$max_cap_16);
 					$ram[$handle]->{'max-capacity-16'} = $max_cap_16;
 				}
-				# note: these 3 have cleaned data in set_dmidecode_data, so replace stuff manually
+				# note: these 3 have cleaned data in DmiData, so replace stuff manually
 				elsif ($temp[0] eq 'Location'){
 					$temp[1] =~ s/\sOr\sMotherboard//;
 					$temp[1] ||= 'System Board';
@@ -18974,7 +18974,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows);
 	my $num = 0;
-	@rows = swap_output();
+	@rows = create_output();
 	if (!@rows){
 		push(@rows, 
 		{main::key($num++,0,1,'Alert') => main::row_defaults('swap-data')},
@@ -18983,12 +18983,12 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub swap_output {
+sub create_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
 	my (%part,@rows,$dev,$percent,$raw_size,$size,$used);
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'proc-partitions'};
+	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	PartitionItem::swap_data() if !$loaded{'set-swap'};
 	foreach my $row (@swaps){
@@ -20045,10 +20045,62 @@ sub complete_location {
 }
 
 #### -------------------------------------------------------------------
-#### UTILITIES FOR DATA LINES - GET
+#### UTILITIES FOR DATA LINES
 #### -------------------------------------------------------------------
 
-# Get CompilerVersion
+
+# android only, for distro / OS id and machine data
+sub set_build_prop {
+	eval $start if $b_log;
+	my $path = '/system/build.prop';
+	$loaded{'build-prop'} = 1;
+	return if ! -r $path;
+	my @data = reader($path,'strip');
+	foreach (@data){
+		my @working = split('=', $_);
+		next if $working[0] !~ /^ro\.(build|product)/;
+		if ($working[0] eq 'ro.build.date.utc'){
+			$build_prop{'build-date'} = strftime "%F", gmtime($working[1]);
+		}
+		# ldgacy, replaced by ro.product.device
+		elsif ($working[0] eq 'ro.build.product'){
+			$build_prop{'build-product'} = $working[1];
+		}
+		# this can be brand, company, android, it varies, but we don't want android value
+		elsif ($working[0] eq 'ro.build.user'){
+			$build_prop{'build-user'} = $working[1] if $working[1] !~ /android/i;
+		}
+		elsif ($working[0] eq 'ro.build.version.release'){
+			$build_prop{'build-version'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.board'){
+			$build_prop{'product-board'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.brand'){
+			$build_prop{'product-brand'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.device'){
+			$build_prop{'product-device'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.manufacturer'){
+			$build_prop{'product-manufacturer'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.model'){
+			$build_prop{'product-model'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.name'){
+			$build_prop{'product-name'} = $working[1];
+		}
+		elsif ($working[0] eq 'ro.product.screensize'){
+			$build_prop{'product-screensize'} = $working[1];
+		}
+	}
+	log_data('dump','%build_prop',\%build_prop) if $b_log;
+	print Dumper \%build_prop if $dbg[20];
+	eval $end if $b_log;
+}
+
+# CompilerVersion
 {
 package CompilerVersion;
 sub get {
@@ -20120,7 +20172,177 @@ sub version_proc {
 }
 }
 
-## Get DesktopEnvironment
+sub set_dboot_data {
+	eval $start if $b_log;
+	$loaded{'dboot'} = 1;
+	my ($file,@db_data,@dm_data,@temp);
+	my ($counter) = (0);
+	if (!$fake{'dboot'}){
+		$file = $system_files{'dmesg-boot'};
+	}
+	else {
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
+		## matches: toshiba: openbsd-5.6-sysctl-2.txt
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
+		## matches: compaq: openbsd-5.6-sysctl-1.txt"
+		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
+	}
+	if ($file){
+		return if ! -r $file;
+		@db_data = reader($file);
+		# sometimes > 1 sessions stored, dump old ones
+		for (@db_data){
+			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/){
+				$counter++;
+				undef @temp if $counter > 1; 
+			}
+			push(@temp,$_);
+		}
+		@db_data = @temp;
+		undef @temp; 
+		my @dm_data = grabber('dmesg 2>/dev/null');
+		# clear out for netbsd, only 1 space following or lines won't match
+		@dm_data = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dm_data;
+		$counter = 0;
+		# dump previous sessions, and also everything roughly before dmesg.boot 
+		# ends, it does't need to be perfect, we just only want the actual post 
+		# boot data
+		for (@dm_data){
+			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/ ||
+				/^(smbus[0-9]:|Security policy loaded|root on)/){
+				$counter++;
+				undef @temp if $counter > 1; 
+			}
+			push(@temp,$_);
+		}
+		@dm_data = @temp;
+		undef @temp; 
+		push(@db_data,'~~~~~',@dm_data);
+		# uniq(\@db_data); # get rid of duplicate lines
+		# some dmesg repeats, so we need to dump the second and > iterations
+		# replace all indented items with ~ so we can id them easily while
+		# processing note that if user, may get error of read permissions
+		# for some weird reason, real mem and avail mem are use a '=' separator, 
+		# who knows why, the others are ':'
+		foreach (@db_data){
+			$_ =~ s/\s*=\s*|:\s*/:/;
+			$_ =~ s/\"//g;
+			$_ =~ s/^\s+/~/;
+			$_ =~ s/\s\s/ /g;
+			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
+			push(@{$dboot{'main'}}, $_);
+			if ($use{'bsd-battery'} && /^acpi(bat|cmb)/){
+				push(@{$sysctl{'battery'}}, $_);
+			}
+			elsif ($use{'bsd-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
+				push(@{$dboot{'cpu'}}, $_);
+			}
+			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
+			# OpenBSD: 'sd' is usb device, 'wd' normal drive. OpenBSD uses sd for nvme drives
+			# but also has the nvme data: 
+			# nvme1 at pci6 dev 0 function 0 vendor "Phison", unknown product 0x5012 rev 0x01: msix, NVMe 1.3
+			# nvme1: OWC Aura P12 1.0TB, firmware ECFM22.6, serial 2003100010208
+			# scsibus2 at nvme1: 2 targets, initiator 0
+			# sd1 at scsibus2 targ 1 lun 0: <NVMe, OWC Aura P12 1.0, ECFM>
+			# sd1: 915715MB, 4096 bytes/sector, 234423126 sectors
+			elsif ($use{'bsd-disk'} && 
+			 /^(ad|ada|da|mmcblk|mmcsd|nvme([0-9]+n)?|sd|wd)[0-9]+(:|\sat\s|.*?\sdetached$)/){
+				$_ =~ s/^\(//;
+				push (@{$dboot{'disk'}},$_);
+			}
+			if ($use{'bsd-machine'} && /^bios[0-9]:(at|vendor)/){
+				push(@{$sysctl{'machine'}}, $_);
+			}
+			elsif ($use{'bsd-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
+				push(@{$dboot{'optical'}},$_);
+			}
+			elsif ($use{'bsd-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
+				push(@{$dboot{'pci'}},$_);
+			}
+			elsif ($use{'bsd-ram'} && /(^spdmem)/){
+				push(@{$dboot{'ram'}}, $_);
+			}
+		}
+		log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
+		print Dumper $dboot{'main'} if $dbg[11];
+		
+		if ($dboot{'main'} && $b_log){
+			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
+			log_data('dump','$dboot{disk}',$dboot{'disk'});
+			log_data('dump','$dboot{optical}',$dboot{'optical'});
+			log_data('dump','$dboot{ram}',$dboot{'ram'});
+			log_data('dump','$dboot{usb}',$dboot{'usb'});
+			log_data('dump','$sysctl{battery}',$sysctl{'battery'});
+			log_data('dump','$sysctl{machine}',$sysctl{'machine'});
+		}
+		if ($dboot{'main'} && $dbg[11]){
+			print("cpu:\n", Dumper $dboot{'cpu'});
+			print("disk:\n", Dumper $dboot{'disk'});
+			print("optical:\n", Dumper $dboot{'optical'});
+			print("memory:\n", Dumper $dboot{'ram'});
+			print("usb:\n", Dumper $dboot{'usb'});
+			print("sys battery:\n", Dumper $sysctl{'battery'});
+			print("sys machine:\n", Dumper $sysctl{'machine'});
+		}
+		# this should help get rid of dmesg usb mounts not present
+		# note if you take out one, put in another, it will always show the first 
+		# one, I think. Not great. Not using this means all drives attached
+		# current session are shown, using it, possibly wrong drive shown, which is bad
+		# not using this for now: && (my @disks = grep {/^hw\.disknames/} @{$dboot{'disk'}}
+		if ($dboot{'disk'}){
+			# hw.disknames:sd0:,sd1:3242432,sd2:
+			#$disks[0] =~ s/(^hw\.disknames:|:[^,]*)//g; 
+			#@disks = split(',',$disks[0]) if $disks[0];
+			my ($id,$value,%dboot_disks,@disks_live,@temp);
+			# first, since openbsd has this, let's use it
+			foreach (@{$dboot{'disk'}}){
+				if (!@disks_live && /^hw\.disknames/){
+					$_ =~ s/(^hw\.disknames:|:[^,]*)//g; 
+					@disks_live = split(/[,\s]/,$_) if $_;
+				}
+				else {
+					push(@temp,$_);
+				}
+			}
+			@{$dboot{'disk'}} = @temp if @temp;
+			foreach my $row (@temp){
+				$row =~ /^([^:\s]+)[:\s]+(.+)/;
+				$id = $1;
+				$value = $2;
+				push(@{$dboot_disks{$id}},$value);
+				if ((@disks_live && !(grep {$id =~ /^$_/} @disks_live)) || 
+				 $value =~ /\b(destroyed|detached)$/){
+					delete $dboot_disks{$id};
+				}
+			}
+			$dboot{'disk'} = \%dboot_disks;
+			log_data('dump','post: $dboot{disk}',$dboot{'disk'}) if $b_log;
+			print("post: disk:\n",Dumper $dboot{'disk'}) if $dbg[11];
+		}
+		if ($use{'bsd-pci'} && $dboot{'pci'}){
+			my $bus_id = 0;
+			foreach (@{$dboot{'pci'}}){
+				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
+					$bus_id = $1;
+					next;
+				}
+				elsif (/:at pci[0-9]+\sdev/){
+					$_ =~ s/^(\S+):at.*?dev\s([0-9]+)\sfunction\s([0-9]+)\s/$bus_id:$2:$3:$1:/;
+					push(@temp,$_);
+				}
+			}
+			$dboot{'pci'} = [@temp];
+			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
+			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
+		}
+	}
+	eval $end if $b_log;
+}
+
+## DesktopEnvironment
 ## returns array:
 # 0 - desktop name
 # 1 - version
@@ -20777,2132 +20999,7 @@ sub set_xprop {
 }
 
 }
-
-sub get_display_manager {
-	eval $start if $b_log;
-	my (@data,@found,$path,$working,$b_run,$b_vrun,$b_vrunrc);
-	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
-	# extension in Arch note: to avoid positives with directories, test for -f 
-	# explicitly, not -e. Guessing on cdm.pid. pcdm uses vt, PCDM-vt9.pid
-	my @dms = qw(cdm.pid entranced.pid gdm.pid gdm3.pid kdm.pid ldm.pid 
-	lightdm.pid lxdm.pid mdm.pid nodm.pid pcdm.pid sddm.pid slim.lock 
-	slim.pid tdm.pid udm.pid wdm.pid xdm.pid xenodm.pid);
-	# these are the only one I know of so far that have version info
-	my @dms_version = qw(gdm gdm3 lightdm slim);
-	$b_run = 1 if -d "/run";
-	# in most linux, /var/run is a sym link to /run, so no need to check it twice
-	if ( -d "/var/run" ){
-		my $rdlink = readlink('/var/run');
-		$b_vrun = 1 if !$rdlink || ($rdlink && $rdlink ne '/run');
-		$b_vrunrc = 1 if -d "/var/run/rc.d";
-	}
-	foreach my $id (@dms){
-		# note: $working will create a dir name out of the dm $id, then 
-		# test if pid is in that note: sddm, in an effort to be unique and special, 
-		# do not use a pid/lock file, but rather a random string inside a directory 
-		# called /run/sddm/ so assuming the existence of the pid inside a directory named
-		# from the dm. Hopefully this change will not have negative results.
-		$working = $id;
-		$working =~ s/\.\S+$//;
-		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
-		if ( ( ( $b_run && ( -f "/run/$id" || -d "/run/$working" ) ) || 
-		   ( $b_vrun && ( -f "/var/run/$id" || -d "/var/run/$working" ) ) || 
-		   ( $b_vrunrc && ( -f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id" ) ) ) && 
-		   ! grep {/$working/} @found ){
-			if ($extra > 2 && awk( \@dms_version, $working) && ($path = check_program($working)) ){}
-			else {$path = $working;}
-			# print "$path $extra\n";
-			@data = program_data($working,$path,3);
-			$working = $data[0];
-			$working .= ' ' . $data[1] if $data[1];
-			push(@found, $working);
-		}
-	}
-	if (!@found){
-		# ly does not have a run/pid file
-		if (grep {$_ eq 'ly'} @ps_gui) {
-			@data = program_data('ly','ly',3);
-			$found[0] = $data[0];
-			$found[0] .= ' ' . $data[1] if $data[1];
-		}
-		elsif (grep {/startx$/} @ps_gui) {
-			$found[0] = 'startx';
-		}
-		elsif (grep {$_ eq 'xinit'} @ps_gui) {
-			$found[0] = 'xinit';
-		}
-	}
-	# might add this in, but the rate of new dm's makes it more likely it's an 
-	# unknown dm, so we'll keep output to N/A
-	log_data('dump','display manager: @found',\@found) if $b_log;
-	eval $end if $b_log;
-	return join(', ', @found) if @found;
-}
-
-## Get DistroData
-{
-package DistroData;
-my (@distro_files,@osr,@working);
-my ($distro,$distro_file,$distro_id,$system_base) = ('','','','');
-my ($etc_issue,$lc_issue,$os_release) = ('','','/etc/os-release');
-sub get {
-	eval $start if $b_log;
-	if ($bsd_type){
-		get_bsd_os();
-	}
-	else {
-		get_linux_distro();
-	}
-	eval $end if $b_log;
-	return ($distro,$system_base);
-}
-
-sub get_bsd_os {
-	eval $start if $b_log;
-	if ($bsd_type eq 'darwin'){
-		$distro_file = '/System/Library/CoreServices/SystemVersion.plist';
-		if (-f $distro_file){
-			@working = main::reader($distro_file);
-			@working = grep {/(ProductName|ProductVersion)/} @working if @working;
-			@working = grep {/<string>/} @working if @working;
-			@working = map {s/<[\/]?string>//g; } @working if @working;
-			$distro = join(' ', @working);
-		}
-	}
-	if (!$distro){
-		my $bsd_type_osr = 'dragonfly';
-		@osr = main::reader($os_release) if -r $os_release;
-		if (@osr && $bsd_type =~ /($bsd_type_osr)/ && (grep {/($bsd_type_osr)/i} @osr)){
-			$distro = get_os_release();
-			$distro_id = lc($1);
-		}
-	}
-	if (!$distro){
-		my $bsd_type_version = 'truenas';
-		my ($version_file,$version_info) = ('/etc/version','');
-		$version_info = main::reader($version_file,'strip') if -r $version_file;
-		if ($version_info && $version_info =~ /($bsd_type_version)/i){
-			$distro = $version_info;
-			$distro_id = lc($1);
-		}
-	}	
-	if (!$distro){
-		# seen a case without osx file, or was it permissions?
-		# this covers all the other bsds anyway, no problem.
-		$distro = "$uname[0] $uname[2]";
-		$distro_id = lc($uname[0]);
-	}
-	if ($distro &&
-	 (-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
-	  $distro =~ /freebsd/i){
-		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
-		# only swap if we get result from the query
-		if ($version){
-			$system_base = $distro;
-			$distro = "GhostBSD $version";
-		}
-	}
-	system_base_bsd() if $extra > 0;
-	eval $end if $b_log;
-}
-
-sub get_linux_distro {
-	# order matters!
-	my @derived = qw(antix-version aptosid-version bodhibuilder.conf kanotix-version 
-	knoppix-version pclinuxos-release mandrake-release manjaro-release mx-version 
-	pardus-release porteus-version q4os_version sabayon-release siduction-version sidux-version 
-	slitaz-release solusos-release turbolinux-release zenwalk-version);
-	my $derived_s = join('|', @derived);
-	my @primary = qw(altlinux-release arch-release gentoo-release redhat-release slackware-version 
-	SuSE-release);
-	my $primary_s = join('|', @primary);
-	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
-	# note, pclinuxos has all these mandrake/mandriva files, careful!
-	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
-	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
- 	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
-	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
-	$b_issue = 1 if -f $issue;
-	$b_lsb = 1 if -f $lsb_release;
-	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
-	# and then made that resulting file 700 permissions, which is obviously a mistake
-	$etc_issue = main::reader($issue,'strip',0) if -r $issue;
-	# debian issue can end with weird escapes like \n \l 
-	# antergos: Antergos Linux \r (\l)
-	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
-	# note: always exceptions, so wild card after release/version: 
-	# /etc/lsb-release-crunchbang
-	# wait to handle since crunchbang file is one of the few in the world that 
-	# uses this method
-	@distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
-	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
-	@osr = main::reader($os_release) if -r $os_release;
-	if ($etc_issue){
-		$lc_issue = lc($etc_issue);
-		if ($lc_issue =~ /(antergos|grml|linux lite)/){
-			$distro_id = $1;
-			$b_skip_issue = 1;
-		}
-		# this raspbian detection fails for rasberry pi os
-		elsif ($lc_issue =~ /(raspbian|peppermint)/){
-			$distro_id = $1;
-			$distro_file = $os_release if @osr;
-		}
-		# note: wrong fix, applies to both raspbian and raspberry pi os
-		# assumption here is that r pi os fixes this before stable release
-		elsif ($lc_issue =~ /^debian/ && -e '/etc/apt/sources.list.d/raspi.list' && 
-		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
-			$distro_id = 'raspios' ;
-		}
-	}
-	# Note that antergos changed this around 	# 2018-05, and now lists 
-	# antergos in os-release, sigh... We want these distros to use os-release 
-	# if it contains their names. Last check below
-	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|zorin)/i} @osr ) ){
-		$distro_file = $os_release;
-	}
-	if (grep {/armbian/} @distro_files){
-		$distro_id = 'armbian' ;
-	}
-	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
-	main::log_data('data',"distro_file-1: $distro_file") if $b_log;
-	if (!$distro_file){
-		if (scalar @distro_files == 1){
-			$distro_file = $distro_files[0];
-		}
-		elsif (scalar @distro_files > 1) {
-			# special case, to force manjaro/antergos which also have arch-release
-			# manjaro should use lsb, which has the full info, arch uses os release
-			# antergos should use /etc/issue. We've already checked os-release above
-			if ($distro_id eq 'antergos' || (grep {/antergos|chakra|manjaro/} @distro_files )){
-				@distro_files = grep {!/arch-release/} @distro_files;
-			}
-			my $distro_files_s = join('|', @distro_files);
-			@working = (@derived,@primary);
-			foreach my $file (@working){
-				if ( "/etc/$file" =~ /($distro_files_s)$/){
-					# Now lets see if the distro file is in the known-good working-lsb-list
-					# if so, use lsb-release, if not, then just use the found file
-					# this is for only those distro's with self named release/version files
-					# because Mint does not use such, it must be done as below 
-					if (@osr && $file =~ /($os_release_good_s)$/){
-						$distro_file = $os_release;
-					}
-					elsif ($b_lsb && $file =~ /$lsb_good_s/){
-						$distro_file = $lsb_release;
-					}
-					else {
-						$distro_file = "/etc/$file";
-					}
-					last;
-				}
-			}
-		}
-	}
-	main::log_data('data',"distro_file-2: $distro_file") if $b_log;
-	# first test for the legacy antiX distro id file
-	if ( -r '/etc/antiX'){
-		@working = main::reader('/etc/antiX');
-		$distro = main::awk(\@working,'antix.*\.iso') if @working;
-		$distro = main::clean_characters($distro) if $distro;
-	}
-	# this handles case where only one release/version file was found, and it's lsb-release. 
-	# This would never apply for ubuntu or debian, which will filter down to the following 
-	# conditions. In general if there's a specific distro release file available, that's to 
-	# be preferred, but this is a good backup.
-	elsif ($distro_file && $b_lsb && ($distro_file =~ /\/etc\/($lsb_good_s)$/ || $distro_file eq $lsb_release) ){
-		$distro = get_lsb_release();
-	}
-	elsif ($distro_file && $distro_file eq $os_release){
-		$distro = get_os_release();
-		$b_skip_osr = 1;
-	}
-	# if distro id file was found and it's not in the exluded primary distro file list, read it
-	elsif ( $distro_file && -s $distro_file && $distro_file !~ /\/etc\/($exclude_s)$/){
-		# new opensuse uses os-release, but older ones may have a similar syntax, so just use 
-		# the first line
-		if ($distro_file eq '/etc/SuSE-release'){
-			# leaving off extra data since all new suse have it, in os-release, this file has 
-			# line breaks, like os-release  but in case we  want it, it's: 
-			# CODENAME = Mantis  | VERSION = 12.2 
-			# for now, just take first occurrence, which should be the first line, which does 
-			# not use a variable type format
-			@working = main::reader($distro_file);
-			$distro = main::awk(\@working,'suse');
-		}
-		elsif ($distro_file eq '/etc/bodhibuilder.conf'){
-			@working = main::reader($distro_file);
-			$distro = main::awk(\@working,'^LIVECDLABEL',2,'\s*=\s*');
-			$distro =~ s/"//g if $distro;
-		}
-		else {
-			$distro = main::reader($distro_file,'',0);
-			# only contains version number. Why? who knows.
-			if ($distro_file eq '/etc/q4os_version' && $distro !~ /q4os/i){
-				$distro = "Q4OS $distro" ;
-			}
-		}
-		$distro = main::clean_characters($distro) if $distro;
-	}
-	# otherwise try  the default debian/ubuntu/distro /etc/issue file
-	elsif ($b_issue){
-		if ( !$distro_id && $lc_issue && $lc_issue =~ /(mint|lmde)/){
-			$distro_id = $1;
-			$b_skip_issue = 1;
-		}
-		# os-release/lsb gives more manageable and accurate output than issue, 
-		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
-		if (!$b_skip_issue && @osr){
-			$distro = get_os_release();
-			$b_skip_osr = 1;
-		}
-		elsif (!$b_skip_issue && $b_lsb){
-			$distro = get_lsb_release();
-		}
-		elsif ($etc_issue) {
-			if (-d '/etc/guix' && $lc_issue =~ /^this is the gnu system\./){
-				$distro = 'Guix';
-				# they didn't use any standard paths or files for os data, sigh, use pm version
-				my $version = main::program_version('guix', '^guix', '4','--version',1);
-				$distro .= " $version" if $version;
-				$b_skip_issue = 1;
-			}
-			else {
-				$distro =  $etc_issue;
-				# this handles an arch bug where /etc/arch-release is empty and /etc/issue 
-				# is corrupted only older arch installs that have not been updated should 
-				# have this fallback required, new ones use os-release
-				if ( $distro =~ /arch linux/i){
-					$distro = 'Arch Linux';
-				}
-			}
-		}
-	}
-	# a final check. If a long value, before assigning the debugger output, if os-release
-	# exists then let's use that if it wasn't tried already. Maybe that will be better.
-	# not handling the corrupt data, maybe later if needed. 10 + distro: (8) + string
-	if ($distro && length($distro) > 60 ){
-		if (!$b_skip_osr && @osr){
-			$distro = get_os_release();
-			$b_skip_osr = 1;
-		}
-	}
-	# test for /etc/lsb-release as a backup in case of failure, in cases 
-	# where > one version/release file were found but the above resulted 
-	# in null distro value. 
-	if (!$distro){
-		if (!$b_skip_osr && @osr){
-			$distro = get_os_release();
-			$b_skip_osr = 1;
-		}
-		elsif ($b_lsb){
-			$distro = get_lsb_release();
-		}
-	}
-	# now some final null tries
-	if (!$distro ){
-		# if the file was null but present, which can happen in some cases, then use 
-		# the file name itself to set the distro value. Why say unknown if we have 
-		# a pretty good idea, after all?
-		if ($distro_file){
-			$distro_file =~ s/\/etc\/|[-_]|release|version//g;
-			$distro = $distro_file;
-		}
-	}
-	system_base() if $extra > 0;
-	# some last customized changes, double check if possible to verify still valid
-	if ($distro){
-		if ($distro_id eq 'armbian'){
-			$distro =~ s/Debian/Armbian/;
-		}
-		elsif ($distro_id eq 'raspios'){
-			$system_base = $distro;
-			# no need to repeat the debian version info if base:
-			if ($extra == 0){$distro =~ s/Debian\s*GNU\/Linux/Raspberry Pi OS/;}
-			else {$distro = 'Raspberry Pi OS';}
-		}
-		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
-			$distro =~ s/Slackware/Salix/;
-		}
-	}
-	else {
-		# android fallback, sometimes requires root, sometimes doesn't
-		android_info() if $b_android;
-	}
-	## finally, if all else has failed, give up
-	$distro ||= 'unknown';
-	eval $end if $b_log;
-}
-
-sub android_info {
-	eval $start if $b_log;
-	main::set_build_prop() if !$loaded{'build-prop'};;
-	$distro = 'Android';
-	$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
-	$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
-	if (!$show{'machine'}){
-		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
-			$distro .= ' (' . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'} . ')';
-		}
-		elsif ($build_prop{'product-device'}){
-			$distro .= ' (' . $build_prop{'product-device'} . ')';
-		}
-		elsif ($build_prop{'product-name'}){
-			$distro .= ' (' . $build_prop{'product-name'} . ')';
-		}
-	}
-	eval $end if $b_log;
-}
-
-sub system_base_bsd {
-	eval $start if $b_log;
-	# ghostbsd is handled in main bsd section
-	if (lc($uname[1]) eq 'nomadbsd' && $distro_id eq 'freebsd'){
-		$system_base = $distro;
-		$distro = $uname[1];
-	}
-	elsif (-f '/etc/pkg/HardenedBSD.conf' && $distro_id eq 'freebsd'){
-		$system_base = $distro;
-		$distro = 'HardenedBSD';
-	}
-	elsif ($distro_id =~ /^(truenas)$/){
-		$system_base = "$uname[0] $uname[2]";
-	}
-	eval $end if $b_log;
-}
-
-sub system_base {
-	eval $start if $b_log;
-	my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
-	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
-	$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
-	$base_arch_distro .= '|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
-	$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
-	my $base_debian_version_distro = 'sidux';
-	my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
-	my $base_default = 'antix-version|mx-version'; # osr has base ids
-	my $base_issue = 'bunsen'; # base only found in issue
-	my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
-	my $base_osr = 'aptosid|grml|q4os|siduction|bodhi'; # osr base, distro id in list of distro files
-	my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
-	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
-	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
-	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
-	my $base_upstream_osr = '/etc/upstream-release/os-release';
-	# first: try, some distros have upstream-release, elementary, new mint
-	# and anyone else who uses this method for fallback ID
-	if ( -r $base_upstream_osr){
-		my @osr_working = main::reader($base_upstream_osr);
-		if ( @osr_working){
-			my (@osr_temp);
-			@osr_temp = @osr;
-			@osr = @osr_working;
-			$system_base = get_os_release();
-			@osr = @osr_temp if !$system_base;
-			(@osr_temp,@osr_working) = (undef,undef);
-		}
-	}
-	elsif ( -r $base_upstream_lsb){
-		$system_base = get_lsb_release($base_upstream_lsb);
-	}
-	if (!$system_base && @osr){
-		my ($base_type) = ('');
-		if ($etc_issue && (grep {/($base_issue)/i} @osr)){
-			$system_base = $etc_issue;
-		}
-		# more tests added here for other ubuntu derived distros
-		elsif ( @distro_files && (grep {/($base_default)/} @distro_files) ){
-			$base_type = 'default';
-		}
-		# must go before base_osr_ubuntu test
-		elsif ( grep {/($base_debian_version_osr)/i} @osr ){
-			$system_base = debian_id();
-		}
-		elsif ( grep {/($base_osr_ubuntu)/i} @osr ){
-			$base_type = 'ubuntu';
-		}
-		elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
-				(@distro_files && (grep {/($base_osr)/} @distro_files) ) ) && 
-				!(grep {/($base_osr)/i} @osr)){
-			$system_base = get_os_release();
-		}
-		if (!$system_base && $base_type){
-			$system_base = get_os_release($base_type);
-		}
-	}
-	if (!$system_base && @distro_files && ( grep {/($base_debian_version_distro)/i} @distro_files ) ){
-		$system_base = debian_id();
-	}
-	if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
-		my $id = $1;
-		my %manual = (
-		'blankon' => 'Debian unstable',
-		'deepin' => 'Debian unstable',
-		'kali' => 'Debian testing',
-		);
-		$system_base = $manual{$id};
-	}
-	if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
-		$system_base = 'Arch Linux';
-	}
-	if ($distro && -d '/etc/salixtools/' && $distro =~ /Slackware/i){
-		$system_base = $distro;
-	}
-	eval $end if $b_log;
-}
-
-sub get_lsb_release {
-	eval $start if $b_log;
-	my ($lsb_file) = @_;
-	$lsb_file ||= '/etc/lsb-release';
-	my ($distro,$id,$release,$codename,$description) = ('','','','','');
-	my @content = main::reader($lsb_file);
-	main::log_data('dump','@content',\@content) if $b_log;
-	@content = map {s/,|\*|\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
-	foreach (@content){
-		next if /^\s*$/;
-		my @working = split(/\s*=\s*/, $_);
-		next if !$working[0];
-		if ($working[0] eq 'DISTRIB_ID' && $working[1]){
-			if ($working[1] =~ /^Manjaro/i){
-				$id = 'Manjaro Linux';
-			}
-			# in the old days, arch used lsb_release
-# 			elsif ($working[1] =~ /^Arch$/i){
-# 				$id = 'Arch Linux';
-# 			}
-			else {
-				$id = $working[1];
-			}
-		}
-		elsif ($working[0] eq 'DISTRIB_RELEASE' && $working[1]){
-			$release = $working[1];
-		}
-		elsif ($working[0] eq 'DISTRIB_CODENAME' && $working[1]){
-			$codename = $working[1];
-		}
-		# sometimes some distros cannot do their lsb-release files correctly, 
-		# so here is one last chance to get it right.
-		elsif ($working[0] eq 'DISTRIB_DESCRIPTION' && $working[1]){
-			$description = $working[1];
-		}
-	}
-	if (!$id && !$release && !$codename && $description){
-		$distro = $description;
-	}
-	else {
-		# avoid duplicates
-		$distro = $id;
-		$distro .= " $release" if $distro !~ /$release/;
-		$distro .= " $codename" if $distro !~ /$codename/;
-		$distro =~ s/^\s+|\s\s+|\s+$//g; # get rid of double and trailing spaces 
-	}
-	eval $end if $b_log;
-	return $distro;
-}
-sub get_os_release {
-	eval $start if $b_log;
-	my ($base_type) = @_;
-	my ($base_id,$base_name,$base_version,$distro,$distro_name,$pretty_name,
-	$lc_name,$name,$version_name,$version_id) = ('','','','','','','','','','');
-	my @content = @osr;
-	main::log_data('dump','@content',\@content) if $b_log;
-	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
-	foreach (@content){
-		next if /^\s*$/;
-		my @working = split(/\s*=\s*/, $_);
-		next if !$working[0];
-		if ($working[0] eq 'PRETTY_NAME' && $working[1]){
-			$pretty_name = $working[1];
-		}
-		elsif ($working[0] eq 'NAME' && $working[1]){
-			$name = $working[1];
-			$lc_name = lc($name);
-		}
-		elsif ($working[0] eq 'VERSION' && $working[1]){
-			$version_name = $working[1];
-			$version_name =~ s/,//g;
-		}
-		elsif ($working[0] eq 'VERSION_ID' && $working[1]){
-			$version_id = $working[1];
-		}
-		# for mint/zorin, other ubuntu base system base
-		if ($base_type ){
-			if ($working[0] eq 'ID_LIKE' && $working[1]){
-				if ($base_type eq 'ubuntu'){
-					# popos shows debian
-					$working[1] =~ s/^(debian|ubuntu\sdebian|debian\subuntu)/ubuntu/; 
-					$working[1] = 'ubuntu' if $working[1] eq 'debian';
-				}
-				$base_name = ucfirst($working[1]);
-			}
-			elsif ($base_type eq 'ubuntu' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
-				$base_version = ucfirst($working[1]);
-			}
-			elsif ($base_type eq 'debian' && $working[0] eq 'DEBIAN_CODENAME' && $working[1]){
-				$base_version = $working[1];
-			}
-		}
-	}
-	# NOTE: tumbleweed has pretty name but pretty name does not have version id
-	# arco shows only the release name, like kirk, in pretty name. Too many distros 
-	# are doing pretty name wrong, and just putting in the NAME value there
-	if (!$base_type){
-		if ($name && $version_name){
-			$distro = $name;
-			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
-			if ($version_id && $version_name !~ /$version_id/){
-				$distro .= ' ' . $version_id;
-			}
-			$distro .= " $version_name";
-		}
-		elsif ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
-			$distro = $pretty_name;
-		}
-		elsif ($name){
-			$distro = $name;
-			if ($version_id){
-				$distro .= ' ' . $version_id;
-			}
-		}
-	}
-	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
-	else {
-		# mint 17 used ubuntu os-release,  so won't have $base_version
-		if ($base_name && $base_version){
-			$base_id = ubuntu_id($base_version) if $base_type eq 'ubuntu' && $base_version;
-			$base_id = '' if $base_id && "$base_name$base_version" =~ /$base_id/;
-			$base_id .= ' ' if $base_id;
-			$distro = "$base_name $base_id$base_version";
-		}
-		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name) ) ){
-			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
-		}
-		# LMDE 2 has only limited data in os-release, no _LIKE values. 3 has like and debian_codename
-		elsif ( $base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
-			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
-		}
-		elsif ( $base_type eq 'debian' && $base_version ){
-			$distro = debian_id($base_version);
-		}
-	}
-	eval $end if $b_log;
-	return $distro;
-}
-# arg: 1 - optional: debian codename
-sub debian_id {
-	eval $start if $b_log;
-	my ($codename) = @_;
-	my ($debian_version,$id);
-	$debian_version = main::reader('/etc/debian_version','strip',0) if -r '/etc/debian_version';
-	$id = 'Debian';
-	return if !$debian_version && !$codename;
-	# note, 3.0, woody, 3.1, sarge, but after it's integer per version
-	my %debians = (
-	'4' => 'etch',
-	'5' => 'lenny',
-	'6' => 'squeeze',
-	'7' => 'wheezy',
-	'8' => 'jessie',
-	'9' => 'stretch',
-	'10' => 'buster',
-	'11' => 'bullseye',
-	'12' => 'bookworm', 
-	'13' => 'trixie', 
-	);
-	if (main::is_numeric($debian_version)){
-		$id .= " $debian_version " . $debians{int($debian_version)};
-	}
-	elsif ($codename) {
-		my %by_value = reverse %debians;
-		my $version = (main::is_numeric($debian_version)) ? "$debian_version $codename": $debian_version;
-		$id .= " $version";
-	}
-	# like buster/sid
-	elsif ($debian_version) {
-		$id .= " $debian_version";
-	}
-	eval $end if $b_log;
-	return $id;
-}
-
-# note, these are only for matching derived names, no need to go
-# all the way back here, update as new names are known. This is because 
-# Mint is using UBUNTU_CODENAME without ID data.
-sub ubuntu_id {
-	eval $start if $b_log;
-	my ($codename) = @_;
-	$codename = lc($codename);
-	my ($id) = ('');
-	my %codenames = (
-	'hirsute' => '21.04',
-	'groovy' => '20.10',
-	'focal' => '20.04 LTS',
-	'eoan' => '19.10',
-	'disco' => '19.04',
-	'cosmic' => '18.10',
-	'bionic' => '18.04 LTS',
-	'artful' => '17.10',
-	'zesty' => '17.04',
-	'yakkety' => '16.10',
-	'xenial' => '16.04 LTS',
-	'wily' => '15.10',
-	'vivid' => '15.04',
-	'utopic' => '14.10',
-	'trusty' => '14.04 LTS ',
-	'saucy' => '13.10',
-	'raring' => '13.04',
-	'quantal' => '12.10',
-	'precise' => '12.04 LTS ',
-	);
-	$id = $codenames{$codename} if defined $codenames{$codename};
-	eval $end if $b_log;
-	return $id;
-}
-}
-# return all device modules not including driver
-sub get_driver_modules {
-	eval $start if $b_log;
-	my ($driver,$modules) = @_;
-	return if ! $modules;
-	my @mods = split(/,\s+/, $modules);
-	if ($driver){
-		@mods = grep {!/^$driver$/} @mods;
-		$modules = join(',', @mods);
-	}
-	log_data('data','$modules',$modules) if $b_log;
-	eval $end if $b_log;
-	return $modules;
-}
-# 1: driver; 2: modules, comma separated, return only modules 
-# which do not equal the driver string itself. Sometimes the module
-# name is different from the driver name, even though it's the same thing.
-sub get_gcc_data {
-	eval $start if $b_log;
-	my ($gcc,@data,@gccs,@temp);
-	# NOTE: We can't use program_version because we don't yet know where
-	# the version number is
-	if (my $program = check_program('gcc') ){
-		@data = grabber("$program --version 2>/dev/null");
-		$gcc = awk(\@data,'^gcc');
-	}
-	if ($gcc){
-		# strip out: gcc (Debian 6.3.0-18) 6.3.0 20170516
-		# gcc (GCC) 4.2.2 20070831 prerelease [FreeBSD]
-		$gcc =~ s/\([^\)]*\)//g;
-		$gcc = get_piece($gcc,2);
-	}
-	if ($extra > 1){
-		# glob /usr/bin for gccs, strip out all non numeric values
-		@temp = globber('/usr/bin/gcc-*');
-		foreach (@temp){
-			if (/\/gcc-([0-9.]+)$/){
-				push(@gccs, $1);
-			}
-		}
-	}
-	unshift(@gccs, $gcc);
-	log_data('dump','@gccs',\@gccs) if $b_log;
-	eval $end if $b_log;
-	return @gccs;
-}
-
-# Get GlabelData
-{
-package GlabelData;
-# gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
-sub get {
-	eval $start if $b_log;
-	my ($gptid) = @_;
-	set() if !$loaded{'glabel'};
-	return if !@glabel || !$gptid;
-	my ($dev_id) = ('');
-	foreach (@glabel){
-		my @temp = split(/\s+/, $_);
-		my $gptid_trimmed = $gptid;
-		# slice off s[0-9] from end in case they use slice syntax
-		$gptid_trimmed =~ s/s[0-9]+$//;
-		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq $gptid_trimmed ) ){
-			$dev_id = $temp[2];
-			last;
-		}
-	}
-	$dev_id ||= $gptid; # no match? return full string
-	eval $end if $b_log;
-	return $dev_id;
-}
-sub set {
-	eval $start if $b_log;
-	$loaded{'glabel'} = 1;
-	if (my $path = main::check_program('glabel')){
-		@glabel = main::grabber("$path status 2>/dev/null");
-	}
-	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
-	# get rid of first header line
-	shift @glabel;
-	eval $end if $b_log;
-}
-}
-
-# Get GpartData
-{
-package GpartData;
-# 1. Name: ada1p1
-#   label: (null)
-#   label: ssd-root
-#   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
-sub get {
-	eval $start if $b_log;
-	my ($item) = @_;
-	my (@data) = ('','','','');
-	set() if !$loaded{'gpart'};
-	return @data if !$item || !%gpart;
-	if ($gpart{$item}){
-		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
-		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
-		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
-		$data[3] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
-	}
-	main::log_data('dump','@data',\@data) if $b_log;
-	eval $end if $b_log;
-	return @data;
-}
-# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
-sub set {
-	eval $start if $b_log;
-	$loaded{'gpart'} = 1;
-	if (my $path = main::check_program('gpart')){
-		my @data = main::grabber("$path list 2>/dev/null",'','strip');
-		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
-		my ($id);
-		for (@data){
-			my @working = split(/\s*:\s*/, $_);
-			if ($working[0] =~ /^[0-9]+\.\s*Name/){
-				$id = $working[1];
-			}
-			elsif ($id){
-				# eg: label:(null) - we want to show null
-				if ($working[0] eq 'label'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'label'} = $working[1];
-				}
-				elsif ($working[0] eq 'Mediasize'){
-					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
-					# gpart shows in bytes, not KiB. For the time being...
-					$gpart{$id}->{'size'} = $working[1]/1024 if $working[1];
-				}
-				elsif ($working[0] eq 'rawuuid'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'uuid'} = $working[1];
-				}
-				elsif ($working[0] eq 'Sectorsize'){
-					$gpart{$id}->{'block-size'} = $working[1];
-				}
-			}
-		}
-	}
-	main::log_data('dump', '%gpart', \%gpart) if $b_log;
-	eval $end if $b_log;
-}
-}
-sub get_hostname {
-	eval $start if $b_log;
-	my $hostname = '';
-	if ( $ENV{'HOSTNAME'} ){
-		$hostname = $ENV{'HOSTNAME'};
-	}
-	elsif ( !$bsd_type && -r "/proc/sys/kernel/hostname" ){
-		$hostname = reader('/proc/sys/kernel/hostname','',0);
-	}
-	# puppy removed this from core modules, sigh
-	# this is faster than subshell of hostname
-	elsif (check_perl_module('Sys::Hostname')){
-		Sys::Hostname->import;
-		$hostname = Sys::Hostname::hostname();
-	}
-	elsif (my $program = check_program('hostname')) {
-		$hostname = (grabber("$program 2>/dev/null"))[0];
-	}
-	$hostname ||= 'N/A';
-	eval $end if $b_log;
-	return $hostname;
-}
-
-sub get_init_data {
-	eval $start if $b_log;
-	my $runlevel = get_runlevel_data();
-	my $default = ($extra > 1) ? get_runlevel_default() : '';
-	my ($init,$init_version,$rc,$rc_version,$program) = ('','','','','');
-	my $comm = ( -r '/proc/1/comm' ) ? reader('/proc/1/comm','',0) : '';
-	my (@data);
-	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
-	# otherwise that is 'init', which covers the rest of the init systems.
-	# more data may be needed for other init systems.
-	if ( $comm ){
-		if ( $comm =~ /systemd/ ){
-			$init = 'systemd';
-			if ($program = check_program('systemd')){
-				$init_version = program_version($program,'^systemd','2','--version',1);
-			}
-			if (!$init_version && ($program = check_program('systemctl') ) ){
-				$init_version = program_version($program,'^systemd','2','--version',1);
-			}
-		}
-		# epoch version == Epoch Init System 1.0.1 "Sage"
-		elsif ($comm =~ /epoch/){
-			$init = 'Epoch';
-			$init_version = program_version('epoch', '^Epoch', '4','version');
-		}
-		# missing data: note, runit can install as a dependency without being the 
-		# init system: http://smarden.org/runit/sv.8.html
-		# NOTE: the proc test won't work on bsds, so if runit is used on bsds we 
-		# will need more datas
-		elsif ($comm =~ /runit/){
-			$init = 'runit';
-		}
-		elsif ($comm =~ /shepherd/){
-			$init = 'Shepherd';
-			$init_version = program_version('shepherd', '^shepherd', '4','--version',1);
-		}
-		elsif ($comm =~ /^s6/){
-			$init = 's6';
-		}
-	}
-	if (!$init){
-		# output: /sbin/init --version:  init (upstart 1.1)
-		# init (upstart 0.6.3)
-		# openwrt /sbin/init hangs on --version command, I think
-		if ((!$b_mips && !$b_sparc && !$b_arm) && 
-		 ($init_version = program_version('init', 'upstart', '3','--version') )){
-			$init = 'Upstart';
-		}
-		elsif (check_program('launchctl')){
-			$init = 'launchd';
-		}
-		elsif ( -f '/etc/inittab' ){
-			$init = 'SysVinit';
-			if (check_program('strings')){
-				@data = grabber('strings /sbin/init');
-				$init_version = awk(\@data,'^version\s+[0-9]',2);
-			}
-		}
-		elsif ( -f '/etc/ttys' ){
-			$init = 'init (BSD)';
-		}
-	}
-	if ( (grep { /openrc/ } globber('/run/*openrc*')) || (grep {/openrc/} @ps_cmd) ){
-		$rc = 'OpenRC';
-		# /sbin/openrc --version == openrc (OpenRC) 0.13
-		if ($program = check_program('openrc')){
-			$rc_version = program_version($program, '^openrc', '3','--version');
-		}
-		# /sbin/rc --version == rc (OpenRC) 0.11.8 (Gentoo Linux)
-		elsif ($program = check_program('rc')){
-			$rc_version = program_version($program, '^rc', '3','--version');
-		}
-		if ( -r '/run/openrc/softlevel' ){
-			$runlevel = reader('/run/openrc/softlevel','',0);
-		}
-		elsif ( -r '/var/run/openrc/softlevel'){
-			$runlevel = reader('/var/run/openrc/softlevel','',0);
-		}
-		elsif ( $program = check_program('rc-status')){
-			$runlevel = (grabber("$program -r 2>/dev/null"))[0];
-		}
-	}
-	my %init = (
-	'init-type' => $init,
-	'init-version' => $init_version,
-	'rc-type' => $rc,
-	'rc-version' => $rc_version,
-	'runlevel' => $runlevel,
-	'default' => $default,
-	);
-	eval $end if $b_log;
-	return %init;
-}
-
-sub get_kernel_data {
-	eval $start if $b_log;
-	my ($kernel,$ksplice) = ('','');
-	# Linux; yawn; 4.9.0-3.1-liquorix-686-pae; #1 ZEN SMP PREEMPT liquorix 4.9-4 (2017-01-14); i686
-	# FreeBSD; siwi.pair.com; 8.2-STABLE; FreeBSD 8.2-STABLE #0: Tue May 31 14:36:14 EDT 2016     erik5@iddhi.pair.com:/usr/obj/usr/src/sys/82PAIRx-AMD64; amd64
-	if (@uname){
-		$kernel = $uname[2];
-		if ( (my $program = check_program('uptrack-uname')) && $kernel){
-			$ksplice = qx($program -rm);
-			$ksplice = trimmer($ksplice);
-			$kernel = ($ksplice) ? $ksplice . ' (ksplice)' : $kernel;
-		}
-		$kernel .= ' ' . $uname[-1];
-		$kernel = ($bsd_type) ? $uname[0] . ' ' . $kernel : $kernel;
-	}
-	$kernel ||= 'N/A';
-	log_data('data',"kernel: $kernel ksplice: $ksplice") if $b_log;
-	log_data('dump','perl @uname', \@uname) if $b_log;
-	eval $end if $b_log;
-	return $kernel;
-}
-
-sub get_kernel_bits {
-	eval $start if $b_log;
-	my $bits = '';
-	if (my $program = check_program('getconf')){
-		$bits = (grabber("$program LONG_BIT 2>/dev/null"))[0];
-	}
-	# fallback test
-	if (!$bits && @uname){
-		$bits = $uname[-1];
-		$bits = ($bits =~ /64/ ) ? 64 : 32;
-	}
-	$bits ||= 'N/A';
-	eval $end if $b_log;
-	return $bits;
-}
-
-# Get KernelParameters
-{
-package KernelParameters;
-sub get {
-	eval $start if $b_log;
-	my ($parameters);
-	if (my $file = $system_files{'proc-cmdline'}) {
-		$parameters = parameters_linux($file);
-	}
-	elsif ($bsd_type) {
-		$parameters = parameters_bsd();
-	}
-	eval $end if $b_log;
-	return $parameters;
-}
-sub parameters_linux {
-	eval $start if $b_log;
-	my ($file) = @_;
-	# unrooted android may have file only root readable
-	my $line = main::reader($file,'',0) if -r $file;
-	eval $end if $b_log;
-	return $line;
-}
-sub parameters_bsd {
-	eval $start if $b_log;
-	my ($parameters);
-	eval $end if $b_log;
-	return $parameters;
-}
-}
-# 1 - partition name
-sub get_lsblk {
-	eval $start if $b_log;
-	my $item = $_[0];
-	return if !@lsblk;
-	my (%device);
-	foreach my $device (@lsblk){
-		if ($device->{'name'} eq $item){
-			%device = %$device;
-			last;
-		}
-	}
-	eval $start if $b_log;
-	return %device;
-}
-
-# Get MemoryData
-{
-package MemoryData;
-
-sub get {
-	eval $start if $b_log;
-	my ($type) = @_;
-	my ($memory);
-	# note: netbsd 8.0 has meminfo!
-	$loaded{'memory'} = 1;
-	# netbsd uses meminfo, but it uses it in a weird way
-	if (!$force{'vmstat'} && (!$bsd_type || ($force{'meminfo'} && $bsd_type)) && 
-	 (my $file = $system_files{'proc-meminfo'})) {
-		$memory = meminfo_data($type,$file);
-	}
-	else {
-		$memory = bsd_data($type);
-	}
-	eval $end if $b_log;
-	return $memory;
-}
-sub full {
-	eval $start if $b_log;
-	my ($source) = @_;
-	my $num = 0;
-	my ($memory,@rows);
-	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
-	$loaded{'memory'} = 1;
-	$memory = get('splits');
-	if ($memory){
-		my @temp = split(':', $memory);
-		$gpu_ram = $temp[3] if $temp[3];
-		$total = ($temp[0]) ? main::get_size($temp[0],'string') : 'N/A';
-		$used = ($temp[1]) ? main::get_size($temp[1],'string') : 'N/A';
-		$used .= " ($temp[2]%)" if $temp[2];
-		if ($gpu_ram){
-			$gpu_ram = main::get_size($gpu_ram,'string');
-		}
-	}
-	my $key = ($source eq 'process') ? 'System RAM': 'RAM';
-	$rows[0]->{main::key($num++,1,1,$key)} = '';
-	$rows[0]->{main::key($num++,0,2,'total')} = $total;
-	$rows[0]->{main::key($num++,0,2,'used')} = $used;
-	$rows[0]->{main::key($num++,0,2,'gpu')} = $gpu_ram if $gpu_ram;
-	eval $end if $b_log;
-	return @rows;
-}
-sub meminfo_data {
-	eval $start if $b_log;
-	my ($type,$file) = @_;
-	my ($available,$buffers,$cached,$free,$gpu,$memory,$not_used,$total) = (0,0,0,0,0,'',0,0);
-	my @data = main::reader($file);
-	foreach (@data){
-		if ($_ =~ /^MemTotal:/){
-			$total = main::get_piece($_,2);
-		}
-		elsif ($_ =~ /^MemFree:/){
-			$free = main::get_piece($_,2); 
-		}
-		elsif ($_ =~ /^Buffers:/){
-			$buffers = main::get_piece($_,2); 
-		}
-		elsif ($_ =~ /^Cached:/){
-			$cached = main::get_piece($_,2); 
-		}
-		elsif ($_ =~ /^MemAvailable:/){
-			$available = main::get_piece($_,2);
-		}
-	}
-	$gpu = gpu_ram_arm() if $b_arm;
-	#$gpu = main::translate_size('128M');
-	$total += $gpu;
-	if ($available){
-		$not_used = $available;
-	}
-	# seen fringe cases, where total - free+buff+cach < 0
-	# the idea is that the OS must be using 10MiB of ram or more
-	elsif (($total - ($free + $buffers + $cached)) > 10000) {
-		$not_used = ($free + $buffers + $cached);
-	}
-	# netbsd goes < 0, but it's wrong, so dump the cache
-	elsif (($total - ($free + $buffers)) > 10000){
-		$not_used = ($free + $buffers);
-	}
-	else {
-		$not_used = $free;
-	}
-	my $used = ($total - $not_used);
-	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
-	if ($type eq 'string'){
-		$percent = " ($percent%)" if $percent;
-		$memory = sprintf("%.1f/%.1f MiB", $used/1024, $total/1024) . $percent;
-	}
-	else {
-		$memory = "$total:$used:$percent:$gpu";
-	}
-	main::log_data('data',"memory: $memory") if $b_log;
-	eval $end if $b_log;
-	return $memory;
-}
-
-## openbsd/linux
-# procs    memory       page                    disks    traps          cpu
-# r b w    avm     fre  flt  re  pi  po  fr  sr wd0 wd1  int   sys   cs us sy id
-# 0 0 0  55256 1484092  171   0   0   0   0   0   2   0   12   460   39  3  1 96
-## openbsd 6.3? added in M/G/T etc, sigh...
-# 2 57 55M 590M 789 0 0 0...
-## freebsd:
-# procs      memory      page                    disks     faults         cpu
-# r b w     avm    fre   flt  re  pi  po    fr  sr ad0 ad1   in   sy   cs us sy id
-# 0 0 0  21880M  6444M   924  32  11   0   822 827   0   0  853  832  463  8  3 88
-# with -H
-# 2 0 0 14925812  936448    36  13  10   0    84  35   0   0   84   30   42 11  3 86
-## dragonfly: V1, supported -H
-#  procs      memory      page                    disks     faults      cpu
-#  r b w     avm    fre  flt  re  pi  po  fr  sr ad0 ad1   in   sy  cs us sy id
-#  0 0 0       0  84060 30273993 2845 12742 1164 407498171 320960902   0   0 ....
-## dragonfly: V2, no avm, no -H support
-sub bsd_data {
-	eval $start if $b_log;
-	my ($type) = @_;
-	my $memory = '';
-	my ($avm,$av_pages,$cnt,$fre,$free_mem,$mult,$real_mem,$total) = (0,0,0,0,0,0,0,0);
-	my (@data,$message);
-	# my $arg = ($bsd_type ne 'openbsd' && $bsd_type ne 'dragonfly') ? '-H' : '';
-	if (my $program = main::check_program('vmstat')){
-		# see above, it's the last line. -H makes it hopefully all in kB so no need 
-		# for K/M/G tests, note that -H not consistently supported, so don't use.
-		my @vmstat = main::grabber("vmstat 2>/dev/null",'\n','strip');
-		main::log_data('dump','@vmstat',\@vmstat) if $b_log;
-		my @header = split(/\s+/, $vmstat[1]);
-		foreach (@header){
-			if ($_ eq 'avm'){$avm = $cnt}
-			elsif ($_ eq 'fre'){$fre = $cnt}
-			elsif ($_ eq 'flt'){last;}
-			$cnt++;
-		}
-		my $row = $vmstat[-1];
-		if ($row){
-			@data = split(/\s+/, $row);
-			# openbsd 6.3, dragonfly 5.x introduced an M / G character, sigh.
-			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
-				$data[$avm] = main::translate_size($1);
-			}
-			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
-				$data[$fre] = main::translate_size($1);
-			}
-			# dragonfly can have 0 avg, or no avm, sigh, but they may fix that so make test dynamic
-			if ($avm > 0 && $data[$avm] != 0){
-				$av_pages = ($bsd_type !~ /^(net|open)bsd$/) ? sprintf('%.1f',$data[$avm]/1024) : $data[$avm];
-			}
-			if ($fre > 0 && $data[$fre] != 0){
-				$free_mem = sprintf('%.1f',$data[$fre]);
-			}
-		}
-	}
-	## code to get total goes here:
-	if ($alerts{'sysctl'}->{'action'} eq 'use'){
-		# for dragonfly, we will use free mem, not used because free is 0
-		my @working;
-		if ($sysctl{'memory'}){
-			foreach (@{$sysctl{'memory'}}){
-				# freebsd seems to use bytes here
-				if (!$real_mem && /^hw.physmem:/){
-					@working = split(/:\s*/, $_);
-					#if ($working[1]){
-						$working[1] =~ s/^[^0-9]+|[^0-9]+$//g;
-						$real_mem = sprintf("%.1f", $working[1]/1024);
-					#}
-					last if $free_mem;
-				}
-				# But, it uses K here. Openbsd/Dragonfly do not seem to have this item
-				# this can be either: Free Memory OR Free Memory Pages
-				elsif (/^Free Memory:/){
-					@working = split(/:\s*/, $_);
-					$working[1] =~ s/[^0-9]+//g;
-					$free_mem = sprintf("%.1f", $working[1]);
-					last if $real_mem;
-				}
-			}
-		}
-	}
-	else {
-		$message = "sysctl $alerts{'sysctl'}->{'action'}"
-	}
-	# not using, but leave in place for a bit in case we want it
-	# my $type = ($free_mem) ? ' free':'' ;
-	# hack: temp fix for openbsd/darwin: in case no free mem was detected but we have physmem
-	if (($av_pages || $free_mem) && !$real_mem){
-		my $error = ($message) ? $message: 'total N/A';
-		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
-		if ($type eq 'string'){
-			$used = sprintf("%.1f",$used/1024);
-			$memory = "$used/($error) MiB";
-		}
-		else {
-			$memory = "$error:$used:";
-		}
-	}
-	# use openbsd/dragonfly avail mem data if available
-	elsif (($av_pages || $free_mem) && $real_mem) {
-		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
-		my $percent = ($used && $real_mem) ? sprintf("%.1f", ($used/$real_mem)*100) : '';
-		if ($type eq 'string'){
-			$percent = " ($percent)" if $percent;
-			$memory = sprintf("%.1f/%.1f MiB", $used/1024, $real_mem/1024) . $percent;
-		}
-		else {
-			$memory = "$real_mem:$used:$percent:0";
-		}
-	}
-	eval $end if $b_log;
-	return $memory;
-}
-# rasberry pi only
-sub gpu_ram_arm {
-	eval $start if $b_log;
-	my ($gpu_ram) = (0);
-	if (my $program = main::check_program('vcgencmd')){
-		# gpu=128M
-		# "VCHI initialization failed" - you need to add video group to your user
-		my $working = (main::grabber("$program get_mem gpu 2>/dev/null"))[0];
-		$working = (split(/\s*=\s*/, $working))[1] if $working;
-		$gpu_ram = main::translate_size($working) if $working;
-	}
-	main::log_data('data',"gpu ram: $gpu_ram") if $b_log;
-	eval $end if $b_log;
-	return $gpu_ram;
-}
-# standard systems, not used currently, but maybe one day?
-sub get_gpu_ram {
-	eval $start if $b_log;
-	my ($gpu_ram) = (0);
-	eval $end if $b_log;
-	return $gpu_ram;
-}
-}
-
-sub get_module_version {
-	eval $start if $b_log;
-	my ($module) = @_;
-	return if ! $module;
-	my ($version);
-	my $path = "/sys/module/$module/version";
-	if (-r $path){
-		$version = reader($path,'',0);
-	}
-	elsif (-f "/sys/module/$module/uevent"){
-		$version = 'kernel';
-	}
-	#print "version:$version\n";
-	if (!$version) {
-		if (my $path = check_program('modinfo')){
-			my @data = grabber("$path $module 2>/dev/null");
-			$version = awk(\@data,'^version',2,':\s+') if @data;
-		}
-	}
-	$version ||= '';
-	eval $end if $b_log;
-	return $version;
-}
-# Note: this outputs the key/value pairs ready to go and is
-# called from either -r or -Ix, -r precedes. 
-## Get PackageData
-{
-package PackageData;
-my ($count,%counts,@list,$num,%output,$program,$type);
-$counts{'total'} = 0;
-sub get {
-	eval $start if $b_log;
-	# $num passed by reference to maintain incrementing where requested
-	($type,$num) = @_;
-	$loaded{'packages'} = 1;
-	package_counts();
-	appimage_counts();
-	create_output();
-	eval $end if $b_log;
-	return %output;
-}
-sub create_output {
-	eval $start if $b_log;
-	my $total;
-	if ($counts{'total'}){
-		$total = $counts{'total'};
-	}
-	else {
-		if ($type eq 'inner'){$total = 'N/A';}
-		else {$total = main::row_defaults('packages','');}
-	}
-	if ($counts{'total'} && $extra > 1){
-		delete $counts{'total'};
-		my $b_mismatch;
-		foreach (keys %counts){
-			if ($counts{$_}->[0] && $counts{$_}->[0] != $total){
-				$b_mismatch = 1;
-				last;
-			}
-		}
-		$total = '' if !$b_mismatch;
-	}
-	$output{main::key($$num++,1,1,'Packages')} = $total;
-	if ($extra > 1 && %counts){
-		foreach (sort keys %counts){
-			my ($cont,$ind) = (1,2);
-			# if package mgr command returns error, this will not be an array
-			next if ref $counts{$_} ne 'ARRAY';
-			if ($counts{$_}->[0] || $b_admin){
-				my $key = $_;
-				$key =~ s/^zzz-//; # get rid of the special sorters for items to show last
-				$output{main::key($$num++,$cont,$ind,$key)} = $counts{$_}->[0];
-				if ($b_admin && $counts{$_}->[1]){
-					($cont,$ind) = (0,3);
-					$output{main::key($$num++,$cont,$ind,'lib')} = $counts{$_}->[1];
-				}
-			}
-		}
-	}
-	# print Data::Dumper::Dumper \%output;
-	eval $end if $b_log;
-}
-sub package_counts {
-	eval $start if $b_log;
-	my ($type) = @_;
-	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
-	# 5: lib slice; 6: lib splitter; 7 - optional eval test
-	# needed: cards [nutyx], urpmq [mageia]
-	my @pkg_managers = (
-	['alps','alps','p','showinstalled',1,0,''],
-	['apk','apk','p','info',1,0,''],
-	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
-	['apt','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,''],
-	# ['aptd','dpkg-query','d','/usr/lib/*',1,3,'\\/'],
-	# mutyx. do cards test because there is a very slow pkginfo python pkg mgr
-	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
-	['emerge','emerge','d','/var/db/pkg/*/*/',1,5,'\\/'],
-	['eopkg','eopkg','d','/var/lib/eopkg/package/*',1,5,'\\/'],
-	['guix-sys','guix','p','package -p "/run/current-system/profile" -I',1,0,''],
-	['guix-usr','guix','p','package -I',1,0,''],
-	['kiss','kiss','p','list',1,0,''],
-	['mport','mport','p','list',1,0,''],
-	['nix-sys','nix-store','p','-qR /run/current-system/sw',1,1,'-'], 
-	['nix-usr','nix-store','p','-qR ~/.nix-profile',1,1,'-'], 
-	['nix-default','nix-store','p','-qR /nix/var/nix/profiles/default',1,2,'-'], 
-	['pacman','pacman','p','-Qq --color never',1,0,'',
-	 '!main::check_program(\'pacman-g2\')'], # pacman-g2 has sym link to pacman
-	['pacman-g2','pacman-g2','p','-Q',1,0,''],
-	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
-	['pkg_info','pkg_info','p','',1,0,''],
-	# like cards, avoid pkginfo directly due to python pm being so slow
-	# but pkgadd is also found in scratch
-	['pkgutils','pkginfo','p','-i',1,0,'','main::check_program(\'pkgadd\')'],
-	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
-	['pkgtool','pkgtool','d','/var/lib/pkgtools/packages',1,4,'\\/',
-	 '-d \'/var/lib/pkgtools/packages\''],
-	['pkgtool','pkgtool','d','/var/log/packages/',1,5,'\\/',
-	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\''],
-	# way too slow without nodigest/sig!! confirms packages exist
-	['rpm','rpm','p','-qa --nodigest --nosignature',1,0,''],
-	# scratch is a programming language too, with software called scratch
-	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
-	 '-d \'/var/lib/scratchpkg\''],
-	# note',' slapt-get, spkg, and pkgtool all return the same count
-	#['slapt-get','slapt-get','p','--installed',1,0,''],
-	#['spkg','spkg','p','--installed',1,0,''],
-	['tce','tce-status','p','-i',1,0,''],
-	# note: I believe mageia uses rpm internally but confirm
-	# ['urpmi','urpmq','p','??',1,0,''], 
-	['xbps','xbps-query','p','-l',1,1,''],
-	# ['xxx-brew','brew','p','--cellar',0,0,''], # verify how this works
-	['zzz-flatpak','flatpak','p','list',0,0,''],
-	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
-	);
-	my $libs;
-	foreach (@pkg_managers){
-		if ($program = main::check_program($_->[1])){
-			next if $_->[7] && !eval $_->[7];
-			if ($_->[2] eq 'p'){
-				chomp(@list = qx($program $_->[3] 2>/dev/null));
-			}
-			else {
-				@list = main::globber($_->[3]);
-			}
-			$libs = undef;
-			$count = scalar @list;
-			#print Data::Dumper::Dumper \@list;
-			if ($b_admin && $count && $_->[4]){
-				$libs = count_libs(\@list,$_->[5],$_->[6]);
-			}
-			$counts{$_->[0]} = [$count,$libs];
-			$counts{'total'} += $count;
-			#print Data::Dumper::Dumper \%counts;
-		}
-	}
-	# print Data::Dumper::Dumper \%counts;
-	main::log_data('dump','Package managers: %counts',\%counts) if $b_log;
-	eval $end if $b_log;
-}
-sub appimage_counts {
-	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
-		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
-		$count = scalar @list;
-		$counts{'zzz-appimage'} = [$count,undef] if $count;
-		$counts{'total'} += $count;
-	}
-}
-sub count_libs {
-	my ($items,$pos,$split) = @_;
-	my (@data);
-	my $i = 0;
-	$split ||= '\\s+';
-	#print scalar @$items, '::', $split, '::', $pos, "\n";
-	foreach (@$items){
-		@data = split(/$split/, $_);
-		#print scalar @data, '::', $data[$pos], "\n";
-		$i++ if $data[$pos] && $data[$pos] =~ m%^lib%;
-	}
-	return $i;
-}
-}
-
-# args: 1 - pci device string; 2 - pci cleaned subsystem string
-sub get_pci_vendor {
-	eval $start if $b_log;
-	my ($device, $subsystem) = @_;
-	return if !$subsystem;
-	my ($vendor,$sep,$temp) = ('','','');
-	# get rid of any [({ type characters that will make regex fail
-	# and similar matches show as non-match
-	$subsystem = regex_cleaner($subsystem);
-	my @data = split(/\s+/, $subsystem);
-	# when using strings in patterns for regex have to escape them
-	foreach (@data){
-		$temp = $_;
-		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
-		if ($device !~ m|\b$temp\b|){
-			$vendor .= $sep . $_;
-			$sep = ' ';
-		}
-		else {
-			last;
-		}
-	}
-	eval $end if $b_log;
-	return $vendor;
-}
-
-# 1 - partition name, without /dev, like sda1, sde
-sub get_proc_partition {
-	eval $start if $b_log;
-	my $item = $_[0];
-	return if !@proc_partitions;
-	my (@device);
-	foreach my $device (@proc_partitions){
-		if ($device->[3] eq $item){
-			@device = @$device;
-			last;
-		}
-	}
-	eval $start if $b_log;
-	return @device;
-}
-
-# # check? /var/run/nologin for bsds?
-sub get_runlevel_data {
-	eval $start if $b_log;
-	my $runlevel = '';
-	if ( my $program = check_program('runlevel')){
-		$runlevel = (grabber("$program 2>/dev/null"))[0];
-		$runlevel =~ s/[^\d]//g if $runlevel;
-		#print_line($runlevel . ";;");
-	}
-	eval $end if $b_log;
-	return $runlevel;
-}
-
-# note: it appears that at least as of 2014-01-13, /etc/inittab is going 
-# to be used for default runlevel in upstart/sysvinit. systemd default is 
-# not always set so check to see if it's linked.
-sub get_runlevel_default {
-	eval $start if $b_log;
-	my @data;
-	my $default = '';
-	my $b_systemd = 0;
-	my $inittab = '/etc/inittab';
-	my $systemd = '/etc/systemd/system/default.target';
-	my $upstart = '/etc/init/rc-sysinit.conf';
-	# note: systemd systems do not necessarily have this link created
-	if ( -e $systemd){
-		$default = readlink($systemd);
-		$default =~ s/.*\/// if $default; 
-		$b_systemd = 1;
-	}
-	# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
-	# note that technically default can be changed at boot but for inxi purposes 
-	# that does not matter, we just want to know the system default
-	elsif ( -r $upstart){
-		# env DEFAULT_RUNLEVEL=2
-		@data = reader($upstart);
-		$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
-	}
-	# handle weird cases where null but inittab exists
-	if (!$default && -r $inittab ){
-		@data = reader($inittab);
-		$default = awk(\@data,'^id.*initdefault',2,':');
-	}
-	eval $end if $b_log;
-	return $default;
-}
-
-sub get_self_version {
-	eval $start if $b_log;
-	my $patch = $self_patch;
-	if ( $patch ne '' ){
-		# for cases where it was for example: 00-b1 clean to -b1
-		$patch =~ s/^[0]+-?//;
-		$patch = "-$patch" if $patch;
-	}
-	eval $end if $b_log;
-	return $self_version . $patch;
-}
-# Get ServiceData
-{
-package ServiceData;
-my ($key,$service,$type);
-sub get {
-	eval $start if $b_log;
-	($type,$service) = @_;
-	my $value;
-	set() if !$loaded{'service-tool'};
-	$key = (keys %service_tool)[0] if %service_tool;
-	if ($key){
-		if ($type eq 'status'){
-			$value = process_status();
-		}
-		elsif ($type eq 'tool'){
-			$value = $service_tool{$key}->[1];
-		}
-	}
-	eval $end if $b_log;
-	return $value;
-}
-sub process_status {
-	eval $start if $b_log;
-	my ($cmd,$status,@data);
-	my ($result,$value) = ('','');
-	my %translate = (
-	'active' => 'running',
-	'down' => 'stopped',
-	'fail' => 'not found', 
-	'failed' => 'not found', 
-	'inactive' => 'stopped',
-	'ok' => 'running',
-	'not running' => 'stopped',
-	'run' => 'running',
-	'started' => 'running',
-	);
-	if ($key eq 'systemctl'){
-		$cmd = "$service_tool{$key}->[0] status $service";
-	}
-	# can be /etc/init.d or /etc/rc.d; ghostbsd/gentoo have this
-	elsif ($key eq 'rc-service'){
-		$cmd = "$service_tool{$key}->[0] $service status";
-	}
-	elsif ($key eq 'rcctl'){
-		$cmd = "$service_tool{$key}->[0] check $service";
-	}
-	# dragonfly/netbsd/freebsd have this
-	elsif ($key eq 'service'){
-		$cmd = "$service_tool{$key}->[0] $service status";
-	}
-	# runit
-	elsif ($key eq 'sv'){
-		$cmd = "$service_tool{$key}->[0] status $service";
-	}
-	# check or status or onestatus (netbsd)
-	elsif ($key eq 'rc.d'){
-		if (-e "$service_tool{$key}->[0]$service"){
-			$status =  ($bsd_type && $bsd_type =~ /(dragonfly)/) ? 'status' : 'check';
-			$cmd = "$service_tool{$key}->[0]$service check";
-		}
-		else {
-			$result = 'not found';
-		}
-	}
-	elsif ($key eq 'init.d'){
-		if (-e "$service_tool{$key}->[0]$service"){
-			$cmd = "$service_tool{$key}->[0]$service status";
-		}
-		else {
-			$result = 'not found';
-		}
-	}
-	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
-	#@data = ('bluetooth is running.');
-	print "key: $key\n", Data::Dumper::Dumper \@data if $dbg[29];
-	main::log_data('dump','service @data',\@data) if $b_log;
-	for my $row (@data){
-		my @working = split(/\s*:\s*/,$row);
-		($value) = ('');
-		# print "$working[0]::$working[1]\n";
-		if ($working[0] eq 'Loaded'){
-			# note: sshd shows ssh for ssh.service
-			$working[1] =~ /^(.+?)\s*\(.*?\.service;\s+(\S+?);.*/;
-			$result = lc($1) if $1;
-			$result = lc($2) if $2; # this will be enabled/disabled
-		}
-		elsif ($working[0] eq 'Active'){
-			$working[1] =~ /^(.+?)\s*\((\S+?)\).*/;
-			$value = lc($1) if $1 && (!$result || $result ne 'disabled');
-			$value = $translate{$value} if $value && $translate{$value};
-			$result .= ",$value" if ($result && $value);
-			last;
-		}
-		# valid syntax, but service does not exist
-		# * rc-service: service 'ntp' does not exist :: 
-		elsif ($row =~ /$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/i){
-			$result = 'not found';
-			last;
-		}
-		# means command directive doesn't exist, we don't know if service exists or not
-		# * ntpd: unknown function 'disable' :: 
-		elsif ($row =~ /unknown (directive|function)|Usage/i){
-			last;
-		}
-		# rc-service: * status: started :: * status: stopped, fail handled in not exist test
-		elsif ($working[0] eq '* status' && $working[1]){
-			$result = lc($working[1]);
-			$result = $translate{$result} if $translate{$result};
-			last;
-		}
-		## start exists status detections
-		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?$/){
-			$result = lc($1);
-			$result = $translate{$result} if $translate{$result};
-			last;
-		}
-		# runit sv: run/down/fail - fail means not found
-		# run: udevd: (pid 631) 641s :: down: sshd: 9s, normally up
-		elsif ($working[1] && $working[1] eq $service && $working[0] =~ /^([a-z]+)$/){
-			$result = lc($1);
-			$result = $translate{$result} if $translate{$result};
-			$result = "enabled,$result" if $working[2] && $working[2] =~ /normally up/i;
-		}
-		# OpenBSD: sshd(ok)
-		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
-			$result = lc($1);
-			$result = $translate{$result} if $translate{$result};
-			last;
-		}
-	}
-	print "service result: $result\n" if $dbg[29];
-	main::log_data('data',"result: $result") if $b_log;
-	eval $end if $b_log;
-	return $result;
-}
-sub set {
-	eval $start if $b_log;
-	$loaded{'service-tool'} = 1;
-	my ($path);
-	if ($path = main::check_program('systemctl')){
-		# systemctl status ssh :: Loaded: / Active: 
-		%service_tool = ('systemctl' => [$path,'systemctl']);
-	}
-	elsif ($path = main::check_program('rc-service')){
-		# rc-service ssh status ::  * status: stopped
-		%service_tool = ('rc-service' => [$path,'rc-service']);
-	}
-	elsif ($path = main::check_program('rcctl')){
-		# rc-service ssh status ::  * status: stopped
-		%service_tool = ('rcctl' => [$path,'rcctl']);
-	}
-	elsif ($path = main::check_program('service')){
-		# service sshd status
-		%service_tool = ('service' => [$path,'service']);
-	}
-	elsif ($path = main::check_program('sv')){
-		# service sshd status
-		%service_tool = ('sv' => [$path,'sv']);
-	}
-	# freebsd does not have 'check', netbsd does not have status
-	elsif (-d '/etc/rc.d/'){
-		# /etc/rc.d/ssh check :: ssh(ok|failed)
-		%service_tool = ('rc.d' => ['/etc/rc.d/','/etc/rc.d']); 
-	}
-	elsif (-d '/etc/init.d/'){
-		# /etc/init.d/ssh status :: Loaded: loaded (...)/ Active: active (...)
-		%service_tool = ('init.d' => ['/etc/init.d/','/etc/init.d']);
-	}
-	eval $end if $b_log;
-}
-}
-# $dbg[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
-
-# Get ShellData
-{
-package ShellData;
-my $b_debug = 0; # disable all debugger output in case forget to comment out!
-
-# public. This does not depend on using ps -jfp, open/netbsd do not 
-# at this point support it, so we only want to use -jp to get parent
-# $ppid set in initialize(). shell_launcher will use -f so it only 
-# runs in case we got $pppid. $client{'pppid'} will be used to trigger
-# launcher tests. If started with sshd via ssh user@address 'pinxi -Ia'
-# will show sshd as shell, which is fine, that's what it is.
-sub set {
-	eval $start if $b_log;
-	my ($cmd,$parent,$pppid,$shell);
-	$loaded{'shell-data'} = 1;
-	$cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
-	$shell = qx($cmd);
-	# we'll be using these $client pppid/parent values in shell_launcher() 
-	$pppid = $client{'pppid'} = get_pppid($ppid);
-	$pppid ||= ''; 
-	$client{'pppid'} ||= '';
-	# print "sh: $shell\n";
-	main::log_data('cmd',$cmd) if $b_log;
-	chomp($shell);
-	if ($shell){
-		# print "shell pre: $shell\n";
-		# when run in debugger subshell, would return sh as shell,
-		# and parent as perl, that is, pinxi itself, which is actually right.
-		# trim leading /.../ off just in case. ps -p should return the name, not path 
-		# but at least one user dataset suggests otherwise so just do it for all.
-		$shell =~ s/^.*\///; 
-		# NOTE: su -c "inxi -F" results in shell being su
-		# but: su - results in $parent being su
-		my $i=0;
-		$parent = $client{'parent'} = parent_name($pppid) if $pppid;
-		$parent ||= '';
-		print "1: shell: $shell $ppid parent: $parent $pppid\n" if $b_debug;
- 		# this will fail in this case: sudo su -c 'inxi -Ia'
-		if ($shell =~ /^(doas|login|sudo|su)$/){
-			$client{'su-start'} = $shell if $shell ne 'login';
-			$shell = $parent if $parent;
-		}
-		# eg: su to root, then sudo
-		elsif ($parent && $client{'parent'} =~ /^(doas|sudo|su)$/){
-			$client{'su-start'} = $parent;
-			$parent = '';
-		}
-		print "2: shell: $shell parent: $parent\n" if $b_debug;
-		my $working = $ENV{'SHELL'};
-		if ($working){
-			$working =~ s/^.*\///;
-			# a few manual changes for known 
-			# Note: parent when fizsh shows as zsh but SHELL is fizsh, but other times
-			# SHELL is default shell, but in zsh, SHELL is default shell, not zfs
-			if ($shell eq 'zsh' && $working eq 'fizsh' ){
-				$shell = $working;
-			}
-		}
-		#print "3: shell post: $shell working: $working\n";
-		# since there are endless shells, we'll keep a list of non program value
-		# set shells since there is little point in adding those to program values
-		if (shell_test($shell)){
-			# do nothing, just leave $shell as is
-		}
-		# note: not all programs return version data. This may miss unhandled shells!
-		elsif ((@app = main::program_data(lc($shell),lc($shell),1)) && $app[0]){
-			$shell = $app[0];
-			$client{'version'} = $app[1] if $app[1]; 
-			print "3: app test $shell v: $client{'version'}\n" if $b_debug;
-		}
-		else {
-			# NOTE: we used to guess here with position 2 --version but this cuold lead
-			# to infinite loops when inxi called from a script 'infos' that is in PATH and 
-			# script does not have any start arg handlers or bad arg handlers: 
-			# eg: shell -> infos -> inxi -> sh -> infos --version -> infos -> inxi...
-			# Basically here we are hoping that the grandparent is a shell, or at least
-			# recognized as a known possible program
-			#print "app not shell?: $shell\n";
-			if ($shell){
-				 print "shell 4: $shell StartClientVersionType: $parent\n" if $b_debug;
-				if ($parent){
-					if (shell_test($parent)){
-						$shell = $parent;
-					}
-					elsif ((@app = main::program_data(lc($parent),lc($parent),0)) && $app[0]){
-						$shell = $app[0];
-						$client{'version'} = $app[1] if $app[1];
-					}
-					print "shell 5: $shell version: $client{'version'}\n" if $b_debug;
-				}
-			}
-			else {
-				$client{'version'} = main::row_defaults('unknown-shell');
-			}
-			print "6: shell not app version: $client{'version'}\n" if $b_debug;
-		}
-		$client{'version'} ||= '';
-		$client{'version'} =~ s/(\(.*|-release|-version)// if $client{'version'};
-		$shell =~ s/^[\s-]+|[\s-]+$//g if $shell; # sometimes will be like -sh
-		$client{'name'} = lc($shell);
-		$client{'name-print'} = $shell;
-		print "7: shell: $client{'name-print'} version: $client{'version'}\n" if $b_debug;
-		if ($extra > 2 && $working && lc($shell) ne lc($working)){
-			if (@app = main::program_data(lc($working))){
-				$client{'default-shell'} = $app[0];
-				$client{'default-shell-v'} = $app[1];
-				$client{'default-shell-v'} =~ s/(\s*\(.*|-release|-version)// if $client{'default-shell-v'};
-			}
-			else {
-				$client{'default-shell'} = $working;
-			}
-		}
-	}
-	else {
-		$client{'name'} = 'shell';
-		$client{'name-print'} = 'Unknown Shell';
-	}
-	if (!$client{'su-start'}){
-		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
-		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'};
-	}
-	if ($parent && $parent eq 'login'){
-		$client{'su-start'} = ($client{'su-start'}) ? $client{'su-start'} . ',' . $parent: $parent;
-	}
-	eval $end if $b_log;
-}
-# public, returns shell launcher, terminal, program, whatever
-# depends on $pppid so only runs if that is set.
-sub shell_launcher {
-	eval $start if $b_log;
-	my (@data);
-	my ($msg,$pppid,$shell_parent) = ('','','');
-	$pppid = $client{'pppid'};
-	if ($b_log){
-		$msg = ($ppid) ? "pppid: $pppid ppid: $ppid": "ppid: undefined";
-		main::log_data('data',$msg);
-	}
-	#print "self parent: $pppid ppid: $ppid\n";
-	if ($pppid){
-		$shell_parent = $client{'parent'};
-		#print "shell parent 1: $shell_parent\n";
-		if ($b_log){
-			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
-			main::log_data('data',$msg);
-		}
-		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
-		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
-		my $shells = 'ash|bash|busybox|cicada|csh|dash|doas|elvish|fish|fizsh|ksh|ksh93|';
-		$shells .= 'lksh|login|loksh|mksh|nash|oh|oil|osh|pdksh|perl|posh|';
-		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
-		$shells .= shell_test('return');
-		my $i = 0;
-		print "self::pppid-0: $pppid :: $shell_parent\n" if $b_debug;
-		# note that new shells not matched will keep this loop spinning until it ends. 
-		# All we really can do about that is update with new shell name when we find them. 
-		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
-			# bash > su > parent
-			$i++;
-			$pppid = get_pppid($pppid);
-			$shell_parent = parent_name($pppid);
-			print "self::pppid-${i}: $pppid :: $shell_parent\n" if $b_debug;
-			if ($b_log){
-				$msg = ($shell_parent) ? "parent-$i: $shell_parent": "shell parent $i: undefined";
-				main::log_data('data',$msg);
-			}
-		}
-	}
-	if ($b_log){
-		$pppid ||= '';
-		$shell_parent ||= '';
-		main::log_data('data',"parents: pppid: $pppid parent-name: $shell_parent");
-	}
-	eval $end if $b_log;
-	return $shell_parent;
-}
-# arg: 1 - parent id 
-# returns SID/start ID
-sub get_pppid {
-	eval $start if $b_log;
-	my ($ppid) = @_;
-	return 0 if !$ppid;
-	# ps -j -fp : some bsds ps do not have -f for PPID, so we can't get the ppid
-	my $cmd = "ps -wwjfp $ppid 2>/dev/null";
-	main::log_data('cmd',$cmd) if $b_log;
-	my @data = main::grabber($cmd);
-	#shift @data if @data;
-	my $pppid = main::awk(\@data,"$ppid",3,'\s+');
-	eval $end if $b_log;
-	return $pppid;
-}
-# arg: 1 - parent id
-# returns parent command name
-sub parent_name {
-	eval $start if $b_log;
-	my ($ppid) = @_;
-	return '' if !$ppid;
-	my ($parent_name);
-	my $cmd = "ps -wwjp $ppid 2>/dev/null";
-	main::log_data('cmd',$cmd) if $b_log;
-	my @data = main::grabber($cmd,'','strip');
-	# dump the headers if they exist
-	$parent_name = (grep {/$ppid/} @data)[0] if @data;
-	if ($parent_name){
-		# we don't want to worry about column position, just slice off all 
-		# the first part before the command
-		$parent_name =~ s/^.*[0-9]+:[0-9\.]+\s+//;
-		# then get the command
-		$parent_name = (split(/\s+/,$parent_name))[0];
-		# get rid of /../ path info if present
-		$parent_name =~ s|^.*/|| if $parent_name; 
-		# to work around a ps -p or gnome-terminal bug, which returns 
-		# gnome-terminal- trim -/_ off start/end; _su, etc, which breaks detections
-		$parent_name =~ s/^[_-]|[_-]$//g;
-	}
-	eval $end if $b_log;
-	return $parent_name;
-}
-# list of program_values non-handled shells, or known to have no version
-# Move shell to set_program_values for print name, or version if available
-# $1 - return|[shell name to test
-# returns test list OR shell name/''
-sub shell_test {
-	my ($test) = @_;
-	# these shells are not verified or tested
-	my $shells = 'apush|ccsh|ch|esh?|eshell|heirloom|hush|';
-	$shells .= 'ion|imrsh|larryshell|mrsh|msh(ell)?|murex|nsh|nu(shell)?|';
-	$shells .= 'oksh|psh|pwsh|pysh(ell)?|rush|sash|xsh?|';
-	# these shells are tested and have no version info
-	$shells .= 'es|rc|scsh|sh';
-	return '|' . $shells if $test eq 'return';
-	return ($test =~ /^($shells)$/) ? $test : '';
-}
-# this will test against default IP like: (:0) vs full IP to determine 
-# ssh status. Surprisingly easy test? Cross platform
-sub ssh_status {
-	eval $start if $b_log;
-	my ($b_ssh,$ssh);
-	# fred   pts/10       2018-03-24 16:20 (:0.0)
-	# fred-remote pts/1        2018-03-27 17:13 (43.43.43.43)
-	if (my $program = main::check_program('who')){
-		$ssh = (main::grabber("$program am i 2>/dev/null"))[0];
-		# crude IP validation
-		if ($ssh && $ssh =~ /\(([:0-9a-f]{8,}|[1-9][\.0-9]{6,})\)$/){
-			$b_ssh = 1;
-		}
-	}
-	eval $end if $b_log;
-	return $b_ssh;
-}
-# If IRC: called if root for -S, -G, or if not in display for user.
-sub console_irc_tty {
-	eval $start if $b_log;
-	$loaded{'con-irc-tty'} = 1;
-	# not set for root in or out of display
-	if (defined $ENV{'XDG_VTNR'} ){
-		$client{'con-irc-tty'} = $ENV{'XDG_VTNR'};
-	}
-	else {
-		# ppid won't work with name, so this is assuming there's only one client running
-		# if in display, -G returns vt size, not screen dimensions in rowsxcols.
-		$client{'con-irc-tty'} = main::awk(\@ps_aux,'.*\b' . $client{'name'} . '\b.*',7,'\s+');
-		$client{'con-irc-tty'} =~ s/^(tty|\?)// if defined $client{'con-irc-tty'};
-	}
-	$client{'con-irc-tty'} = '' if !defined $client{'con-irc-tty'};
-	main::log_data('data',"console-irc-tty:$client{'con-irc-tty'}") if $b_log;
-	eval $end if $b_log;
-}
-sub tty_number {
-	eval $start if $b_log;
-	$loaded{'tty-number'} = 1;
-	# note: ttyname returns undefined if pinxi is > redirected output
-	# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
-	$client{'tty-number'} = POSIX::ttyname(1);
-	# but tty direct works fine in that case
-	if (!defined $client{'tty-number'} && (my $program = main::check_program('tty'))){
-		chomp($client{'tty-number'} = qx($program 2>/dev/null));
-		if (defined $client{'tty-number'} && $client{'tty-number'} =~ /^not/){
-			undef $client{'tty-number'};
-		}
-	}
-	if (defined $client{'tty-number'}){
-		$client{'tty-number'} =~ s/^\/dev\/(tty)?//;
-	}
-	else {
-		$client{'tty-number'} = '';
-	}
-	# systemd only item, usually same as tty in console, not defined
-	# for root or non systemd systems.
-	if (defined $ENV{'XDG_VTNR'} && $client{'tty-number'} ne '' && 
-	 $ENV{'XDG_VTNR'} ne $client{'tty-number'}){
-		$client{'tty-number'} = "$client{'tty-number'} (vt $ENV{'XDG_VTNR'})";
-	}
-	elsif ($client{'tty-number'} eq '' && defined $ENV{'XDG_VTNR'}) {
-		$client{'tty-number'} = $ENV{'XDG_VTNR'};
-	}
-	main::log_data('data',"tty:$client{'tty-number'}") if $b_log;
-	eval $end if $b_log;
-}
-}
-
-sub get_uptime {
-	eval $start if $b_log;
-	my ($days,$hours,$minutes,$seconds,$uptime) = ('','','','','');
-	if (check_program('uptime')){
-		$uptime = qx(uptime);
-		$uptime = trimmer($uptime);
-		if ($fake{'uptime'}){
-			# $uptime = '2:58PM  up 437 days,  8:18, 3 users, load averages: 2.03, 1.72, 1.77';
-			# $uptime = '04:29:08 up  3:18,  3 users,  load average: 0,00, 0,00, 0,00';
-			# $uptime = '10:23PM  up 5 days, 16:17, 1 user, load averages: 0.85, 0.90, 1.00';
-			# $uptime = '05:36:47 up 1 day,  3:28,  4 users,  load average: 1,88, 0,98, 0,62';
-			# $uptime = '05:36:47 up 1 day,  3 min,  4 users,  load average: 1,88, 0,98, 0,62';
-			# $uptime = '04:41:23 up  2:16,  load average: 7.13, 6.06, 3.41 # root openwrt';
-			# $uptime = '9:51 PM  up 2 mins, 1 user, load average: 0:58, 0.27, 0.11';
-			# $uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
-			# $uptime = '9:51 PM  up 49 secs, 1 user, load average: 0:58, 0.27, 0.11';
-		}
-		if ($uptime && 
-		 $uptime =~ /[\S]+\s+up\s+(([0-9]+)\s+day[s]?,\s+)?(([0-9]{1,2}):([0-9]{1,2})|([0-9]+)\smin[s]?|([0-9]+)\ssec[s]?),\s+([0-9]+\s+user|load average)/){
-			$days = $2 . 'd' if $2;
-			$days .= ' ' if ($days && ($4 || $6));
-			if ($4 && $5){
-				$hours = $4 . 'h ';
-				$minutes = $5 . 'm';
-			}
-			elsif ($6){
-				$minutes = $6 . 'm';
-			}
-			elsif ($7){
-				$seconds = $7 . 's';
-			}
-			$uptime = $days . $hours . $minutes . $seconds;
-		}
-	}
-	$uptime ||= 'N/A';
-	eval $end if $b_log;
-	return $uptime;
-}
-#  note: seen instance in android where reading file hangs endlessly!!!
-sub get_wakeups {
-	eval $start if $b_log;
-	return if $b_arm || $b_mips || $b_ppc;
-	my ($wakeups);
-	my $path = '/sys/power/wakeup_count';
-	$wakeups = reader($path,'strip',0) if -r $path;
-	eval $end if $b_log;
-	return $wakeups;
-}
-
-#### -------------------------------------------------------------------
-#### SET DATA VALUES - used to set data for program features
-#### -------------------------------------------------------------------
-
-# android only, for distro / OS id and machine data
-sub set_build_prop {
-	eval $start if $b_log;
-	my $path = '/system/build.prop';
-	$loaded{'build-prop'} = 1;
-	return if ! -r $path;
-	my @data = reader($path,'strip');
-	foreach (@data){
-		my @working = split('=', $_);
-		next if $working[0] !~ /^ro\.(build|product)/;
-		if ($working[0] eq 'ro.build.date.utc'){
-			$build_prop{'build-date'} = strftime "%F", gmtime($working[1]);
-		}
-		# ldgacy, replaced by ro.product.device
-		elsif ($working[0] eq 'ro.build.product'){
-			$build_prop{'build-product'} = $working[1];
-		}
-		# this can be brand, company, android, it varies, but we don't want android value
-		elsif ($working[0] eq 'ro.build.user'){
-			$build_prop{'build-user'} = $working[1] if $working[1] !~ /android/i;
-		}
-		elsif ($working[0] eq 'ro.build.version.release'){
-			$build_prop{'build-version'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.board'){
-			$build_prop{'product-board'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.brand'){
-			$build_prop{'product-brand'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.device'){
-			$build_prop{'product-device'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.manufacturer'){
-			$build_prop{'product-manufacturer'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.model'){
-			$build_prop{'product-model'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.name'){
-			$build_prop{'product-name'} = $working[1];
-		}
-		elsif ($working[0] eq 'ro.product.screensize'){
-			$build_prop{'product-screensize'} = $working[1];
-		}
-	}
-	log_data('dump','%build_prop',\%build_prop) if $b_log;
-	print Dumper \%build_prop if $dbg[20];
-	eval $end if $b_log;
-}
-
+## DeviceData / PCI / SOC
 ## creates arrays: $devices{'audio'}; $devices{'graphics'}; $devices{'hwraid'}; 
 ## $devices{'network'}; $devices{'timer'} and local @devices for logging/debugging
 # 0 type
@@ -22921,7 +21018,6 @@ sub set_build_prop {
 # 13 subsystem vendor_id:chip id
 # 14 soc handle
 # 15 serial number
-## DeviceData / PCI / SOC
 {
 package DeviceData;
 my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
@@ -23581,188 +21677,704 @@ sub pci_class {
 }
 }
 
-sub set_dboot_data {
+sub get_display_manager {
 	eval $start if $b_log;
-	$loaded{'dboot'} = 1;
-	my ($file,@db_data,@dm_data,@temp);
-	my ($counter) = (0);
-	if (!$fake{'dboot'}){
-		$file = $system_files{'dmesg-boot'};
+	my (@data,@found,$path,$working,$b_run,$b_vrun,$b_vrunrc);
+	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
+	# extension in Arch note: to avoid positives with directories, test for -f 
+	# explicitly, not -e. Guessing on cdm.pid. pcdm uses vt, PCDM-vt9.pid
+	my @dms = qw(cdm.pid entranced.pid gdm.pid gdm3.pid kdm.pid ldm.pid 
+	lightdm.pid lxdm.pid mdm.pid nodm.pid pcdm.pid sddm.pid slim.lock 
+	slim.pid tdm.pid udm.pid wdm.pid xdm.pid xenodm.pid);
+	# these are the only one I know of so far that have version info
+	my @dms_version = qw(gdm gdm3 lightdm slim);
+	$b_run = 1 if -d "/run";
+	# in most linux, /var/run is a sym link to /run, so no need to check it twice
+	if ( -d "/var/run" ){
+		my $rdlink = readlink('/var/run');
+		$b_vrun = 1 if !$rdlink || ($rdlink && $rdlink ne '/run');
+		$b_vrunrc = 1 if -d "/var/run/rc.d";
+	}
+	foreach my $id (@dms){
+		# note: $working will create a dir name out of the dm $id, then 
+		# test if pid is in that note: sddm, in an effort to be unique and special, 
+		# do not use a pid/lock file, but rather a random string inside a directory 
+		# called /run/sddm/ so assuming the existence of the pid inside a directory named
+		# from the dm. Hopefully this change will not have negative results.
+		$working = $id;
+		$working =~ s/\.\S+$//;
+		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
+		if ( ( ( $b_run && ( -f "/run/$id" || -d "/run/$working" ) ) || 
+		   ( $b_vrun && ( -f "/var/run/$id" || -d "/var/run/$working" ) ) || 
+		   ( $b_vrunrc && ( -f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id" ) ) ) && 
+		   ! grep {/$working/} @found ){
+			if ($extra > 2 && awk( \@dms_version, $working) && ($path = check_program($working)) ){}
+			else {$path = $working;}
+			# print "$path $extra\n";
+			@data = program_data($working,$path,3);
+			$working = $data[0];
+			$working .= ' ' . $data[1] if $data[1];
+			push(@found, $working);
+		}
+	}
+	if (!@found){
+		# ly does not have a run/pid file
+		if (grep {$_ eq 'ly'} @ps_gui) {
+			@data = program_data('ly','ly',3);
+			$found[0] = $data[0];
+			$found[0] .= ' ' . $data[1] if $data[1];
+		}
+		elsif (grep {/startx$/} @ps_gui) {
+			$found[0] = 'startx';
+		}
+		elsif (grep {$_ eq 'xinit'} @ps_gui) {
+			$found[0] = 'xinit';
+		}
+	}
+	# might add this in, but the rate of new dm's makes it more likely it's an 
+	# unknown dm, so we'll keep output to N/A
+	log_data('dump','display manager: @found',\@found) if $b_log;
+	eval $end if $b_log;
+	return join(', ', @found) if @found;
+}
+
+## DistroData
+{
+package DistroData;
+my (@distro_files,@osr,@working);
+my ($distro,$distro_file,$distro_id,$system_base) = ('','','','');
+my ($etc_issue,$lc_issue,$os_release) = ('','','/etc/os-release');
+sub get {
+	eval $start if $b_log;
+	if ($bsd_type){
+		get_bsd_os();
 	}
 	else {
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
-		## matches: toshiba: openbsd-5.6-sysctl-2.txt
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
-		## matches: compaq: openbsd-5.6-sysctl-1.txt"
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
+		get_linux_distro();
 	}
-	if ($file){
-		return if ! -r $file;
-		@db_data = reader($file);
-		# sometimes > 1 sessions stored, dump old ones
-		for (@db_data){
-			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/){
-				$counter++;
-				undef @temp if $counter > 1; 
-			}
-			push(@temp,$_);
+	eval $end if $b_log;
+	return ($distro,$system_base);
+}
+
+sub get_bsd_os {
+	eval $start if $b_log;
+	if ($bsd_type eq 'darwin'){
+		$distro_file = '/System/Library/CoreServices/SystemVersion.plist';
+		if (-f $distro_file){
+			@working = main::reader($distro_file);
+			@working = grep {/(ProductName|ProductVersion)/} @working if @working;
+			@working = grep {/<string>/} @working if @working;
+			@working = map {s/<[\/]?string>//g; } @working if @working;
+			$distro = join(' ', @working);
 		}
-		@db_data = @temp;
-		undef @temp; 
-		my @dm_data = grabber('dmesg 2>/dev/null');
-		# clear out for netbsd, only 1 space following or lines won't match
-		@dm_data = map {$_ =~ s/^\[[^\]]+\]\s//;$_} @dm_data;
-		$counter = 0;
-		# dump previous sessions, and also everything roughly before dmesg.boot 
-		# ends, it does't need to be perfect, we just only want the actual post 
-		# boot data
-		for (@dm_data){
-			if (/^(Dragonfly|OpenBSD|NetBSD|FreeBSD is a registered trademark|Copyright.*Midnight)/ ||
-				/^(smbus[0-9]:|Security policy loaded|root on)/){
-				$counter++;
-				undef @temp if $counter > 1; 
-			}
-			push(@temp,$_);
+	}
+	if (!$distro){
+		my $bsd_type_osr = 'dragonfly';
+		@osr = main::reader($os_release) if -r $os_release;
+		if (@osr && $bsd_type =~ /($bsd_type_osr)/ && (grep {/($bsd_type_osr)/i} @osr)){
+			$distro = get_os_release();
+			$distro_id = lc($1);
 		}
-		@dm_data = @temp;
-		undef @temp; 
-		push(@db_data,'~~~~~',@dm_data);
-		# uniq(\@db_data); # get rid of duplicate lines
-		# some dmesg repeats, so we need to dump the second and > iterations
-		# replace all indented items with ~ so we can id them easily while
-		# processing note that if user, may get error of read permissions
-		# for some weird reason, real mem and avail mem are use a '=' separator, 
-		# who knows why, the others are ':'
-		foreach (@db_data){
-			$_ =~ s/\s*=\s*|:\s*/:/;
-			$_ =~ s/\"//g;
-			$_ =~ s/^\s+/~/;
-			$_ =~ s/\s\s/ /g;
-			$_ =~ s/^(\S+)\sat\s/$1:at /; # ada0 at ahcich0
-			push(@{$dboot{'main'}}, $_);
-			if ($use{'bsd-battery'} && /^acpi(bat|cmb)/){
-				push(@{$sysctl{'battery'}}, $_);
-			}
-			elsif ($use{'bsd-cpu'} && /(^cpu[0-9]+:|Features|^~*Origin:\s*)/){
-				push(@{$dboot{'cpu'}}, $_);
-			}
-			# FreeBSD: 'da*' is a USB device 'ada*' is a SATA device 'mmcsd*' is an SD card
-			# OpenBSD: 'sd' is usb device, 'wd' normal drive. OpenBSD uses sd for nvme drives
-			# but also has the nvme data: 
-			# nvme1 at pci6 dev 0 function 0 vendor "Phison", unknown product 0x5012 rev 0x01: msix, NVMe 1.3
-			# nvme1: OWC Aura P12 1.0TB, firmware ECFM22.6, serial 2003100010208
-			# scsibus2 at nvme1: 2 targets, initiator 0
-			# sd1 at scsibus2 targ 1 lun 0: <NVMe, OWC Aura P12 1.0, ECFM>
-			# sd1: 915715MB, 4096 bytes/sector, 234423126 sectors
-			elsif ($use{'bsd-disk'} && 
-			 /^(ad|ada|da|mmcblk|mmcsd|nvme([0-9]+n)?|sd|wd)[0-9]+(:|\sat\s|.*?\sdetached$)/){
-				$_ =~ s/^\(//;
-				push (@{$dboot{'disk'}},$_);
-			}
-			if ($use{'bsd-machine'} && /^bios[0-9]:(at|vendor)/){
-				push(@{$sysctl{'machine'}}, $_);
-			}
-			elsif ($use{'bsd-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
-				push(@{$dboot{'optical'}},$_);
-			}
-			elsif ($use{'bsd-pci'} && /^(pci[0-9]+:at|\S+:at pci)/){
-				push(@{$dboot{'pci'}},$_);
-			}
-			elsif ($use{'bsd-ram'} && /(^spdmem)/){
-				push(@{$dboot{'ram'}}, $_);
-			}
+	}
+	if (!$distro){
+		my $bsd_type_version = 'truenas';
+		my ($version_file,$version_info) = ('/etc/version','');
+		$version_info = main::reader($version_file,'strip') if -r $version_file;
+		if ($version_info && $version_info =~ /($bsd_type_version)/i){
+			$distro = $version_info;
+			$distro_id = lc($1);
 		}
-		log_data('dump','$dboot{main}',$dboot{'main'}) if $b_log;
-		print Dumper $dboot{'main'} if $dbg[11];
-		
-		if ($dboot{'main'} && $b_log){
-			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
-			log_data('dump','$dboot{disk}',$dboot{'disk'});
-			log_data('dump','$dboot{optical}',$dboot{'optical'});
-			log_data('dump','$dboot{ram}',$dboot{'ram'});
-			log_data('dump','$dboot{usb}',$dboot{'usb'});
-			log_data('dump','$sysctl{battery}',$sysctl{'battery'});
-			log_data('dump','$sysctl{machine}',$sysctl{'machine'});
+	}	
+	if (!$distro){
+		# seen a case without osx file, or was it permissions?
+		# this covers all the other bsds anyway, no problem.
+		$distro = "$uname[0] $uname[2]";
+		$distro_id = lc($uname[0]);
+	}
+	if ($distro &&
+	 (-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
+	  $distro =~ /freebsd/i){
+		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
+		# only swap if we get result from the query
+		if ($version){
+			$system_base = $distro;
+			$distro = "GhostBSD $version";
 		}
-		if ($dboot{'main'} && $dbg[11]){
-			print("cpu:\n", Dumper $dboot{'cpu'});
-			print("disk:\n", Dumper $dboot{'disk'});
-			print("optical:\n", Dumper $dboot{'optical'});
-			print("memory:\n", Dumper $dboot{'ram'});
-			print("usb:\n", Dumper $dboot{'usb'});
-			print("sys battery:\n", Dumper $sysctl{'battery'});
-			print("sys machine:\n", Dumper $sysctl{'machine'});
+	}
+	system_base_bsd() if $extra > 0;
+	eval $end if $b_log;
+}
+
+sub get_linux_distro {
+	# order matters!
+	my @derived = qw(antix-version aptosid-version bodhibuilder.conf kanotix-version 
+	knoppix-version pclinuxos-release mandrake-release manjaro-release mx-version 
+	pardus-release porteus-version q4os_version sabayon-release siduction-version sidux-version 
+	slitaz-release solusos-release turbolinux-release zenwalk-version);
+	my $derived_s = join('|', @derived);
+	my @primary = qw(altlinux-release arch-release gentoo-release redhat-release slackware-version 
+	SuSE-release);
+	my $primary_s = join('|', @primary);
+	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
+	# note, pclinuxos has all these mandrake/mandriva files, careful!
+	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
+	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
+ 	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
+	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
+	$b_issue = 1 if -f $issue;
+	$b_lsb = 1 if -f $lsb_release;
+	# note: OpenSuse Tumbleweed 2018-05 has made /etc/issue created by sym link to /run/issue
+	# and then made that resulting file 700 permissions, which is obviously a mistake
+	$etc_issue = main::reader($issue,'strip',0) if -r $issue;
+	# debian issue can end with weird escapes like \n \l 
+	# antergos: Antergos Linux \r (\l)
+	$etc_issue = main::clean_characters($etc_issue) if $etc_issue;
+	# note: always exceptions, so wild card after release/version: 
+	# /etc/lsb-release-crunchbang
+	# wait to handle since crunchbang file is one of the few in the world that 
+	# uses this method
+	@distro_files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
+	push(@distro_files, '/etc/bodhibuilder.conf') if -r '/etc/bodhibuilder.conf';
+	@osr = main::reader($os_release) if -r $os_release;
+	if ($etc_issue){
+		$lc_issue = lc($etc_issue);
+		if ($lc_issue =~ /(antergos|grml|linux lite)/){
+			$distro_id = $1;
+			$b_skip_issue = 1;
 		}
-		# this should help get rid of dmesg usb mounts not present
-		# note if you take out one, put in another, it will always show the first 
-		# one, I think. Not great. Not using this means all drives attached
-		# current session are shown, using it, possibly wrong drive shown, which is bad
-		# not using this for now: && (my @disks = grep {/^hw\.disknames/} @{$dboot{'disk'}}
-		if ($dboot{'disk'}){
-			# hw.disknames:sd0:,sd1:3242432,sd2:
-			#$disks[0] =~ s/(^hw\.disknames:|:[^,]*)//g; 
-			#@disks = split(',',$disks[0]) if $disks[0];
-			my ($id,$value,%dboot_disks,@disks_live,@temp);
-			# first, since openbsd has this, let's use it
-			foreach (@{$dboot{'disk'}}){
-				if (!@disks_live && /^hw\.disknames/){
-					$_ =~ s/(^hw\.disknames:|:[^,]*)//g; 
-					@disks_live = split(/[,\s]/,$_) if $_;
+		# this raspbian detection fails for rasberry pi os
+		elsif ($lc_issue =~ /(raspbian|peppermint)/){
+			$distro_id = $1;
+			$distro_file = $os_release if @osr;
+		}
+		# note: wrong fix, applies to both raspbian and raspberry pi os
+		# assumption here is that r pi os fixes this before stable release
+		elsif ($lc_issue =~ /^debian/ && -e '/etc/apt/sources.list.d/raspi.list' && 
+		(grep {/[^#]+raspberrypi\.org/} main::reader('/etc/apt/sources.list.d/raspi.list'))){
+			$distro_id = 'raspios' ;
+		}
+	}
+	# Note that antergos changed this around 	# 2018-05, and now lists 
+	# antergos in os-release, sigh... We want these distros to use os-release 
+	# if it contains their names. Last check below
+	if ( @osr && ( grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|zorin)/i} @osr ) ){
+		$distro_file = $os_release;
+	}
+	if (grep {/armbian/} @distro_files){
+		$distro_id = 'armbian' ;
+	}
+	main::log_data('dump','@distro_files',\@distro_files) if $b_log;
+	main::log_data('data',"distro_file-1: $distro_file") if $b_log;
+	if (!$distro_file){
+		if (scalar @distro_files == 1){
+			$distro_file = $distro_files[0];
+		}
+		elsif (scalar @distro_files > 1) {
+			# special case, to force manjaro/antergos which also have arch-release
+			# manjaro should use lsb, which has the full info, arch uses os release
+			# antergos should use /etc/issue. We've already checked os-release above
+			if ($distro_id eq 'antergos' || (grep {/antergos|chakra|manjaro/} @distro_files )){
+				@distro_files = grep {!/arch-release/} @distro_files;
+			}
+			my $distro_files_s = join('|', @distro_files);
+			@working = (@derived,@primary);
+			foreach my $file (@working){
+				if ( "/etc/$file" =~ /($distro_files_s)$/){
+					# Now lets see if the distro file is in the known-good working-lsb-list
+					# if so, use lsb-release, if not, then just use the found file
+					# this is for only those distro's with self named release/version files
+					# because Mint does not use such, it must be done as below 
+					if (@osr && $file =~ /($os_release_good_s)$/){
+						$distro_file = $os_release;
+					}
+					elsif ($b_lsb && $file =~ /$lsb_good_s/){
+						$distro_file = $lsb_release;
+					}
+					else {
+						$distro_file = "/etc/$file";
+					}
+					last;
 				}
-				else {
-					push(@temp,$_);
-				}
 			}
-			@{$dboot{'disk'}} = @temp if @temp;
-			foreach my $row (@temp){
-				$row =~ /^([^:\s]+)[:\s]+(.+)/;
-				$id = $1;
-				$value = $2;
-				push(@{$dboot_disks{$id}},$value);
-				if ((@disks_live && !(grep {$id =~ /^$_/} @disks_live)) || 
-				 $value =~ /\b(destroyed|detached)$/){
-					delete $dboot_disks{$id};
-				}
-			}
-			$dboot{'disk'} = \%dboot_disks;
-			log_data('dump','post: $dboot{disk}',$dboot{'disk'}) if $b_log;
-			print("post: disk:\n",Dumper $dboot{'disk'}) if $dbg[11];
 		}
-		if ($use{'bsd-pci'} && $dboot{'pci'}){
-			my $bus_id = 0;
-			foreach (@{$dboot{'pci'}}){
-				if (/^pci[0-9]+:at.*?bus\s([0-9]+)/){
-					$bus_id = $1;
-					next;
-				}
-				elsif (/:at pci[0-9]+\sdev/){
-					$_ =~ s/^(\S+):at.*?dev\s([0-9]+)\sfunction\s([0-9]+)\s/$bus_id:$2:$3:$1:/;
-					push(@temp,$_);
+	}
+	main::log_data('data',"distro_file-2: $distro_file") if $b_log;
+	# first test for the legacy antiX distro id file
+	if ( -r '/etc/antiX'){
+		@working = main::reader('/etc/antiX');
+		$distro = main::awk(\@working,'antix.*\.iso') if @working;
+		$distro = main::clean_characters($distro) if $distro;
+	}
+	# this handles case where only one release/version file was found, and it's lsb-release. 
+	# This would never apply for ubuntu or debian, which will filter down to the following 
+	# conditions. In general if there's a specific distro release file available, that's to 
+	# be preferred, but this is a good backup.
+	elsif ($distro_file && $b_lsb && ($distro_file =~ /\/etc\/($lsb_good_s)$/ || $distro_file eq $lsb_release) ){
+		$distro = get_lsb_release();
+	}
+	elsif ($distro_file && $distro_file eq $os_release){
+		$distro = get_os_release();
+		$b_skip_osr = 1;
+	}
+	# if distro id file was found and it's not in the exluded primary distro file list, read it
+	elsif ( $distro_file && -s $distro_file && $distro_file !~ /\/etc\/($exclude_s)$/){
+		# new opensuse uses os-release, but older ones may have a similar syntax, so just use 
+		# the first line
+		if ($distro_file eq '/etc/SuSE-release'){
+			# leaving off extra data since all new suse have it, in os-release, this file has 
+			# line breaks, like os-release  but in case we  want it, it's: 
+			# CODENAME = Mantis  | VERSION = 12.2 
+			# for now, just take first occurrence, which should be the first line, which does 
+			# not use a variable type format
+			@working = main::reader($distro_file);
+			$distro = main::awk(\@working,'suse');
+		}
+		elsif ($distro_file eq '/etc/bodhibuilder.conf'){
+			@working = main::reader($distro_file);
+			$distro = main::awk(\@working,'^LIVECDLABEL',2,'\s*=\s*');
+			$distro =~ s/"//g if $distro;
+		}
+		else {
+			$distro = main::reader($distro_file,'',0);
+			# only contains version number. Why? who knows.
+			if ($distro_file eq '/etc/q4os_version' && $distro !~ /q4os/i){
+				$distro = "Q4OS $distro" ;
+			}
+		}
+		$distro = main::clean_characters($distro) if $distro;
+	}
+	# otherwise try  the default debian/ubuntu/distro /etc/issue file
+	elsif ($b_issue){
+		if ( !$distro_id && $lc_issue && $lc_issue =~ /(mint|lmde)/){
+			$distro_id = $1;
+			$b_skip_issue = 1;
+		}
+		# os-release/lsb gives more manageable and accurate output than issue, 
+		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
+		if (!$b_skip_issue && @osr){
+			$distro = get_os_release();
+			$b_skip_osr = 1;
+		}
+		elsif (!$b_skip_issue && $b_lsb){
+			$distro = get_lsb_release();
+		}
+		elsif ($etc_issue) {
+			if (-d '/etc/guix' && $lc_issue =~ /^this is the gnu system\./){
+				$distro = 'Guix';
+				# they didn't use any standard paths or files for os data, sigh, use pm version
+				my $version = main::program_version('guix', '^guix', '4','--version',1);
+				$distro .= " $version" if $version;
+				$b_skip_issue = 1;
+			}
+			else {
+				$distro =  $etc_issue;
+				# this handles an arch bug where /etc/arch-release is empty and /etc/issue 
+				# is corrupted only older arch installs that have not been updated should 
+				# have this fallback required, new ones use os-release
+				if ( $distro =~ /arch linux/i){
+					$distro = 'Arch Linux';
 				}
 			}
-			$dboot{'pci'} = [@temp];
-			log_data('dump','$dboot{pci}',$dboot{'pci'}) if $b_log;
-			print("pci:\n",Dumper $dboot{'pci'}) if $dbg[11];
+		}
+	}
+	# a final check. If a long value, before assigning the debugger output, if os-release
+	# exists then let's use that if it wasn't tried already. Maybe that will be better.
+	# not handling the corrupt data, maybe later if needed. 10 + distro: (8) + string
+	if ($distro && length($distro) > 60 ){
+		if (!$b_skip_osr && @osr){
+			$distro = get_os_release();
+			$b_skip_osr = 1;
+		}
+	}
+	# test for /etc/lsb-release as a backup in case of failure, in cases 
+	# where > one version/release file were found but the above resulted 
+	# in null distro value. 
+	if (!$distro){
+		if (!$b_skip_osr && @osr){
+			$distro = get_os_release();
+			$b_skip_osr = 1;
+		}
+		elsif ($b_lsb){
+			$distro = get_lsb_release();
+		}
+	}
+	# now some final null tries
+	if (!$distro ){
+		# if the file was null but present, which can happen in some cases, then use 
+		# the file name itself to set the distro value. Why say unknown if we have 
+		# a pretty good idea, after all?
+		if ($distro_file){
+			$distro_file =~ s/\/etc\/|[-_]|release|version//g;
+			$distro = $distro_file;
+		}
+	}
+	system_base() if $extra > 0;
+	# some last customized changes, double check if possible to verify still valid
+	if ($distro){
+		if ($distro_id eq 'armbian'){
+			$distro =~ s/Debian/Armbian/;
+		}
+		elsif ($distro_id eq 'raspios'){
+			$system_base = $distro;
+			# no need to repeat the debian version info if base:
+			if ($extra == 0){$distro =~ s/Debian\s*GNU\/Linux/Raspberry Pi OS/;}
+			else {$distro = 'Raspberry Pi OS';}
+		}
+		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
+			$distro =~ s/Slackware/Salix/;
+		}
+	}
+	else {
+		# android fallback, sometimes requires root, sometimes doesn't
+		android_info() if $b_android;
+	}
+	## finally, if all else has failed, give up
+	$distro ||= 'unknown';
+	eval $end if $b_log;
+}
+
+sub android_info {
+	eval $start if $b_log;
+	main::set_build_prop() if !$loaded{'build-prop'};;
+	$distro = 'Android';
+	$distro .= ' ' . $build_prop{'build-version'} if $build_prop{'build-version'};
+	$distro .= ' ' . $build_prop{'build-date'} if $build_prop{'build-date'};
+	if (!$show{'machine'}){
+		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
+			$distro .= ' (' . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'} . ')';
+		}
+		elsif ($build_prop{'product-device'}){
+			$distro .= ' (' . $build_prop{'product-device'} . ')';
+		}
+		elsif ($build_prop{'product-name'}){
+			$distro .= ' (' . $build_prop{'product-name'} . ')';
 		}
 	}
 	eval $end if $b_log;
 }
 
+sub system_base_bsd {
+	eval $start if $b_log;
+	# ghostbsd is handled in main bsd section
+	if (lc($uname[1]) eq 'nomadbsd' && $distro_id eq 'freebsd'){
+		$system_base = $distro;
+		$distro = $uname[1];
+	}
+	elsif (-f '/etc/pkg/HardenedBSD.conf' && $distro_id eq 'freebsd'){
+		$system_base = $distro;
+		$distro = 'HardenedBSD';
+	}
+	elsif ($distro_id =~ /^(truenas)$/){
+		$system_base = "$uname[0] $uname[2]";
+	}
+	eval $end if $b_log;
+}
+
+sub system_base {
+	eval $start if $b_log;
+	my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
+	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
+	$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
+	$base_arch_distro .= '|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
+	$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
+	my $base_debian_version_distro = 'sidux';
+	my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
+	my $base_default = 'antix-version|mx-version'; # osr has base ids
+	my $base_issue = 'bunsen'; # base only found in issue
+	my $base_manual = 'blankon|deepin|kali'; # synthesize, no direct data available
+	my $base_osr = 'aptosid|grml|q4os|siduction|bodhi'; # osr base, distro id in list of distro files
+	my $base_osr_issue = 'grml|linux lite'; # osr base, distro id in issue
+	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
+	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
+	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
+	my $base_upstream_osr = '/etc/upstream-release/os-release';
+	# first: try, some distros have upstream-release, elementary, new mint
+	# and anyone else who uses this method for fallback ID
+	if ( -r $base_upstream_osr){
+		my @osr_working = main::reader($base_upstream_osr);
+		if ( @osr_working){
+			my (@osr_temp);
+			@osr_temp = @osr;
+			@osr = @osr_working;
+			$system_base = get_os_release();
+			@osr = @osr_temp if !$system_base;
+			(@osr_temp,@osr_working) = (undef,undef);
+		}
+	}
+	elsif ( -r $base_upstream_lsb){
+		$system_base = get_lsb_release($base_upstream_lsb);
+	}
+	if (!$system_base && @osr){
+		my ($base_type) = ('');
+		if ($etc_issue && (grep {/($base_issue)/i} @osr)){
+			$system_base = $etc_issue;
+		}
+		# more tests added here for other ubuntu derived distros
+		elsif ( @distro_files && (grep {/($base_default)/} @distro_files) ){
+			$base_type = 'default';
+		}
+		# must go before base_osr_ubuntu test
+		elsif ( grep {/($base_debian_version_osr)/i} @osr ){
+			$system_base = debian_id();
+		}
+		elsif ( grep {/($base_osr_ubuntu)/i} @osr ){
+			$base_type = 'ubuntu';
+		}
+		elsif ( ( ($distro_id && $distro_id =~ /($base_osr_issue)/ ) || 
+				(@distro_files && (grep {/($base_osr)/} @distro_files) ) ) && 
+				!(grep {/($base_osr)/i} @osr)){
+			$system_base = get_os_release();
+		}
+		if (!$system_base && $base_type){
+			$system_base = get_os_release($base_type);
+		}
+	}
+	if (!$system_base && @distro_files && ( grep {/($base_debian_version_distro)/i} @distro_files ) ){
+		$system_base = debian_id();
+	}
+	if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
+		my $id = $1;
+		my %manual = (
+		'blankon' => 'Debian unstable',
+		'deepin' => 'Debian unstable',
+		'kali' => 'Debian testing',
+		);
+		$system_base = $manual{$id};
+	}
+	if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
+		$system_base = 'Arch Linux';
+	}
+	if ($distro && -d '/etc/salixtools/' && $distro =~ /Slackware/i){
+		$system_base = $distro;
+	}
+	eval $end if $b_log;
+}
+
+sub get_lsb_release {
+	eval $start if $b_log;
+	my ($lsb_file) = @_;
+	$lsb_file ||= '/etc/lsb-release';
+	my ($distro,$id,$release,$codename,$description) = ('','','','','');
+	my @content = main::reader($lsb_file);
+	main::log_data('dump','@content',\@content) if $b_log;
+	@content = map {s/,|\*|\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
+	foreach (@content){
+		next if /^\s*$/;
+		my @working = split(/\s*=\s*/, $_);
+		next if !$working[0];
+		if ($working[0] eq 'DISTRIB_ID' && $working[1]){
+			if ($working[1] =~ /^Manjaro/i){
+				$id = 'Manjaro Linux';
+			}
+			# in the old days, arch used lsb_release
+# 			elsif ($working[1] =~ /^Arch$/i){
+# 				$id = 'Arch Linux';
+# 			}
+			else {
+				$id = $working[1];
+			}
+		}
+		elsif ($working[0] eq 'DISTRIB_RELEASE' && $working[1]){
+			$release = $working[1];
+		}
+		elsif ($working[0] eq 'DISTRIB_CODENAME' && $working[1]){
+			$codename = $working[1];
+		}
+		# sometimes some distros cannot do their lsb-release files correctly, 
+		# so here is one last chance to get it right.
+		elsif ($working[0] eq 'DISTRIB_DESCRIPTION' && $working[1]){
+			$description = $working[1];
+		}
+	}
+	if (!$id && !$release && !$codename && $description){
+		$distro = $description;
+	}
+	else {
+		# avoid duplicates
+		$distro = $id;
+		$distro .= " $release" if $distro !~ /$release/;
+		$distro .= " $codename" if $distro !~ /$codename/;
+		$distro =~ s/^\s+|\s\s+|\s+$//g; # get rid of double and trailing spaces 
+	}
+	eval $end if $b_log;
+	return $distro;
+}
+sub get_os_release {
+	eval $start if $b_log;
+	my ($base_type) = @_;
+	my ($base_id,$base_name,$base_version,$distro,$distro_name,$pretty_name,
+	$lc_name,$name,$version_name,$version_id) = ('','','','','','','','','','');
+	my @content = @osr;
+	main::log_data('dump','@content',\@content) if $b_log;
+	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
+	foreach (@content){
+		next if /^\s*$/;
+		my @working = split(/\s*=\s*/, $_);
+		next if !$working[0];
+		if ($working[0] eq 'PRETTY_NAME' && $working[1]){
+			$pretty_name = $working[1];
+		}
+		elsif ($working[0] eq 'NAME' && $working[1]){
+			$name = $working[1];
+			$lc_name = lc($name);
+		}
+		elsif ($working[0] eq 'VERSION' && $working[1]){
+			$version_name = $working[1];
+			$version_name =~ s/,//g;
+		}
+		elsif ($working[0] eq 'VERSION_ID' && $working[1]){
+			$version_id = $working[1];
+		}
+		# for mint/zorin, other ubuntu base system base
+		if ($base_type ){
+			if ($working[0] eq 'ID_LIKE' && $working[1]){
+				if ($base_type eq 'ubuntu'){
+					# popos shows debian
+					$working[1] =~ s/^(debian|ubuntu\sdebian|debian\subuntu)/ubuntu/; 
+					$working[1] = 'ubuntu' if $working[1] eq 'debian';
+				}
+				$base_name = ucfirst($working[1]);
+			}
+			elsif ($base_type eq 'ubuntu' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
+				$base_version = ucfirst($working[1]);
+			}
+			elsif ($base_type eq 'debian' && $working[0] eq 'DEBIAN_CODENAME' && $working[1]){
+				$base_version = $working[1];
+			}
+		}
+	}
+	# NOTE: tumbleweed has pretty name but pretty name does not have version id
+	# arco shows only the release name, like kirk, in pretty name. Too many distros 
+	# are doing pretty name wrong, and just putting in the NAME value there
+	if (!$base_type){
+		if ($name && $version_name){
+			$distro = $name;
+			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
+			if ($version_id && $version_name !~ /$version_id/){
+				$distro .= ' ' . $version_id;
+			}
+			$distro .= " $version_name";
+		}
+		elsif ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux') ){
+			$distro = $pretty_name;
+		}
+		elsif ($name){
+			$distro = $name;
+			if ($version_id){
+				$distro .= ' ' . $version_id;
+			}
+		}
+	}
+	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
+	else {
+		# mint 17 used ubuntu os-release,  so won't have $base_version
+		if ($base_name && $base_version){
+			$base_id = ubuntu_id($base_version) if $base_type eq 'ubuntu' && $base_version;
+			$base_id = '' if $base_id && "$base_name$base_version" =~ /$base_id/;
+			$base_id .= ' ' if $base_id;
+			$distro = "$base_name $base_id$base_version";
+		}
+		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name) ) ){
+			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
+		}
+		# LMDE 2 has only limited data in os-release, no _LIKE values. 3 has like and debian_codename
+		elsif ( $base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
+			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
+		}
+		elsif ( $base_type eq 'debian' && $base_version ){
+			$distro = debian_id($base_version);
+		}
+	}
+	eval $end if $b_log;
+	return $distro;
+}
+# arg: 1 - optional: debian codename
+sub debian_id {
+	eval $start if $b_log;
+	my ($codename) = @_;
+	my ($debian_version,$id);
+	$debian_version = main::reader('/etc/debian_version','strip',0) if -r '/etc/debian_version';
+	$id = 'Debian';
+	return if !$debian_version && !$codename;
+	# note, 3.0, woody, 3.1, sarge, but after it's integer per version
+	my %debians = (
+	'4' => 'etch',
+	'5' => 'lenny',
+	'6' => 'squeeze',
+	'7' => 'wheezy',
+	'8' => 'jessie',
+	'9' => 'stretch',
+	'10' => 'buster',
+	'11' => 'bullseye',
+	'12' => 'bookworm', 
+	'13' => 'trixie', 
+	);
+	if (main::is_numeric($debian_version)){
+		$id .= " $debian_version " . $debians{int($debian_version)};
+	}
+	elsif ($codename) {
+		my %by_value = reverse %debians;
+		my $version = (main::is_numeric($debian_version)) ? "$debian_version $codename": $debian_version;
+		$id .= " $version";
+	}
+	# like buster/sid
+	elsif ($debian_version) {
+		$id .= " $debian_version";
+	}
+	eval $end if $b_log;
+	return $id;
+}
+
+# note, these are only for matching derived names, no need to go
+# all the way back here, update as new names are known. This is because 
+# Mint is using UBUNTU_CODENAME without ID data.
+sub ubuntu_id {
+	eval $start if $b_log;
+	my ($codename) = @_;
+	$codename = lc($codename);
+	my ($id) = ('');
+	my %codenames = (
+	'hirsute' => '21.04',
+	'groovy' => '20.10',
+	'focal' => '20.04 LTS',
+	'eoan' => '19.10',
+	'disco' => '19.04',
+	'cosmic' => '18.10',
+	'bionic' => '18.04 LTS',
+	'artful' => '17.10',
+	'zesty' => '17.04',
+	'yakkety' => '16.10',
+	'xenial' => '16.04 LTS',
+	'wily' => '15.10',
+	'vivid' => '15.04',
+	'utopic' => '14.10',
+	'trusty' => '14.04 LTS ',
+	'saucy' => '13.10',
+	'raring' => '13.04',
+	'quantal' => '12.10',
+	'precise' => '12.04 LTS ',
+	);
+	$id = $codenames{$codename} if defined $codenames{$codename};
+	eval $end if $b_log;
+	return $id;
+}
+}
+
+# DmidecodeData 
+{
+package DmidecodeData;
 # note, all actual tests have already been run in check_tools so if we
 # got here, we're good. 
-sub set_dmicode_data {
+sub set {
 	eval $start if $b_log;
 	${$_[0]} = 1; # set check boolean by reference
 	if ($fake{'dmidecode'} || $alerts{'dmidecode'}->{'action'} eq 'use' ){
-		set_dmidecode_data();
+		generate_data();
 	}
 	eval $end if $b_log;
 }
 
-sub set_dmidecode_data {
+sub generate_data {
 	eval $start if $b_log;
 	my ($content,@data,@working,$type,$handle);
 	if ($fake{'dmidecode'}){
@@ -23829,12 +22441,275 @@ sub set_dmidecode_data {
 	# about random dmi type ordering in the data, which happens. Also sort 
 	# by handle, as secondary sort.
 	@dmi = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @dmi;
-	log_data('dump','@dmi',\@dmi) if $b_log;
-	print Dumper \@dmi if $dbg[2];
+	main::log_data('dump','@dmi',\@dmi) if $b_log;
+	print Data::Dumper::Dumper \@dmi if $dbg[2];
 	eval $end if $b_log;
 }
+}
 
-# Set IpData
+# return all device modules not including driver
+sub get_driver_modules {
+	eval $start if $b_log;
+	my ($driver,$modules) = @_;
+	return if ! $modules;
+	my @mods = split(/,\s+/, $modules);
+	if ($driver){
+		@mods = grep {!/^$driver$/} @mods;
+		$modules = join(',', @mods);
+	}
+	log_data('data','$modules',$modules) if $b_log;
+	eval $end if $b_log;
+	return $modules;
+}
+# 1: driver; 2: modules, comma separated, return only modules 
+# which do not equal the driver string itself. Sometimes the module
+# name is different from the driver name, even though it's the same thing.
+sub get_gcc_data {
+	eval $start if $b_log;
+	my ($gcc,@data,@gccs,@temp);
+	# NOTE: We can't use program_version because we don't yet know where
+	# the version number is
+	if (my $program = check_program('gcc') ){
+		@data = grabber("$program --version 2>/dev/null");
+		$gcc = awk(\@data,'^gcc');
+	}
+	if ($gcc){
+		# strip out: gcc (Debian 6.3.0-18) 6.3.0 20170516
+		# gcc (GCC) 4.2.2 20070831 prerelease [FreeBSD]
+		$gcc =~ s/\([^\)]*\)//g;
+		$gcc = get_piece($gcc,2);
+	}
+	if ($extra > 1){
+		# glob /usr/bin for gccs, strip out all non numeric values
+		@temp = globber('/usr/bin/gcc-*');
+		foreach (@temp){
+			if (/\/gcc-([0-9.]+)$/){
+				push(@gccs, $1);
+			}
+		}
+	}
+	unshift(@gccs, $gcc);
+	log_data('dump','@gccs',\@gccs) if $b_log;
+	eval $end if $b_log;
+	return @gccs;
+}
+
+# GlabelData
+{
+package GlabelData;
+# gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
+sub get {
+	eval $start if $b_log;
+	my ($gptid) = @_;
+	set() if !$loaded{'glabel'};
+	return if !@glabel || !$gptid;
+	my ($dev_id) = ('');
+	foreach (@glabel){
+		my @temp = split(/\s+/, $_);
+		my $gptid_trimmed = $gptid;
+		# slice off s[0-9] from end in case they use slice syntax
+		$gptid_trimmed =~ s/s[0-9]+$//;
+		if (defined $temp[0] && ($temp[0] eq $gptid || $temp[0] eq $gptid_trimmed ) ){
+			$dev_id = $temp[2];
+			last;
+		}
+	}
+	$dev_id ||= $gptid; # no match? return full string
+	eval $end if $b_log;
+	return $dev_id;
+}
+sub set {
+	eval $start if $b_log;
+	$loaded{'glabel'} = 1;
+	if (my $path = main::check_program('glabel')){
+		@glabel = main::grabber("$path status 2>/dev/null");
+	}
+	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
+	# get rid of first header line
+	shift @glabel;
+	eval $end if $b_log;
+}
+}
+
+# GpartData
+{
+package GpartData;
+# 1. Name: ada1p1
+#   label: (null)
+#   label: ssd-root
+#   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
+sub get {
+	eval $start if $b_log;
+	my ($item) = @_;
+	my (@data) = ('','','','');
+	set() if !$loaded{'gpart'};
+	return @data if !$item || !%gpart;
+	if ($gpart{$item}){
+		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
+		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
+		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
+		$data[3] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
+	}
+	main::log_data('dump','@data',\@data) if $b_log;
+	eval $end if $b_log;
+	return @data;
+}
+# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
+sub set {
+	eval $start if $b_log;
+	$loaded{'gpart'} = 1;
+	if (my $path = main::check_program('gpart')){
+		my @data = main::grabber("$path list 2>/dev/null",'','strip');
+		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
+		my ($id);
+		for (@data){
+			my @working = split(/\s*:\s*/, $_);
+			if ($working[0] =~ /^[0-9]+\.\s*Name/){
+				$id = $working[1];
+			}
+			elsif ($id){
+				# eg: label:(null) - we want to show null
+				if ($working[0] eq 'label'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'label'} = $working[1];
+				}
+				elsif ($working[0] eq 'Mediasize'){
+					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
+					# gpart shows in bytes, not KiB. For the time being...
+					$gpart{$id}->{'size'} = $working[1]/1024 if $working[1];
+				}
+				elsif ($working[0] eq 'rawuuid'){
+					$working[1] =~ s/\(|\)//g; 
+					$gpart{$id}->{'uuid'} = $working[1];
+				}
+				elsif ($working[0] eq 'Sectorsize'){
+					$gpart{$id}->{'block-size'} = $working[1];
+				}
+			}
+		}
+	}
+	main::log_data('dump', '%gpart', \%gpart) if $b_log;
+	eval $end if $b_log;
+}
+}
+sub get_hostname {
+	eval $start if $b_log;
+	my $hostname = '';
+	if ( $ENV{'HOSTNAME'} ){
+		$hostname = $ENV{'HOSTNAME'};
+	}
+	elsif ( !$bsd_type && -r "/proc/sys/kernel/hostname" ){
+		$hostname = reader('/proc/sys/kernel/hostname','',0);
+	}
+	# puppy removed this from core modules, sigh
+	# this is faster than subshell of hostname
+	elsif (check_perl_module('Sys::Hostname')){
+		Sys::Hostname->import;
+		$hostname = Sys::Hostname::hostname();
+	}
+	elsif (my $program = check_program('hostname')) {
+		$hostname = (grabber("$program 2>/dev/null"))[0];
+	}
+	$hostname ||= 'N/A';
+	eval $end if $b_log;
+	return $hostname;
+}
+
+sub get_init_data {
+	eval $start if $b_log;
+	my $runlevel = get_runlevel_data();
+	my $default = ($extra > 1) ? get_runlevel_default() : '';
+	my ($init,$init_version,$rc,$rc_version,$program) = ('','','','','');
+	my $comm = ( -r '/proc/1/comm' ) ? reader('/proc/1/comm','',0) : '';
+	my (@data);
+	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
+	# otherwise that is 'init', which covers the rest of the init systems.
+	# more data may be needed for other init systems.
+	if ( $comm ){
+		if ( $comm =~ /systemd/ ){
+			$init = 'systemd';
+			if ($program = check_program('systemd')){
+				$init_version = program_version($program,'^systemd','2','--version',1);
+			}
+			if (!$init_version && ($program = check_program('systemctl') ) ){
+				$init_version = program_version($program,'^systemd','2','--version',1);
+			}
+		}
+		# epoch version == Epoch Init System 1.0.1 "Sage"
+		elsif ($comm =~ /epoch/){
+			$init = 'Epoch';
+			$init_version = program_version('epoch', '^Epoch', '4','version');
+		}
+		# missing data: note, runit can install as a dependency without being the 
+		# init system: http://smarden.org/runit/sv.8.html
+		# NOTE: the proc test won't work on bsds, so if runit is used on bsds we 
+		# will need more datas
+		elsif ($comm =~ /runit/){
+			$init = 'runit';
+		}
+		elsif ($comm =~ /shepherd/){
+			$init = 'Shepherd';
+			$init_version = program_version('shepherd', '^shepherd', '4','--version',1);
+		}
+		elsif ($comm =~ /^s6/){
+			$init = 's6';
+		}
+	}
+	if (!$init){
+		# output: /sbin/init --version:  init (upstart 1.1)
+		# init (upstart 0.6.3)
+		# openwrt /sbin/init hangs on --version command, I think
+		if ((!$b_mips && !$b_sparc && !$b_arm) && 
+		 ($init_version = program_version('init', 'upstart', '3','--version') )){
+			$init = 'Upstart';
+		}
+		elsif (check_program('launchctl')){
+			$init = 'launchd';
+		}
+		elsif ( -f '/etc/inittab' ){
+			$init = 'SysVinit';
+			if (check_program('strings')){
+				@data = grabber('strings /sbin/init');
+				$init_version = awk(\@data,'^version\s+[0-9]',2);
+			}
+		}
+		elsif ( -f '/etc/ttys' ){
+			$init = 'init (BSD)';
+		}
+	}
+	if ( (grep { /openrc/ } globber('/run/*openrc*')) || (grep {/openrc/} @ps_cmd) ){
+		$rc = 'OpenRC';
+		# /sbin/openrc --version == openrc (OpenRC) 0.13
+		if ($program = check_program('openrc')){
+			$rc_version = program_version($program, '^openrc', '3','--version');
+		}
+		# /sbin/rc --version == rc (OpenRC) 0.11.8 (Gentoo Linux)
+		elsif ($program = check_program('rc')){
+			$rc_version = program_version($program, '^rc', '3','--version');
+		}
+		if ( -r '/run/openrc/softlevel' ){
+			$runlevel = reader('/run/openrc/softlevel','',0);
+		}
+		elsif ( -r '/var/run/openrc/softlevel'){
+			$runlevel = reader('/var/run/openrc/softlevel','',0);
+		}
+		elsif ( $program = check_program('rc-status')){
+			$runlevel = (grabber("$program -r 2>/dev/null"))[0];
+		}
+	}
+	my %init = (
+	'init-type' => $init,
+	'init-version' => $init_version,
+	'rc-type' => $rc,
+	'rc-version' => $rc_version,
+	'runlevel' => $runlevel,
+	'default' => $default,
+	);
+	eval $end if $b_log;
+	return %init;
+}
+
+# IpData
 {
 package IpData;
 sub set {
@@ -24003,6 +22878,89 @@ sub set_ifconfig {
 }
 }
 
+sub get_kernel_data {
+	eval $start if $b_log;
+	my ($kernel,$ksplice) = ('','');
+	# Linux; yawn; 4.9.0-3.1-liquorix-686-pae; #1 ZEN SMP PREEMPT liquorix 4.9-4 (2017-01-14); i686
+	# FreeBSD; siwi.pair.com; 8.2-STABLE; FreeBSD 8.2-STABLE #0: Tue May 31 14:36:14 EDT 2016     erik5@iddhi.pair.com:/usr/obj/usr/src/sys/82PAIRx-AMD64; amd64
+	if (@uname){
+		$kernel = $uname[2];
+		if ( (my $program = check_program('uptrack-uname')) && $kernel){
+			$ksplice = qx($program -rm);
+			$ksplice = trimmer($ksplice);
+			$kernel = ($ksplice) ? $ksplice . ' (ksplice)' : $kernel;
+		}
+		$kernel .= ' ' . $uname[-1];
+		$kernel = ($bsd_type) ? $uname[0] . ' ' . $kernel : $kernel;
+	}
+	$kernel ||= 'N/A';
+	log_data('data',"kernel: $kernel ksplice: $ksplice") if $b_log;
+	log_data('dump','perl @uname', \@uname) if $b_log;
+	eval $end if $b_log;
+	return $kernel;
+}
+
+sub get_kernel_bits {
+	eval $start if $b_log;
+	my $bits = '';
+	if (my $program = check_program('getconf')){
+		$bits = (grabber("$program LONG_BIT 2>/dev/null"))[0];
+	}
+	# fallback test
+	if (!$bits && @uname){
+		$bits = $uname[-1];
+		$bits = ($bits =~ /64/ ) ? 64 : 32;
+	}
+	$bits ||= 'N/A';
+	eval $end if $b_log;
+	return $bits;
+}
+
+# KernelParameters
+{
+package KernelParameters;
+sub get {
+	eval $start if $b_log;
+	my ($parameters);
+	if (my $file = $system_files{'proc-cmdline'}) {
+		$parameters = parameters_linux($file);
+	}
+	elsif ($bsd_type) {
+		$parameters = parameters_bsd();
+	}
+	eval $end if $b_log;
+	return $parameters;
+}
+sub parameters_linux {
+	eval $start if $b_log;
+	my ($file) = @_;
+	# unrooted android may have file only root readable
+	my $line = main::reader($file,'',0) if -r $file;
+	eval $end if $b_log;
+	return $line;
+}
+sub parameters_bsd {
+	eval $start if $b_log;
+	my ($parameters);
+	eval $end if $b_log;
+	return $parameters;
+}
+}
+# 1 - partition name
+sub get_lsblk {
+	eval $start if $b_log;
+	my $item = $_[0];
+	return if !@lsblk;
+	my (%device);
+	foreach my $device (@lsblk){
+		if ($device->{'name'} eq $item){
+			%device = %$device;
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return %device;
+}
 sub set_lsblk {
 	eval $start if $b_log;
 	$loaded{'lsblk'} = 1;
@@ -24067,22 +23025,461 @@ sub set_mapper {
 	%dmmapper = reverse %mapper if %mapper;
 	eval $end if $b_log;
 }
-# Set PartitionData
+
+# MemoryData
+{
+package MemoryData;
+
+sub get {
+	eval $start if $b_log;
+	my ($type) = @_;
+	my ($memory);
+	# note: netbsd 8.0 has meminfo!
+	$loaded{'memory'} = 1;
+	# netbsd uses meminfo, but it uses it in a weird way
+	if (!$force{'vmstat'} && (!$bsd_type || ($force{'meminfo'} && $bsd_type)) && 
+	 (my $file = $system_files{'proc-meminfo'})) {
+		$memory = meminfo_data($type,$file);
+	}
+	else {
+		$memory = bsd_data($type);
+	}
+	eval $end if $b_log;
+	return $memory;
+}
+sub full {
+	eval $start if $b_log;
+	my ($source) = @_;
+	my $num = 0;
+	my ($memory,@rows);
+	my ($gpu_ram,$percent,$total,$used) = (0,'','','');
+	$loaded{'memory'} = 1;
+	$memory = get('splits');
+	if ($memory){
+		my @temp = split(':', $memory);
+		$gpu_ram = $temp[3] if $temp[3];
+		$total = ($temp[0]) ? main::get_size($temp[0],'string') : 'N/A';
+		$used = ($temp[1]) ? main::get_size($temp[1],'string') : 'N/A';
+		$used .= " ($temp[2]%)" if $temp[2];
+		if ($gpu_ram){
+			$gpu_ram = main::get_size($gpu_ram,'string');
+		}
+	}
+	my $key = ($source eq 'process') ? 'System RAM': 'RAM';
+	$rows[0]->{main::key($num++,1,1,$key)} = '';
+	$rows[0]->{main::key($num++,0,2,'total')} = $total;
+	$rows[0]->{main::key($num++,0,2,'used')} = $used;
+	$rows[0]->{main::key($num++,0,2,'gpu')} = $gpu_ram if $gpu_ram;
+	eval $end if $b_log;
+	return @rows;
+}
+sub meminfo_data {
+	eval $start if $b_log;
+	my ($type,$file) = @_;
+	my ($available,$buffers,$cached,$free,$gpu,$memory,$not_used,$total) = (0,0,0,0,0,'',0,0);
+	my @data = main::reader($file);
+	foreach (@data){
+		if ($_ =~ /^MemTotal:/){
+			$total = main::get_piece($_,2);
+		}
+		elsif ($_ =~ /^MemFree:/){
+			$free = main::get_piece($_,2); 
+		}
+		elsif ($_ =~ /^Buffers:/){
+			$buffers = main::get_piece($_,2); 
+		}
+		elsif ($_ =~ /^Cached:/){
+			$cached = main::get_piece($_,2); 
+		}
+		elsif ($_ =~ /^MemAvailable:/){
+			$available = main::get_piece($_,2);
+		}
+	}
+	$gpu = gpu_ram_arm() if $b_arm;
+	#$gpu = main::translate_size('128M');
+	$total += $gpu;
+	if ($available){
+		$not_used = $available;
+	}
+	# seen fringe cases, where total - free+buff+cach < 0
+	# the idea is that the OS must be using 10MiB of ram or more
+	elsif (($total - ($free + $buffers + $cached)) > 10000) {
+		$not_used = ($free + $buffers + $cached);
+	}
+	# netbsd goes < 0, but it's wrong, so dump the cache
+	elsif (($total - ($free + $buffers)) > 10000){
+		$not_used = ($free + $buffers);
+	}
+	else {
+		$not_used = $free;
+	}
+	my $used = ($total - $not_used);
+	my $percent = ($used && $total) ? sprintf("%.1f", ($used/$total)*100) : '';
+	if ($type eq 'string'){
+		$percent = " ($percent%)" if $percent;
+		$memory = sprintf("%.1f/%.1f MiB", $used/1024, $total/1024) . $percent;
+	}
+	else {
+		$memory = "$total:$used:$percent:$gpu";
+	}
+	main::log_data('data',"memory: $memory") if $b_log;
+	eval $end if $b_log;
+	return $memory;
+}
+
+## openbsd/linux
+# procs    memory       page                    disks    traps          cpu
+# r b w    avm     fre  flt  re  pi  po  fr  sr wd0 wd1  int   sys   cs us sy id
+# 0 0 0  55256 1484092  171   0   0   0   0   0   2   0   12   460   39  3  1 96
+## openbsd 6.3? added in M/G/T etc, sigh...
+# 2 57 55M 590M 789 0 0 0...
+## freebsd:
+# procs      memory      page                    disks     faults         cpu
+# r b w     avm    fre   flt  re  pi  po    fr  sr ad0 ad1   in   sy   cs us sy id
+# 0 0 0  21880M  6444M   924  32  11   0   822 827   0   0  853  832  463  8  3 88
+# with -H
+# 2 0 0 14925812  936448    36  13  10   0    84  35   0   0   84   30   42 11  3 86
+## dragonfly: V1, supported -H
+#  procs      memory      page                    disks     faults      cpu
+#  r b w     avm    fre  flt  re  pi  po  fr  sr ad0 ad1   in   sy  cs us sy id
+#  0 0 0       0  84060 30273993 2845 12742 1164 407498171 320960902   0   0 ....
+## dragonfly: V2, no avm, no -H support
+sub bsd_data {
+	eval $start if $b_log;
+	my ($type) = @_;
+	my $memory = '';
+	my ($avm,$av_pages,$cnt,$fre,$free_mem,$mult,$real_mem,$total) = (0,0,0,0,0,0,0,0);
+	my (@data,$message);
+	# my $arg = ($bsd_type ne 'openbsd' && $bsd_type ne 'dragonfly') ? '-H' : '';
+	if (my $program = main::check_program('vmstat')){
+		# see above, it's the last line. -H makes it hopefully all in kB so no need 
+		# for K/M/G tests, note that -H not consistently supported, so don't use.
+		my @vmstat = main::grabber("vmstat 2>/dev/null",'\n','strip');
+		main::log_data('dump','@vmstat',\@vmstat) if $b_log;
+		my @header = split(/\s+/, $vmstat[1]);
+		foreach (@header){
+			if ($_ eq 'avm'){$avm = $cnt}
+			elsif ($_ eq 'fre'){$fre = $cnt}
+			elsif ($_ eq 'flt'){last;}
+			$cnt++;
+		}
+		my $row = $vmstat[-1];
+		if ($row){
+			@data = split(/\s+/, $row);
+			# openbsd 6.3, dragonfly 5.x introduced an M / G character, sigh.
+			if ($avm > 0 && $data[$avm] && $data[$avm] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
+				$data[$avm] = main::translate_size($1);
+			}
+			if ($fre > 0 && $data[$fre] && $data[$fre] =~ /^([0-9\.]+[KGMT])(iB|B)?$/){
+				$data[$fre] = main::translate_size($1);
+			}
+			# dragonfly can have 0 avg, or no avm, sigh, but they may fix that so make test dynamic
+			if ($avm > 0 && $data[$avm] != 0){
+				$av_pages = ($bsd_type !~ /^(net|open)bsd$/) ? sprintf('%.1f',$data[$avm]/1024) : $data[$avm];
+			}
+			if ($fre > 0 && $data[$fre] != 0){
+				$free_mem = sprintf('%.1f',$data[$fre]);
+			}
+		}
+	}
+	## code to get total goes here:
+	if ($alerts{'sysctl'}->{'action'} eq 'use'){
+		# for dragonfly, we will use free mem, not used because free is 0
+		my @working;
+		if ($sysctl{'memory'}){
+			foreach (@{$sysctl{'memory'}}){
+				# freebsd seems to use bytes here
+				if (!$real_mem && /^hw.physmem:/){
+					@working = split(/:\s*/, $_);
+					#if ($working[1]){
+						$working[1] =~ s/^[^0-9]+|[^0-9]+$//g;
+						$real_mem = sprintf("%.1f", $working[1]/1024);
+					#}
+					last if $free_mem;
+				}
+				# But, it uses K here. Openbsd/Dragonfly do not seem to have this item
+				# this can be either: Free Memory OR Free Memory Pages
+				elsif (/^Free Memory:/){
+					@working = split(/:\s*/, $_);
+					$working[1] =~ s/[^0-9]+//g;
+					$free_mem = sprintf("%.1f", $working[1]);
+					last if $real_mem;
+				}
+			}
+		}
+	}
+	else {
+		$message = "sysctl $alerts{'sysctl'}->{'action'}"
+	}
+	# not using, but leave in place for a bit in case we want it
+	# my $type = ($free_mem) ? ' free':'' ;
+	# hack: temp fix for openbsd/darwin: in case no free mem was detected but we have physmem
+	if (($av_pages || $free_mem) && !$real_mem){
+		my $error = ($message) ? $message: 'total N/A';
+		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
+		if ($type eq 'string'){
+			$used = sprintf("%.1f",$used/1024);
+			$memory = "$used/($error) MiB";
+		}
+		else {
+			$memory = "$error:$used:";
+		}
+	}
+	# use openbsd/dragonfly avail mem data if available
+	elsif (($av_pages || $free_mem) && $real_mem) {
+		my $used = (!$free_mem) ? $av_pages : $real_mem - $free_mem;
+		my $percent = ($used && $real_mem) ? sprintf("%.1f", ($used/$real_mem)*100) : '';
+		if ($type eq 'string'){
+			$percent = " ($percent)" if $percent;
+			$memory = sprintf("%.1f/%.1f MiB", $used/1024, $real_mem/1024) . $percent;
+		}
+		else {
+			$memory = "$real_mem:$used:$percent:0";
+		}
+	}
+	eval $end if $b_log;
+	return $memory;
+}
+# rasberry pi only
+sub gpu_ram_arm {
+	eval $start if $b_log;
+	my ($gpu_ram) = (0);
+	if (my $program = main::check_program('vcgencmd')){
+		# gpu=128M
+		# "VCHI initialization failed" - you need to add video group to your user
+		my $working = (main::grabber("$program get_mem gpu 2>/dev/null"))[0];
+		$working = (split(/\s*=\s*/, $working))[1] if $working;
+		$gpu_ram = main::translate_size($working) if $working;
+	}
+	main::log_data('data',"gpu ram: $gpu_ram") if $b_log;
+	eval $end if $b_log;
+	return $gpu_ram;
+}
+# standard systems, not used currently, but maybe one day?
+sub get_gpu_ram {
+	eval $start if $b_log;
+	my ($gpu_ram) = (0);
+	eval $end if $b_log;
+	return $gpu_ram;
+}
+}
+
+sub get_module_version {
+	eval $start if $b_log;
+	my ($module) = @_;
+	return if ! $module;
+	my ($version);
+	my $path = "/sys/module/$module/version";
+	if (-r $path){
+		$version = reader($path,'',0);
+	}
+	elsif (-f "/sys/module/$module/uevent"){
+		$version = 'kernel';
+	}
+	#print "version:$version\n";
+	if (!$version) {
+		if (my $path = check_program('modinfo')){
+			my @data = grabber("$path $module 2>/dev/null");
+			$version = awk(\@data,'^version',2,':\s+') if @data;
+		}
+	}
+	$version ||= '';
+	eval $end if $b_log;
+	return $version;
+}
+# Note: this outputs the key/value pairs ready to go and is
+# called from either -r or -Ix, -r precedes. 
+## Get PackageData
+{
+package PackageData;
+my ($count,%counts,@list,$num,%output,$program,$type);
+$counts{'total'} = 0;
+sub get {
+	eval $start if $b_log;
+	# $num passed by reference to maintain incrementing where requested
+	($type,$num) = @_;
+	$loaded{'packages'} = 1;
+	package_counts();
+	appimage_counts();
+	create_output();
+	eval $end if $b_log;
+	return %output;
+}
+sub create_output {
+	eval $start if $b_log;
+	my $total;
+	if ($counts{'total'}){
+		$total = $counts{'total'};
+	}
+	else {
+		if ($type eq 'inner'){$total = 'N/A';}
+		else {$total = main::row_defaults('packages','');}
+	}
+	if ($counts{'total'} && $extra > 1){
+		delete $counts{'total'};
+		my $b_mismatch;
+		foreach (keys %counts){
+			if ($counts{$_}->[0] && $counts{$_}->[0] != $total){
+				$b_mismatch = 1;
+				last;
+			}
+		}
+		$total = '' if !$b_mismatch;
+	}
+	$output{main::key($$num++,1,1,'Packages')} = $total;
+	if ($extra > 1 && %counts){
+		foreach (sort keys %counts){
+			my ($cont,$ind) = (1,2);
+			# if package mgr command returns error, this will not be an array
+			next if ref $counts{$_} ne 'ARRAY';
+			if ($counts{$_}->[0] || $b_admin){
+				my $key = $_;
+				$key =~ s/^zzz-//; # get rid of the special sorters for items to show last
+				$output{main::key($$num++,$cont,$ind,$key)} = $counts{$_}->[0];
+				if ($b_admin && $counts{$_}->[1]){
+					($cont,$ind) = (0,3);
+					$output{main::key($$num++,$cont,$ind,'lib')} = $counts{$_}->[1];
+				}
+			}
+		}
+	}
+	# print Data::Dumper::Dumper \%output;
+	eval $end if $b_log;
+}
+sub package_counts {
+	eval $start if $b_log;
+	my ($type) = @_;
+	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
+	# 5: lib slice; 6: lib splitter; 7 - optional eval test
+	# needed: cards [nutyx], urpmq [mageia]
+	my @pkg_managers = (
+	['alps','alps','p','showinstalled',1,0,''],
+	['apk','apk','p','info',1,0,''],
+	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
+	['apt','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,''],
+	# ['aptd','dpkg-query','d','/usr/lib/*',1,3,'\\/'],
+	# mutyx. do cards test because there is a very slow pkginfo python pkg mgr
+	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
+	['emerge','emerge','d','/var/db/pkg/*/*/',1,5,'\\/'],
+	['eopkg','eopkg','d','/var/lib/eopkg/package/*',1,5,'\\/'],
+	['guix-sys','guix','p','package -p "/run/current-system/profile" -I',1,0,''],
+	['guix-usr','guix','p','package -I',1,0,''],
+	['kiss','kiss','p','list',1,0,''],
+	['mport','mport','p','list',1,0,''],
+	['nix-sys','nix-store','p','-qR /run/current-system/sw',1,1,'-'], 
+	['nix-usr','nix-store','p','-qR ~/.nix-profile',1,1,'-'], 
+	['nix-default','nix-store','p','-qR /nix/var/nix/profiles/default',1,2,'-'], 
+	['pacman','pacman','p','-Qq --color never',1,0,'',
+	 '!main::check_program(\'pacman-g2\')'], # pacman-g2 has sym link to pacman
+	['pacman-g2','pacman-g2','p','-Q',1,0,''],
+	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
+	['pkg_info','pkg_info','p','',1,0,''],
+	# like cards, avoid pkginfo directly due to python pm being so slow
+	# but pkgadd is also found in scratch
+	['pkgutils','pkginfo','p','-i',1,0,'','main::check_program(\'pkgadd\')'],
+	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
+	['pkgtool','pkgtool','d','/var/lib/pkgtools/packages',1,4,'\\/',
+	 '-d \'/var/lib/pkgtools/packages\''],
+	['pkgtool','pkgtool','d','/var/log/packages/',1,5,'\\/',
+	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\''],
+	# way too slow without nodigest/sig!! confirms packages exist
+	['rpm','rpm','p','-qa --nodigest --nosignature',1,0,''],
+	# scratch is a programming language too, with software called scratch
+	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
+	 '-d \'/var/lib/scratchpkg\''],
+	# note',' slapt-get, spkg, and pkgtool all return the same count
+	#['slapt-get','slapt-get','p','--installed',1,0,''],
+	#['spkg','spkg','p','--installed',1,0,''],
+	['tce','tce-status','p','-i',1,0,''],
+	# note: I believe mageia uses rpm internally but confirm
+	# ['urpmi','urpmq','p','??',1,0,''], 
+	['xbps','xbps-query','p','-l',1,1,''],
+	# ['xxx-brew','brew','p','--cellar',0,0,''], # verify how this works
+	['zzz-flatpak','flatpak','p','list',0,0,''],
+	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
+	);
+	my $libs;
+	foreach (@pkg_managers){
+		if ($program = main::check_program($_->[1])){
+			next if $_->[7] && !eval $_->[7];
+			if ($_->[2] eq 'p'){
+				chomp(@list = qx($program $_->[3] 2>/dev/null));
+			}
+			else {
+				@list = main::globber($_->[3]);
+			}
+			$libs = undef;
+			$count = scalar @list;
+			#print Data::Dumper::Dumper \@list;
+			if ($b_admin && $count && $_->[4]){
+				$libs = count_libs(\@list,$_->[5],$_->[6]);
+			}
+			$counts{$_->[0]} = [$count,$libs];
+			$counts{'total'} += $count;
+			#print Data::Dumper::Dumper \%counts;
+		}
+	}
+	# print Data::Dumper::Dumper \%counts;
+	main::log_data('dump','Package managers: %counts',\%counts) if $b_log;
+	eval $end if $b_log;
+}
+sub appimage_counts {
+	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
+		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
+		$count = scalar @list;
+		$counts{'zzz-appimage'} = [$count,undef] if $count;
+		$counts{'total'} += $count;
+	}
+}
+sub count_libs {
+	my ($items,$pos,$split) = @_;
+	my (@data);
+	my $i = 0;
+	$split ||= '\\s+';
+	#print scalar @$items, '::', $split, '::', $pos, "\n";
+	foreach (@$items){
+		@data = split(/$split/, $_);
+		#print scalar @data, '::', $data[$pos], "\n";
+		$i++ if $data[$pos] && $data[$pos] =~ m%^lib%;
+	}
+	return $i;
+}
+}
+
+# PartitionData
 {
 package PartitionData;
 sub set {
 	my ($type) = @_;
-	$loaded{'proc-partitions'} = 1;
+	$loaded{'partition-data'} = 1;
 	if ($type eq 'proc'){
 		if (my $file = $system_files{'proc-partitions'}){
-			proc_partitions($file);
+			proc_data($file);
 		}
 	}
 	elsif ($type eq 'bsd'){
-		
+		if ($alerts{'disklabel'}->{'action'} eq 'use'){
+			disklabel_data();
+		}
 	}
 }
-sub proc_partitions {
+# 1 - partition name, without /dev, like sda1, sde
+sub get_proc {
+	eval $start if $b_log;
+	my $item = $_[0];
+	return if !@proc_partitions;
+	my (@device);
+	foreach my $device (@proc_partitions){
+		if ($device->[3] eq $item){
+			@device = @$device;
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return @device;
+}
+
+sub proc_data {
 	eval $start if $b_log;
 	my $file = $_[0];
 	my @parts = main::reader($file,'strip');
@@ -24101,6 +23498,33 @@ sub bsd_disklabel {
 	eval $end if $b_log;
 }
 }
+
+# args: 1 - pci device string; 2 - pci cleaned subsystem string
+sub get_pci_vendor {
+	eval $start if $b_log;
+	my ($device, $subsystem) = @_;
+	return if !$subsystem;
+	my ($vendor,$sep,$temp) = ('','','');
+	# get rid of any [({ type characters that will make regex fail
+	# and similar matches show as non-match
+	$subsystem = regex_cleaner($subsystem);
+	my @data = split(/\s+/, $subsystem);
+	# when using strings in patterns for regex have to escape them
+	foreach (@data){
+		$temp = $_;
+		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
+		if ($device !~ m|\b$temp\b|){
+			$vendor .= $sep . $_;
+			$sep = ' ';
+		}
+		else {
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $vendor;
+}
+
 sub set_ps_aux {
 	eval $start if $b_log;
 	my ($header,@ps,@temp);
@@ -24209,6 +23633,538 @@ sub set_ps_gui {
 	eval $end if $b_log;
 }
 
+# # check? /var/run/nologin for bsds?
+sub get_runlevel_data {
+	eval $start if $b_log;
+	my $runlevel = '';
+	if ( my $program = check_program('runlevel')){
+		$runlevel = (grabber("$program 2>/dev/null"))[0];
+		$runlevel =~ s/[^\d]//g if $runlevel;
+		#print_line($runlevel . ";;");
+	}
+	eval $end if $b_log;
+	return $runlevel;
+}
+
+# note: it appears that at least as of 2014-01-13, /etc/inittab is going 
+# to be used for default runlevel in upstart/sysvinit. systemd default is 
+# not always set so check to see if it's linked.
+sub get_runlevel_default {
+	eval $start if $b_log;
+	my @data;
+	my $default = '';
+	my $b_systemd = 0;
+	my $inittab = '/etc/inittab';
+	my $systemd = '/etc/systemd/system/default.target';
+	my $upstart = '/etc/init/rc-sysinit.conf';
+	# note: systemd systems do not necessarily have this link created
+	if ( -e $systemd){
+		$default = readlink($systemd);
+		$default =~ s/.*\/// if $default; 
+		$b_systemd = 1;
+	}
+	# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
+	# note that technically default can be changed at boot but for inxi purposes 
+	# that does not matter, we just want to know the system default
+	elsif ( -r $upstart){
+		# env DEFAULT_RUNLEVEL=2
+		@data = reader($upstart);
+		$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
+	}
+	# handle weird cases where null but inittab exists
+	if (!$default && -r $inittab ){
+		@data = reader($inittab);
+		$default = awk(\@data,'^id.*initdefault',2,':');
+	}
+	eval $end if $b_log;
+	return $default;
+}
+
+sub get_self_version {
+	eval $start if $b_log;
+	my $patch = $self_patch;
+	if ( $patch ne '' ){
+		# for cases where it was for example: 00-b1 clean to -b1
+		$patch =~ s/^[0]+-?//;
+		$patch = "-$patch" if $patch;
+	}
+	eval $end if $b_log;
+	return $self_version . $patch;
+}
+
+# ServiceData
+{
+package ServiceData;
+my ($key,$service,$type);
+sub get {
+	eval $start if $b_log;
+	($type,$service) = @_;
+	my $value;
+	set() if !$loaded{'service-tool'};
+	$key = (keys %service_tool)[0] if %service_tool;
+	if ($key){
+		if ($type eq 'status'){
+			$value = process_status();
+		}
+		elsif ($type eq 'tool'){
+			$value = $service_tool{$key}->[1];
+		}
+	}
+	eval $end if $b_log;
+	return $value;
+}
+sub process_status {
+	eval $start if $b_log;
+	my ($cmd,$status,@data);
+	my ($result,$value) = ('','');
+	my %translate = (
+	'active' => 'running',
+	'down' => 'stopped',
+	'fail' => 'not found', 
+	'failed' => 'not found', 
+	'inactive' => 'stopped',
+	'ok' => 'running',
+	'not running' => 'stopped',
+	'run' => 'running',
+	'started' => 'running',
+	);
+	if ($key eq 'systemctl'){
+		$cmd = "$service_tool{$key}->[0] status $service";
+	}
+	# can be /etc/init.d or /etc/rc.d; ghostbsd/gentoo have this
+	elsif ($key eq 'rc-service'){
+		$cmd = "$service_tool{$key}->[0] $service status";
+	}
+	elsif ($key eq 'rcctl'){
+		$cmd = "$service_tool{$key}->[0] check $service";
+	}
+	# dragonfly/netbsd/freebsd have this
+	elsif ($key eq 'service'){
+		$cmd = "$service_tool{$key}->[0] $service status";
+	}
+	# runit
+	elsif ($key eq 'sv'){
+		$cmd = "$service_tool{$key}->[0] status $service";
+	}
+	# check or status or onestatus (netbsd)
+	elsif ($key eq 'rc.d'){
+		if (-e "$service_tool{$key}->[0]$service"){
+			$status =  ($bsd_type && $bsd_type =~ /(dragonfly)/) ? 'status' : 'check';
+			$cmd = "$service_tool{$key}->[0]$service check";
+		}
+		else {
+			$result = 'not found';
+		}
+	}
+	elsif ($key eq 'init.d'){
+		if (-e "$service_tool{$key}->[0]$service"){
+			$cmd = "$service_tool{$key}->[0]$service status";
+		}
+		else {
+			$result = 'not found';
+		}
+	}
+	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
+	#@data = ('bluetooth is running.');
+	print "key: $key\n", Data::Dumper::Dumper \@data if $dbg[29];
+	main::log_data('dump','service @data',\@data) if $b_log;
+	for my $row (@data){
+		my @working = split(/\s*:\s*/,$row);
+		($value) = ('');
+		# print "$working[0]::$working[1]\n";
+		if ($working[0] eq 'Loaded'){
+			# note: sshd shows ssh for ssh.service
+			$working[1] =~ /^(.+?)\s*\(.*?\.service;\s+(\S+?);.*/;
+			$result = lc($1) if $1;
+			$result = lc($2) if $2; # this will be enabled/disabled
+		}
+		elsif ($working[0] eq 'Active'){
+			$working[1] =~ /^(.+?)\s*\((\S+?)\).*/;
+			$value = lc($1) if $1 && (!$result || $result ne 'disabled');
+			$value = $translate{$value} if $value && $translate{$value};
+			$result .= ",$value" if ($result && $value);
+			last;
+		}
+		# valid syntax, but service does not exist
+		# * rc-service: service 'ntp' does not exist :: 
+		elsif ($row =~ /$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/i){
+			$result = 'not found';
+			last;
+		}
+		# means command directive doesn't exist, we don't know if service exists or not
+		# * ntpd: unknown function 'disable' :: 
+		elsif ($row =~ /unknown (directive|function)|Usage/i){
+			last;
+		}
+		# rc-service: * status: started :: * status: stopped, fail handled in not exist test
+		elsif ($working[0] eq '* status' && $working[1]){
+			$result = lc($working[1]);
+			$result = $translate{$result} if $translate{$result};
+			last;
+		}
+		## start exists status detections
+		elsif ($working[0] =~ /\b$service is ([a-z\s]+?)(\s+as\s.*|\s+\.\.\..*)?\.?$/){
+			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
+			last;
+		}
+		# runit sv: run/down/fail - fail means not found
+		# run: udevd: (pid 631) 641s :: down: sshd: 9s, normally up
+		elsif ($working[1] && $working[1] eq $service && $working[0] =~ /^([a-z]+)$/){
+			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
+			$result = "enabled,$result" if $working[2] && $working[2] =~ /normally up/i;
+		}
+		# OpenBSD: sshd(ok)
+		elsif ($working[0] =~ /\b$service\s*\(([^\)]+)\)/){
+			$result = lc($1);
+			$result = $translate{$result} if $translate{$result};
+			last;
+		}
+	}
+	print "service result: $result\n" if $dbg[29];
+	main::log_data('data',"result: $result") if $b_log;
+	eval $end if $b_log;
+	return $result;
+}
+sub set {
+	eval $start if $b_log;
+	$loaded{'service-tool'} = 1;
+	my ($path);
+	if ($path = main::check_program('systemctl')){
+		# systemctl status ssh :: Loaded: / Active: 
+		%service_tool = ('systemctl' => [$path,'systemctl']);
+	}
+	elsif ($path = main::check_program('rc-service')){
+		# rc-service ssh status ::  * status: stopped
+		%service_tool = ('rc-service' => [$path,'rc-service']);
+	}
+	elsif ($path = main::check_program('rcctl')){
+		# rc-service ssh status ::  * status: stopped
+		%service_tool = ('rcctl' => [$path,'rcctl']);
+	}
+	elsif ($path = main::check_program('service')){
+		# service sshd status
+		%service_tool = ('service' => [$path,'service']);
+	}
+	elsif ($path = main::check_program('sv')){
+		# service sshd status
+		%service_tool = ('sv' => [$path,'sv']);
+	}
+	# freebsd does not have 'check', netbsd does not have status
+	elsif (-d '/etc/rc.d/'){
+		# /etc/rc.d/ssh check :: ssh(ok|failed)
+		%service_tool = ('rc.d' => ['/etc/rc.d/','/etc/rc.d']); 
+	}
+	elsif (-d '/etc/init.d/'){
+		# /etc/init.d/ssh status :: Loaded: loaded (...)/ Active: active (...)
+		%service_tool = ('init.d' => ['/etc/init.d/','/etc/init.d']);
+	}
+	eval $end if $b_log;
+}
+}
+# $dbg[29] = 1; set_path(); print ServiceData::get('status','bluetooth'),"\n";
+
+# ShellData
+{
+package ShellData;
+my $b_debug = 0; # disable all debugger output in case forget to comment out!
+
+# public. This does not depend on using ps -jfp, open/netbsd do not 
+# at this point support it, so we only want to use -jp to get parent
+# $ppid set in initialize(). shell_launcher will use -f so it only 
+# runs in case we got $pppid. $client{'pppid'} will be used to trigger
+# launcher tests. If started with sshd via ssh user@address 'pinxi -Ia'
+# will show sshd as shell, which is fine, that's what it is.
+sub set {
+	eval $start if $b_log;
+	my ($cmd,$parent,$pppid,$shell);
+	$loaded{'shell-data'} = 1;
+	$cmd = "ps -wwp $ppid -o comm= 2>/dev/null";
+	$shell = qx($cmd);
+	# we'll be using these $client pppid/parent values in shell_launcher() 
+	$pppid = $client{'pppid'} = get_pppid($ppid);
+	$pppid ||= ''; 
+	$client{'pppid'} ||= '';
+	# print "sh: $shell\n";
+	main::log_data('cmd',$cmd) if $b_log;
+	chomp($shell);
+	if ($shell){
+		# print "shell pre: $shell\n";
+		# when run in debugger subshell, would return sh as shell,
+		# and parent as perl, that is, pinxi itself, which is actually right.
+		# trim leading /.../ off just in case. ps -p should return the name, not path 
+		# but at least one user dataset suggests otherwise so just do it for all.
+		$shell =~ s/^.*\///; 
+		# NOTE: su -c "inxi -F" results in shell being su
+		# but: su - results in $parent being su
+		my $i=0;
+		$parent = $client{'parent'} = parent_name($pppid) if $pppid;
+		$parent ||= '';
+		print "1: shell: $shell $ppid parent: $parent $pppid\n" if $b_debug;
+ 		# this will fail in this case: sudo su -c 'inxi -Ia'
+		if ($shell =~ /^(doas|login|sudo|su)$/){
+			$client{'su-start'} = $shell if $shell ne 'login';
+			$shell = $parent if $parent;
+		}
+		# eg: su to root, then sudo
+		elsif ($parent && $client{'parent'} =~ /^(doas|sudo|su)$/){
+			$client{'su-start'} = $parent;
+			$parent = '';
+		}
+		print "2: shell: $shell parent: $parent\n" if $b_debug;
+		my $working = $ENV{'SHELL'};
+		if ($working){
+			$working =~ s/^.*\///;
+			# a few manual changes for known 
+			# Note: parent when fizsh shows as zsh but SHELL is fizsh, but other times
+			# SHELL is default shell, but in zsh, SHELL is default shell, not zfs
+			if ($shell eq 'zsh' && $working eq 'fizsh' ){
+				$shell = $working;
+			}
+		}
+		#print "3: shell post: $shell working: $working\n";
+		# since there are endless shells, we'll keep a list of non program value
+		# set shells since there is little point in adding those to program values
+		if (shell_test($shell)){
+			# do nothing, just leave $shell as is
+		}
+		# note: not all programs return version data. This may miss unhandled shells!
+		elsif ((@app = main::program_data(lc($shell),lc($shell),1)) && $app[0]){
+			$shell = $app[0];
+			$client{'version'} = $app[1] if $app[1]; 
+			print "3: app test $shell v: $client{'version'}\n" if $b_debug;
+		}
+		else {
+			# NOTE: we used to guess here with position 2 --version but this cuold lead
+			# to infinite loops when inxi called from a script 'infos' that is in PATH and 
+			# script does not have any start arg handlers or bad arg handlers: 
+			# eg: shell -> infos -> inxi -> sh -> infos --version -> infos -> inxi...
+			# Basically here we are hoping that the grandparent is a shell, or at least
+			# recognized as a known possible program
+			#print "app not shell?: $shell\n";
+			if ($shell){
+				 print "shell 4: $shell StartClientVersionType: $parent\n" if $b_debug;
+				if ($parent){
+					if (shell_test($parent)){
+						$shell = $parent;
+					}
+					elsif ((@app = main::program_data(lc($parent),lc($parent),0)) && $app[0]){
+						$shell = $app[0];
+						$client{'version'} = $app[1] if $app[1];
+					}
+					print "shell 5: $shell version: $client{'version'}\n" if $b_debug;
+				}
+			}
+			else {
+				$client{'version'} = main::row_defaults('unknown-shell');
+			}
+			print "6: shell not app version: $client{'version'}\n" if $b_debug;
+		}
+		$client{'version'} ||= '';
+		$client{'version'} =~ s/(\(.*|-release|-version)// if $client{'version'};
+		$shell =~ s/^[\s-]+|[\s-]+$//g if $shell; # sometimes will be like -sh
+		$client{'name'} = lc($shell);
+		$client{'name-print'} = $shell;
+		print "7: shell: $client{'name-print'} version: $client{'version'}\n" if $b_debug;
+		if ($extra > 2 && $working && lc($shell) ne lc($working)){
+			if (@app = main::program_data(lc($working))){
+				$client{'default-shell'} = $app[0];
+				$client{'default-shell-v'} = $app[1];
+				$client{'default-shell-v'} =~ s/(\s*\(.*|-release|-version)// if $client{'default-shell-v'};
+			}
+			else {
+				$client{'default-shell'} = $working;
+			}
+		}
+	}
+	else {
+		$client{'name'} = 'shell';
+		$client{'name-print'} = 'Unknown Shell';
+	}
+	if (!$client{'su-start'}){
+		$client{'su-start'} = 'sudo' if $ENV{'SUDO_USER'};
+		$client{'su-start'} = 'doas' if $ENV{'DOAS_USER'};
+	}
+	if ($parent && $parent eq 'login'){
+		$client{'su-start'} = ($client{'su-start'}) ? $client{'su-start'} . ',' . $parent: $parent;
+	}
+	eval $end if $b_log;
+}
+# public, returns shell launcher, terminal, program, whatever
+# depends on $pppid so only runs if that is set.
+sub shell_launcher {
+	eval $start if $b_log;
+	my (@data);
+	my ($msg,$pppid,$shell_parent) = ('','','');
+	$pppid = $client{'pppid'};
+	if ($b_log){
+		$msg = ($ppid) ? "pppid: $pppid ppid: $ppid": "ppid: undefined";
+		main::log_data('data',$msg);
+	}
+	#print "self parent: $pppid ppid: $ppid\n";
+	if ($pppid){
+		$shell_parent = $client{'parent'};
+		#print "shell parent 1: $shell_parent\n";
+		if ($b_log){
+			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
+			main::log_data('data',$msg);
+		}
+		# in case sudo starts inxi, parent is shell (or perl inxi if run by debugger)
+		# so: perl (2) started pinxi with sudo (3) in sh (4) in terminal
+		my $shells = 'ash|bash|busybox|cicada|csh|dash|doas|elvish|fish|fizsh|ksh|ksh93|';
+		$shells .= 'lksh|login|loksh|mksh|nash|oh|oil|osh|pdksh|perl|posh|';
+		$shells .= 'su|sudo|tcsh|xonsh|yash|zsh';
+		$shells .= shell_test('return');
+		my $i = 0;
+		print "self::pppid-0: $pppid :: $shell_parent\n" if $b_debug;
+		# note that new shells not matched will keep this loop spinning until it ends. 
+		# All we really can do about that is update with new shell name when we find them. 
+		while ($i < 8 && $shell_parent && $shell_parent =~ /^($shells)$/){
+			# bash > su > parent
+			$i++;
+			$pppid = get_pppid($pppid);
+			$shell_parent = parent_name($pppid);
+			print "self::pppid-${i}: $pppid :: $shell_parent\n" if $b_debug;
+			if ($b_log){
+				$msg = ($shell_parent) ? "parent-$i: $shell_parent": "shell parent $i: undefined";
+				main::log_data('data',$msg);
+			}
+		}
+	}
+	if ($b_log){
+		$pppid ||= '';
+		$shell_parent ||= '';
+		main::log_data('data',"parents: pppid: $pppid parent-name: $shell_parent");
+	}
+	eval $end if $b_log;
+	return $shell_parent;
+}
+# arg: 1 - parent id 
+# returns SID/start ID
+sub get_pppid {
+	eval $start if $b_log;
+	my ($ppid) = @_;
+	return 0 if !$ppid;
+	# ps -j -fp : some bsds ps do not have -f for PPID, so we can't get the ppid
+	my $cmd = "ps -wwjfp $ppid 2>/dev/null";
+	main::log_data('cmd',$cmd) if $b_log;
+	my @data = main::grabber($cmd);
+	#shift @data if @data;
+	my $pppid = main::awk(\@data,"$ppid",3,'\s+');
+	eval $end if $b_log;
+	return $pppid;
+}
+# arg: 1 - parent id
+# returns parent command name
+sub parent_name {
+	eval $start if $b_log;
+	my ($ppid) = @_;
+	return '' if !$ppid;
+	my ($parent_name);
+	my $cmd = "ps -wwjp $ppid 2>/dev/null";
+	main::log_data('cmd',$cmd) if $b_log;
+	my @data = main::grabber($cmd,'','strip');
+	# dump the headers if they exist
+	$parent_name = (grep {/$ppid/} @data)[0] if @data;
+	if ($parent_name){
+		# we don't want to worry about column position, just slice off all 
+		# the first part before the command
+		$parent_name =~ s/^.*[0-9]+:[0-9\.]+\s+//;
+		# then get the command
+		$parent_name = (split(/\s+/,$parent_name))[0];
+		# get rid of /../ path info if present
+		$parent_name =~ s|^.*/|| if $parent_name; 
+		# to work around a ps -p or gnome-terminal bug, which returns 
+		# gnome-terminal- trim -/_ off start/end; _su, etc, which breaks detections
+		$parent_name =~ s/^[_-]|[_-]$//g;
+	}
+	eval $end if $b_log;
+	return $parent_name;
+}
+# list of program_values non-handled shells, or known to have no version
+# Move shell to set_program_values for print name, or version if available
+# $1 - return|[shell name to test
+# returns test list OR shell name/''
+sub shell_test {
+	my ($test) = @_;
+	# these shells are not verified or tested
+	my $shells = 'apush|ccsh|ch|esh?|eshell|heirloom|hush|';
+	$shells .= 'ion|imrsh|larryshell|mrsh|msh(ell)?|murex|nsh|nu(shell)?|';
+	$shells .= 'oksh|psh|pwsh|pysh(ell)?|rush|sash|xsh?|';
+	# these shells are tested and have no version info
+	$shells .= 'es|rc|scsh|sh';
+	return '|' . $shells if $test eq 'return';
+	return ($test =~ /^($shells)$/) ? $test : '';
+}
+# this will test against default IP like: (:0) vs full IP to determine 
+# ssh status. Surprisingly easy test? Cross platform
+sub ssh_status {
+	eval $start if $b_log;
+	my ($b_ssh,$ssh);
+	# fred   pts/10       2018-03-24 16:20 (:0.0)
+	# fred-remote pts/1        2018-03-27 17:13 (43.43.43.43)
+	if (my $program = main::check_program('who')){
+		$ssh = (main::grabber("$program am i 2>/dev/null"))[0];
+		# crude IP validation
+		if ($ssh && $ssh =~ /\(([:0-9a-f]{8,}|[1-9][\.0-9]{6,})\)$/){
+			$b_ssh = 1;
+		}
+	}
+	eval $end if $b_log;
+	return $b_ssh;
+}
+# If IRC: called if root for -S, -G, or if not in display for user.
+sub console_irc_tty {
+	eval $start if $b_log;
+	$loaded{'con-irc-tty'} = 1;
+	# not set for root in or out of display
+	if (defined $ENV{'XDG_VTNR'} ){
+		$client{'con-irc-tty'} = $ENV{'XDG_VTNR'};
+	}
+	else {
+		# ppid won't work with name, so this is assuming there's only one client running
+		# if in display, -G returns vt size, not screen dimensions in rowsxcols.
+		$client{'con-irc-tty'} = main::awk(\@ps_aux,'.*\b' . $client{'name'} . '\b.*',7,'\s+');
+		$client{'con-irc-tty'} =~ s/^(tty|\?)// if defined $client{'con-irc-tty'};
+	}
+	$client{'con-irc-tty'} = '' if !defined $client{'con-irc-tty'};
+	main::log_data('data',"console-irc-tty:$client{'con-irc-tty'}") if $b_log;
+	eval $end if $b_log;
+}
+sub tty_number {
+	eval $start if $b_log;
+	$loaded{'tty-number'} = 1;
+	# note: ttyname returns undefined if pinxi is > redirected output
+	# variants: /dev/pts/1 /dev/tty1 /dev/ttyp2 /dev/ttyra [hex number a]
+	$client{'tty-number'} = POSIX::ttyname(1);
+	# but tty direct works fine in that case
+	if (!defined $client{'tty-number'} && (my $program = main::check_program('tty'))){
+		chomp($client{'tty-number'} = qx($program 2>/dev/null));
+		if (defined $client{'tty-number'} && $client{'tty-number'} =~ /^not/){
+			undef $client{'tty-number'};
+		}
+	}
+	if (defined $client{'tty-number'}){
+		$client{'tty-number'} =~ s/^\/dev\/(tty)?//;
+	}
+	else {
+		$client{'tty-number'} = '';
+	}
+	# systemd only item, usually same as tty in console, not defined
+	# for root or non systemd systems.
+	if (defined $ENV{'XDG_VTNR'} && $client{'tty-number'} ne '' && 
+	 $ENV{'XDG_VTNR'} ne $client{'tty-number'}){
+		$client{'tty-number'} = "$client{'tty-number'} (vt $ENV{'XDG_VTNR'})";
+	}
+	elsif ($client{'tty-number'} eq '' && defined $ENV{'XDG_VTNR'}) {
+		$client{'tty-number'} = $ENV{'XDG_VTNR'};
+	}
+	main::log_data('data',"tty:$client{'tty-number'}") if $b_log;
+	eval $end if $b_log;
+}
+}
+
 sub set_sysctl_data {
 	eval $start if $b_log;
 	return if !$alerts{'sysctl'} || $alerts{'sysctl'}->{'action'} ne 'use';
@@ -24296,6 +24252,46 @@ sub set_sysctl_data {
 	eval $end if $b_log;
 }
 
+sub get_uptime {
+	eval $start if $b_log;
+	my ($days,$hours,$minutes,$seconds,$uptime) = ('','','','','');
+	if (check_program('uptime')){
+		$uptime = qx(uptime);
+		$uptime = trimmer($uptime);
+		if ($fake{'uptime'}){
+			# $uptime = '2:58PM  up 437 days,  8:18, 3 users, load averages: 2.03, 1.72, 1.77';
+			# $uptime = '04:29:08 up  3:18,  3 users,  load average: 0,00, 0,00, 0,00';
+			# $uptime = '10:23PM  up 5 days, 16:17, 1 user, load averages: 0.85, 0.90, 1.00';
+			# $uptime = '05:36:47 up 1 day,  3:28,  4 users,  load average: 1,88, 0,98, 0,62';
+			# $uptime = '05:36:47 up 1 day,  3 min,  4 users,  load average: 1,88, 0,98, 0,62';
+			# $uptime = '04:41:23 up  2:16,  load average: 7.13, 6.06, 3.41 # root openwrt';
+			# $uptime = '9:51 PM  up 2 mins, 1 user, load average: 0:58, 0.27, 0.11';
+			# $uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
+			# $uptime = '9:51 PM  up 49 secs, 1 user, load average: 0:58, 0.27, 0.11';
+		}
+		if ($uptime && 
+		 $uptime =~ /[\S]+\s+up\s+(([0-9]+)\s+day[s]?,\s+)?(([0-9]{1,2}):([0-9]{1,2})|([0-9]+)\smin[s]?|([0-9]+)\ssec[s]?),\s+([0-9]+\s+user|load average)/){
+			$days = $2 . 'd' if $2;
+			$days .= ' ' if ($days && ($4 || $6));
+			if ($4 && $5){
+				$hours = $4 . 'h ';
+				$minutes = $5 . 'm';
+			}
+			elsif ($6){
+				$minutes = $6 . 'm';
+			}
+			elsif ($7){
+				$seconds = $7 . 's';
+			}
+			$uptime = $days . $hours . $minutes . $seconds;
+		}
+	}
+	$uptime ||= 'N/A';
+	eval $end if $b_log;
+	return $uptime;
+}
+
+## UsbData
 ## %usb array indexes
 # 0 - bus id / sort id
 # 1 - device id
@@ -24319,7 +24315,6 @@ sub set_sysctl_data {
 # 19 - power mW bsd only, not used yet
 # 20 - product rev number
 # 21 - driver_nu [bsd only]
-## Set UsbData
 {
 package UsbData;
 my (@working);
@@ -25160,6 +25155,16 @@ sub bus_id_alpha {
 	return $id;
 }
 }
+#  note: seen instance in android where reading file hangs endlessly!!!
+sub get_wakeups {
+	eval $start if $b_log;
+	return if $b_arm || $b_mips || $b_ppc;
+	my ($wakeups);
+	my $path = '/sys/power/wakeup_count';
+	$wakeups = reader($path,'strip',0) if -r $path;
+	eval $end if $b_log;
+	return $wakeups;
+}
 
 ########################################################################
 #### GENERATE OUTPUT
@@ -25190,30 +25195,30 @@ sub generate {
 			assign_data(\%row);
 		}
 		if ($show{'machine'}){
-			main::set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			%row = item_handler('Machine','machine');
 			assign_data(\%row);
 		}
 		if ($show{'battery'}){
-			main::set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			%row = item_handler('Battery','battery');
 			if (%row || $show{'battery-forced'}){
 				assign_data(\%row);
 			}
 		}
 		if ($show{'ram'}){
-			main::set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			%row = item_handler('Memory','ram');
 			assign_data(\%row);
 		}
 		if ($show{'slot'}){
-			main::set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			%row = item_handler('PCI Slots','slot');
 			assign_data(\%row);
 		}
 		if ($show{'cpu'} || $show{'cpu-basic'}){
 			DeviceData::set(\$checks{'device'}) if $b_arm && !$checks{'device'};
-			main::set_dmicode_data(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
+			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = item_handler('CPU','cpu',$arg);
 			assign_data(\%row);
@@ -25299,6 +25304,7 @@ sub generate {
 	}
 	eval $end if $b_log;
 }
+## Item Processors
 sub assign_data {
 	my ($row) = @_;
 	return if ! %$row;
