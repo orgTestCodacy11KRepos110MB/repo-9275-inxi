@@ -46,16 +46,16 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-03';
-my $self_patch='26';
+my $self_patch='27';
 ## END INXI INFO ##
 
 ## Self data
 my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
 
 ## Hashes
-my (%alerts,%build_prop,%client,%colors,%dboot,%devices,%dl,%files,%gpart,
-%dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,
-%service_tool,%show,%sysctl,%system_files,%usb);
+my (%alerts,%build_prop,%client,%colors,%disks_bsd,%dboot,%devices,%dl,
+%gpart,%dmmapper,%force,%loaded,%mapper,%program_values,%rows,
+%sensors_raw,%service_tool,%show,%sysctl,%system_files,%usb);
 
 ## System Arrays
 my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
@@ -300,6 +300,10 @@ sub set_commands {
 		if ($use{'sysctl'}){
 			# note: there is a case of kernel.osrelease but it's a linux distro
 			$commands{'sysctl'} = ['exec-sys','','kern.osrelease'];
+		}
+		if ($use{'bsd-partition'}){
+			$commands{'disklabel'} = ['missing','',''];
+			$commands{'gpart'} = ['missing','',''];
 		}
 	}
 	if ($use{'dmidecode'}){
@@ -553,7 +557,7 @@ sub set_sudo {
 }
 
 sub set_system_files {
-	%files = (
+	my %files = (
 	'asound-cards' => '/proc/asound/cards',
 	'asound-modules' => '/proc/asound/modules',
 	'asound-version' => '/proc/asound/version',
@@ -4955,8 +4959,10 @@ sub post_process {
 			$use{'bsd-cpu'} = 1;
 			$use{'bsd-sleep'} = 1;}
 		if ($show{'short'} || $show{'disk-basic'} || $show{'disk-total'} || 
-		 $show{'disk'} || $show{'unmounted'}){
-			$use{'bsd-disk'} = 1;}
+		 $show{'disk'} || $show{'partition'} || $show{'partition-full'} || 
+		 $show{'raid'} || $show{'swap'} || $show{'unmounted'}){
+			$use{'bsd-disk'} = 1;
+			$use{'bsd-partition'} = 1;}
 		if ($show{'machine'}){
 			$use{'bsd-machine'} = 1;}
 		if ($show{'short'} || $show{'info'} || $show{'ps-mem'} || $show{'ram'}){
@@ -10269,77 +10275,27 @@ sub bsd_data {
 	my (@data,@drives,@temp);
 	my ($i,$size,$working) = (0,0,0);
 	my $file = $system_files{'dmesg-boot'};
-	if ($dboot{'disk'}){
-		foreach my $id (sort keys %{$dboot{'disk'}}){
-			next if !@{$dboot{'disk'}->{$id}};
-			foreach (@{$dboot{'disk'}->{$id}}){
-				my @row = split(/:\s*/, $_);
-				next if !$row[0];
-				# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
-				if (!exists $drives[$i]){
-					$drives[$i]->{'id'} = $id;
-					$drives[$i]->{'firmware'} = '';
-					$drives[$i]->{'temp'} = '';
-					$drives[$i]->{'type'} = '';
-					$drives[$i]->{'vendor'} = '';
-				}
-				#print "$_ i: $i\n";
-				# openbsd/netbsd matches will often work
-				if ($row[0] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
-					$working = main::translate_size($2);
-					# seen:  for some reason, size/sectors did not result in clean integer value
-					$drives[$i]->{'block-physical'} = POSIX::ceil(($working/$3)*1024) if $3;
-					$size += $working if $working;
-					$drives[$i]->{'size'} = $working;
-				}
-				# don't set both, if smartctl installed, we want to use its data so having
-				# only one of logical/physical will trip use of smartctl values
-				if ($row[0] =~ /[\s,]+([0-9]+)\sbytes?[\s\/]sect/ ){
-					#$drives[$i]->{'block-logical'} = $1;
-					$drives[$i]->{'block-physical'} = $1;
-				}
-				if ($row[1]){
-					if ($row[1] =~ /<([^>]+)>/){
-						$drives[$i]->{'model'} = $1 if $1;
-						$drives[$i]->{'type'} = 'removable' if $_ =~ /removable/;
-						# <Generic-, Compact Flash, 1.00>
-						my $count = ($drives[$i]->{'model'} =~ tr/,//);
-						if ($count && $count > 1){
-							@temp = split(/,\s*/, $drives[$i]->{'model'});
-							$drives[$i]->{'model'} = $temp[1];
-						}
-					}
-					if ($row[1] =~ /\bserial\.(\S*)/){
-						$drives[$i]->{'serial'} = $1;
-					}
-				}
-				if (!$drives[$i]->{'serial'} && $row[0] =~ /^Serial\sNumber\s(.*)/){
-					$drives[$i]->{'serial'} = $1;
-				}
-				# mmcsd0:32GB <SDHC SL32G 8.0 SN 27414E9E MFG 07/2014 by 3 SD> at mmc0 50.0MHz/4bit/65535-block
-				if (!$drives[$i]->{'serial'} && $row[0] =~ /(\s(SN|s\/n)\s(\S+))[>\s]/){
-					$drives[$i]->{'serial'} = $3;
-					# strip out the SN/MFG so it won't show in model
-					$row[0] =~ s/$1//;
-					$row[0] =~ s/\sMFG\s[^>]+//;
-				}
-				# these were mainly FreeBSD/Dragonfly matches
-				if (!$drives[$i]->{'size'} && $row[0] =~ /^([0-9]+\s*[KMGTPE])i?B?[\s,]/){
-					$working = main::translate_size($1);
-					$size += $working if $working;
-					$drives[$i]->{'size'} = $working;
-				}
-				if ($row[0] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
-					$row[0] =~ s/\bdevice$//g;
-					$row[0] =~ /<([^>]*)>(\s(.*))?/;
-					$drives[$i]->{'model'} = $1 if $1;
-					$drives[$i]->{'spec'} = $3 if $3;
-				}
-				if ($row[0] =~ /^([0-9\.]+[MG][B]?\/s)/){
-					$drives[$i]->{'speed'} = $1;
-					$drives[$i]->{'speed'} =~ s/\.[0-9]+// if $drives[$i]->{'speed'};
-				}
-				$drives[$i]->{'model'} = main::disk_cleaner($drives[$i]->{'model'});
+	DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
+	if (%disks_bsd){
+		foreach my $id (sort keys %disks_bsd){
+			next if !$disks_bsd{$id};
+			$drives[$i]->{'id'} = $id;
+			$drives[$i]->{'firmware'} = '';
+			$drives[$i]->{'temp'} = '';
+			$drives[$i]->{'type'} = '';
+			$drives[$i]->{'vendor'} = '';
+			$drives[$i]->{'block-logical'} = $disks_bsd{$id}->{'block-logical'};
+			$drives[$i]->{'block-physical'} = $disks_bsd{$id}->{'block-physical'};
+			$drives[$i]->{'partition-table'} = $disks_bsd{$id}->{'scheme'};
+			$drives[$i]->{'serial'} = $disks_bsd{$id}->{'serial'};
+			$drives[$i]->{'size'} = $disks_bsd{$id}->{'size'};
+			$size += $drives[$i]->{'size'} if $drives[$i]->{'size'};
+			$drives[$i]->{'spec'} = $disks_bsd{$id}->{'spec'};
+			$drives[$i]->{'speed'} = $disks_bsd{$id}->{'speed'};
+			$drives[$i]->{'type'} = $disks_bsd{$id}->{'type'};
+			# generate the synthetic model/vendor data
+			$drives[$i]->{'model'} = $disks_bsd{$id}->{'model'};
+			if ($drives[$i]->{'model'}){
 				my @device_data = device_vendor($drives[$i]->{'model'},'');
 				$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
 				$drives[$i]->{'model'} = $device_data[1] if $device_data[1];
@@ -14630,6 +14586,7 @@ sub set_partitions {
 	}
 	# for raw partition sizes, maj_min
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
 	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
 	# set @labels, @uuid
 	if (!$bsd_type){
@@ -14779,12 +14736,6 @@ sub set_partitions {
 			}
 			else {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
-				if ($b_admin || $show{'label'} || $show{'uuid'}){
-					my @temp = GpartData::get($dev_base);
-					$block_size = $temp[1] if $temp[1];
-					$label = $temp[3] if $temp[3];
-					$uuid =$temp[4] if $temp[4];
-				}
 			}
 			# assuming that all null/nullfs are parts of a logical fs
 			$b_logical = 1 if $fs && $fs =~ /^(hammer|null|zfs)/; 
@@ -14821,6 +14772,13 @@ sub set_partitions {
 				else {
 					$dev_type = 'dev';
 				}
+			}
+			if ($bsd_type && $dev_type eq 'dev' && $row[0] && 
+			 ($b_admin || $show{'label'} || $show{'uuid'})){
+				my %temp = DiskDataBSD::get($row[0]);
+				$block_size = $temp{'logical-block-size'};
+				$label = $temp{'label'};
+				$uuid = $temp{'uuid'};
 			}
 			$used = $row[$cols - $back_used];
 			$percent_used = sprintf("%.1f", ( $used/$size )*100) if ($size && main::is_numeric($size) );
@@ -14921,10 +14879,10 @@ sub swap_data {
 			}
 			else {
 				if ($show{'label'} || $show{'uuid'}){
-					my @temp = GpartData::get($data[0]);
-					$block_size = $temp[1] if $temp[1];
-					$label = $temp[3] if $temp[3];
-					$uuid = $temp[4] if $temp[4];
+					my %temp = DiskDataBSD::get($data[0]);
+					$block_size = $temp{'logical-block-size'};
+					$label = $temp{'label'};
+					$uuid = $temp{'uuid'};
 				}
 			}
 			$dev_type = 'dev';
@@ -15805,6 +15763,7 @@ sub raid_data {
 		@md_raid = md_data($file);
 	}
 	if ($fake{'raid-zfs'} || (my $path = main::check_program('zpool') )){
+		DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
 		@zfs_raid = zfs_data($path);
 	}
 	eval $end if $b_log;
@@ -16254,8 +16213,8 @@ sub zfs_data {
 				$part_size = $data{'size'};
 			}
 			if (!$part_size && $bsd_type){
-				my @temp = GpartData::get($working);
-				$part_size = $temp[0] if $temp[0];
+				my %temp = DiskDataBSD::get($working);
+				$part_size = $temp{'size'} if $temp{'size'};
 			}
 			$raw_logical[1] += $part_size if $part_size;
 			$zfs[$j]->{'arrays'}[$k]{'components'}[$i] = [$working,$part_size,$maj_min,$state];
@@ -18998,6 +18957,7 @@ sub create_output {
 	my $j = 0;
 	my (@rows,$dev,$percent,$raw_size,$size,$used);
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
 	main::set_mapper() if !$loaded{'mapper'};
 	PartitionItem::swap_data() if !$loaded{'set-swap'};
 	foreach my $row (@swaps){
@@ -19085,13 +19045,13 @@ sub get {
 	}
  	else {
 		if ($system_files{'proc-partitions'}){
-			@data = unmounted_data();
+			@data = proc_data();
 			if (!@data){
 				$key1 = 'Message';
 				$val1 = main::row_defaults('unmounted-data');
 			}
 			else {
-				@rows = unmounted_output(\@data);
+				@rows = create_output(\@data);
 			}
 		}
 		else {
@@ -19105,7 +19065,7 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-sub unmounted_output {
+sub create_output {
 	eval $start if $b_log;
 	my ($unmounted) = @_;
 	my (@rows,$fs);
@@ -19145,7 +19105,7 @@ sub unmounted_output {
 	eval $end if $b_log;
 	return @rows;
 }
-sub unmounted_data {
+sub proc_data {
 	eval $start if $b_log;
 	my ($dev_mapped,$fs,$label,$maj_min,$size,$uuid,%part,@unmounted);
 	# last filters to make sure these are dumped
@@ -19232,7 +19192,7 @@ sub get_mounted {
 		my @arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
 		@arrays = grep {defined $_} @arrays;
 		foreach my $array (@arrays){
-			my @components = (ref $array->{'components'} eq 'ARRAY') ? @{$array->{'components'}} : ();
+			my @components = (ref $array->{'com_ponents'} eq 'ARRAY') ? @{$array->{'components'}} : ();
 			foreach my $component (@components){
 				my @temp = split('~', $component);
 				push(@mounted, $temp[0]);
@@ -21686,6 +21646,189 @@ sub pci_class {
 }
 }
 
+
+# DiskDataBSD
+# handles disks and partition extra data for disks bsd, raid-zfs, 
+# partitions, swap, unmounted
+# glabel: partID, logical/physical-block-size, uuid, label, size
+# disklabel: partID, block-size, fs, size
+{
+package DiskDataBSD;
+# sets initial pure dboot data, and fills it in with 
+# disklabel/gpart partition and advanced data
+sub set {
+	eval $start if $b_log;
+	$loaded{'disk-data-bsd'} = 1;
+	set_dboot_disks();
+	if ($use{'bsd-partition'}){
+		if ($alerts{'gpart'}->{'action'} eq 'use'){
+			set_gpart_data();
+		}
+	}
+	eval $end if $b_log;
+}
+sub get {
+	eval $start if $b_log;
+	my $id = $_[0];
+	return if !$id || !%disks_bsd;
+	$id =~ s|^/dev/||;
+	my (%data);
+	# this handles mainly zfs, which can be either disk or part
+	if ($disks_bsd{$id}){
+		%data = %{$disks_bsd{$id}};
+		delete $data{'partitions'} if $data{'partitions'};
+	}
+	else {
+		OUTER: foreach my $key (keys %disks_bsd){
+			if ($disks_bsd{$key}->{'partitions'}){
+				foreach my $part (keys %{$disks_bsd{$key}->{'partitions'}}){
+					if ($part eq $id){
+						%data = %{$disks_bsd{$key}->{'partitions'}{$part}};
+						last OUTER;
+					}
+				}
+			}
+		}
+	}
+	eval $end if $b_log;
+	return %data;
+}
+sub set_dboot_disks {
+	eval $start if $b_log;
+	my ($working,@temp);
+	foreach my $id (sort keys %{$dboot{'disk'}}){
+		next if !@{$dboot{'disk'}->{$id}};
+		foreach (@{$dboot{'disk'}->{$id}}){
+			my @row = split(/:\s*/, $_);
+			next if !$row[0];
+			# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
+			#print "$_ i: $i\n";
+			# openbsd/netbsd matches will often work
+			if ($row[0] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
+				$working = main::translate_size($2);
+				# seen:  for some reason, size/sectors did not result in clean integer value
+				$disks_bsd{$id}->{'block-physical'} = POSIX::ceil(($working/$3)*1024) if $3;
+				$disks_bsd{$id}->{'size'} = $working;
+			}
+			# don't set both, if smartctl installed, we want to use its data so having
+			# only one of logical/physical will trip use of smartctl values
+			if ($row[0] =~ /[\s,]+([0-9]+)\sbytes?[\s\/]sect/ ){
+				#$disks_bsd{$id}->{'block-logical'} = $1;
+				$disks_bsd{$id}->{'block-physical'} = $1;
+			}
+			if ($row[1]){
+				if ($row[1] =~ /<([^>]+)>/){
+					$disks_bsd{$id}->{'model'} = $1 if $1;
+					$disks_bsd{$id}->{'type'} = 'removable' if $_ =~ /removable/;
+					# <Generic-, Compact Flash, 1.00>
+					my $count = ($disks_bsd{$id}->{'model'} =~ tr/,//);
+					if ($count && $count > 1){
+						@temp = split(/,\s*/, $disks_bsd{$id}->{'model'});
+						$disks_bsd{$id}->{'model'} = $temp[1];
+					}
+				}
+				if ($row[1] =~ /\bserial\.(\S*)/){
+					$disks_bsd{$id}->{'serial'} = $1;
+				}
+			}
+			if (!$disks_bsd{$id}->{'serial'} && $row[0] =~ /^Serial\sNumber\s(.*)/){
+				$disks_bsd{$id}->{'serial'} = $1;
+			}
+			# mmcsd0:32GB <SDHC SL32G 8.0 SN 27414E9E MFG 07/2014 by 3 SD> at mmc0 50.0MHz/4bit/65535-block
+			if (!$disks_bsd{$id}->{'serial'} && $row[0] =~ /(\s(SN|s\/n)\s(\S+))[>\s]/){
+				$disks_bsd{$id}->{'serial'} = $3;
+				# strip out the SN/MFG so it won't show in model
+				$row[0] =~ s/$1//;
+				$row[0] =~ s/\sMFG\s[^>]+//;
+			}
+			# these were mainly FreeBSD/Dragonfly matches
+			if (!$disks_bsd{$id}->{'size'} && $row[0] =~ /^([0-9]+\s*[KMGTPE])i?B?[\s,]/){
+				$working = main::translate_size($1);
+				$disks_bsd{$id}->{'size'} = $working;
+			}
+			if ($row[0] =~ /(device$|^([0-9\.]+\s*[KMGT]B\s+)?<)/){
+				$row[0] =~ s/\bdevice$//g;
+				$row[0] =~ /<([^>]*)>(\s(.*))?/;
+				$disks_bsd{$id}->{'model'} = $1 if $1;
+				$disks_bsd{$id}->{'spec'} = $3 if $3;
+			}
+			if ($row[0] =~ /^([0-9\.]+[MG][B]?\/s)/){
+				$disks_bsd{$id}->{'speed'} = $1;
+				$disks_bsd{$id}->{'speed'} =~ s/\.[0-9]+// if $disks_bsd{$id}->{'speed'};
+			}
+			$disks_bsd{$id}->{'model'} = main::disk_cleaner($disks_bsd{$id}->{'model'});
+		}
+	}
+	print Data::Dumper::Dumper \%disks_bsd if $dbg[35];
+	main::log_data('dump','%disks_bsd',\%disks_bsd) if $b_log;
+	eval $end if $b_log;
+}
+# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
+sub set_gpart_data {
+	eval $start if $b_log;
+	my @data = main::grabber($alerts{'gpart'}->{'path'} . " list 2>/dev/null",'','strip');
+	main::log_data('dump', 'gpart: @data', \@data) if $b_log;
+	my ($id,$part_id,$type);
+	for (@data){
+		my @working = split(/\s*:\s*/, $_);
+		if ($working[0] eq 'Geom name'){
+			$id = $working[1];
+			next;
+		}
+		elsif ($working[0] eq 'scheme'){
+			$disks_bsd{$id}->{'scheme'} = $working[1];
+			next;
+		}
+		elsif ($working[0] eq 'Consumers'){
+			$type = 'disk';
+			next;
+		}
+		elsif ($working[0] eq 'Providers'){
+			$type = 'part';
+			next;
+		}
+		if ($type && $type eq 'part'){
+			if ($working[0] =~ /^[0-9]+\.\s*Name/){
+				$part_id = $working[1];
+			}
+			# eg: label:(null) - we want to show null
+			elsif ($working[0] eq 'label'){
+				$working[1] =~ s/\(|\)//g; 
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'label'} = $working[1];
+			}
+			elsif ($working[0] eq 'Mediasize'){
+				$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
+				# gpart shows in bytes, not KiB. For the time being...
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'size'} = $working[1]/1024 if $working[1];
+			}
+			elsif ($working[0] eq 'rawuuid'){
+				$working[1] =~ s/\(|\)//g; 
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'uuid'} = $working[1];
+			}
+			elsif ($working[0] eq 'Sectorsize'){
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'logical-block-size'} = $working[1];
+			}
+			elsif ($working[0] eq 'Stripesize'){
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'physical-block-size'} = $working[1];
+			}
+		}
+		elsif ($type && $type eq 'disk') {
+			if ($working[0] eq 'Mediasize'){
+				$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
+				# gpart shows in bytes, not KiB. For the time being...
+				$disks_bsd{$id}->{'size'} = $working[1]/1024 if $working[1];
+			}
+			elsif ($working[0] eq 'Sectorsize'){
+				$disks_bsd{$id}->{'block-logical'} = $working[1];
+			}
+		}
+	}
+	print Data::Dumper::Dumper \%disks_bsd if $dbg[35];
+	main::log_data('dump', '%disks_bsd', \%disks_bsd) if $b_log;
+	eval $end if $b_log;
+}
+}
+
 sub get_display_manager {
 	eval $start if $b_log;
 	my (@data,@found,$path,$working,$b_run,$b_vrun,$b_vrunrc);
@@ -22538,74 +22681,6 @@ sub set {
 	main::log_data('dump','@glabel:with Headers',\@glabel) if $b_log;
 	# get rid of first header line
 	shift @glabel;
-	eval $end if $b_log;
-}
-}
-
-# GpartData - set/get
-{
-package GpartData;
-# 1. Name: ada1p1
-#   label: (null)
-#   label: ssd-root
-#   rawuuid: b710678b-f196-11e1-98fd-021fc614aca9
-sub get {
-	eval $start if $b_log;
-	my ($item) = @_;
-	my (@data) = ('','','','','');
-	set() if !$loaded{'gpart'};
-	return @data if !$item || !%gpart;
-	$item =~ s|^/dev/||; # we don't want to worry if it starts with /dev or not!
-	if ($gpart{$item}){
-		$data[0] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
-		$data[1] = $gpart{$item}->{'logical-block-size'} if $gpart{$item}->{'logical-block-size'};
-		$data[2] = $gpart{$item}->{'physical-block-size'} if $gpart{$item}->{'physical-block-size'};
-		$data[3] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
-		$data[4] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
-	}
-	main::log_data('dump','@data',\@data) if $b_log;
-	eval $end if $b_log;
-	return @data;
-}
-# 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
-sub set {
-	eval $start if $b_log;
-	$loaded{'gpart'} = 1;
-	if (my $path = main::check_program('gpart')){
-		my @data = main::grabber("$path list 2>/dev/null",'','strip');
-		main::log_data('dump', 'gpart: @data', \@data) if $b_log;
-		my ($id);
-		for (@data){
-			my @working = split(/\s*:\s*/, $_);
-			if ($working[0] =~ /^[0-9]+\.\s*Name/){
-				$id = $working[1];
-			}
-			elsif ($id){
-				# eg: label:(null) - we want to show null
-				if ($working[0] eq 'label'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'label'} = $working[1];
-				}
-				elsif ($working[0] eq 'Mediasize'){
-					$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
-					# gpart shows in bytes, not KiB. For the time being...
-					$gpart{$id}->{'size'} = $working[1]/1024 if $working[1];
-				}
-				elsif ($working[0] eq 'rawuuid'){
-					$working[1] =~ s/\(|\)//g; 
-					$gpart{$id}->{'uuid'} = $working[1];
-				}
-				elsif ($working[0] eq 'Sectorsize'){
-					$gpart{$id}->{'logical-block-size'} = $working[1];
-				}
-				elsif ($working[0] eq 'Stripesize'){
-					$gpart{$id}->{'physical-block-size'} = $working[1];
-				}
-			}
-		}
-	}
-	print Data::Dumper::Dumper \%gpart if $dbg[34];
-	main::log_data('dump', '%gpart', \%gpart) if $b_log;
 	eval $end if $b_log;
 }
 }
