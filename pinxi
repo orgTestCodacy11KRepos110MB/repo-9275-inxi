@@ -10276,9 +10276,16 @@ sub bsd_data {
 	my ($i,$size,$working) = (0,0,0);
 	my $file = $system_files{'dmesg-boot'};
 	DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
-	if (%disks_bsd){
+	# we don't want non dboot disk data from gpart or disklabel
+	if ($file && ! -r $file){
+		$size = main::row_defaults('dmesg-boot-permissions');
+	}
+	elsif (!$file){
+		$size = main::row_defaults('dmesg-boot-missing');
+	}
+	elsif (%disks_bsd){
 		foreach my $id (sort keys %disks_bsd){
-			next if !$disks_bsd{$id};
+			next if !$disks_bsd{$id} || !$disks_bsd{$id}->{'size'};
 			$drives[$i]->{'id'} = $id;
 			$drives[$i]->{'firmware'} = '';
 			$drives[$i]->{'temp'} = '';
@@ -10305,12 +10312,6 @@ sub bsd_data {
 		if (!$size){
 			$size = main::row_defaults('data-bsd');
 		}
-	}
-	elsif ($file && ! -r $file){
-		$size = main::row_defaults('dmesg-boot-permissions');
-	}
-	elsif (!$file){
-		$size = main::row_defaults('dmesg-boot-missing');
 	}
 	@data = ({
 	'size' => $size,
@@ -21873,7 +21874,8 @@ sub set_gpart_data {
 				$disks_bsd{$id}->{'partitions'}{$part_id}{'physical-block-size'} = $working[1];
 			}
 		}
-		elsif ($type && $type eq 'disk') {
+		# really strange results happen if no dboot disks were found and it's zfs!
+		elsif ($type && $type eq 'disk' && $disks_bsd{$id}->{'size'}) {
 			# need to see raid, may be > 1 Consumers
 			if ($working[0] =~ /^[0-9]+\.\s*Name/){
 				$id = $working[1];
