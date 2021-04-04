@@ -45,8 +45,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-03';
-my $self_patch='27';
+my $self_date='2021-04-04';
+my $self_patch='28';
 ## END INXI INFO ##
 
 ## Self data
@@ -19040,8 +19040,22 @@ sub get {
 	my (@data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
-		$key1 = 'Message';
-		$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
+		DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
+		if (%disks_bsd && ($alerts{'disklabel'}->{'action'} eq 'use' ||
+		 $alerts{'gpart'}->{'action'} eq 'use')){
+			@data = bsd_data();
+			if (!@data){
+				$key1 = 'Message';
+				$val1 = main::row_defaults('unmounted-data');
+			}
+			else {
+				@rows = create_output(\@data);
+			}
+		}
+		else {
+			$key1 = 'Message';
+			$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
+		}
 	}
  	else {
 		if ($system_files{'proc-partitions'}){
@@ -19078,7 +19092,10 @@ sub create_output {
 			$fs = lc($row->{'fs'});
 		}
 		else {
-			if (main::check_program('file')){
+			if ($bsd_type){
+				$fs = 'N/A';
+			}
+			elsif (main::check_program('file')){
 				$fs = ($b_root) ? 'N/A' : main::row_defaults('root-required');
 			}
 			else {
@@ -19175,7 +19192,39 @@ sub proc_data {
 			});
 		}
 	}
-	# print Data::Dumper::Dumper @unmounted;
+	print Data::Dumper::Dumper \@unmounted if $dbg[36];
+	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
+	eval $end if $b_log;
+	return @unmounted;
+}
+sub bsd_data {
+	eval $start if $b_log;
+	my ($fs,$label,$size,$uuid,%part,@unmounted);
+	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
+	RaidItem::raid_data() if !$loaded{'raid'};
+	my @mounted = get_mounted();
+	foreach my $id (sort keys %disks_bsd){
+		next if !$disks_bsd{$id}->{'partitions'};
+		foreach my $part (sort keys %{$disks_bsd{$id}->{'partitions'}}){
+			if (!(grep {$_ =~ /$part$/} @mounted)){
+				$fs = $disks_bsd{$id}->{'partitions'}{$part}{'fs'};
+				$label = $disks_bsd{$id}->{'partitions'}{$part}{'label'};
+				$size = $disks_bsd{$id}->{'partitions'}{$part}{'size'};
+				$uuid = $disks_bsd{$id}->{'partitions'}{$part}{'uuid'};
+				# $fs = unmounted_filesystem($part) if !$fs;
+				push(@unmounted, {
+				'dev-base' => $part,
+				'dev-mapped' => '',
+				'fs' => $fs,
+				'label' => $label,
+				'maj-min' => '',
+				'size' => $size,
+				'uuid' => $uuid,
+				});
+			}
+		}
+	}
+	print Data::Dumper::Dumper \@unmounted if $dbg[36];
 	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
 	eval $end if $b_log;
 	return @unmounted;
@@ -19186,15 +19235,16 @@ sub get_mounted {
 	foreach my $row (@partitions){
 		push(@mounted, $row->{'dev-base'}) if $row->{'dev-base'};
 	}
+	# print Data::Dumper::Dumper \@zfs_raid;
 	foreach my $row ((@lvm_raid,@md_raid,@zfs_raid)){
 		# we want to not show md0 etc in unmounted report
 		push(@mounted, $row->{'id'}) if $row->{'id'}; 
 		my @arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
 		@arrays = grep {defined $_} @arrays;
 		foreach my $array (@arrays){
-			my @components = (ref $array->{'com_ponents'} eq 'ARRAY') ? @{$array->{'components'}} : ();
+			my @components = (ref $array->{'components'} eq 'ARRAY') ? @{$array->{'components'}} : ();
 			foreach my $component (@components){
-				my @temp = split('~', $component);
+				my @temp = split('~', $component->[0]); # md has ~, not zfs or lvm
 				push(@mounted, $temp[0]);
 			}
 		}
@@ -19202,6 +19252,7 @@ sub get_mounted {
 	eval $end if $b_log;
 	return @mounted;
 }
+# bsds do not seem to return any useful data so only for linux
 sub unmounted_filesystem {
 	eval $start if $b_log;
 	my ($item) = @_;
@@ -21823,7 +21874,11 @@ sub set_gpart_data {
 			}
 		}
 		elsif ($type && $type eq 'disk') {
-			if ($working[0] eq 'Mediasize'){
+			# need to see raid, may be > 1 Consumers
+			if ($working[0] =~ /^[0-9]+\.\s*Name/){
+				$id = $working[1];
+			}
+			elsif ($working[0] eq 'Mediasize'){
 				$working[1] =~ s/\s+\(.*$//; # trim off the (2.4G)
 				# gpart shows in bytes, not KiB. For the time being...
 				$disks_bsd{$id}->{'size'} = $working[1]/1024 if $working[1];
