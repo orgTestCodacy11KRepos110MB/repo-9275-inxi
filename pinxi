@@ -35,7 +35,7 @@ use Getopt::Long qw(GetOptions);
 # Note: default auto_abbrev is enabled
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
-use POSIX qw(uname strftime ttyname);
+use POSIX qw(ceil uname strftime ttyname);
 #s use Benchmark qw(:all);
 # use Devel::Size qw(size total_size);
 # use feature qw(say state); # 5.10 or newer Perl
@@ -46,7 +46,7 @@ use POSIX qw(uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-03';
-my $self_patch='25';
+my $self_patch='26';
 ## END INXI INFO ##
 
 ## Self data
@@ -10011,7 +10011,7 @@ sub drive_data {
 		@data = proc_data($used);
 	}
 	else {
-		@data = dboot_data($used);
+		@data = bsd_data($used);
 	}
 	if ($b_admin){
 		if ( $alerts{'smartctl'} && $alerts{'smartctl'}->{'action'} eq 'use'){
@@ -10263,7 +10263,7 @@ sub proc_data_advanced {
 # camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
 # smartcl -i <device> |grep ^Serial
 # see smartctl; camcontrol devlist; gptid status;
-sub dboot_data {
+sub bsd_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives,@temp);
@@ -10287,7 +10287,8 @@ sub dboot_data {
 				# openbsd/netbsd matches will often work
 				if ($row[0] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
 					$working = main::translate_size($2);
-					$drives[$i]->{'block-physical'} = ($working/$3)*1024 if $3;
+					# seen:  for some reason, size/sectors did not result in clean integer value
+					$drives[$i]->{'block-physical'} = POSIX::ceil(($working/$3)*1024) if $3;
 					$size += $working if $working;
 					$drives[$i]->{'size'} = $working;
 				}
@@ -14537,7 +14538,7 @@ sub create_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
-	my (%part,@rows,$dev,$dev_type,$fs,$percent,$raw_size,$size,$used);
+	my (@rows,$dev,$dev_type,$fs,$percent,$raw_size,$size,$used);
 	# alpha sort for non numerics
 	if ($show{'partition-sort'} !~ /^(percent-used|size|used)$/){
 		@partitions = sort { $a->{$show{'partition-sort'}} cmp $b->{$show{'partition-sort'}} } @partitions;
@@ -14559,7 +14560,6 @@ sub create_output {
 			$percent = '';
 			$used = $size = (!$b_root) ? main::row_defaults('root-required') : main::row_defaults('partition-hidden');
 		}
-		%part = ();
 		$fs = ($row->{'fs'}) ? lc($row->{'fs'}): 'N/A';
 		$dev_type = ($row->{'dev-type'}) ? $row->{'dev-type'} : 'dev';
 		$row->{'dev-base'} = '/dev/' . $row->{'dev-base'} if $dev_type eq 'dev' && $row->{'dev-base'};
@@ -14631,7 +14631,7 @@ sub set_partitions {
 	# for raw partition sizes, maj_min
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
-	# set @labels, @uuid, %gpart
+	# set @labels, @uuid
 	if (!$bsd_type){
 		set_label_uuid() if !$loaded{'label-uuid'};
 	}
@@ -14702,7 +14702,7 @@ sub set_partitions {
 		$maj_min,$type,$uuid) = ('','','','','','','','','');
 		($b_load,$block_size,$percent_used,$raw_size,$size_available,
 		$size,$used) = (0,0,0,0,0,0,0,0);
-		%part = ();
+		undef %part;
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
 			# this could point to by-label or by-uuid so get that first. In theory, abs_path should 
@@ -14755,13 +14755,13 @@ sub set_partitions {
 		if ($b_load){
 			if (!$bsd_type){
 				if ($b_fs){
-					$fs = (%part && $part{'fs'}) ? $part{'fs'} : $row[1];
+					$fs = ($part{'fs'}) ? $part{'fs'} : $row[1];
 				}
 				else {
 					$fs = get_mounts_fs($row[0],\@mount);
 				}
 				if ($show{'label'}) {
-					if (%part && $part{'label'}) {
+					if ($part{'label'}) {
 						$label = $part{'label'};
 					}
 					elsif (@labels){
@@ -14769,7 +14769,7 @@ sub set_partitions {
 					}
 				}
 				if ($show{'uuid'}) {
-					if (%part && $part{'uuid'}) {
+					if ($part{'uuid'}) {
 						$uuid = $part{'uuid'};
 					}
 					elsif ( @uuids){
@@ -14779,11 +14779,11 @@ sub set_partitions {
 			}
 			else {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
-				if ($bsd_type && ($b_admin || $show{'label'} || $show{'uuid'} ) ){
+				if ($b_admin || $show{'label'} || $show{'uuid'}){
 					my @temp = GpartData::get($dev_base);
-					$block_size = $temp[0] if $temp[0];
-					$label = $temp[1] if $temp[1];
-					$uuid =$temp[2] if $temp[2];
+					$block_size = $temp[1] if $temp[1];
+					$label = $temp[3] if $temp[3];
+					$uuid =$temp[4] if $temp[4];
 				}
 			}
 			# assuming that all null/nullfs are parts of a logical fs
@@ -14857,9 +14857,9 @@ sub swap_data {
 	eval $start if $b_log;
 	$loaded{'set-swap'} = 1;
 	my (@data,@working);
-	my ($cache_pressure,$dev_base,$dev_mapped,$dev_type,$label,$maj_min,
-	$mount,$path,$pattern1,$pattern2,$percent_used,$priority,$size,
-	$swap_type,$swappiness,$used,$uuid);
+	my ($block_size,$cache_pressure,$dev_base,$dev_mapped,$dev_type,$label,
+	$maj_min,$mount,$path,$pattern1,$pattern2,$percent_used,$priority,
+	$size,$swap_type,$swappiness,$used,$uuid);
 	my ($s,$j,$size_id,$used_id) = (1,0,2,3);
 	if (!$bsd_type){
 		# faster, avoid subshell, same as swapon -s
@@ -14894,8 +14894,8 @@ sub swap_data {
 	foreach (@working){
 		#next if ! /^\/dev/ || /^\/dev\/(ramzwap|zram)/;
 		next if /^(Device|Filename|no swap)/;
-		($dev_base,$dev_mapped,$dev_type,$label,$maj_min,$mount,$priority,
-		$swap_type,$uuid) = ('','','','','','',undef,'partition','');
+		($block_size,$dev_base,$dev_mapped,$dev_type,$label,$maj_min,$mount,$priority,
+		$swap_type,$uuid) = ('','','','','','','',undef,'partition','');
 		@data = split(/\s+/, $_);
 		if (/^\/dev\/(block\/)?(compcache|ramzwap|zram)/i){
 			$swap_type = 'zram';
@@ -14920,10 +14920,11 @@ sub swap_data {
 				}
 			}
 			else {
-				if ($bsd_type && ($show{'label'} || $show{'uuid'} ) ){
+				if ($show{'label'} || $show{'uuid'}){
 					my @temp = GpartData::get($data[0]);
-					$label = $temp[1] if $temp[1];
-					$uuid = $temp[2] if $temp[2];
+					$block_size = $temp[1] if $temp[1];
+					$label = $temp[3] if $temp[3];
+					$uuid = $temp[4] if $temp[4];
 				}
 			}
 			$dev_type = 'dev';
@@ -14943,6 +14944,7 @@ sub swap_data {
 		$used = $data[$used_id];
 		$percent_used = sprintf("%.1f", ( $used/$size )*100);
 		push(@swaps, {
+		'block-size' => $block_size,
 		'cache-pressure' => $cache_pressure,
 		'dev-base' => $dev_base,
 		'dev-mapped' => $dev_mapped,
@@ -15016,6 +15018,7 @@ sub check_partition_data {
 		if (!$b_found){
 			# print "found: n:$row->{'name'} m:$row->{'mount'}\n";
 			$temp = {
+			'block-logical' => $row->{'block-logical'},
 			'dev-base' => $row->{'name'},
 			'dev-mapped' => $dev_mapped,
 			'fs' => $row->{'fs'},
@@ -16252,7 +16255,7 @@ sub zfs_data {
 			}
 			if (!$part_size && $bsd_type){
 				my @temp = GpartData::get($working);
-				$part_size = $temp[3] if $temp[3];
+				$part_size = $temp[0] if $temp[0];
 			}
 			$raw_logical[1] += $part_size if $part_size;
 			$zfs[$j]->{'arrays'}[$k]{'components'}[$i] = [$working,$part_size,$maj_min,$state];
@@ -18993,7 +18996,7 @@ sub create_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my $j = 0;
-	my (%part,@rows,$dev,$percent,$raw_size,$size,$used);
+	my (@rows,$dev,$percent,$raw_size,$size,$used);
 	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	PartitionItem::swap_data() if !$loaded{'set-swap'};
@@ -19002,7 +19005,6 @@ sub create_output {
 		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
 		$used = main::get_size($row->{'used'},'string','N/A'); # used can be 0
 		$percent = (defined $row->{'percent-used'}) ? ' (' . $row->{'percent-used'} . '%)' : '';
-		%part = ();
 		$dev = ($row->{'swap-type'} eq 'file') ? 'file' : 'dev';
 		$row->{'swap-type'} = ($row->{'swap-type'}) ? $row->{'swap-type'} : 'N/A';
 		if ($b_admin && !$bsd_type && $j == 0){
@@ -22503,6 +22505,7 @@ sub get_gcc_data {
 }
 
 # GlabelData - set/get
+# used only to get RAID ZFS gptid path standard name, like ada0p1
 {
 package GlabelData;
 # gptid/c5e940f1-5ce2-11e6-9eeb-d05099ac4dc2     N/A  ada0p1
@@ -22549,14 +22552,16 @@ package GpartData;
 sub get {
 	eval $start if $b_log;
 	my ($item) = @_;
-	my (@data) = ('','','','');
+	my (@data) = ('','','','','');
 	set() if !$loaded{'gpart'};
 	return @data if !$item || !%gpart;
+	$item =~ s|^/dev/||; # we don't want to worry if it starts with /dev or not!
 	if ($gpart{$item}){
-		$data[0] = $gpart{$item}->{'block-size'} if $gpart{$item}->{'block-size'};
-		$data[1] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
-		$data[2] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
-		$data[3] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
+		$data[0] = $gpart{$item}->{'size'} if $gpart{$item}->{'size'};
+		$data[1] = $gpart{$item}->{'logical-block-size'} if $gpart{$item}->{'logical-block-size'};
+		$data[2] = $gpart{$item}->{'physical-block-size'} if $gpart{$item}->{'physical-block-size'};
+		$data[3] = $gpart{$item}->{'label'} if $gpart{$item}->{'label'};
+		$data[4] = $gpart{$item}->{'uuid'} if $gpart{$item}->{'uuid'};
 	}
 	main::log_data('dump','@data',\@data) if $b_log;
 	eval $end if $b_log;
@@ -22591,11 +22596,15 @@ sub set {
 					$gpart{$id}->{'uuid'} = $working[1];
 				}
 				elsif ($working[0] eq 'Sectorsize'){
-					$gpart{$id}->{'block-size'} = $working[1];
+					$gpart{$id}->{'logical-block-size'} = $working[1];
+				}
+				elsif ($working[0] eq 'Stripesize'){
+					$gpart{$id}->{'physical-block-size'} = $working[1];
 				}
 			}
 		}
 	}
+	print Data::Dumper::Dumper \%gpart if $dbg[34];
 	main::log_data('dump', '%gpart', \%gpart) if $b_log;
 	eval $end if $b_log;
 }
