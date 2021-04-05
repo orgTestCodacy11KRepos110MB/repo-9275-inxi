@@ -2731,14 +2731,15 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended system programs'){
 		if ($bsd_type){
-			@data = qw(camcontrol dig dmidecode fdisk file glabel gpart ifconfig ipmi-sensors 
-			ipmitool lsusb sudo smartctl sysctl tree upower uptime usbconfig usbdevs);
+			@data = qw(camcontrol dig disklabel dmidecode doas fdisk file glabel gpart 
+			ifconfig ipmi-sensors ipmitool lsusb pcictl smartctl sudo sysctl tree upower 
+			uptime usbconfig usbdevs);
 			$info_os = 'info-bsd';
 		}
 		else {
-			@data = qw(blockdev bt-adapter dig dmidecode fdisk file hciconfig hddtemp 
-			ifconfig ip ipmitool ipmi-sensors lsblk lsusb lvs mdadm modinfo runlevel 
-			sensors smartctl strings sudo tree upower uptime);
+			@data = qw(blockdev bt-adapter dig dmidecode doas fdisk file hciconfig 
+			hddtemp ifconfig ip ipmitool ipmi-sensors lsblk lsusb lvs mdadm modinfo 
+			runlevel sensors smartctl strings sudo tree upower uptime);
 		}
 		$b_program = 1;
 		$item = 'Program';
@@ -2776,7 +2777,7 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended Perl modules'){
 		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
-		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
+		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP Unix::Pledge);
 		$b_perl_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
@@ -3004,6 +3005,13 @@ sub item_data {
 	'pacman' => 'dmidecode',
 	'rpm' => 'dmidecode',
 	},
+	'doas' => {
+	'info' => '-Dx hddtemp-user; -o file-user (alt for sudo)',
+	'info-bsd' => '-Dx hddtemp-user; -o file-user',
+	'apt' => 'doas',
+	'pacman' => 'doas',
+	'rpm' => 'doas',
+	},
 	'fdisk' => {
 	'info' => '-D partition scheme (fallback)',
 	'info-bsd' => '-D partition scheme',
@@ -3151,19 +3159,19 @@ sub item_data {
 	'pacman' => '?',
 	'rpm' => '?',
 	},
+	'sudo' => {
+	'info' => '-Dx hddtemp-user; -o file-user',
+	'info-bsd' => '-Dx hddtemp-user; -o file-user (alt for doas)',
+	'apt' => 'sudo',
+	'pacman' => 'sudo',
+	'rpm' => 'sudo',
+	},
 	'sysctl' => {
 	'info' => '',
 	'info-bsd' => '-C; -I; -m; -tm',
 	'apt' => '?',
 	'pacman' => '?',
 	'rpm' => '?',
-	},
-	'sudo' => {
-	'info' => '-Dx hddtemp-user; -o file-user',
-	'info-bsd' => '-Dx hddtemp-user; -o file-user',
-	'apt' => 'sudo',
-	'pacman' => 'sudo',
-	'rpm' => 'sudo',
 	},
 	'tree' => {
 	'info' => '--debugger 20,21 /sys tree',
@@ -3306,6 +3314,13 @@ sub item_data {
 	'apt' => 'Core Modules',
 	'pacman' => 'Core Modules',
 	'rpm' => 'perl-Time-HiRes',
+	},
+	'Unix::Pledge' => {
+	'info' => 'Experimental for pledge/unveil (OpenBSD only)',
+	'info-bsd' => 'Experimental for pledge/unveil (OpenBSD only)',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
 	},
 	'XML::Dumper' => {
 	'info' => '--output xml - Crude and raw.',
@@ -6124,7 +6139,7 @@ sub row_defaults {
 	'bluetooth-down' => "tool can't run",
 	'cpu-bugs-null' => 'No CPU vulnerability/bugs data available.',
 	'cpu-model-null' => 'Model N/A',
-	'cpu-speeds' => "No speed data found for $id cores.",
+	'cpu-speeds' => 'No per core speed data found.',
 	'darwin-feature' => 'Feature not supported iu Darwin/OSX.',
 	'disk-data' => 'No disk data found.',
 	'disk-data-bsd' => 'No disk data found.',
@@ -6170,7 +6185,7 @@ sub row_defaults {
 	'ram-data' => 'No RAM data found.',
 	'recommends' => 'see --recommends',
 	'root-required' => '<superuser required>',
-	'root-suggested' => 'try sudo/root',
+	'root-suggested' => 'try sudo/root',# gdm only
 	'sensors-data-bsd' => "$id sensor data found but not usable.",
 	'sensors-data-bsd-ok' => 'No sensor data found. Are sensors present?',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
@@ -6187,6 +6202,7 @@ sub row_defaults {
 	'tool-missing-recommends' => "Required tool $id not installed. Check --recommends",
 	'tool-missing-required' => "Required program $id not available",
 	'tool-permissions' => "Unable to run $id. Root privileges required.",
+	'tool-permissions-feature' => 'Feature requires superuser permissions.',
 	'tool-present' => 'Present and working',
 	'tool-unknown-error' => "Unknown $id error. Unable to generate data.",
 	'tools-missing' => "This feature requires one of these tools: $id",
@@ -19130,8 +19146,14 @@ sub get {
 			}
 		}
 		else {
-			$key1 = 'Message';
-			$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
+			if ($alerts{'disklabel'}->{'action'} eq 'permissions'){
+				$key1 = 'Message';
+				$val1 = $alerts{'disklabel'}->{'message'};
+			}
+			else {
+				$key1 = 'Message';
+				$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
+			}
 		}
 	}
  	else {
@@ -21904,9 +21926,9 @@ sub set_disklabel_data {
 		$cmd = "$alerts{'disklabel'}->{'path'} $id 2>&1";
 		@data = main::grabber($cmd,'','strip');
 		main::log_data('dump','disklabel @data', \@data) if $b_log;
-		if (scalar @data < 4 && (grep {/permissions/} @data)){
+		if (scalar @data < 4 && (grep {/permission/i} @data)){
 			$alerts{'disklabel'}->{'action'} = 'permissions';
-			$alerts{'disklabel'}->{'message'} = main::row_defaults('tool-permissions','disklabel');
+			$alerts{'disklabel'}->{'message'} = main::row_defaults('tool-permissions-feature');
 			last;
 		}
 		else {
