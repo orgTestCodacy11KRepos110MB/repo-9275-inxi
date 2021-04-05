@@ -46,8 +46,23 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-05';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
+
+my ($b_pledge,@pledges);
+if (eval {require OpenBSD::Pledge}){
+	OpenBSD::Pledge->import();
+	$b_pledge = 1;
+	# cpath: create user .inxi: --debug, -c 9x, -w/W; 
+	# dns/inet: --debug 2x; 
+	# exec/proc: critical; prot_exec: Perl import; 
+	# stdio: default; wpath: --debug xx, -w/-W, -c 9x
+	# error: debugging pledge/perl
+	# tested w/wo: pf,ps,tmppath,tty,unix,vminfo; 
+	# Unneeded pledges removed in OptionsHandler::post_process()
+	@pledges = qw(cpath dns exec inet proc prot_exec rpath wpath);
+	pledge(@pledges);
+}
 
 ## Self data
 my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
@@ -2777,7 +2792,8 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended Perl modules'){
 		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
-		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP Unix::Pledge);
+		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
+		push(@data, qw(OpenBSD::Pledge OpenBSD::Unveil)) if $bsd_type && $bsd_type eq 'openbsd';
 		$b_perl_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
@@ -3336,19 +3352,26 @@ sub item_data {
 	'pacman' => 'Core Modules',
 	'rpm' => 'Core Modules',
 	},
+	'OpenBSD::Pledge' => {
+	'info' => "$self_name Perl pledge support.",
+	'info-bsd' => "$self_name Perl pledge support.",
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
+	'OpenBSD::Unveil' => {
+	'info' => "Experimental: $self_name Perl unveil support.",
+	'info-bsd' => "Experimental: $self_name Perl unveil support.",
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
 	'Time::HiRes' => {
 	'info' => '-C cpu sleep (not required); --debug timers',
 	'info-bsd' => '-C cpu sleep (not required); --debug timers',
 	'apt' => 'Core Modules',
 	'pacman' => 'Core Modules',
 	'rpm' => 'perl-Time-HiRes',
-	},
-	'Unix::Pledge' => {
-	'info' => 'Experimental for pledge/unveil (OpenBSD only)',
-	'info-bsd' => 'Experimental for pledge/unveil (OpenBSD only)',
-	'apt' => '',
-	'pacman' => '',
-	'rpm' => '',
 	},
 	'XML::Dumper' => {
 	'info' => '--output xml - Crude and raw.',
@@ -4574,7 +4597,7 @@ sub get {
 		$arg =~ s/\s//g;
 		$show{'short'} = 0;
 		$trigger{'downloader'} = 1;
-		if ( $use{'weather'} ){
+		if ($use{'weather'}){
 			if ($arg){
 				$show{'weather'} = 1;
 				$show{'weather-location'} = $arg;
@@ -4941,6 +4964,18 @@ sub post_process {
 	main::show_options() if $trigger{'help'};
 	$use{'man'} = 0 if (!$trigger{'use-man'} || $trigger{'no-man-force'});
 	main::update_me($self_download, $download_id) if $trigger{'updater'};
+	if ($b_pledge){
+		# @pledges = qw(cpath dns error exec inet proc prot_exec rpath wpath);
+		if ($debugger{'level'} < 21){ # remove ftp upload
+			@pledges = grep {!/(dns|inet)/} @pledges;
+			OpenBSD::Pledge::pledge(@pledges);
+		}
+		# not writing/creating .inxi data dirs
+		if (!$show{'weather'} && $debugger{'level'} < 10){ 
+			@pledges = grep {!/(cpath|wpath)/} @pledges;
+			OpenBSD::Pledge::pledge(@pledges);
+		}
+	}
 	if ($output_type){
 		if ($output_type ne 'screen' && !$output_file){
 			main::error_handler('bad-arg', '--output', '--output-file not provided');
