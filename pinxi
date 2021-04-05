@@ -45,8 +45,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-04';
-my $self_patch='30';
+my $self_date='2021-04-05';
+my $self_patch='31';
 ## END INXI INFO ##
 
 ## Self data
@@ -2732,8 +2732,8 @@ sub check_items {
 	elsif ($type eq 'recommended system programs'){
 		if ($bsd_type){
 			@data = qw(camcontrol dig disklabel dmidecode doas fdisk file glabel gpart 
-			ifconfig ipmi-sensors ipmitool lsusb pcictl smartctl sudo sysctl tree upower 
-			uptime usbconfig usbdevs);
+			ifconfig ipmi-sensors ipmitool pciconfig pcidump pcictl smartctl sudo 
+			sysctl tree upower uptime usbconfig usbdevs);
 			$info_os = 'info-bsd';
 		}
 		else {
@@ -2998,6 +2998,13 @@ sub item_data {
 	'pacman' => 'dnsutils',
 	'rpm' => 'bind-utils',
 	},
+	'disklabel' => {
+	'info' => '',
+	'info-bsd' => '-j, -p, -P; -R; -o (Open/NetBSD+derived)',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
 	'dmidecode' => {
 	'info' => '-M if no sys machine data; -m',
 	'info-bsd' => '-M if null sysctl; -m; -B if null sysctl',
@@ -3049,7 +3056,7 @@ sub item_data {
 	},
 	'gpart' => {
 	'info' => '',
-	'info-bsd' => '-p,-P file system, size',
+	'info-bsd' => '-p,-P; -R; -o (FreeBSD+derived)',
 	'apt' => '',
 	'pacman' => '',
 	'rpm' => '',
@@ -3112,7 +3119,7 @@ sub item_data {
 	},
 	'lsusb' => {
 	'info' => '-A usb audio; -J (optional); -N usb networking',
-	'info-bsd' => '-A; -J; -N. Alternate to usbdevs',
+	'info-bsd' => '',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
@@ -3130,6 +3137,27 @@ sub item_data {
 	'apt' => 'module-init-tools',
 	'pacman' => 'module-init-tools',
 	'rpm' => 'module-init-tools',
+	},
+	'pciconfig' => {
+	'info' => '',
+	'info-bsd' => '-A,-E,-G,-N pci devices (FreeBSD+derived)',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
+	'pcictl' => {
+	'info' => '',
+	'info-bsd' => '-A,-E,-G,-N pci devices (NetBSD+derived)',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
+	'pcidump' => {
+	'info' => '',
+	'info-bsd' => '-A,-E,-G,-N pci devices (OpenBSD+derived, doas/su)',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
 	},
 	'runlevel' => {
 	'info' => '-I fallback to Perl',
@@ -3196,14 +3224,14 @@ sub item_data {
 	},
 	'usbconfig' => {
 	'info' => '',
-	'info-bsd' => '-A; -E; -G; -J; -N; (alternate: usbdevs)',
+	'info-bsd' => '-A; -E; -G; -J; -N; (FreeBSD+derived, doas/su)',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
 	},
 	'usbdevs' => {
 	'info' => '',
-	'info-bsd' => '-A; -E; -G; -J; -N; (alternate: usbconfig)',
+	'info-bsd' => '-A; -E; -G; -J; -N; (Open/NetBSD+derived)',
 	'apt' => 'usbutils',
 	'pacman' => 'usbutils',
 	'rpm' => 'usbutils',
@@ -21797,8 +21825,6 @@ sub pci_class {
 	return $type;
 }
 }
-
-
 # DiskDataBSD
 # handles disks and partition extra data for disks bsd, raid-zfs, 
 # partitions, swap, unmounted
@@ -21959,6 +21985,8 @@ sub set_disklabel_data {
 				# d:          8388608         18838976  4.2BSD   2048 16384 12960 # /tmp
 				else {
 					@working = split(/:?\s+#?\s*/, $row);
+					# netbsd: disklabel: super block size 0 AFTER partitions started!
+					next if $working[0] && $working[0] eq 'disklabel';
 					# note: 'unused' fs type is NOT unused space, it's often the entire disk!!
 					next if $working[3] && $working[3] eq 'unused';
 					$part_id = $id . $working[0];
@@ -21969,7 +21997,10 @@ sub set_disklabel_data {
 						$working[3] = $fs{$working[3]} if $fs{$working[3]}; #translate
 					}
 					$disks_bsd{$id}->{'partitions'}{$part_id}{'fs'} = $working[3];
-					$disks_bsd{$id}->{'partitions'}{$part_id}{'mount'} = $working[7] if $working[7];
+					# OpenBSD: mount point; NetBSD: (Cyl. 0 - 45852*)
+					if ($working[7] && $working[7] =~ m|^/|){ 
+						$disks_bsd{$id}->{'partitions'}{$part_id}{'mount'} = $working[7];
+					}
 					$disks_bsd{$id}->{'partitions'}{$part_id}{'uuid'} = '';
 					$disks_bsd{$id}->{'partitions'}{$part_id}{'label'} = '';
 				}
