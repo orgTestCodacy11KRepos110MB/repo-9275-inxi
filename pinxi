@@ -46,7 +46,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-04';
-my $self_patch='29';
+my $self_patch='30';
 ## END INXI INFO ##
 
 ## Self data
@@ -14558,13 +14558,15 @@ sub create_output {
 		if ($extra > 0 && $row->{'dev-mapped'}){
 			$rows[$j]->{main::key($num++,0,3,'mapped')} = $row->{'dev-mapped'};
 		}
-		if ($show{'label'}){
-			$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '') if $use{'filter-label'};
-			$rows[$j]->{main::key($num++,0,2,'label')} = ($row->{'label'}) ? $row->{'label'}: 'N/A';
-		}
-		if ($show{'uuid'}){
-			$row->{'uuid'} = main::apply_partition_filter('part', $row->{'uuid'}, '') if $use{'filter-uuid'};
-			$rows[$j]->{main::key($num++,0,2,'uuid')} = ($row->{'uuid'}) ? $row->{'uuid'}: 'N/A';
+		if ($dev_type eq 'dev' || $row->{'label'} || $row->{'uuid'}){
+			if ($show{'label'}){
+				$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '') if $use{'filter-label'};
+				$rows[$j]->{main::key($num++,0,2,'label')} = ($row->{'label'}) ? $row->{'label'}: 'N/A';
+			}
+			if ($show{'uuid'}){
+				$row->{'uuid'} = main::apply_partition_filter('part', $row->{'uuid'}, '') if $use{'filter-uuid'};
+				$rows[$j]->{main::key($num++,0,2,'uuid')} = ($row->{'uuid'}) ? $row->{'uuid'}: 'N/A';
+			}
 		}
 	}
 	eval $end if $b_log;
@@ -19189,6 +19191,8 @@ sub create_output {
 		if ($extra > 0 && $row->{'dev-mapped'}){
 			$rows[$j]->{main::key($num++,0,2,'mapped')} = $row->{'dev-mapped'};
 		}
+		$row->{'label'} ||= 'N/A';
+		$row->{'uuid'} ||= 'N/A';
 		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 		$rows[$j]->{main::key($num++,0,2,'fs')} = $fs;
 		$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
@@ -21894,7 +21898,62 @@ sub set_dboot_disks {
 }
 sub set_disklabel_data {
 	eval $start if $b_log;
-	
+	my ($cmd,@data,@working);
+	# see docs/inxi-data.txt for fs info
+	foreach my $id (keys %disks_bsd){
+		$cmd = "$alerts{'disklabel'}->{'path'} $id 2>&1";
+		@data = main::grabber($cmd,'','strip');
+		main::log_data('dump','disklabel @data', \@data) if $b_log;
+		if (scalar @data < 4 && (grep {/permissions/} @data)){
+			$alerts{'disklabel'}->{'action'} = 'permissions';
+			$alerts{'disklabel'}->{'message'} = main::row_defaults('tool-permissions','disklabel');
+			last;
+		}
+		else {
+			my ($b_part,$duid,$part_id,$bytes_sector) = undef;
+			my %fs = (
+			'4.2bsd' => 'ffs',
+			'4.4lfs' => 'lfs',
+			);
+			foreach my $row (@data){
+				if ($row =~ /^\d+\spartitions:/){
+					$b_part = 1;
+					next;
+				}
+				if (!$b_part){
+					@working = split(/:\s*/, $row);
+					if ($working[0] eq 'bytes/sector'){
+						$disks_bsd{$id}->{'block-physical'} = $working[1];
+						$bytes_sector = $working[1];
+					}
+					elsif ($working[0] eq 'duid'){
+						$disks_bsd{$id}->{'duid'} = $working[1];
+					}
+					elsif ($working[0] eq 'label'){
+						$disks_bsd{$id}->{'dlabel'} = $working[1];
+					}
+				}
+				# part:        size [bytes*sector]      offset    fstype [fsize bsize cpg]# mount
+				# d:          8388608         18838976  4.2BSD   2048 16384 12960 # /tmp
+				else {
+					@working = split(/:?\s+#?\s*/, $row);
+					# note: 'unused' fs type is NOT unused space, it's often the entire disk!!
+					next if $working[3] && $working[3] eq 'unused';
+					$part_id = $id . $working[0];
+					$working[1] = $working[1]*$bytes_sector/1024 if $working[1];
+					$disks_bsd{$id}->{'partitions'}{$part_id}{'size'} = $working[1];
+					if ($working[3]){ # fs
+						$working[3] = lc($working[3]);
+						$working[3] = $fs{$working[3]} if $fs{$working[3]}; #translate
+					}
+					$disks_bsd{$id}->{'partitions'}{$part_id}{'fs'} = $working[3];
+					$disks_bsd{$id}->{'partitions'}{$part_id}{'mount'} = $working[7] if $working[7];
+					$disks_bsd{$id}->{'partitions'}{$part_id}{'uuid'} = '';
+					$disks_bsd{$id}->{'partitions'}{$part_id}{'label'} = '';
+				}
+			}
+		}
+	}
 	print Data::Dumper::Dumper \%disks_bsd if $dbg[35];
 	main::log_data('dump', '%disks_bsd', \%disks_bsd) if $b_log;
 	eval $end if $b_log;
@@ -21942,10 +22001,10 @@ sub set_gpart_data {
 				$disks_bsd{$id}->{'partitions'}{$part_id}{'uuid'} = $working[1];
 			}
 			elsif ($working[0] eq 'Sectorsize'){
-				$disks_bsd{$id}->{'partitions'}{$part_id}{'logical-block-size'} = $working[1];
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'physical-block-size'} = $working[1];
 			}
 			elsif ($working[0] eq 'Stripesize'){
-				$disks_bsd{$id}->{'partitions'}{$part_id}{'physical-block-size'} = $working[1];
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'logical-block-size'} = $working[1];
 			}
 		}
 		# really strange results happen if no dboot disks were found and it's zfs!
@@ -21960,7 +22019,7 @@ sub set_gpart_data {
 				$disks_bsd{$id}->{'size'} = $working[1]/1024 if $working[1];
 			}
 			elsif ($working[0] eq 'Sectorsize'){
-				$disks_bsd{$id}->{'block-logical'} = $working[1];
+				$disks_bsd{$id}->{'block-physical'} = $working[1];
 			}
 		}
 	}
