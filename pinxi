@@ -16597,9 +16597,12 @@ sub dmidecode_data {
 			#print "s16: $ram[$handle]->{'slots-16'}\n";
 		}
 		elsif ($entry->[0] == 17){
-			my ($bank_locator,$configured_speed,$configured_note,$data_width) = ('','','','');
-			my ($device_type,$device_type_detail,$form_factor,$locator,$main_locator) = ('','','','','');
-			my ($manufacturer,$part_number,$serial,$speed,$speed_note,$total_width) = ('','','','','','');
+			my ($bank_locator,$configured_speed,$configured_note,
+			$data_width) = ('','','','');
+			my ($device_type,$device_type_detail,$form_factor,$locator,
+			$main_locator) = ('','','','','');
+			my ($manufacturer,$vendor_id,$part_number,$serial,$speed,$speed_note,
+			$total_width) = ('','','','','','','');
 			my ($device_size,$i_data,$i_total,$working_size) = (0,0,0,0);
 			foreach my $item (@$entry){
 				@temp = split(/:\s*/, $item, 2);
@@ -16689,7 +16692,11 @@ sub dmidecode_data {
 				$data_width = $total_width;
 				$total_width = $temp_width;
 			}
-			($manufacturer,$part_number) = ram_vendor($part_number) if !$manufacturer && $part_number;
+			if ((!$manufacturer || $manufacturer =~ /^([a-f0-9]{4})$/i) && $part_number){
+				$vendor_id = lc($1) if $1;
+				($manufacturer,$part_number) = ram_vendor($part_number);
+				$manufacturer = $vendor_id if !$manufacturer && $vendor_id;
+			}
 			$ram[$handle]->{'derived-module-size'} = $derived_module_size;
 			$ram[$handle]->{'modules'}[$i]{'configured-clock-speed'} = $configured_speed;
 			$ram[$handle]->{'modules'}[$i]{'configured-note'} = $configured_note if $configured_note;
@@ -16700,6 +16707,7 @@ sub dmidecode_data {
 			$ram[$handle]->{'modules'}[$i]{'form-factor'} = $form_factor;
 			$ram[$handle]->{'modules'}[$i]{'locator'} = $main_locator;
 			$ram[$handle]->{'modules'}[$i]{'manufacturer'} = $manufacturer;
+			$ram[$handle]->{'modules'}[$i]{'vendor-id'} = $vendor_id;
 			$ram[$handle]->{'modules'}[$i]{'part-number'} = $part_number;
 			$ram[$handle]->{'modules'}[$i]{'serial'} = $serial;
 			$ram[$handle]->{'modules'}[$i]{'speed'} = $speed;
@@ -16974,8 +16982,9 @@ sub set_vendors {
 	['^(OCZ)','^OCZ\b','OCZ',''],
 	['^([MN]D\d|OLOy)','OLOy','OLOy',''],
 	['^(M[ERS]\d|Nemix)','Nemix','Nemix',''],
-	['^(P[A-Z]|Patriot)','Patriot','Patriot',''],
+	# before patriot just in case
 	['^(MN\d|PNY)','PNY\s','PNY',''],
+	['^(P[A-Z]|Patriot)','Patriot','Patriot',''],
 	['^(K[1-6][ABT]|K[1-6][\d]{3}|M[\d]{3}[A-Z]|Samsung)','Samsung','Samsung',''],
 	['^(SP|Silicon[\s-]?Power)','Silicon[\s-]?Power','Silicon Power',''],
 	['^(STK|Simtek)','Simtek','Simtek',''],
