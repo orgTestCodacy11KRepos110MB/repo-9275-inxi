@@ -55,12 +55,13 @@ if (eval {require OpenBSD::Pledge}){
 	$b_pledge = 1;
 	# cpath/wpath: dir/files .inxi, --debug > 9, -c 9x, -w/W; 
 	# dns/inet: ftp upload --debug > 20; exec/proc/rpath: critical; 
-	# prot_exec: Perl import; getpw: perl getpwuid() -c 9x; 
+	# prot_exec: Perl import; getpw: perl getpwuid() -c 9x, Net::FTP --debug > 20; 
 	# stdio: default; error: debugging pledge/perl
-	# tested. not required: pf ps tmppath tty unix vminfo; 
+	# tested. not required: mcast pf ps recvfd sendfd tmppath tty unix vminfo; 
 	# Pledge removal: OptionsHandler::post_process() [dns,inet,cpath,getpw,wpath];
 	# SelectColors::set_selection() [getpw]
 	@pledges = qw(cpath dns exec getpw inet proc prot_exec rpath wpath);
+	# chown dpath fattr flock id mcast recvfd sendfd tmppath tty unix
 	pledge(@pledges);
 }
 
@@ -4971,7 +4972,7 @@ sub post_process {
 	if ($b_pledge){
 		my $b_update;
 		# if -c 9x, remove in SelectColors::set_selection(), else remove here
-		if (!$colors{'selector'}){
+		if (!$colors{'selector'} && $debugger{'level'} < 21){
 			@pledges = grep {$_ ne 'getpw'} @pledges; 
 			$b_update = 1;
 		}
