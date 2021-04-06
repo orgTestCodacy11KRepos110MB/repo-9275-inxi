@@ -4,7 +4,7 @@
 ##       Additional features (C) Scott Rogers - kde, cpu info
 ## Further fixes (listed as known): Horst Tritremmel <hjt at sidux.com>
 ## Steven Barrett (aka: damentz) - usb audio patch; swap percent used patch
-## Jarett.Stevens - dmidecode -M patch for older systems with the /sys
+## Jarett.Stevens - dmidecode -M patch for older systems without /sys machine
 ##
 ## License: GNU GPL v3 or greater
 ##
@@ -13,6 +13,8 @@
 ##
 ## If you don't understand what Free Software is, please read (or reread)
 ## this page: http://www.gnu.org/philosophy/free-sw.html
+## 
+## DEVS: NOTE: geany/scite folding is picky so leave 1 space after # on any code item!
 
 use strict;
 use warnings;
@@ -20,23 +22,23 @@ use warnings;
 use 5.008;
 
 ## Perl 7 things for testing: depend on Perl 5.032
-#use 5.032;
+# use 5.032;
 # use compat::perl5;  # act like Perl 5's defaults
-#no feature qw(indirect);
-#no multidimensional;
-#no bareword::filehandles;
+# no feature qw(indirect);
+# no multidimensional;
+# no bareword::filehandles;
 
 use Cwd qw(abs_path); # #abs_path realpath getcwd
 use Data::Dumper qw(Dumper); # print_r
 # NOTE: load in SystemDebugger unless encounter issues with require/import
-#use File::Find;
+# use File::Find;
 use File::stat; # needed for Xorg.0.log file mtime comparisons
 use Getopt::Long qw(GetOptions);
 # Note: default auto_abbrev is enabled
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(ceil uname strftime ttyname);
-#s use Benchmark qw(:all);
+# use Benchmark qw(:all);
 # use Devel::Size qw(size total_size);
 # use feature qw(say state); # 5.10 or newer Perl
 
@@ -45,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-05';
-my $self_patch='32';
+my $self_date='2021-04-06';
+my $self_patch='33';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -166,7 +168,7 @@ sub main {
 	# $debugger{'level'} = 3; # 3 prints timers / 10 prints to log file
 	# set_debugger(); # for debugging of konvi and other start client issues
 	## legacy method
-	#my $ob_start = StartClient->new();
+	# my $ob_start = StartClient->new();
 	#$ob_start->get_client_data();
 	StartClient::set();
 	# print_line( Dumper \%client);
@@ -217,8 +219,8 @@ sub set {
 		}
 		elsif ($program = main::check_program($test)) {
 			# > 0 means error in shell
-			#my $cmd = "$program $commands{$test} >/dev/null";
-			#print "$cmd\n";
+			# my $cmd = "$program $commands{$test} >/dev/null";
+			# print "$cmd\n";
 			$pci_tool = $test if $test =~ /pci/;
 			if ($commands{$test}->[0] eq 'exec-sys'){
 				$action = 'permissions' if system("$program $commands{$test}->[2] >/dev/null 2>&1");
@@ -565,7 +567,7 @@ sub set_sudo {
 		elsif (!$force{'no-sudo'} && ($path = check_program('sudo'))) {
 			my @data = program_data('sudo');
 			$data[1] =~ s/^([0-9]+\.[0-9]+).*/$1/;
-			#print "sudo v: $data[1]\n";
+			# print "sudo v: $data[1]\n";
 			$sudoas = "$path -n " if is_numeric($data[1]) && $data[1] >= 1.7;
 		}
 	}
@@ -665,7 +667,7 @@ sub set_xorg_log {
 	foreach (@x_logs){
 		if (-r $_){
 			my $src_info = File::stat::stat("$_");
-			#print "$_\n";
+			# print "$_\n";
 			if ($src_info){
 				$x_mtime = $src_info->mtime;
 				# print $_ . ": $x_time" . "\n";
@@ -1263,7 +1265,7 @@ sub begin_logging {
 	$start='main::log_data("fs", (caller(1))[3], \@_);';
 	#$t3 = tv_interval ($t0, [gettimeofday]);
 	$t3 = eval 'Time::HiRes::tv_interval (\@t0, [Time::HiRes::gettimeofday()]);' if $b_hires;
-	#print Dumper $@;
+	# print Dumper $@;
 	my $now = strftime "%Y-%m-%d %H:%M:%S", localtime;
 	return if $debugger{'timers'};
 	# do the rotation if logfile exists
@@ -1315,7 +1317,7 @@ sub log_data {
 		# $t1 = [gettimeofday];
 		#$t3 = tv_interval ($t0, [gettimeofday]);
 		$t3 = eval 'Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()])' if $b_hires;
-		#print Dumper $@;
+		# print Dumper $@;
 		$data = "Start: Function: $two$args\n${spacer}Elapsed: $t3\n";
 		$spacer='';
 		$timer = $data if $debugger{'timers'};
@@ -1324,7 +1326,7 @@ sub log_data {
 		# print 'timer:', Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()]),"\n";
 		#$t3 = tv_interval ($t0, [gettimeofday]);
 		eval '$t3 = Time::HiRes::tv_interval(\@t0, [Time::HiRes::gettimeofday()])' if $b_hires;
-		#print Dumper $t3;
+		# print Dumper $t3;
 		$data = "${spacer}Elapsed: $t3\nEnd: Function: $two\n";
 		$spacer='';
 		$timer = $data if $debugger{'timers'};
@@ -1372,7 +1374,7 @@ sub log_data {
 	if ($debugger{'timers'}){
 		print $timer if $timer;
 	}
-	#print "d: $data";
+	# print "d: $data";
 	elsif ($data){
 		print $fh_l "$spacer$data";
 	}
@@ -2150,7 +2152,7 @@ sub build_tree {
 		foreach (@files){
 			next if /^\./;
 			$cmd = "tree -a -L 10 $dirname/$_ > $data_dir/sys-data-tree-$_-10.txt";
-			#print "$cmd\n";
+			# print "$cmd\n";
 			system($cmd);
 		}
 	}
@@ -2508,7 +2510,7 @@ sub set_downloader {
 			$dl{'tiny'} = 0;
 		}
 	}
-	#print $dl{'tiny'} . "\n";
+	# print $dl{'tiny'} . "\n";
 	if ($dl{'tiny'}){
 		$dl{'dl'} = 'tiny';
 		$dl{'file'} = '';
@@ -2703,7 +2705,7 @@ sub run {
 	['0', '', '', " "],
 	);
 	push(@rows, @data);
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	main::print_basic(\@rows); 
 	exit 0; # shell true
 }
@@ -3614,7 +3616,7 @@ sub program_data {
 	my ($values_id,$version_id,$level) = @_;
 	my (@data,$path,@program_data);
 	$level = 0 if ! $level;
-	#print "val_id: $values_id ver_id:$version_id lev:$level ex:$extra\n";
+	# print "val_id: $values_id ver_id:$version_id lev:$level ex:$extra\n";
 	$version_id = $values_id if ! $version_id;
 	@data = program_values($values_id);
 	if ($data[3]){
@@ -3692,7 +3694,7 @@ sub set_program_values {
 	'fireplace' => ['^fireplace',0,'0','fireplace',0,1,0,'',''], # unverified
 	'fluxbox' => ['^fluxbox',2,'-v','Fluxbox',0,1,0,'',''],
 	'flwm' => ['^flwm',0,'0','FLWM',0,0,1,'',''], # no version
-	#openbsd changed: version string: [FVWM[[main] Fvwm.. sigh, and outputs to stderr. Why?
+	# openbsd changed: version string: [FVWM[[main] Fvwm.. sigh, and outputs to stderr. Why?
 	'fvwm' => ['^fvwm',2,'-version','FVWM',0,1,0,'',''], 
 	'fvwm1' => ['^Fvwm',3,'-version','FVWM1',0,1,1,'',''],
 	'fvwm2' => ['^fvwm',2,'--version','FVWM2',0,1,0,'',''],
@@ -3877,7 +3879,7 @@ sub program_values {
 	if ( defined $program_values{$app} ){
 		@program_data = @{$program_values{$app}};
 	}
-	#my $debug = Dumper \@program_data;
+	# my $debug = Dumper \@program_data;
 	log_data('dump',"Program Data",\@program_data) if $b_log;
 	return @program_data;
 }
@@ -4055,10 +4057,10 @@ sub toucher {
 # arg: 1 - string to be right left trimmed. Also slices off \n so no chomp needed
 # this thing is super fast, no need to log its times etc, 0.0001 seconds or less
 sub trimmer {
-	#eval $start if $b_log;
+	# eval $start if $b_log;
 	my ($str) = @_;
 	$str =~ s/^\s+|\s+$|\n$//g; 
-	#eval $end if $b_log;
+	# eval $end if $b_log;
 	return $str;
 }
 
@@ -5669,7 +5671,7 @@ sub get_client_name {
 		$client_name =~ s/^.*\///;
 		if ($client_name =~ /^(bash|csh|dash|fish|sh|python.*|perl.*|zsh)$/){
 			$pppid = (main::grabber("ps -wwp $ppid -o ppid"))[1];
-			#my @temp = (main::grabber("ps -wwp $ppid -o ppid 2>/dev/null"))[1];
+			# my @temp = (main::grabber("ps -wwp $ppid -o ppid 2>/dev/null"))[1];
 			$pppid =~ s/^\s+|\s+$//g;
 			$client_name =~ s/[0-9\.]+$//; # clean things like python2.7
 			if ($pppid && -f "/proc/$pppid/exe" ){
@@ -5681,7 +5683,7 @@ sub get_client_name {
 		$client{'name'} = $client_name;
 		get_client_version();
 		# print "c:$client_name p:$pppid\n";
-		#print "$client{'name-print'}\n";
+		# print "$client{'name-print'}\n";
 	}
 	else {
 		if (!check_modern_konvi()){
@@ -6139,7 +6141,7 @@ sub increment_starters {
 
 sub pci_cleaner {
 	my ($string,$type) = @_;
-	#print "st1 $type:$string\n";
+	# print "st1 $type:$string\n";
 	my $filter = 'and\ssubsidiaries|compatible\scontroller|';
 	$filter .= '\b(device|controller|connection|multimedia)\b|\([^)]+\)';
 	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
@@ -6147,7 +6149,7 @@ sub pci_cleaner {
 	$string =~ s/($filter)//ig;
 	$string =~ s/\s\s+/ /g;
 	$string =~ s/^\s+|\s+$//g;
-	#print "st2 $type:$string\n";
+	# print "st2 $type:$string\n";
 	$string = remove_duplicates($string) if $string;
 	return $string;
 }
@@ -6300,7 +6302,7 @@ sub row_defaults {
 sub translate_size {
 	my ($working) = @_;
 	my ($size,$unit) = (0,'');
-	#print ":$working:\n";
+	# print ":$working:\n";
 	return if ! defined $working;
 	my $math = ($working =~ /B$/) ? 1000: 1024;
 	if ($working =~ /^([0-9\.]+)\s*([kKMGTPE])i?B?$/i){
@@ -6404,7 +6406,7 @@ sub generate_xml {
 	my ($xml);
 	my $b_debug = 0;
 	error_handler('not-in-irc', 'help') if $b_irc;
-	#print Dumper $data if $b_debug;
+	# print Dumper $data if $b_debug;
 	if (check_perl_module('XML::Dumper')){
 		XML::Dumper->import;
 		$xml = XML::Dumper::pl2xml($data);
@@ -6449,7 +6451,7 @@ sub print_basic {
 	}
 	# print $length . "\n";
 	for my $i (0 .. $#$data){
-		#print "0: $data->[$i][0]\n";
+		# print "0: $data->[$i][0]\n";
 		if ($data->[$i][0] == 0 ){
 			$indent = 0;
 			$indent1 = 0;
@@ -6475,13 +6477,13 @@ sub print_basic {
 			$line = sprintf("%-${indent}s\n", "$start");
 			print_line($line);
 			$start = '';
-			#print "1-print.\n";
+			# print "1-print.\n";
 		}
 		if ( ( $indent + length($data->[$i][3]) ) < $size{'max'} ){
 			$data->[$i][3] =~ s/\^/ /g;
 			$line = sprintf("%-${indent}s%s\n", "$start", $data->[$i][3]);
 			print_line($line);
-			#print "2-print.\n";
+			# print "2-print.\n";
 		}
 		else {
 			my $holder = '';
@@ -6489,11 +6491,11 @@ sub print_basic {
 			# note: special case, split ' ' trims leading, trailing spaces, 
 			# then splits like awk, on one or more white spaces.
 			foreach my $word (split(' ', $data->[$i][3])){
-				#print "$word\n";
+				# print "$word\n";
 				if ( ( $indent + length($holder) + length($word) ) < $size{'max'} ) {
 					$word =~ s/\^/ /g;
 					$holder .= $word . $sep;
-					#print "3-hold.\n";
+					# print "3-hold.\n";
 				}
 				#elsif ( ( $indent + length($holder) + length($word) ) >= $size{'max'}){
 				else {
@@ -6502,13 +6504,13 @@ sub print_basic {
 					$start = '';
 					$word =~ s/\^/ /g;
 					$holder = $word . $sep;
-					#print "4-print-hold.\n";
+					# print "4-print-hold.\n";
 				}
 			}
 			if ($holder !~ /^[ ]*$/){
 				$line = sprintf("%-${indent}s%s\n", "$start", $holder);
 				print_line($line);
-				#print "5-print-last.\n";
+				# print "5-print-last.\n";
 			}
 		}
 	}
@@ -6532,9 +6534,9 @@ sub print_data {
 	if ($size{'max'} < $size{'wrap-max'} || $size{'indent'} < 11 ){
 		$indent = 2;
 	}
-	#foreach my $key1 (sort { (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$data) {
+	# foreach my $key1 (sort { (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$data) {
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$data) {
-	#foreach my $key1 (sort { $a cmp $b } keys %$data) {
+	# foreach my $key1 (sort { $a cmp $b } keys %$data) {
 		$key = (split('#', $key1))[3];
 		if ($key ne 'SHORT' ) {
 			$start = sprintf("$colors{'c1'}%-${indent}s$colors{'cn'}","$key$sep{'s1'}");
@@ -6575,9 +6577,9 @@ sub print_data {
 			if (ref($val1) eq 'HASH'){
 				#%row = %$val1;
 				($counter,$split_count) = (0,0);
-				#foreach my $key2 (sor ({ (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$val1){
+				# foreach my $key2 (sor ({ (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$val1){
 				foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
-				#foreach my $key2 (sort { $a cmp $b } keys %$val1){
+				# foreach my $key2 (sort { $a cmp $b } keys %$val1){
 					($hash_id,$b_container,$indentx,$key) = (split('#', $key2));
 					if ($start_holder eq 'Graphics' && $key eq 'Screen'){
 						$ids{'Monitor'} = 1;
@@ -6607,7 +6609,7 @@ sub print_data {
 					@temp = split(/\s+/, $val2);
 					$split_count = scalar @temp;
 					if ( !$b_single && ( length( "$key$sep{'s2'} $val2" ) + $length ) < $size{'max'} ) {
-						#print "one\n";
+						# print "one\n";
 						$length += length("$key$sep{'s2'} $val2");
 						$holder .= "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 					}
@@ -6616,7 +6618,7 @@ sub print_data {
 					# can have the last row have a lot of devices, or many raid types
 					elsif ( !$b_single && ( length( "$key$sep{'s2'} $val2" ) + $indent ) > $size{'max'} && 
 								!defined $ids{$key} && $split_count > 2 ) {
-						#print "two\n";
+						# print "two\n";
 						@values = split(/\s+/, $val2);
 						$val3 = shift @values;
 						# $length += length("$key$sep{'s2'} $val3 ") + $indent;
@@ -6626,10 +6628,10 @@ sub print_data {
 						# print scalar @values,"\n";
 						foreach (@values){
 							# my $l =  (length("$_ ") + $length);
-							#print "$l\n";
+							# print "$l\n";
 							if ( (length("$_ ") + $length) < $size{'max'} ){
-								#print "three.1\n";
-								#print "a\n";
+								# print "three.1\n";
+								# print "a\n";
 								if ($start2){
 									$holder2 .= "$start2$_ ";
 									$start2 = '';
@@ -6642,19 +6644,19 @@ sub print_data {
 								$length += length("$_ ");
 							}
 							else {
-								#print "three.2\n";
+								# print "three.2\n";
 								if ($start2){
 									$holder2 = "$start2$holder2";
 								}
 								else {
 									$holder2 = "$colors{'c2'}$holder2";
 								}
-								#print "xx:$holder";
+								# print "xx:$holder";
 								$line = sprintf("%-${indent}s%s$colors{'cn'}\n","$start","$holder$holder2");
 								print_line($line);
 								$holder = '';
 								$holder2 = "$_ ";
-								#print "h2: $holder2\n";
+								# print "h2: $holder2\n";
 								$length = length($holder2) + $indent;
 								$start2 = '';
 								$start = '';
@@ -6662,7 +6664,7 @@ sub print_data {
 							}
 						}
 						if ($holder2 !~ /^\s*$/){
-							#print "four\n";
+							# print "four\n";
 							$holder2 = "$colors{'c2'}$holder2";
 							$line = sprintf("%-${indent}s%s$colors{'cn'}\n","$start","$holder$holder2");
 							print_line($line);
@@ -6676,16 +6678,16 @@ sub print_data {
 					}
 					# NOTE: only these and the last fallback are used for b_single output
 					else {
-						#print "H: $counter " . scalar %$val1 . " $indent3 $indent2\n";
+						# print "H: $counter " . scalar %$val1 . " $indent3 $indent2\n";
 						if ($holder){
-							#print "five\n";
+							# print "five\n";
 							$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$holder");
 							$length = length("$key$sep{'s2'} $val2") + $indent_use;
 							print_line($line);
 							$start = '';
 						}
 						else {
-							#print "six\n";
+							# print "six\n";
 							$length = $indent_use;
 							#$holder = '';
 						}
@@ -6695,7 +6697,7 @@ sub print_data {
 					$indent_use = ($indent * $indentx) if $b_single;
 				}
 				if ($holder !~ /^\s*$/){
-					#print "seven\n";
+					# print "seven\n";
 					$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$start2$holder");
 					print_line($line);
 					$holder = '';
@@ -6705,7 +6707,7 @@ sub print_data {
 			}
 			# only for repos currently
 			elsif (ref($val1) eq 'ARRAY'){
-				#print "eight\n";
+				# print "eight\n";
 				$array=0;
 				foreach my $item (@$val1){
 					$array++;
@@ -6840,7 +6842,7 @@ sub device_output {
 				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
 			}
 		}
-		#print "$row->[0]\n";
+		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -6952,9 +6954,9 @@ sub sound_server_data {
 		$running = 'yes';
 		# not needed I think, if asound is there, it's running, but if that's
 		# not correct, can use one of the info/list/stat tests for aplay
-		#if (main::check_program('aplay') && main::grabber('aplay -l 2>/dev/null')){
-		#	$running = 'yes';
-		#}
+		# if (main::check_program('aplay') && main::grabber('aplay -l 2>/dev/null')){
+		# 	$running = 'yes';
+		# }
 		push(@servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
@@ -7009,6 +7011,7 @@ sub sound_server_data {
 ## BatteryItem
 {
 package BatteryItem;
+
 my (@upower_items,$b_upower,$upower);
 sub get {
 	eval $start if $b_log;
@@ -7244,8 +7247,8 @@ sub battery_data_sys {
 	# note: there is no 'location' file, but dmidecode has it
 	# 'type' is generic, like: Battery, Mains
 	# capacity_level is a string, like: Normal
-	my @items = qw(alarm capacity capacity_level charge_full charge_full_design charge_now 
-	constant_charge_current constant_charge_current_max cycle_count 
+	my @items = qw(alarm capacity capacity_level charge_full charge_full_design 
+	charge_now constant_charge_current constant_charge_current_max cycle_count 
 	energy_full energy_full_design energy_now location manufacturer model_name 
 	power_now present scope serial_number status technology type voltage_min_design voltage_now);
 	foreach $item (@batteries){
@@ -7521,6 +7524,7 @@ sub upower_data {
 ## BluetoothItem 
 {
 package BluetoothItem;
+
 my ($b_bluetooth,$b_hci_error,$b_hci,$b_rfk,$b_service);
 my ($service);
 my (%hci);
@@ -7533,11 +7537,11 @@ sub get {
 	if (($b_arm || $b_mips) && !$use{'soc-bluetooth'} && !$use{'pci-tool'}){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
-		#my $type = ($b_arm) ? 'arm' : 'mips';
-		#my $key = 'Message';
-		#push(@rows,{
-		#main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
-		#},);
+		# my $type = ($b_arm) ? 'arm' : 'mips';
+		# my $key = 'Message';
+		# push(@rows,{
+		# main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+		# },);
 	}
 	else {
 		push(@rows,device_output());
@@ -7617,7 +7621,7 @@ sub device_output {
 			$bus_id = "$row->[2].$row->[3]" if defined $row->[2] && defined $row->[3];
 		}
 		push(@rows,advanced_output('pci',$bus_id)) if $bus_id;
-		#print "$row->[0]\n";
+		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -7628,7 +7632,7 @@ sub usb_output {
 	my (@rows,$path_id,$product);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$usb{'bluetooth'}}){
-		#print Data::Dumper::Dumper $row;
+		# print Data::Dumper::Dumper $row;
 		$num = 1;
 		$j = scalar @rows;
 		# makre sure to reset, or second device trips last flag
@@ -7681,14 +7685,14 @@ sub advanced_output {
 		rfkill_data();
 		$tool = 'rfkill' if !$tool;
 	}
-	#print "bid: $bus_id\n";
+	# print "bid: $bus_id\n";
 	if ($type ne 'check'){
 		@temp = main::globber('/sys/class/bluetooth/*');
 		@temp = map {$_ = Cwd::abs_path($_);$_} @temp if @temp;
-		#print Data::Dumper::Dumper \@temp;
+		# print Data::Dumper::Dumper \@temp;
 		@temp = grep {/$bus_id/} @temp if @temp;
 		@temp = map {$_ =~ s|^/.*/||;$_;} @temp if @temp;
-		#print Data::Dumper::Dumper \@temp;
+		# print Data::Dumper::Dumper \@temp;
 	}
 	elsif ($type eq 'check' && %hci){
 		@temp = keys %hci;
@@ -7765,15 +7769,15 @@ sub advanced_output {
 						$rows[$j]->{main::key($num++,0,$m,'rev')} = $hci{$item}->{'hci-revision'};
 					}
 				}
-# 				if ($extra > 1 && $hci{$item}->{'discoverable'}){
-# 					$rows[$j]->{main::key($num++,1,$l,'discover')} = $hci{$item}->{'discoverable'};
-# 					if ($extra > 2 && $hci{$item}->{'discovering'}){
-# 						$rows[$j]->{main::key($num++,1,$m,'active')} = $hci{$item}->{'discovering'};
-# 					}
-# 				}
-# 				if ($extra > 1 && $hci{$item}->{'pairable'}){
-# 					$rows[$j]->{main::key($num++,0,$l,'pair')} = $hci{$item}->{'pairable'};
-# 				}
+				# if ($extra > 1 && $hci{$item}->{'discoverable'}){
+				# 	$rows[$j]->{main::key($num++,1,$l,'discover')} = $hci{$item}->{'discoverable'};
+				# 	if ($extra > 2 && $hci{$item}->{'discovering'}){
+				# 		$rows[$j]->{main::key($num++,1,$m,'active')} = $hci{$item}->{'discovering'};
+				# 	}
+				# }
+				# if ($extra > 1 && $hci{$item}->{'pairable'}){
+				# 	$rows[$j]->{main::key($num++,0,$l,'pair')} = $hci{$item}->{'pairable'};
+				# }
 				# this data only from hciconfig
 				if ($b_admin && 
 				   ($hci{$item}->{'acl-mtu'} || $hci{$item}->{'sco-mtu'} || $hci{$item}->{'link-policy'})){
@@ -8136,7 +8140,7 @@ sub full_output {
 			$b_speeds = 1;
 		}
 		else {
-			$core_speeds_value = main::row_defaults('cpu-speeds',scalar @speeds);
+			$core_speeds_value = main::row_defaults('cpu-speeds');
 		}
 	}
 	else {
@@ -8358,7 +8362,7 @@ sub cpuinfo_data {
 		$starter = $line[0]; # preserve case for one specific ARM issue
 		$line[0] = lc($line[0]);
 		if ($b_arm && !$b_first && $starter eq 'Processor' && $line[1] !~ /^\d+$/){
-			#print "l1:$line[1]\n";
+			# print "l1:$line[1]\n";
 			$cpu{'model_name'} = main::cleaner($line[1]);
 			$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
 			$cpu{'type'} = 'arm';
@@ -8374,7 +8378,7 @@ sub cpuinfo_data {
 				$cpu{'processors'}->[$proc_count] = 0;
 				$b_proc_int = 0;
 				$b_first = 1;
-				#print "p0:\n";
+				# print "p0:\n";
 			}
 		}
 		elsif ($line[0] eq 'processor'){
@@ -8384,13 +8388,13 @@ sub cpuinfo_data {
 				$b_first = 1;
 				$cpu{'processors'}->[$proc_count] = 0;
 				$proc_count++;
-				#print "p1: $proc_count\n";
+				# print "p1: $proc_count\n";
 			}
 			else {
 				if (!$b_proc_int){
 					$cpu{'processors'}->[$proc_count] = 0;
 					$proc_count++;
-					#print "p2a: $proc_count\n";
+					# print "p2a: $proc_count\n";
 				}
 				if (!$b_first ){
 					# note: alternate: 
@@ -8402,7 +8406,7 @@ sub cpuinfo_data {
 					}
 					$cpu{'model_name'} = main::cleaner($line[1]);
 					$cpu{'model_name'} = cpu_cleaner($cpu{'model'});
-					#print "p2b:\n";
+					# print "p2b:\n";
 				}
 				$b_first = 1;
 			}
@@ -8472,13 +8476,13 @@ sub cpuinfo_data {
 				# only increment if not in array counter
 				push(@phys_cpus, $line[1]) if ! grep {/$line[1]/} @phys_cpus;
 				$phys_holder = $line[1];
-				#print "pid: $line[1] ph: $phys_holder did: $die_id\n";
+				# print "pid: $line[1] ph: $phys_holder did: $die_id\n";
 				$die_id = 0;
 				#$die_holder = 0;
 			}
 		}
 		elsif ($line[0] eq 'core id'){
-			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
+			# print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 			# https://www.pcworld.com/article/3214635/components-processors/ryzen-threadripper-review-we-test-amds-monster-cpu.html
 			if ($line[1] > 0 ){
 				$die_holder = $line[1];
@@ -8494,7 +8498,7 @@ sub cpuinfo_data {
 			}
 			$phys_holder = 0 if ! defined $phys_holder;
 			$ids[$phys_holder]->[$die_id][$line[1]] = $speed;
-			#print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
+			# print "ph: $phys_holder did: $die_id l1: $line[1] s: $speed\n";
 		}
 		if (!$cpu{'type'} && $line[0] eq 'vendor_id' ){
 			$cpu{'type'} = cpu_vendor($line[1]);
@@ -8584,7 +8588,7 @@ sub cpuinfo_data {
 		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'stepping'});
 		# cpu_arch comes from set_os()
 		$cpu{'arch'} = $cpu_arch if (!$cpu{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc));
-		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
+		# print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
 	if (!$speeds{'cur-freq'}){
 		$cpu{'cur-freq'} = $cpu{'processors'}->[0];
@@ -8756,7 +8760,7 @@ sub sysctl_data {
 	}
 	if ( $extra > 0 && !$cpu{'arch'} && $type ne 'short' ){
 		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'stepping'});
-		#print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
+		# print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
 	print Data::Dumper::Dumper \%cpu if $dbg[8];
@@ -8927,12 +8931,12 @@ sub cpu_dmi_data {
 				# Sometimes shows as CPU Socket...
 				if ($value =~ /^Socket Designation:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
 					$upgrade = main::dmi_cleaner($2) if $2 !~ /(cpu|[mg]hz|onboard|socket|@|^#?[0-9]$)/i;
-					#print "$socket_temp\n";
+					# print "$socket_temp\n";
 				}
 				# normally we prefer this value, but sometimes it's garbage
 				# older systems often show: Upgrade: ZIF Socket which is a generic term, legacy
 				elsif ($value =~ /^Upgrade:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
-					#print "$2\n";
+					# print "$2\n";
 					$socket = main::dmi_cleaner($2) if $2 !~ /(ZIF|\bslot\b)/i;
 				}
 				# seen: Voltage: 5.0 V 2.9 V
@@ -8995,10 +8999,10 @@ sub cpu_properties {
 			$b_elbrus = 1;
 		}
 	}
-	#my @dies = $phys[0]->[0];
+	# my @dies = $phys[0]->[0];
 	my @phys = @{$cpu->{'ids'}};
 	my $phyical_count = 0;
-	#my $phyical_count = scalar @phys;
+	# my $phyical_count = scalar @phys;
 	my @processors;
 	my ($speed,$speed_key);
 	# handle case where cpu reports say, phys id 0, 2, 4, 6 [yes, seen it]
@@ -9008,10 +9012,10 @@ sub cpu_properties {
 	# count unique processors ##
 	# note, this fails for intel cpus at times
 	@processors = @{$cpu->{'processors'}};
-	#print ref $cpu->{'processors'}, "\n";
+	# print ref $cpu->{'processors'}, "\n";
 	my $processors_count = scalar @processors;
-	#print "p count:$processors_count\n";
-	#print Data::Dumper::Dumper \@processors;
+	# print "p count:$processors_count\n";
+	# print Data::Dumper::Dumper \@processors;
 	# $cpu_cores is per physical cpu
 	my ($cpu_layout,$cpu_type,$min_max,$min_max_key) = ('','','','');
 	my ($dmi_max_speed,$dmi_speed,$ext_clock,$socket,$upgrade,$volts) = (undef);
@@ -9039,7 +9043,7 @@ sub cpu_properties {
 			foreach my $id (@$core_ref){
 				$core_count++ if defined $id && !$b_arm;
 			}
-			#print 'cores: ' . $core_count, "\n";
+			# print 'cores: ' . $core_count, "\n";
 		}
 	}
 	# this covers potentially cases where ARM cpus have > 1 die 
@@ -9055,7 +9059,7 @@ sub cpu_properties {
 			$cpu_cores = $core_count;
 		}
 	}
-	#print "cpu-c:$cpu_cores\n";
+	# print "cpu-c:$cpu_cores\n";
 	#$cpu_cores = $cpu->{'cores'}; 
 	# like, intel core duo
 	# NOTE: sadly, not all core intel are HT/MT, oh well...
@@ -9128,7 +9132,7 @@ sub cpu_properties {
 	# last test to catch some corner cases 
 	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
 	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
-	#print "prc: $processors_count phc: $phyical_count coc: $core_count cpc: $cpu_cores\n";
+	# print "prc: $processors_count phc: $phyical_count coc: $core_count cpc: $cpu_cores\n";
 	if (!$b_arm && $processors_count == $phyical_count*$core_count && $cpu_cores > $core_count){
 		$b_ht = 0;
 		#$b_xeon = 0;
@@ -9158,7 +9162,7 @@ sub cpu_properties {
 		$ext_clock = $cpu_dmi{'ext-clock'} if $cpu_dmi{'ext-clock'};
 		$volts = $cpu_dmi{'volts'} if $cpu_dmi{'volts'};
 	}
-	#print "pc: $processors_count s: $cpu->{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
+	# print "pc: $processors_count s: $cpu->{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
 	# Algorithm:
 	# if > 1 processor && processor id (physical id) == core id then Multi threaded (MT)
 	# if siblings > 1 && siblings ==  2 * num_of_cores ($cpu->{'cores'}) then Multi threaded (MT)
@@ -9168,15 +9172,15 @@ sub cpu_properties {
 	if ($processors_count > 1 || ($b_intel && $cpu->{'siblings'} > 0)) {
 		# non-multicore MT
 		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
-			#print "mt:1\n";
+			# print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
 # 		elsif ($b_xeon && $cpu->{'siblings'} > 1){
-# 			#print "mt:2\n";
+# 			# print "mt:2\n";
 # 			$cpu_type .= 'MT'; 
 # 		}
 		elsif ($cpu->{'siblings'} > 1 && ($cpu->{'siblings'} == 2 * $cpu_cores )){
-			#print "mt:3\n";
+			# print "mt:3\n";
 			$cpu_type .= 'MT'; 
 		}
 		# non-MT multi-core or MT multi-core
@@ -9274,10 +9278,10 @@ sub cpu_properties {
 	'l3-cache' => $l3_cache,
 	);
 	main::log_data('dump','%cpu_properties',\%cpu_properties) if $b_log;
-	#print Data::Dumper::Dumper $cpu;
-	#print Data::Dumper::Dumper \%cpu_properties;
-	#my $dc = scalar @dies;
-	#print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
+	# print Data::Dumper::Dumper $cpu;
+	# print Data::Dumper::Dumper \%cpu_properties;
+	# my $dc = scalar @dies;
+	# print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
 	eval $end if $b_log;
 	return %cpu_properties;
 }
@@ -9322,7 +9326,7 @@ sub cpu_speeds {
 			}
 		}
 	}
-	#print join('; ', @speeds), "\n";
+	# print join('; ', @speeds), "\n";
 	eval $end if $b_log;
 	return @speeds;
 }
@@ -9772,7 +9776,7 @@ sub cpu_arch {
 
 sub count_alpha {
 	my ($count) = @_;
-	#print "$count\n";
+	# print "$count\n";
 	my @alpha = qw(Single Dual Triple Quad);
 	if ($count > 4){
 		$count .= '-';
@@ -9891,7 +9895,7 @@ sub get {
 		$val1 = main::row_defaults('disk-data');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
-	#push(@rows,@data);
+	# push(@rows,@data);
 	if ($show{'optical'} || $show{'optical-basic'}){
 		push(@rows,OpticalItem::get());
 	}
@@ -9909,14 +9913,14 @@ sub storage_output {
 	push(@rows, {
 	main::key($num++,1,1,'Local Storage') => '',
 	});
-	#print Data::Dumper::Dumper $disks;
+	# print Data::Dumper::Dumper $disks;
 	$size = main::get_size($disks->[0]{'size'},'string','N/A');
 	if ($disks->[0]{'logical-size'}){
 		$rows[$j]->{main::key($num++,1,2,'total')} = '';
 		$rows[$j]->{main::key($num++,0,3,'raw')} = $size;
 		$size = main::get_size($disks->[0]{'logical-size'},'string');
 		$size_value = $disks->[0]{'logical-size'};
-		#print Data::Dumper::Dumper $disks;
+		# print Data::Dumper::Dumper $disks;
 		$rows[$j]->{main::key($num++,1,3,'usable')} = $size;
 	}
 	else {
@@ -9940,7 +9944,7 @@ sub storage_output {
 sub drive_output {
 	eval $start if $b_log;
 	my ($disks) = @_;
-	#print Data::Dumper::Dumper $disks;
+	# print Data::Dumper::Dumper $disks;
 	my ($b_smart_permissions,@rows,$smart_age,$smart_basic,$smart_fail);
 	my ($num,$j) = (0,0);
 	my ($id,$model,$size) = ('','','');
@@ -9958,7 +9962,7 @@ sub drive_output {
 		$model = ($row->{'model'}) ? $row->{'model'}: 'N/A';
 		$id =  ($row->{'id'}) ? "/dev/$row->{'id'}":'N/A';
 		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : 'N/A';
-		#print Data::Dumper::Dumper $disks;
+		# print Data::Dumper::Dumper $disks;
 		$j = scalar @rows;
 		if (!$b_smart_permissions && $row->{'smart-permissions'}){
 			$b_smart_permissions = 1;
@@ -10176,7 +10180,7 @@ sub proc_data {
 	'size' => $size,
 	'used' => $used,
 	});
-	#print Data::Dumper::Dumper \@data;
+	# print Data::Dumper::Dumper \@data;
 	if ($show{'disk'}){
 		unshift(@drives,@data);
 		# print 'drives:', Data::Dumper::Dumper \@drives;
@@ -10226,7 +10230,7 @@ sub proc_data_advanced {
 		#next if $drives->[$i]{'id'} =~ /^hd[a-z]/;
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
-		#print "$drives->[$i]{'id'}\n";
+		# print "$drives->[$i]{'id'}\n";
 		@disk_data = disk_data_by_id("/dev/$drives->[$i]{'id'}");
 		main::log_data('dump','@disk_data', \@disk_data) if $b_log;
 		if ($drives->[$i]{'id'} =~ /[sv]d[a-z]/){
@@ -10515,7 +10519,7 @@ sub smartctl_data {
 		next if !$data->[$i]{'id'};
 		($b_attributes,$b_intel,$b_kingston,$splitter,$num,$a,$r) = (0,0,0,':\s*',0,0,1);
 		%holder = ();
-		#print $data->[$i]{'id'},"\n";
+		# print $data->[$i]{'id'},"\n";
 		# m2 nvme failed on nvme0n1 drive id:
 		$id = $data->[$i]{'id'};
 		$id =~ s/n[0-9]+$// if $id =~ /^nvme/;
@@ -10887,7 +10891,7 @@ sub peripheral_data {
 	if (@by_id){
 		foreach (@by_id) {
 			if ("/dev/$id" eq Cwd::abs_path($_)){
-				#print "$id here\n";
+				# print "$id here\n";
 				if (/usb-/i){
 					$type = 'USB';
 				}
@@ -11513,10 +11517,10 @@ sub hdd_temp_sys {
 	# seeing long lag to read temp input files for some reason
 	# on some systems, just one one of them.
 	my @data = main::globber("$path/hwmon/hwmon*/temp*_{input,label}");
-	#print "device: $device\n";
+	# print "device: $device\n";
 	foreach (sort @data){
-		#print "file: $_\n";
-		#print(main::reader($_,'',0),"\n");
+		# print "file: $_\n";
+		# print(main::reader($_,'',0),"\n");
 		$path = $_;
 		# cleanup everything in front of temp, the path
 		$path =~ s/^.*\///;
@@ -11560,7 +11564,7 @@ sub block_data {
 	# 0: logical block size 1: disk physical block size/partition block size;
 	my @blocks = (0,0); 
 	my ($block_log,$block_size) = (0,0);
-	#my $path_size = "/sys/block/$id/size";
+	# my $path_size = "/sys/block/$id/size";
 	my $path_log_block = "/sys/block/$id/queue/logical_block_size";
 	my $path_phy_block = "/sys/block/$id/queue/physical_block_size";
 	# legacy system path
@@ -11580,7 +11584,7 @@ sub device_speed {
 	my ($device) = @_;
 	my ($b_nvme,$lanes,$speed,@data);
 	my $working = Cwd::abs_path("/sys/class/block/$device");
-	#print "$working\n";
+	# print "$working\n";
 	if ($working){
 		my ($id);
 		# slice out the ata id:
@@ -11634,7 +11638,7 @@ sub device_speed {
 		}
 	}
 	@data = ($speed,$lanes);
-	#print "$working $speed\n";
+	# print "$working $speed\n";
 	eval $end if $b_log;
 	return @data;
 }
@@ -11684,14 +11688,14 @@ sub device_output {
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'graphics'}}){
 		$num = 1;
-		#print "$row->[0] $row->[3]\n";
+		# print "$row->[0] $row->[3]\n";
 		# not using 3D controller yet, needs research: |3D controller |display controller
 		# note: this is strange, but all of these can be either a separate or the same
 		# card. However, by comparing bus id, say: 00:02.0 we can determine that the
 		# cards are  either the same or different. We want only the .0 version as a valid
 		# card. .1 would be for example: Display Adapter with bus id x:xx.1, not the right one
 		next if $row->[3] != 0;
-		#print "$row->[0] $row->[3]\n";
+		# print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
 		$driver = $row->[9];
 		$driver ||= 'N/A';
@@ -11727,7 +11731,7 @@ sub device_output {
 		if ($extra > 2 && $row->[1]){
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
-		#print "$row->[0]\n";
+		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -11741,7 +11745,7 @@ sub usb_output {
 		# these tests only work for /sys based usb data for now
 		$num = 1;
 		$j = scalar @rows;
-		# makre sure to reset, or second device trips last flag
+		# make sure to reset, or second device trips last flag
 		($driver,$path_id,$product) = ('','','');
 		$product = main::cleaner($row->[13]) if $row->[13];
 		$driver = $row->[15] if $row->[15];
@@ -11805,15 +11809,15 @@ sub display_output(){
 	$graphics{'x-version'} = $graphics{'xorg-version'} if $graphics{'xorg-version'};;
 	$graphics{'x-version'} = x_version() if !$graphics{'x-version'};
 	$graphics{'x-version'} = $graphics{'x-version-id'} if !$graphics{'x-version'};
-	#print Data::Dumper::Dumper \%graphics;
+	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_missing,$resolution,$server_string) = ('','','');
 		# print "$graphics{'x-vendor'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
 		if ($graphics{'x-vendor'}){
 			my $version = ($graphics{'x-version'}) ? " $graphics{'x-version'}" : '';
-			#$version = (!$version && $graphics{'x-vendor-release'}) ? " $graphics{'x-vendor-release'}" : '';
+			# $version = (!$version && $graphics{'x-vendor-release'}) ? " $graphics{'x-vendor-release'}" : '';
 			$server_string = "$graphics{'x-vendor'}$version";
-			#print "$server_string\n";
+			# print "$server_string\n";
 		}
 		elsif ($graphics{'x-version'}) {
 			if ($graphics{'x-version'} =~ /^Xvesa/){
@@ -11939,7 +11943,7 @@ sub display_output(){
 					}
 				}
 				if ($main->{'monitors'}){
-					#print $basic_count . '::' . $m_count, "\n";
+					# print $basic_count . '::' . $m_count, "\n";
 					foreach my $monitor (@{$main->{'monitors'}}){
 						($diag,$dpi,$hz,$resolution,$size) = (undef);
 						if ($show{'graphic-basic'}){
@@ -11974,7 +11978,7 @@ sub display_output(){
 						$row[$row_key]->{main::key($num++,0,4,'hz')} = $hz if $hz;
 						$dpi = ($monitor->{'dpi'}) ? $monitor->{'dpi'} : '';
 						$row[$row_key]->{main::key($num++,0,4,'dpi')} = $dpi if $dpi;
-						#print "$dpi :: $main->{'s-dpi'}\n";
+						# print "$dpi :: $main->{'s-dpi'}\n";
 						if ($monitor->{'size-x'} && $monitor->{'size-y'}){
 							$size =  $monitor->{'size-x'} . 'x' . $monitor->{'size-y'} .
 							'mm ('. $monitor->{'size-x-i'} . 'x' . $monitor->{'size-y-i'} . '")';
@@ -12011,12 +12015,12 @@ sub display_data_x {
 		my ($screen_id,$screen,@working);
 		my ($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i);
 		my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
-		#@xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
-		#print join("\n",@xdpyinfo), "\n";
+		# @xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
+		# print join("\n",@xdpyinfo), "\n";
 		foreach (@xdpyinfo){
 			@working = split(/:\s+/, $_);
 			next if ( ($graphics{'screens'} && $working[0] !~ /^(dimensions$|screen\s#)/ ) || !$working[0] );
-			#print "$_\n";
+			# print "$_\n";
 			if ($working[0] eq 'vendor string'){
 				$working[1] =~ s/The\s|\sFoundation//g;
 				# some distros, like fedora, report themselves as the xorg vendor, 
@@ -12086,14 +12090,14 @@ sub display_data_x {
 				push(@{$graphics{'screens'}}, $screen);
 			}
 		}
-		#print Data::Dumper::Dumper $graphics{'screens'};
+		# print Data::Dumper::Dumper $graphics{'screens'};
 		if (my $program = main::check_program('xrandr')){
 			($diagonal,$diagonal_m,$dpi) = (undef);
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
 			my (@monitors,$monitor_id,$screen,$screen_id,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
-			#$graphics{'dimensions'} = (\@dimensions);
+			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
 			# multiple screens from different video cards
 			foreach (@xrandr){
@@ -12145,11 +12149,11 @@ sub display_data_x {
 				}
 			}
 			push(@xrandr_screens, \@monitors) if @monitors;
-			#print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
+			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
 			my ($i) = (0);
 			foreach my $main (@{$graphics{'screens'}}){
 				# print "h: " . Data::Dumper::Dumper $main;
-				#print $main->{'screen'}, "\n";
+				# print $main->{'screen'}, "\n";
 				foreach my $screens (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
 					if ($screens->[0]{'screen'} eq $main->{'screen'}){
@@ -12178,8 +12182,8 @@ sub display_data_wayland {
 		# return as wayland-0 or 0?
 		$graphics{'display-id'} =~ s/wayland-?//i;
 	}
-	#print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
-	#main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
+	# print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
+	# main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
 sub set_compositor {
@@ -12231,13 +12235,13 @@ sub gl_output(){
 	eval $start if $b_log;
 	my $num = 0;
 	my (@row,$arg);
-	#print ("$b_display : $b_root\n");
+	# print ("$b_display : $b_root\n");
 	if ( $b_display){
 		if (my $program = main::check_program('glxinfo')){
 			# NOTE: glxinfo -B is not always available, unfortunately
 			my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
-			#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
-			#my @glxinfo = main::reader($file);
+			# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
+			# my @glxinfo = main::reader($file);
 			if (!@glxinfo){
 				my $type = 'display-console';
 				if ($b_root){
@@ -12251,7 +12255,7 @@ sub gl_output(){
 				});
 				return @row;
 			}
-			#print join("\n", @glxinfo),"\n";
+			# print join("\n", @glxinfo),"\n";
 			my $compat_version = '';
 			my ($b_compat,$b_nogl,@core_profile_version,@direct_render,@renderer,
 			@opengl_version,@working);
@@ -12262,9 +12266,9 @@ sub gl_output(){
 					if ($working[1]){
 						$working[1] = main::cleaner($working[1]);
 						# Allow all mesas
-						#if ($working[1] =~ /mesa/i){
+						# if ($working[1] =~ /mesa/i){
 						#	
-						#}
+						# }
 					}
 					# note: there are cases where gl drivers are missing and empty 
 					# field value occurs.
@@ -12407,16 +12411,16 @@ sub x_drivers {
 		# list is from sgfxi plus non-free drivers, plus ARM drivers
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc ati 
 		chips cirrus cyrix fbdev fbturbo fglrx geode glide glint 
-		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
-		iftv imstt intel ivtv mach64 mesa mga modesetting 
-		neomagic newport nouveau nsc nvidia nv openchrome r128 radeonhd radeon 
+		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 
+		i965 iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
+		nouveau nsc nvidia nv openchrome r128 radeonhd radeon 
 		rendition s3virge s3 savage siliconmotion sisimedia sisusb sis 
 		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx
 		tdfx tga trident tseng unichrome v4l vboxvideo vesa vga via vmware vmwgfx
 		voodoo));
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
-		#@xorg = grep {/Failed|Unload|Loading/} @xorg;
+		# @xorg = grep {/Failed|Unload|Loading/} @xorg;
 		foreach (@xorg){
 			next if !/Failed|Unload|Loading/;
 			# print "$_\n";
@@ -12440,10 +12444,10 @@ sub x_drivers {
 			# which can occur. This is the driver that is actually driving the display.
 			# note that xorg will often load several modules, like modesetting,fbdev,nouveau
 			# NOTE:
-			#(II) UnloadModule: "nouveau"
-			#(II) Unloading nouveau
-			#(II) Failed to load module "nouveau" (already loaded, 0)
-			#(II) LoadModule: "modesetting"
+			# (II) UnloadModule: "nouveau"
+			# (II) Unloading nouveau
+			# (II) Failed to load module "nouveau" (already loaded, 0)
+			# (II) LoadModule: "modesetting"
 			elsif (/Failed.*($list)\"?.*$/i ) {
 				# Set driver to lower case because sometimes it will show as 
 				# RADEON or NVIDIA in the actual x start
@@ -12506,8 +12510,8 @@ sub x_version {
 	elsif ($program = main::check_program('Xvesa')){
 		@data = main::grabber("$program -version 2>&1");
 	}
-	#print join('^ ', @paths), " :: $program\n";
-	#print Data::Dumper::Dumper \@data;
+	# print join('^ ', @paths), " :: $program\n";
+	# print Data::Dumper::Dumper \@data;
 	if (@data){
 		foreach (@data){
 			if (/^X.org X server/i){
@@ -12549,7 +12553,7 @@ sub display_compositor {
 		['gnome-shell','gnome-shell','','gnome-shell'],
 		['kwin_wayland','kwin_wayland','','kwin_wayland'],
 		['kwin_x11','kwin_x11','','kwin_x11'],
-		#['kwin','kwin','','kwin'],
+		# ['kwin','kwin','','kwin'],
 		['marco','marco','','marco'],
 		['muffin','muffin','','muffin'],
 		['mutter','mutter','','mutter'],
@@ -12758,9 +12762,9 @@ sub components_recursive_output {
 	elsif ($type eq 'lvm'){
 		($l2,$l3) = (4+$indent,5+$indent);
 	}
-	#print 'outside: ', scalar @$component, "\n", Data::Dumper::Dumper $component;
+	# print 'outside: ', scalar @$component, "\n", Data::Dumper::Dumper $component;
 	foreach my $component (@$components){
-		#print "inside: -n", Data::Dumper::Dumper $component->[$i];
+		# print "inside: -n", Data::Dumper::Dumper $component->[$i];
 		$$j = scalar @$rows if $b_admin;
 		my $id;
 		if ($component->[0] =~ /^(bcache|dm-|md)[0-9]/){
@@ -12828,7 +12832,7 @@ sub general_data {
 			elsif ($row->{'type'} eq 'crypt'){
 				$type = 'Crypt';
 			}
-			#my $name = ($use{'filter-uuid'}) ? "luks-$filter_string" : $row->{'name'};
+			# my $name = ($use{'filter-uuid'}) ? "luks-$filter_string" : $row->{'name'};
 			component_data($row->{'maj-min'},\@full_components);
 			# print "$row->{'name'}\n", Data::Dumper::Dumper \@full_components;
 			push(@general_data, {
@@ -12860,8 +12864,8 @@ sub lvm_data {
 	PartitionData::set('proc') if !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	if ($fake{'logical'}){
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
-		#@data = main::reader($file,'strip');
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
+		# @data = main::reader($file,'strip');
 	}
 	else {
 		# lv_full_name: ar0-home; lv_dm_path: /dev/mapper/ar0-home
@@ -13163,7 +13167,7 @@ sub machine_soc_output {
 	my ($soc_machine) = @_;
 	my ($key,@rows);
 	my ($cont_sys,$ind_sys,$j,$num) = (1,1,0,0);
-	#print Data::Dumper::Dumper \%soc_machine;
+	# print Data::Dumper::Dumper \%soc_machine;
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
 	if ($soc_machine->{'device'} || $soc_machine->{'model'}){
@@ -13264,7 +13268,7 @@ sub machine_data_soc {
 	eval $end if $b_log;
 	my (%data,@temp);
 	if (my $file = $system_files{'proc-cpuinfo'}){
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
 		my @data = main::reader($file);
 		foreach (@data){
 			if (/^(Hardware|machine)\s*:/i){
@@ -13741,8 +13745,8 @@ sub device_output {
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'network'}}){
 		$num = 1;
-		#print "$row->[0] $row->[3]\n"; 
-		#print "$row->[0] $row->[3]\n";
+		# print "$row->[0] $row->[3]\n"; 
+		# print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
 		my $driver = $row->[9];
 		my $chip_id = "$row->[5]:$row->[6]";
@@ -13807,7 +13811,7 @@ sub device_output {
 			}
 			push(@rows,@data) if @data;
 		}
-		#print "$row->[0]\n";
+		# print "$row->[0]\n";
 	}
 	# @rows = ();
 	# we want to handle ARM errors in main get
@@ -13903,7 +13907,7 @@ sub advanced_data_sys {
 		$key = 'IF-ID';
 		($cont_if,$ind_if) = (1,2);
 	}
-	#print join('; ', @paths),  $count, "\n";
+	# print join('; ', @paths),  $count, "\n";
 	foreach (@paths){
 		my ($data1,$data2,$duplex,$mac,$speed,$state);
 		# for usb, we already know where we are
@@ -13947,12 +13951,12 @@ sub advanced_data_sys {
 			$path = "$_/operstate";
 			$state = main::reader($path,'',0) if -r $path;
 			$state ||= 'N/A';
-			#print "$speed \n";
+			# print "$speed \n";
 			@row = ({
 			main::key($num++,1,$cont_if,$key) => $if,
 			main::key($num++,0,$ind_if,'state') => $state,
 			},);
-			#my $j = scalar @row - 1;
+			# my $j = scalar @row - 1;
 			push(@ifs_found, $if) if (!$b_check && (! grep {/$if/} @ifs_found));
 			# print "push: if: $if ifs: @ifs_found\n";
 			# no print out for wifi since it doesn't have duplex/speed data available
@@ -14020,7 +14024,7 @@ sub advanced_data_bsd {
 				$speed ||= 'N/A';
 				$state = $data[0];
 				$state ||= 'N/A';
-				#print "$speed \n";
+				# print "$speed \n";
 				@row = ({
 				main::key($num++,1,$cont_if,$key) => $if,
 				main::key($num++,0,$ind_if,'state') => $state,
@@ -14086,7 +14090,7 @@ sub if_ip {
 					},);
 					last OUTER;
 				}
-				#print "$data2->[0] $data2->[1]\n";
+				# print "$data2->[0] $data2->[1]\n";
 				my ($ipv,$ip,$broadcast,$scope,$scope_id);
 				$ipv = ($data2->[0])? $data2->[0]: 'N/A';
 				$ip = main::apply_filter($data2->[1]);
@@ -14354,7 +14358,7 @@ sub drive_output {
 			}
 		}
 	}
-	#print Data::Dumper::Dumper \%drives;
+	# print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
 	return @rows;
 }
@@ -14380,7 +14384,7 @@ sub drive_data_bsd {
 			$drives{$working}->{'temp'} = '';
 			$drives{$working}->{'type'} = ($working =~ /^cd/) ? 'optical' : 'unknown';
 		}
-		#print "$_\n";
+		# print "$_\n";
 		if ($bsd_type !~ /^(net|open)bsd$/){
 			if ($row[1] && $row[1] =~ /^<([^>]+)>/){
 				$drives{$working}->{'model'} = $1;
@@ -14425,7 +14429,7 @@ sub drive_data_bsd {
 			if ($row[2] && $row[2] =~ /<([^>]+)>/){
 				$drives{$working}->{'model'} = $1;
 				$count = ($drives{$working}->{'model'} =~ tr/,//);
-				#print "c: $count $row[2]\n";
+				# print "c: $count $row[2]\n";
 				if ($count && $count > 1){
 					@temp = split(/,\s*/, $drives{$working}->{'model'});
 					$drives{$working}->{'vendor'} = $temp[0];
@@ -14447,7 +14451,7 @@ sub drive_data_bsd {
 				}
 			}
 			if ($show{'optical'}){
-				#print "$row[1]\n";
+				# print "$row[1]\n";
 				if (($row[1] =~ tr/,//) > 1){
 					@temp = split(/,\s*/, $row[1]);
 					$drives{$working}->{'speed'} = $temp[2];
@@ -14458,7 +14462,7 @@ sub drive_data_bsd {
 	}
 	
 	main::log_data('dump','%drives',\%drives) if $b_log;
-	#print Data::Dumper::Dumper \%drives;
+	# print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
 	return %drives;
 }
@@ -14484,12 +14488,12 @@ sub drive_data_linux {
  		else {
  			push(@{$drives{$working}->{'links'}}, $_) if $_ ne $working;
  		}
-		#print "$working\n";
+		# print "$working\n";
 	}
 	if ($show{'optical'} && -e '/proc/sys/dev/cdrom/info'){
 		@info = main::reader('/proc/sys/dev/cdrom/info','strip');
 	}
-	#print join('; ', @data), "\n";
+	# print join('; ', @data), "\n";
 	foreach my $key (keys %drives){
 		next if $drives{$key}->{'type'} eq 'floppy';
 		my $device = "/sys/block/$key/device";
@@ -14550,7 +14554,7 @@ sub drive_data_linux {
 		}
 	}
 	main::log_data('dump','%drives',\%drives) if $b_log;
-	#print Data::Dumper::Dumper \%drives;
+	# print Data::Dumper::Dumper \%drives;
 	eval $end if $b_log;
 	return %drives;
 }
@@ -14722,8 +14726,8 @@ sub set_partitions {
 	}
 	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
 	my $filters = partition_filters();
-	#push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
-	#push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
+	# push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
+	# push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
 	foreach (@partitions_working){
 		# apple crap, maybe also freebsd?
 		$_ =~ s/^map\s+([\S]+)/map:\/$1/ if $b_fake_map;
@@ -14735,9 +14739,9 @@ sub set_partitions {
 			if ($test =~ /\s/){
 				$b_space = 1;
 				$replace =~ s/\s/^^/g;
-				#print ":$replace:\n";
+				# print ":$replace:\n";
 				$_ =~ s/^$test/$replace/;
-				#print "$_\n";
+				# print "$_\n";
 			}
 		}
 		my @row = split(/\s+/, $_);
@@ -15049,7 +15053,7 @@ sub check_partition_data {
 		 ($row->{'type'} =~ /^(disk|loop|rom)$/)){
 			next;
 		}
-		#print "$row->{'name'} $row->{'mount'}\n";
+		# print "$row->{'name'} $row->{'mount'}\n";
 		foreach my $row2 (@partitions){
 			# print "n:$row->{'name'} m:$row->{'mount'} db:$row2->{'dev-base'} id:$row2->{'id'}\n";
 			next if !$row2->{'id'};
@@ -15062,7 +15066,7 @@ sub check_partition_data {
 				}
 				last;
 			}
-			#print "m:$row->{'mount'} id:$row2->{'id'}\n";
+			# print "m:$row->{'mount'} id:$row2->{'id'}\n";
 		}
 		if (!$b_found){
 			# print "found: n:$row->{'name'} m:$row->{'mount'}\n";
@@ -15287,8 +15291,8 @@ sub cpu_processes {
 	$j = scalar @rows;
 	# $cpu_mem = ' - Memory: MiB / % used' if $extra > 0;
 	my $throttled = throttled($ps_count,$count,$j);
-	#my $header = "CPU  % used - Command - pid$cpu_mem - top";
-	#my $header = "Top $count by CPU";
+	# my $header = "CPU  % used - Command - pid$cpu_mem - top";
+	# my $header = "Top $count by CPU";
 	my @data = ({
 	main::key($num++,1,1,'CPU top') => "$count$throttled" . ' of ' . scalar @ps_aux,
 	},);
@@ -15317,7 +15321,7 @@ sub cpu_processes {
 			$mem .= ' (' . $row[3] . '%)';
 			$processes[$j]->{main::key($num++,0,3,'mem')} = $mem;
 		}
-		#print Data::Dumper::Dumper \@processes, "i: $i; j: $j ";
+		# print Data::Dumper::Dumper \@processes, "i: $i; j: $j ";
 	}
 	eval $end if $b_log;
 	return @processes;
@@ -15340,13 +15344,13 @@ sub mem_processes {
 		$pid_col = 0 if $ps_cols == 2;
 	}
 	@rows = splice(@rows,0,$count);
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	@processes = main::MemoryData::full('process') if !$loaded{'memory'};
 	$j = scalar @rows;
 	my $throttled = throttled($ps_count,$count,$j);
 	#$cpu_mem = ' - CPU: % used' if $extra > 0;
-	#my $header = "Memory MiB/% used - Command - pid$cpu_mem - top";
-	#my $header = "Top $count by Memory";
+	# my $header = "Memory MiB/% used - Command - pid$cpu_mem - top";
+	# my $header = "Top $count by Memory";
 	@data = ({
 	main::key($num++,1,1,'Memory top') => "$count$throttled" . ' of ' . scalar @ps_aux,
 	},);
@@ -15380,7 +15384,7 @@ sub mem_processes {
 			$cpu = $row[2] . '%';
 			$processes[$j]->{main::key($num++,0,3,'cpu')} = $cpu;
 		}
-		#print Data::Dumper::Dumper \@processes, "i: $i; j: $j ";
+		# print Data::Dumper::Dumper \@processes, "i: $i; j: $j ";
 	}
 	eval $end if $b_log;
 	return @processes;
@@ -15425,9 +15429,9 @@ sub get {
 	my $num = 0;
 	@hardware_raid = hw_data() if $use{'hardware-raid'} || $fake{'raid-hw'};
 	raid_data() if !$loaded{'raid'};
-	#print 'get: ', Data::Dumper::Dumper \@lvm_raid;
-	#print 'get: ', Data::Dumper::Dumper \@md_raid;
-	#print 'get: ', Data::Dumper::Dumper \@zfs_raid;
+	# print 'get: ', Data::Dumper::Dumper \@lvm_raid;
+	# print 'get: ', Data::Dumper::Dumper \@md_raid;
+	# print 'get: ', Data::Dumper::Dumper \@zfs_raid;
 	if (!@lvm_raid && !@md_raid && !@zfs_raid && !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
@@ -15490,7 +15494,7 @@ sub hw_output {
 		}
 	}
 	eval $end if $b_log;
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
 sub lvm_output {
@@ -15553,7 +15557,7 @@ sub lvm_output {
 		components_output('lvm','Meta',\@rows,\@components_meta,\$j,\$num,\$b_bump);
 	}
 	eval $end if $b_log;
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
 sub md_output {
@@ -15561,7 +15565,7 @@ sub md_output {
 	my (@components,@components_good,@failed,@inactive,@rows,@spare,@temp);
 	my ($blocks,$chunk,$level,$report,$size,$status);
 	my ($j,$num) = (0,0);
-	#print Data::Dumper::Dumper \@md_raid;
+	# print Data::Dumper::Dumper \@md_raid;
 	if ($extra > 2 && $md_raid[0]->{'supported-levels'}){
 		push(@rows, {
 		main::key($num++,0,1,'Supported mdraid levels') => $md_raid[0]->{'supported-levels'},
@@ -15595,7 +15599,7 @@ sub md_output {
 		$report .= " $row->{'u-data'}" if $report; 
 		$report ||= 'N/A';
 		if ($extra == 0){
-			#print "here 0\n";
+			# print "here 0\n";
 			$rows[$j]->{main::key($num++,0,2,'report')} = $report;
 		}
 		if ($extra > 0){
@@ -15669,7 +15673,7 @@ sub md_output {
 		}
 	}
 	eval $end if $b_log;
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
 
@@ -15679,7 +15683,7 @@ sub zfs_output {
 	my ($allocated,$available,$level,$size,$status);
 	my ($b_row_1_sizes);
 	my ($j,$num) = (0,0);
-	#print Data::Dumper::Dumper \@zfs_raid;
+	# print Data::Dumper::Dumper \@zfs_raid;
 	foreach my $row (sort {$a->{'id'} cmp $b->{'id'}} @zfs_raid){
 		$j = scalar @rows;
 		$b_row_1_sizes = 0;
@@ -15707,7 +15711,7 @@ sub zfs_output {
 			$rows[$j]->{main::key($num++,0,2,'level')} = $arrays[0]->{'level'};
 		}
 		if ($size){
-			#print "here 0\n";
+			# print "here 0\n";
 			$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 			$size = '';
 			$b_row_1_sizes = 1;
@@ -15738,7 +15742,7 @@ sub zfs_output {
 			}
 			# items like cache may have one component, with a size on that component
 			elsif (!$b_row_1_sizes){
-				#print "here $count\n";
+				# print "here $count\n";
 				$size = ($row2->{'size'}) ? main::get_size($row2->{'size'},'string') : 'N/A';
 				$available = ($row2->{'free'}) ? main::get_size($row2->{'free'},'string') : 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'size')} = $size;
@@ -15777,7 +15781,7 @@ sub zfs_output {
 		}
 	}
 	eval $end if $b_log;
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	return @rows;
 }
 
@@ -15802,16 +15806,16 @@ sub components_output {
 		($f1,$f2,$f3,$l1,$l2,$l3) = (1,2,3,4,5,6);
 		$k = 1;
 	}
-	#print "item: $item\n";
+	# print "item: $item\n";
 	$$j_ref++ if $$b_bump_ref;
 	$$b_bump_ref = 0;
 	my $good = ($item eq 'Online' && !@$array_ref ) ? 'N/A' : '';
 	$$rows_ref[$$j_ref]->{main::key($$num_ref++,1,$l1,$item)} = $good;
 	#$$j_ref++ if $b_admin; 
-	#print Data::Dumper::Dumper $array_ref;
+	# print Data::Dumper::Dumper $array_ref;
 	foreach my $device (@$array_ref){
 		next if ref $device ne 'ARRAY';
-		#if ($b_admin && $device->[$f1] && $device->[$f2]){
+		# if ($b_admin && $device->[$f1] && $device->[$f2]){
 		if ($b_admin){
 			$$j_ref++;
 			$$b_bump_ref = 1;
@@ -15908,7 +15912,7 @@ sub lvm_data {
 	foreach my $item (@lvm){
 		next if $item->{'segtype'} && $item->{'segtype'} !~ /^raid/;
 		my (@components,$dev,$maj_min,$vg_used);
-		#print Data::Dumper::Dumper $item;
+		# print Data::Dumper::Dumper $item;
 		if ($item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'}){
 			$maj_min = $item->{'lv_kernel_major'} . ':' . $item->{'lv_kernel_minor'};
 		}
@@ -15974,7 +15978,7 @@ sub md_data {
 		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-active-spare-syntax.txt";
 	}
 	my @working = main::reader($mdstat,'strip');
-	#print Data::Dumper::Dumper \@working;
+	# print Data::Dumper::Dumper \@working;
 	my (@mdraid,@temp,$b_found,$system,$unused);
 	# NOTE: a system with empty mdstat will not show these values
 	if ($working[0] && $working[0] =~ /^Personalities/){
@@ -16061,7 +16065,7 @@ sub md_data {
 				$state = $info if !$state && $info;
 				push(@components,[$name,$number,$info,$part_size,$maj_min,$state,$mapped]);
 			}
-			#print "$component_string\n";
+			# print "$component_string\n";
 			$j = scalar @mdraid;
 			push(@mdraid, {
 			'chunk-size' => $details{'chunk-size'}, # if we got it, great, if not, further down
@@ -16075,7 +16079,7 @@ sub md_data {
 			'type' => 'mdraid',
 			});
 		}
-		#print "$_\n";
+		# print "$_\n";
 		if ($_ =~ /^([0-9]+)\sblocks/){
 			$mdraid[$j]->{'blocks'} = $1;
 		}
@@ -16104,13 +16108,13 @@ sub md_data {
 			$mdraid[$j]->{'recovery-finish'} = $1;
 			$mdraid[$j]->{'recovery-speed'} = $2;
 		}
-		#print 'mdraid loop: ', Data::Dumper::Dumper \@mdraid;
+		# print 'mdraid loop: ', Data::Dumper::Dumper \@mdraid;
 	}
 	if (@mdraid){
 		$mdraid[0]->{'supported-levels'} = $system if $system;
 		$mdraid[0]->{'unused'} = $unused if $unused;
 	}
-	#print Data::Dumper::Dumper \@mdraid;
+	# print Data::Dumper::Dumper \@mdraid;
 	eval $end if $b_log;
 	return @mdraid;
 }
@@ -16173,7 +16177,7 @@ sub md_details {
 			};
 		}
 	}
-	#print Data::Dumper::Dumper \%details;
+	# print Data::Dumper::Dumper \%details;
 	main::log_data('dump',"$id: %details",\%details) if $b_log;
 	eval $end if $b_log;
 	return %details;
@@ -16187,11 +16191,11 @@ sub zfs_data {
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
 	if ($fake{'raid-zfs'}){
-		#my $file;
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-1-mirror-main-solestar.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-gojev-1.txt";
+		# my $file;
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-1-mirror-main-solestar.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-gojev-1.txt";
 		#@working = main::reader($file);$zpool = '';
 	}
 	else {
@@ -16203,7 +16207,7 @@ sub zfs_data {
 		@working = main::grabber("$zpool list 2>/dev/null");
 		$b_v = 0;
 	}
-	#print Data::Dumper::Dumper \@working;
+	# print Data::Dumper::Dumper \@working;
 	main::log_data('dump','@working',\@working) if $b_log;
 	if (!@working){
 		main::log_data('data','no zpool list data') if $b_log;
@@ -16240,7 +16244,7 @@ sub zfs_data {
 			'type' => 'zfs',
 			});
 		}
-		#print Data::Dumper::Dumper \@zfs;
+		# print Data::Dumper::Dumper \@zfs;
 		# raid level is the second item in the output, unless it is not, sometimes it is absent
 		if ($row[1] =~ /raid|mirror/){
 			$row[1] =~ s/^raid1/mirror/;
@@ -16337,9 +16341,9 @@ sub zfs_status {
 		$k = 0;
 		if ($fake{'raid-zfs'}){
 			my $file;
-			#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-1-mirror-main-solestar.txt";
-			#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
-			#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-tank-1.txt";
+			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-1-mirror-main-solestar.txt";
+			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
+			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-tank-1.txt";
 			#@pool_status = main::reader($file,'strip');
 		}
 		else {
@@ -16348,14 +16352,14 @@ sub zfs_status {
 		}
 		main::log_data('cmd',$cmd) if $b_log;
 		#@arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
-		#print "$row->{'id'} rs:$row->{'status'}\n";
+		# print "$row->{'id'} rs:$row->{'status'}\n";
 		$status = ($row->{'status'} && $row->{'status'} eq 'no-status') ? check_zfs_status($row->{'id'},\@pool_status): $row->{'status'};
 		$zfs->[$j]{'status'} = $status if $status;
 		#@arrays = grep {defined $_} @arrays;
-		#print "$row->{id} $#arrays\n";
-		#print Data::Dumper::Dumper \@arrays;
+		# print "$row->{id} $#arrays\n";
+		# print Data::Dumper::Dumper \@arrays;
 		foreach my $array (@{$row->{'arrays'}}){
-			#print 'ref: ', ref $array, "\n";
+			# print 'ref: ', ref $array, "\n";
 			#next if ref $array ne 'HASH';
 			my @components = (ref $array->{'components'} eq 'ARRAY') ? @{$array->{'components'}} : ();
 			$l = 0;
@@ -16363,7 +16367,7 @@ sub zfs_status {
 			$level = ($array->{'level'}) ? "$array->{'level'}-$i": $array->{'level'};
 			$status = ($level) ? check_zfs_status($level,\@pool_status): '';
 			$zfs->[$j]{'arrays'}[$k]{'status'} = $status;
-			#print "$level i:$i j:$j k:$k $status\n";
+			# print "$level i:$i j:$j k:$k $status\n";
 			foreach my $component (@components){
 				my @temp = split('~', $component);
 				$status = ($temp[0]) ? check_zfs_status($temp[0],\@pool_status): '';
@@ -16566,7 +16570,7 @@ sub dmidecode_data {
 	my ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
 	my ($i,$j,$k) = (0,0,0);
 	my $check = main::row_defaults('note-check');
-	#print Data::Dumper::Dumper \@dmi;
+	# print Data::Dumper::Dumper \@dmi;
 	foreach my $entry (@dmi){
 		## NOTE: do NOT reset these values, that causes failures
 		# ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
@@ -16595,7 +16599,7 @@ sub dmidecode_data {
 				}
 			}
 			$ram[$k]->{'modules'} = [];
-			#print Data::Dumper::Dumper \@ram;
+			# print Data::Dumper::Dumper \@ram;
 			$b_5 = 1;
 		}
 		elsif ($entry->[0] == 6){
@@ -16647,7 +16651,7 @@ sub dmidecode_data {
 			'speed' => $speed,
 			'type' => $type,
 			};
-			#print Data::Dumper::Dumper \@ram;
+			# print Data::Dumper::Dumper \@ram;
 			$j++;
 		}
 		elsif ($entry->[0] == 16){
@@ -16679,12 +16683,12 @@ sub dmidecode_data {
 				elsif ($temp[0] eq 'Number Of Devices'){
 					$ram[$handle]->{'slots-16'} = $temp[1];
 				}
-				#print "0: $temp[0]\n";
+				# print "0: $temp[0]\n";
 			}
 			$ram[$handle]->{'derived-module-size'} = 0;
 			$ram[$handle]->{'device-count-found'} = 0;
 			$ram[$handle]->{'used-capacity'} = 0;
-			#print "s16: $ram[$handle]->{'slots-16'}\n";
+			# print "s16: $ram[$handle]->{'slots-16'}\n";
 		}
 		elsif ($entry->[0] == 17){
 			my ($bank_locator,$configured_speed,$configured_note,
@@ -17008,11 +17012,11 @@ sub process_speed {
 sub process_size {
 	my ($size) = @_;
 	my ($b_trim,$unit) = (0,'');
-	#print "size0: $size\n";
+	# print "size0: $size\n";
 	return 'N/A' if !$size;
 	#return $size if $size =~ /\D/;
 	return $size if !main::is_numeric($size);
-	#print "size: $size\n";
+	# print "size: $size\n";
 	# we only want a max 2 decimal places, and only when it's 
 	# a unit > 1 GiB
 	$b_trim = 1 if $size > 1024;
@@ -17034,16 +17038,16 @@ sub calculate_size {
 		my $working_size = main::translate_size($working);
 		# but we want it back in MiB for RAM, that should get fixed
 		$working_size = $working_size/1024 if $working_size;
-		#print "ws-a: $working_size s-1: $size\n";
+		# print "ws-a: $working_size s-1: $size\n";
 		if (main::is_numeric($working_size) && $working_size > $size ) {
 			$size = $working_size;
 		}
-		#print "ws-b: $working_size s-2: $size\n";
+		# print "ws-b: $working_size s-2: $size\n";
 	}
 	else {
 		$size = 0;
 	}
-	#print "d-2: $data s-3: $size\n";
+	# print "d-2: $data s-3: $size\n";
 	return $size;
 }
 sub set_vendors {
@@ -17205,13 +17209,13 @@ sub get_repos_linux {
 			# critical: whitespace is the separator, no logical ordering of 
 			# field names exists within each entry.
 			@data2 = main::reader($file);
-			#print Data::Dumper::Dumper \@data2;
+			# print Data::Dumper::Dumper \@data2;
 			if (@data2){
 				@data2 = map {s/^\s*$/~/;$_} @data2;
 				push(@data2, '~');
 			}
 			push(@dbg_files, $file) if $debugger_dir;
-			#print "$file\n";
+			# print "$file\n";
 			@apt_urls = ();
 			@apt_working = ();
 			$b_apt_enabled = 1;
@@ -17222,20 +17226,20 @@ sub get_repos_linux {
 				next if $row =~ /^\s+/ && $row !~ /^\s+[^#]+:\//; 
 				# strip out line space starters now that it's safe 
 				$row =~ s/^\s+//;
-				#print "$row\n";
+				# print "$row\n";
 				if ($row eq '~'){
 					if (@apt_working && $b_apt_enabled){
-						#print "1: url builder\n";
+						# print "1: url builder\n";
 						foreach $repo (@apt_working){
 							$string = $apt_types;
 							$string .= ' [arch=' . $apt_arch . ']' if $apt_arch;
 							$string .= ' ' . $repo;
 							$string .= ' ' . $apt_suites if $apt_suites ;
 							$string .= ' ' . $apt_comp if $apt_comp;
-							#print "s1:$string\n";
+							# print "s1:$string\n";
 							push(@data3, $string);
 						}
-						#print join("\n",@data3),"\n";
+						# print join("\n",@data3),"\n";
 						push(@apt_urls,@data3);
 					}
 					@data3 = ();
@@ -17246,9 +17250,9 @@ sub get_repos_linux {
 					$apt_types = '';
 					$b_apt_enabled = 1;
 				}
-				#print "row:$row\n";
+				# print "row:$row\n";
 				elsif ($row =~ /^Types:\s*(.*)/i){
-					#print "ath:$type_holder\n";
+					# print "ath:$type_holder\n";
 					$apt_types = $1;
 				}
 				elsif ($row =~ /^Enabled:\s*(.*)/i){
@@ -17391,7 +17395,7 @@ sub get_repos_linux {
 			$repo = 'zypp';
 		}
  		#$repo = 'yum';
- 		#push(@files, "$ENV{'HOME'}/bin/scripts/inxi/data/repo/yum/rpmfusion-nonfree-1.repo");
+ 		# push(@files, "$ENV{'HOME'}/bin/scripts/inxi/data/repo/yum/rpmfusion-nonfree-1.repo");
 		if (@files){
 			foreach (sort @files){
 				@data2 = main::reader($_);
@@ -17606,8 +17610,8 @@ sub get_repos_linux {
 		#$path = 'eopkg';
 		my $which = ($path =~ /pisi$/) ? 'pisi': 'eopkg';
 		my $cmd = ($which eq 'pisi') ? "$path list-repo": "$path lr";
-		#my $file = "$ENV{HOME}/bin/scripts/inxi/data/repo/solus/eopkg-2.txt";
-		#@data2 = main::reader($file,'strip');
+		# my $file = "$ENV{HOME}/bin/scripts/inxi/data/repo/solus/eopkg-2.txt";
+		# @data2 = main::reader($file,'strip');
 		@data2 = main::grabber("$cmd 2>/dev/null","\n",'strip');
 		main::writer("$debugger_dir/system-repo-data-$which.txt",\@data2) if $debugger_dir;
 		# now we need to create the structure: repo info: repo path
@@ -17725,7 +17729,7 @@ sub get_repos_bsd {
 								$url = "$data2[1]:$data2[2]";
 								$url =~ s/"|,//g;
 							}
-							#print "url:$url\n" if $url;
+							# print "url:$url\n" if $url;
 							if ($data2[0] eq 'enabled'){
 								if ($url && $data2[1] =~ /^(1|true|yes)$/i){
 									push(@data3, "$url");
@@ -17943,7 +17947,7 @@ sub get {
 			if (!@data) {
 				$key1 = 'Message';
 				$val1 = main::row_defaults('sensors-data-ipmi');
-				#$val1 = main::row_defaults('dev');
+				# $val1 = main::row_defaults('dev');
 				@data = ({main::key($num++,0,1,$key1) => $val1,});
 			}
 			push(@rows,@data);
@@ -17968,7 +17972,7 @@ sub get {
 	}
 	else {
 		if (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
-			#print "here 1\n";
+			# print "here 1\n";
 			if ($bsd_type && $bsd_type =~ /^(free|open)bsd/){
 				$key1 = 'Message';
 				$val1 = main::row_defaults('sensors-data-bsd-ok');
@@ -17984,7 +17988,7 @@ sub get {
 		else {
 			%sensors = lm_sensors_data();
 			@data = sensors_output($source,\%sensors);
-			#print "here 2\n";
+			# print "here 2\n";
 			if (!@data) {
 				$key1 = 'Message';
 				$val1 = main::row_defaults('sensors-data-linux');
@@ -18159,15 +18163,15 @@ sub ipmi_data {
 	$temp_working,$working_unit);
 	my ($b_ipmitool,$i_key,$i_value,$i_unit);
 	if ($fake{'ipmi'}){
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-arm-server-1.txt";
-		#@data = main::reader($file);
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-arm-server-1.txt";
+		# @data = main::reader($file);
 		#($b_ipmitool,$i_key,$i_value,$i_unit) = (0,1,3,4); # ipmi-sensors
 		#($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2); # ipmitool sensors
 	}
@@ -18190,7 +18194,7 @@ sub ipmi_data {
 		next if /^\s*$/;
 		# print "$_\n";
 		@row = split(/\s*\|\s*/, $_);
-		#print "$row[$i_value]\n";
+		# print "$row[$i_value]\n";
 		next if !main::is_numeric($row[$i_value]);
 		# print "$row[$i_key] - $row[$i_value]\n";
 		if (!$sensors{'mobo-temp'} && $row[$i_key] =~ /^(MB_TEMP[0-9]|System[\s_]Temp|System[\s_]?Board([\s_]Temp)?)$/i){
@@ -18341,7 +18345,7 @@ sub lm_sensors_data {
 		foreach (@{$sensors_raw{'main'}->{$adapter}}){
 			my @working = split(':', $_);
 			next if !$working[0];
-			#print "$working[0]:$working[1]\n";
+			# print "$working[0]:$working[1]\n";
 			# There are some guesses here, but with more sensors samples it will get closer.
 			# note: using arrays starting at 1 for all fan arrays to make it easier overall
 			# we have to be sure we are working with the actual real string before assigning
@@ -18507,13 +18511,13 @@ sub process_lm_sensors {
 	my (@data,@sensors_data,@values);
 	my ($adapter,$holder,$type) = ('','','');
 	if ($fake{'sensors'}){
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
@@ -18528,9 +18532,9 @@ sub process_lm_sensors {
 		@sensors_data = map {$_ =~ s/\s*:\s*\+?/:/;$_} @sensors_data;
 		push(@sensors_data, 'END');
 	}
-	#print Data::Dumper::Dumper \@sensors_data;
+	# print Data::Dumper::Dumper \@sensors_data;
 	foreach (@sensors_data){
-		#print 'st:', $_, "\n";
+		# print 'st:', $_, "\n";
 		next if /^\s*$/;
 		$_ = main::trimmer($_);
 		if (@values && $adapter && (/^Adapter/ || $_ eq 'END')){
@@ -18738,9 +18742,9 @@ sub process_data {
 		}
 		if ($cpu_temp) {
 			# using $sensors{'temp3'} is just not reliable enough, more errors caused than fixed imo
-			#if ( $sensors{'temp3'} && $sensors{'temp3'} > $cpu_temp ) {
+			# if ( $sensors{'temp3'} && $sensors{'temp3'} > $cpu_temp ) {
 			#	$cpu_temp = $sensors{'temp3'};
-			#}
+			# }
 			# there are some absurdly wrong $sensors{'temp1'}: acpitz-virtual-0 $sensors{'temp1'}: +13.8°C
 			if ($sensors{'core-0-temp'} && ($sensors{'core-0-temp'} - $cpu_temp) > $temp_diff) {
 				$cpu_temp = $sensors{'core-0-temp'};
@@ -18781,9 +18785,9 @@ sub process_data {
 			}
 		}
 		## NOTE: not safe to assume $sensors{'temp3'} is the mobo temp, sad to say
-		#if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp3'} && $sensors{'temp3'} < $mobo_temp ) {
+		# if ( $sensors{'temp1'} && $sensors{'temp2'} && $sensors{'temp3'} && $sensors{'temp3'} < $mobo_temp ) {
 		#	$mobo_temp = $sensors{'temp3'};
-		#}
+		# }
 	}
 	else {
 		$mobo_temp = $sensors{'temp2'};
@@ -18984,7 +18988,7 @@ sub gpu_data {
 		}
 	}
 	if ($sensors_raw{'gpu'}){
-		#my ($b_found,$holder) = (0,'');
+		# my ($b_found,$holder) = (0,'');
 		foreach my $adapter (keys %{$sensors_raw{'gpu'}}){
 			$j = scalar @gpudata;
 			$gpudata[$j]->{'type'} = $adapter;
@@ -19320,7 +19324,7 @@ sub proc_data {
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
 	RaidItem::raid_data() if !$loaded{'raid'};
 	my @mounted = get_mounted();
-	#print join("\n",(@filters,@mounted)),"\n";
+	# print join("\n",(@filters,@mounted)),"\n";
 	foreach my $row (@proc_partitions){
 		($dev_mapped,$fs,$label,$maj_min,$uuid,$size) = ('','','','','','');
 		# note that size 1 means it is a logical extended partition container
@@ -19332,7 +19336,7 @@ sub proc_data {
 		# the unmounted report because sdb was found in sdb1, but match of eg sdb1 and sdb12
 		# makes this a problem, so usinig zfs_member test instead to filter out zfs members.
 		# in arm/android seen /dev/block/mmcblk0p12
-		#print "mount: $row->[-1]\n";
+		# print "mount: $row->[-1]\n";
 		if ( $row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
 		     $row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
 		     $row->[-1] !~ /\bloop/ && 
@@ -19546,7 +19550,7 @@ sub usb_output {
 		if ($id->[4] eq '09'){
 			$ports = $id->[10] if $id->[10];
 			$ports ||= 'N/A';
-			#print "pt0:$protocol\n";
+			# print "pt0:$protocol\n";
 			push(@rows, {
 			main::key($num++,1,1,'Hub') => $bus_id,
 			main::key($num++,0,2,'info') => $product,
@@ -19562,7 +19566,7 @@ sub usb_output {
 			$driver = $id->[15] if $id->[15];
 			$type ||= 'N/A';
 			$driver ||= 'N/A';
-			#print "pt3:$class:$product\n";
+			# print "pt3:$class:$product\n";
 			$rows[$j]->{main::key($num++,1,2,'Device')} = $bus_id;
 			$rows[$j]->{main::key($num++,0,3,'info')} = $product;
 			$rows[$j]->{main::key($num++,0,3,'type')} = $type;
@@ -19599,7 +19603,7 @@ sub usb_output {
 			}
 		}
 	}
-	#print Data::Dumper::Dumper \@rows;
+	# print Data::Dumper::Dumper \@rows;
 	eval $end if $b_log;
 	return @rows;
 }
@@ -19871,12 +19875,12 @@ sub get_weather {
 	if (-r $file_cached){
 		@weather_data = main::reader($file_cached);
 		$freshness = (split(/\^\^/, $weather_data[0]))[1];
-		#print "$now:$freshness\n";
+		# print "$now:$freshness\n";
 	}
 	if (!$freshness || $freshness < ($now - 60) ) {
 		@weather_data = download_weather($now,$file_cached,$location);
 	}
-	#print join("\n", @weather_data), "\n";
+	# print join("\n", @weather_data), "\n";
 	# NOTE: because temps can be 0, we can't do if value tests
 	foreach (@weather_data){
 		my @working = split(/\s*\^\^\s*/, $_);
@@ -20115,7 +20119,7 @@ sub download_weather {
 	$url = "https://smxi.org/opt/xr2.php?loc=$location->[0]&src=$weather_source";
 	$ua = 'weather';
 # 		{
-# 			#my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+# 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
 # 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
 # 			local $/;
 # 			my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
@@ -20126,7 +20130,7 @@ sub download_weather {
 	@weather = split('\n', $temp) if $temp;
 	unshift(@weather, "timestamp^^$now");
 	main::writer($file_cached,\@weather);
-	#print "$file_cached: download/cleaned\n";
+	# print "$file_cached: download/cleaned\n";
 	eval $end if $b_log;
 	return @weather;
 }
@@ -20135,7 +20139,7 @@ sub download_weather {
 sub test_locale_date {
 	my ($date_time,$location,$epoch) = @_;
 	# $date_time .= 'дек';
-	#print "1: $date_time\n";
+	# print "1: $date_time\n";
 	if ($date_time =~ m/[^\x00-\x7f]/){
 		if (!$location && $epoch){
 			$date_time = POSIX::strftime "%Y-%m-%d %H:%M:%S", localtime($epoch);
@@ -20145,7 +20149,7 @@ sub test_locale_date {
 		}
 	}
 	$date_time =~ s/\s+$//;
-	#print "2: $date_time\n";
+	# print "2: $date_time\n";
 	return $date_time;
 }
 sub get_location {
@@ -20178,11 +20182,11 @@ sub get_location {
 		@loc_data = split('\n', $loc_data[0]);
 		unshift(@loc_data, "timestamp^^$now");
 		main::writer($file_cached,\@loc_data);
-		#print "$file_cached: download/cleaned\n";
+		# print "$file_cached: download/cleaned\n";
 	}
 	foreach (@loc_data){
 		my @working = split(/\s*\^\^\s*/, $_);
-		#print "$working[0]:$working[1]\n";
+		# print "$working[0]:$working[1]\n";
 		if ($working[0] eq 'CountryCode3' ) {
 			$loc{'country3'} = $working[1];
 		}
@@ -20214,7 +20218,7 @@ sub get_location {
 			$loc{'tz'} = $working[1];
 		}
 	}
-	#print Data::Dumper::Dumper \%loc;
+	# print Data::Dumper::Dumper \%loc;
 	# assign location, cascade from most accurate
 	# latitude,longitude first
 	if ($loc{'lat'} && $loc{'long'}){
@@ -20233,7 +20237,7 @@ sub get_location {
 	$state = ($loc{'region-id'}) ? $loc{'region-id'} : 'Region N/A';
 	$loc_string = main::apply_filter("$city, $state, $country");
 	my @location = ($loc_arg,$loc_string,$loc{'tz'});
-	#print ($loc_arg,"\n", join("\n", @loc_data), "\n",scalar @loc_data, "\n");
+	# print ($loc_arg,"\n", join("\n", @loc_data), "\n",scalar @loc_data, "\n");
 	eval $end if $b_log;
 	return @location;
 }
@@ -20386,13 +20390,13 @@ sub set_dboot_data {
 		$file = $system_files{'dmesg-boot'};
 	}
 	else {
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
 		## matches: toshiba: openbsd-5.6-sysctl-2.txt
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
 		## matches: compaq: openbsd-5.6-sysctl-1.txt"
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
 	}
 	if ($file){
@@ -20830,7 +20834,7 @@ sub check_gnome {
 sub get_env_xprop_non_gnome_based_data {
 	eval $start if $b_log;
 	my ($program,@version_data,$version);
-	#print join("\n", @xprop), "\n";
+	# print join("\n", @xprop), "\n";
 	# String: "This is xfdesktop version 4.2.12"
 	# alternate: xfce4-about --version > xfce4-about 4.10.0 (Xfce 4.10)
 	# note: some distros/wm (e.g. bunsen) set xdg to xfce to solve some other 
@@ -21248,7 +21252,7 @@ sub set {
 			}
 		}
 		else {
-			#if (1 == 1){
+			# if (1 == 1){
 			if ($alerts{'pciconf'}->{'action'} eq 'use'){
 				pciconf_data();
 			}
@@ -21285,16 +21289,16 @@ sub lspci_data {
 	eval $start if $b_log;
 	my ($subsystem,$subsystem_id);
 	my @data = pci_grabber('lspci');
-	#print Data::Dumper::Dumper \@data;
+	# print Data::Dumper::Dumper \@data;
 	foreach (@data){
-		#print "$_\n";
+		# print "$_\n";
 		if ($device){
 			if ($_ =~ /^~$/) {
 				@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 				$rev,$port,$driver,$modules,$driver_nu,$subsystem,$subsystem_id);
 				assign_data('pci',\@temp);
 				$device = '';
-				#print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
+				# print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
 			}
 			elsif ($_ =~ /^Subsystem.*\[([a-f0-9]{4}:[a-f0-9]{4})\]/){
 				$subsystem_id = $1;
@@ -21303,11 +21307,11 @@ sub lspci_data {
 				$subsystem = main::cleaner($subsystem);
 				$subsystem = main::pci_cleaner($subsystem,'pci');
 				$subsystem = main::pci_cleaner_subsystem($subsystem);
-				#print "ss:$subsystem\n";
+				# print "ss:$subsystem\n";
 			}
 			elsif ($_ =~ /^I\/O\sports/){
 				$port = (split(/\s+/, $_))[3];
-				#print "p:$port\n";
+				# print "p:$port\n";
 			}
 			elsif ($_ =~ /^Kernel\sdriver\sin\suse/){
 				$driver = (split(/:\s*/, $_))[1];
@@ -21334,7 +21338,7 @@ sub lspci_data {
 			$type = lc($type);
 			$type = main::pci_cleaner($type,'pci');
 			$type =~ s/\s+$//;
-			#print "$type\n";
+			# print "$type\n";
 			($driver,$driver_nu,$modules,$subsystem,$subsystem_id) = ('','','','','');
 		}
 	}
@@ -21371,11 +21375,11 @@ sub pciconf_data {
 				$rev,$port,$driver,$modules,$driver_nu);
 				assign_data('pci',\@temp);
 				$driver = '';
-				#print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
+				# print "$busid $device_id r:$rev p: $port\n$type\n$device\n";
 			}
 			elsif ($_ =~ /^vendor/){
 				$vendor = (split(/\s+=\s+/, $_))[1];
-				#print "p:$port\n";
+				# print "p:$port\n";
 			}
 			elsif ($_ =~ /^device/){
 				$device = (split(/\s+=\s+/, $_))[1];
@@ -21542,11 +21546,11 @@ sub pci_grabber {
 		$pattern = '^[0-9a-f:]+:';
 	}
 	if ($fake{'pciconf'} || $fake{'pcictl'} || $fake{'pcidump'}){
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
 		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcictl/pci-netbsd-9.1-vm.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
-		#my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
 		@data = main::reader($file,'strip');
 	}
 	else {
@@ -21941,7 +21945,7 @@ sub set_dboot_disks {
 			my @row = split(/:\s*/, $_);
 			next if !$row[0];
 			# no dots, note: ada2: 2861588MB BUT: ada2: 600.000MB/s 
-			#print "$_ i: $i\n";
+			# print "$_ i: $i\n";
 			# openbsd/netbsd matches will often work
 			if ($row[0] =~ /(^|,\s*)([0-9\.]+\s*[MGTPE])i?B?[,.\s]+([0-9]+)\ssectors$|^</){
 				$working = main::translate_size($2);
@@ -22842,15 +22846,15 @@ sub generate_data {
 	my ($content,@data,@working,$type,$handle);
 	if ($fake{'dmidecode'}){
 		my $file;
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
-		#$file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
-		#open(my $fh, '<', $file) or die "can't open $file: $!";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
+		# open(my $fh, '<', $file) or die "can't open $file: $!";
 		#chomp(@data = <$fh>);
 	}
 	else {
@@ -23132,13 +23136,13 @@ sub set_ip_addr {
 	my @data = main::grabber($alerts{'ip'}->{'path'} . " addr 2>/dev/null",'\n','strip');
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/if/scope-ipaddr-1.txt";
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/networking/ip-addr-blue-advance.txt";
-	#my @data = reader($file,'strip') or die $!;
+	# my @data = reader($file,'strip') or die $!;
 	my ($b_skip,$broadcast,$if,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	foreach (@data){
 		if (/^[0-9]/){
-			#print "$_\n";
+			# print "$_\n";
 			if (@ips){
-			#print "$if\n";
+			# print "$if\n";
 				@temp = ($if,[@ips]);
 				push(@ifs,@temp);
 				@ips = ();
@@ -23154,7 +23158,7 @@ sub set_ip_addr {
 			@temp = ();
 		}
 		elsif (!$b_skip && /^inet/){
-			#print "$_\n";
+			# print "$_\n";
 			@temp = split(/\s+/, $_);
 			($broadcast,$ip,$scope,$if_id,$type) = ('','','','','');
 			$ip = $temp[1];
@@ -23168,10 +23172,10 @@ sub set_ip_addr {
 			}
 			@temp = ($type,$ip,$broadcast,$scope,$if_id);
 			push(@ips,[@temp]);
-			#print Data::Dumper::Dumper \@ips;
+			# print Data::Dumper::Dumper \@ips;
 		}
 	}
-	#print Data::Dumper::Dumper \@ips if $dbg[4];
+	# print Data::Dumper::Dumper \@ips if $dbg[4];
 	if (@ips){
 		@temp = ($if,[@ips]);
 		push(@ifs,@temp);
@@ -23184,14 +23188,14 @@ sub set_ip_addr {
 sub set_ifconfig {
 	eval $start if $b_log;
 	my @data = main::grabber($alerts{'ifconfig'}->{'path'} . " 2>/dev/null",'\n','');
-	#my @data = reader("$ENV{'HOME'}/bin/scripts/inxi/data/if/vps-ifconfig-1.txt",'') or die $!;
+	# my @data = reader("$ENV{'HOME'}/bin/scripts/inxi/data/if/vps-ifconfig-1.txt",'') or die $!;
 	my ($b_skip,$broadcast,$if,@ips_bsd,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	my ($state,$speed,$duplex,$mac);
 	foreach (@data){
 		if (/^[\S]/i){
-			#print "$_\n";
+			# print "$_\n";
 			if (@ips){
-			#print "here\n";
+			# print "here\n";
 				@temp = ($if,[@ips]);
 				push(@ifs,@temp);
 				@ips = ();
@@ -23241,7 +23245,7 @@ sub set_ifconfig {
 			}
 		}
 		elsif (!$b_skip && /^\s+inet/){
-			#print "$_\n";
+			# print "$_\n";
 			$_ =~ s/^\s+//;
 			$_ =~ s/addr:\s/addr:/;
 			@temp = split(/\s+/, $_);
@@ -23262,7 +23266,7 @@ sub set_ifconfig {
 			$scope = 'link' if $ip =~ /^fe80/;
 			@temp = ($type,$ip,$broadcast,$scope,$if_id);
 			push(@ips,[@temp]);
-			#print Data::Dumper::Dumper \@ips;
+			# print Data::Dumper::Dumper \@ips;
 		}
 	}
 	if (@ips){
@@ -23600,10 +23604,10 @@ sub bsd_data {
 				# freebsd seems to use bytes here
 				if (!$real_mem && /^hw.physmem:/){
 					@working = split(/:\s*/, $_);
-					#if ($working[1]){
+					# if ($working[1]){
 						$working[1] =~ s/^[^0-9]+|[^0-9]+$//g;
 						$real_mem = sprintf("%.1f", $working[1]/1024);
-					#}
+					# }
 					last if $free_mem;
 				}
 				# But, it uses K here. Openbsd/Dragonfly do not seem to have this item
@@ -23685,7 +23689,7 @@ sub get_module_version {
 	elsif (-f "/sys/module/$module/uevent"){
 		$version = 'kernel';
 	}
-	#print "version:$version\n";
+	# print "version:$version\n";
 	if (!$version) {
 		if (my $path = check_program('modinfo')){
 			my @data = grabber("$path $module 2>/dev/null");
@@ -23798,8 +23802,8 @@ sub package_counts {
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
 	# note',' slapt-get, spkg, and pkgtool all return the same count
-	#['slapt-get','slapt-get','p','--installed',1,0,''],
-	#['spkg','spkg','p','--installed',1,0,''],
+	# ['slapt-get','slapt-get','p','--installed',1,0,''],
+	# ['spkg','spkg','p','--installed',1,0,''],
 	['tce','tce-status','p','-i',1,0,''],
 	# note: I believe mageia uses rpm internally but confirm
 	# ['urpmi','urpmq','p','??',1,0,''], 
@@ -23820,13 +23824,13 @@ sub package_counts {
 			}
 			$libs = undef;
 			$count = scalar @list;
-			#print Data::Dumper::Dumper \@list;
+			# print Data::Dumper::Dumper \@list;
 			if ($b_admin && $count && $_->[4]){
 				$libs = count_libs(\@list,$_->[5],$_->[6]);
 			}
 			$counts{$_->[0]} = [$count,$libs];
 			$counts{'total'} += $count;
-			#print Data::Dumper::Dumper \%counts;
+			# print Data::Dumper::Dumper \%counts;
 		}
 	}
 	# print Data::Dumper::Dumper \%counts;
@@ -23846,10 +23850,10 @@ sub count_libs {
 	my (@data);
 	my $i = 0;
 	$split ||= '\\s+';
-	#print scalar @$items, '::', $split, '::', $pos, "\n";
+	# print scalar @$items, '::', $split, '::', $pos, "\n";
 	foreach (@$items){
 		@data = split(/$split/, $_);
-		#print scalar @data, '::', $data[$pos], "\n";
+		# print scalar @data, '::', $data[$pos], "\n";
 		$i++ if $data[$pos] && $data[$pos] =~ m%^lib%;
 	}
 	return $i;
@@ -23894,7 +23898,7 @@ sub proc_data {
 	eval $start if $b_log;
 	my $file = $_[0];
 	my @parts = main::reader($file,'strip');
-	#print Dumper \@parts;
+	# print Dumper \@parts;
 	shift @parts if @parts; # get rid of headers
 	for (@parts){
 		my @temp = split(/\s+/, $_);
@@ -24055,7 +24059,7 @@ sub get_runlevel_data {
 	if ( my $program = check_program('runlevel')){
 		$runlevel = (grabber("$program 2>/dev/null"))[0];
 		$runlevel =~ s/[^\d]//g if $runlevel;
-		#print_line($runlevel . ";;");
+		# print_line($runlevel . ";;");
 	}
 	eval $end if $b_log;
 	return $runlevel;
@@ -24180,7 +24184,7 @@ sub process_status {
 		}
 	}
 	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
-	#@data = ('bluetooth is running.');
+	# @data = ('bluetooth is running.');
 	print "key: $key\n", Data::Dumper::Dumper \@data if $dbg[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
 	for my $row (@data){
@@ -24338,7 +24342,7 @@ sub set {
 				$shell = $working;
 			}
 		}
-		#print "3: shell post: $shell working: $working\n";
+		# print "3: shell post: $shell working: $working\n";
 		# since there are endless shells, we'll keep a list of non program value
 		# set shells since there is little point in adding those to program values
 		if (shell_test($shell)){
@@ -24357,7 +24361,7 @@ sub set {
 			# eg: shell -> infos -> inxi -> sh -> infos --version -> infos -> inxi...
 			# Basically here we are hoping that the grandparent is a shell, or at least
 			# recognized as a known possible program
-			#print "app not shell?: $shell\n";
+			# print "app not shell?: $shell\n";
 			if ($shell){
 				 print "shell 4: $shell StartClientVersionType: $parent\n" if $b_debug;
 				if ($parent){
@@ -24417,10 +24421,10 @@ sub shell_launcher {
 		$msg = ($ppid) ? "pppid: $pppid ppid: $ppid": "ppid: undefined";
 		main::log_data('data',$msg);
 	}
-	#print "self parent: $pppid ppid: $ppid\n";
+	# print "self parent: $pppid ppid: $ppid\n";
 	if ($pppid){
 		$shell_parent = $client{'parent'};
-		#print "shell parent 1: $shell_parent\n";
+		# print "shell parent 1: $shell_parent\n";
 		if ($b_log){
 			$msg = ($shell_parent) ? "shell parent 1: $shell_parent": "shell parent 1: undefined";
 			main::log_data('data',$msg);
@@ -24465,7 +24469,7 @@ sub get_pppid {
 	my $cmd = "ps -wwjfp $ppid 2>/dev/null";
 	main::log_data('cmd',$cmd) if $b_log;
 	my @data = main::grabber($cmd);
-	#shift @data if @data;
+	# shift @data if @data;
 	my $pppid = main::awk(\@data,"$ppid",3,'\s+');
 	eval $end if $b_log;
 	return $pppid;
@@ -24780,10 +24784,10 @@ sub lsusb_data {
 		# hub, note incomplete data: Bus /dev/usb Device /dev/ugen0.1: ID 0000:0000 
 		# linux: 
 		# Bus 005 Device 007: ID 0d8c:000c C-Media Electronics, Inc. Audio Adapter
-		#if ($working[3] =~ m|^/dev/ugen([0-9]+)\.([0-9]+)|){
+		# if ($working[3] =~ m|^/dev/ugen([0-9]+)\.([0-9]+)|){
 		#	$working[1] = $1;
 		#	$working[3] = $2;
-		#}
+		# }
 		next unless main::is_numeric($working[1]) && main::is_numeric($working[3]);
 		$addr_id = int($working[3]);
 		$bus_id = int($working[1]);
@@ -24795,7 +24799,7 @@ sub lsusb_data {
 		# $type = check_type($name,'','');
 		$type ||= '';
 		# do NOT set bus_id_alpha here!!
-		#print "$name\n";
+		# print "$name\n";
 		$working[0] = $bus_id;
 		$working[1] = $addr_id;
 		$working[2] = $path_id;
@@ -24818,7 +24822,7 @@ sub lsusb_data {
 		$working[19] = '';
 		$working[20] = '';
 		push(@{$usb{'main'}},[@working]);
-		#print join("\n",@working),"\n\n=====\n";
+		# print join("\n",@working),"\n\n=====\n";
 	}
 	print Data::Dumper::Dumper $usb{'main'} if $dbg[6];
 	sys_data('lsusb') if $usb{'main'};
@@ -24826,8 +24830,8 @@ sub lsusb_data {
 	main::log_data('dump','$usb{main}: plain',$usb{'main'}) if $b_log;
 	eval $end if $b_log;
 }
-#ugen0.1: <Apple OHCI root HUB> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=SAVE (0mA)
-#ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
+# ugen0.1: <Apple OHCI root HUB> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=SAVE (0mA)
+# ugen0.2: <MediaTek 802.11 n WLAN> at usbus0, cfg=0 md=HOST spd=FULL (12Mbps) pwr=ON (160mA)
 # note: tried getting driver/ports from dmesg, impossible, waste of time
 sub usbconfig_data {
 	eval $start if $b_log;
@@ -24957,7 +24961,7 @@ sub usbdevs_data {
 			$chip_id = "$6:$8";
 			$config = $4;
 			$name = main::remove_duplicates("$7 $5");
-			#print "p1:$protocol\n";
+			# print "p1:$protocol\n";
 			$path_id = "$bus_id-$hub_id";
 			$bus_id_alpha = bus_id_alpha($path_id);
 			$ports = 0;
@@ -24993,7 +24997,7 @@ sub usbdevs_data {
 			$name = main::remove_duplicates("$8 $6");
 			$type = check_type($name,'','');
 			$type ||= '';
-			#print "p2:$protocol\n";
+			# print "p2:$protocol\n";
 			$ports++;
 			$path_id = "$bus_id-$hub_id.$port";
 			$bus_id_alpha = bus_id_alpha($path_id);
@@ -25152,7 +25156,7 @@ sub sys_data {
 	my @files = main::globber('/sys/bus/usb/devices/*');
 	# we want to get rid of the hubs with x-0: syntax, those are hubs found in /usbx
 	@files = grep {!/\/[0-9]+-0:/} @files;
-	#print join("\n", @files);
+	# print join("\n", @files);
 	foreach (@files){
 		@uevent = main::reader("$_/uevent") if -r "$_/uevent";
 		$ids = main::awk(\@uevent,'^(DEVNAME|DEVICE\b)',2,'=');
@@ -25161,8 +25165,8 @@ sub sys_data {
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
 			($configuration,$driver,$interfaces,$name,$ports,$product,$serial,$speed,
 			$type,$usb_version,$vendor) = ('','','','','','','','','','','');
-			#print Cwd::abs_path($_),"\n";
-			#print "f1: $_\n";
+			# print Cwd::abs_path($_),"\n";
+			# print "f1: $_\n";
 			$path_id = $_;
 			$path_id =~ s/^.*\///;
 			$path_id =~ s/^usb([0-9]+)/$1-0/;
@@ -25202,7 +25206,7 @@ sub sys_data {
 						if (!$b_hub && $usb{'main'}->[$i][13] && (!$type || $type eq '<vendor specific>' )){
 							$type = check_type($usb{'main'}->[$i][13],$driver,$type);
 						}
-						#print $type,"\n";
+						# print $type,"\n";
 						$usb{'main'}->[$i][0] = $bus_id_alpha;
 						$usb{'main'}->[$i][2] = $path_id;
 						$usb{'main'}->[$i][3] = $_;
@@ -25223,7 +25227,7 @@ sub sys_data {
 						$usb{'main'}->[$i][19] = $power;
 						$usb{'main'}->[$i][20] = '';
 						assign_usb_type($usb{'main'}->[$i]);
-						#print join("\n",@{$usb{'main'}->[$i]}),"\n\n";# if !$b_hub; 
+						# print join("\n",@{$usb{'main'}->[$i]}),"\n\n";# if !$b_hub; 
 						last;
 					}
 				}
@@ -25256,9 +25260,9 @@ sub sys_data {
 					$type = check_type($name,$driver,$type);
 				}
 				# this isn't that useful, but save in case something shows up
-				#if ($configuration){
+				# if ($configuration){
 				#	$name = ($name) ? "$name $configuration" : $configuration;
-				#}
+				# }
 				$type = 'Hub' if $b_hub;
 				$usb{'main'}->[$i][0] = $bus_id_alpha;
 				$usb{'main'}->[$i][1] = $device_id;
@@ -25284,7 +25288,7 @@ sub sys_data {
 				assign_usb_type($usb{'main'}->[$i]);
 				$i++;
 			}
-			#print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $dbg[6];;
+			# print "$path_id ids: $bus_id:$device_id driver: $driver ports: $ports\n==========\n"; # if $dbg[6];;
 		}
 	}
 	print Data::Dumper::Dumper $usb{'main'} if $source eq 'main' && $dbg[6];
@@ -25302,7 +25306,7 @@ sub uevent_data {
 		# print "f2: $_\n";
 		($interface) = ('');
 		@working = main::reader($_) if -r $_;
-		#print join("\n",@working), "\n";
+		# print join("\n",@working), "\n";
 		if (@working){
 			$driver = main::awk(\@working,'^DRIVER',2,'=');
 			$interface = main::awk(\@working,'^INTERFACE',2,'=');
@@ -25324,7 +25328,7 @@ sub uevent_data {
 				}
 			}
 		}
-		#print "driver:$driver\n";
+		# print "driver:$driver\n";
 		$b_hub = 1 if $driver && $driver eq 'hub';
 		$driver = '' if $driver && ($driver eq 'usb' || $driver eq 'hub');
 		push(@drivers,$driver) if $driver;
@@ -25388,7 +25392,7 @@ sub assign_usb_type {
 	   ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
 	   ($row->[15] && $row->[15] =~ /(^ipw|^iwl|wifi)/) || 
 	   ($row->[13] && $row->[13] =~ /($network_regex)/i))){
-		#print "$1\n";
+		# print "$1\n";
 		push(@{$usb{'network'}},$row);
 	}
 }
@@ -25397,7 +25401,7 @@ sub device_type {
 	my ($type);
 	# note: the 3/0/0 value passed will be decimal, not hex
 	my @types = split('/', $data) if $data;
-	#print @types,"\n";
+	# print @types,"\n";
 	if (!@types || $types[0] eq '0' || scalar @types != 3) {return '';}
 	elsif ($types[0] eq '255') { return '<vendor specific>';}
 	if (scalar @types == 3){
@@ -25590,6 +25594,7 @@ sub get_wakeups {
 # Also creates Short, Info, and System items
 {
 package OutputGenerator;
+
 sub generate {
 	eval $start if $b_log;
 	my (%row,%checks);
@@ -25599,7 +25604,7 @@ sub generate {
 	# note: ps aux loads before logging starts, so create debugger data here
 	if ($b_log){
 		# I don't think we need to see this, it's long, but leave in case we do
-		#main::log_data('dump','@ps_aux',\@ps_aux);
+		# main::log_data('dump','@ps_aux',\@ps_aux);
 		main::log_data('dump','@ps_cmd',\@ps_cmd);
 	}
 	if ($show{'short'}){
@@ -25784,7 +25789,7 @@ sub short_output {
 		}
 	}
 	$memory ||= 'N/A';
- 	#print join('; ', @cpu), " sleep: $cpu_sleep\n";
+ 	# print join('; ', @cpu), " sleep: $cpu_sleep\n";
  	if (!$loaded{'shell-data'} && $ppid && (!$b_irc || !$client{'name-print'})){
 		ShellData::set();
 	}
@@ -25982,7 +25987,7 @@ sub system_item {
 	}
 	if ($b_admin && (my $params = KernelParameters::get())){
 		$index = scalar(@{ $data{$data_name} } );
-		#print "$params\n";
+		# print "$params\n";
 		$params = main::apply_partition_filter('system', $params, 'label') if $use{'filter-label'};
 		$params = main::apply_partition_filter('system', $params, 'uuid') if $use{'filter-uuid'};
 		$data{$data_name}->[$index]{main::key($num++,0,2,'parameters')} = $params;
@@ -25996,8 +26001,8 @@ sub system_item {
 		$desktop_version = $desktop_data[1] if $desktop_data[1];
 		$desktop .= ' ' . $desktop_version if $desktop_version;
 		if ($extra > 0 && $desktop_data[3]){
-			#$desktop .= ' (' . $desktop_data[2];
-			#$desktop .= ( $desktop_data[3] ) ? ' ' . $desktop_data[3] . ')' : ')';
+			# $desktop .= ' (' . $desktop_data[2];
+			# $desktop .= ( $desktop_data[3] ) ? ' ' . $desktop_data[3] . ')' : ')';
 			$toolkit = "$desktop_data[2] $desktop_data[3]";
 		}
 		if ($extra > 2 && $desktop_data[4]){
@@ -26049,10 +26054,10 @@ sub system_item {
 			$data{$data_name}->[$index]{main::key($num++,0,$ind_dm,$dm_key)} = $dms;
 		}
 	}
-	#if ($extra > 2 && $desktop_key ne 'Console'){
+	# if ($extra > 2 && $desktop_key ne 'Console'){
 	#	my $tty = ShellData::tty_number() if !$loaded{'tty-number'};
 	#	$data{$data_name}->[$index]{main::key($num++,0,1,'vc')} = $tty if $tty ne '';
-	#}
+	# }
 	my $distro_key = ($bsd_type) ? 'OS': 'Distro';
 	my @distro_data = DistroData::get();
 	my $distro = $distro_data[0];
