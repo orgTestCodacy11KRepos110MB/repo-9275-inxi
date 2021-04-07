@@ -10129,7 +10129,7 @@ sub proc_data {
 	my ($used) = @_;
 	my (@data,@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	foreach my $row (@proc_partitions){
 		if ( $row->[-1] =~ /^(fio[a-z]+|[hsv]d[a-z]+|(ada|mmcblk|n[b]?d|nvme[0-9]+n)[0-9]+)$/) {
 			$b_hdx = 1 if $row->[-1] =~ /^hd[a-z]/;
@@ -12861,7 +12861,7 @@ sub lvm_data {
 	stripes devices raid_mismatch_count raid_sync_action raid_write_behind
 	copy_percent);
 	my $num = 0;
-	PartitionData::set('proc') if !$loaded{'partition-data'};
+	PartitionData::set() if !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	if ($fake{'logical'}){
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
@@ -12949,7 +12949,7 @@ sub component_recursive_data {
 	# return @devices if !$b_admin;
 	foreach my $device (@devices){
 		my ($mapped,$mm2,@part);
-		@part = PartitionData::get_proc($device) if @proc_partitions; 
+		@part = PartitionData::get($device) if @proc_partitions; 
 		$mm2 = $part[0] . ':' . $part[1] if @part;
 		if ($device =~ /^(bcache|dm-|md)[0-9]+$/){
 			$mapped = $dmmapper{$device};
@@ -14680,7 +14680,7 @@ sub set_partitions {
 		$blockdev = $alerts{'blockdev'}->{'path'} if $alerts{'blockdev'}->{'path'};
 	}
 	# for raw partition sizes, maj_min
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
 	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
 	# set @labels, @uuid
@@ -15847,7 +15847,7 @@ sub raid_data {
 	eval $start if $b_log;
 	LsblkData::set() if !$bsd_type && !$loaded{'lsblk'};
 	main::set_mapper() if !$bsd_type && !$loaded{'mapper'};
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	my (@data);
 	$loaded{'raid'} = 1;
 	if ($fake{'raid-lvm'} || 
@@ -15925,7 +15925,7 @@ sub lvm_data {
 		foreach my $part (@working){
 			my (@data,$dev,$maj_min,$mapped,$size);
 			if (@proc_partitions){
-				@data = PartitionData::get_proc($part);
+				@data = PartitionData::get($part);
 				$maj_min = $data[0] . ':' . $data[1] if defined $data[1];
 				$size = $data[2];
 				$raw_logical[1] += $size if $part =~ /^dm-/ && $size;
@@ -16018,7 +16018,7 @@ sub md_data {
 			@temp = ();
 			# cascade of tests, light to cpu intense
 			if ((!$maj_min || !$size) && @proc_partitions){
-				@part = PartitionData::get_proc($id);
+				@part = PartitionData::get($id);
 				if (@part){
 					$maj_min = $part[0] . ':' . $part[1];
 					$size = $part[2];
@@ -16049,7 +16049,7 @@ sub md_data {
 					$state = $details{'devices'}->{$name}{'state'};
 				}
 				if ((!$maj_min || !$part_size) && @proc_partitions){
-					@part = PartitionData::get_proc($name);
+					@part = PartitionData::get($name);
 					if (@part){
 						$maj_min = $part[0] . ':' . $part[1] if !$maj_min;
 						$part_size = $part[2] if !$part_size;
@@ -16296,7 +16296,7 @@ sub zfs_data {
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
 			if ((!$maj_min || !$part_size) && @proc_partitions){
-				my @part = PartitionData::get_proc($working);
+				my @part = PartitionData::get($working);
 				if (@part){
 					$maj_min = $part[0] . ':' . $part[1];
 					$part_size = $part[2];
@@ -19139,7 +19139,7 @@ sub create_output {
 	my $num = 0;
 	my $j = 0;
 	my (@rows,$dev,$percent,$raw_size,$size,$used);
-	PartitionData::set('proc') if !$bsd_type && !$loaded{'partition-data'};
+	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
 	main::set_mapper() if !$loaded{'mapper'};
 	PartitionItem::swap_data() if !$loaded{'set-swap'};
@@ -23861,25 +23861,18 @@ sub count_libs {
 }
 
 # PartitionData - set/get
+# for /proc/partitions only, see DiskDataBSD for BSD partition data.
 {
 package PartitionData;
 sub set {
 	my ($type) = @_;
 	$loaded{'partition-data'} = 1;
-	if ($type eq 'proc'){
-		if (my $file = $system_files{'proc-partitions'}){
-			proc_data($file);
-		}
-	}
-	elsif ($type eq 'bsd'){
-		# we can't check permissions without knowing the disk ID
-		if ($alerts{'disklabel'}->{'action'} eq 'use'){
-			disklabel_data();
-		}
+	if (my $file = $system_files{'proc-partitions'}){
+		proc_data($file);
 	}
 }
 # 1 - partition name, without /dev, like sda1, sde
-sub get_proc {
+sub get {
 	eval $start if $b_log;
 	my $item = $_[0];
 	return if !@proc_partitions;
@@ -23904,14 +23897,6 @@ sub proc_data {
 		my @temp = split(/\s+/, $_);
 		next if !defined $temp[2];
 		push (@proc_partitions,[$temp[0],$temp[1],$temp[2],$temp[3]]);
-	}
-	eval $end if $b_log;
-}
-sub bsd_disklabel {
-	eval $start if $b_log;
-	return if !$dboot{'disks'};
-	foreach (keys %{$dboot{'disks'}}){
-		my $cmd = "$alerts{'disklabel'}->{'path'} $_ 2>/dev/null";
 	}
 	eval $end if $b_log;
 }
