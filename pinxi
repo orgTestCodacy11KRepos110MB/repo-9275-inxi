@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-07';
-my $self_patch='35';
+my $self_date='2021-04-08';
+my $self_patch='36';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -1735,7 +1735,11 @@ sub disk_data {
 	['atacontrol', 'list'],
 	['camcontrol', 'devlist'], 
 	['camcontrol', 'devlist -v'], 
+	['geom', 'part list'],
 	['glabel', 'status'], 
+	['gpart', 'list'], # gpart in linux/bsd but do it here again
+	['gpart', 'show'],
+	['gpart', 'status'],
 	['swapctl', '-l -k'],
 	['swapctl', '-l -k'],
 	['vmstat', ''],
@@ -4986,7 +4990,8 @@ sub post_process {
 			$b_update = 1;
 		}
 		# not writing/creating .inxi data dirs colors selector launches set_color()
-		if (!$show{'weather'} && !$colors{'selector'} && $debugger{'level'} < 10){ 
+		if (!$show{'weather'} && !$colors{'selector'} && $debugger{'level'} < 10 && 
+		 $output_type eq 'screen'){ 
 			@pledges = grep {!/(cpath|wpath)/} @pledges;
 			$b_update = 1;
 		}
@@ -21236,6 +21241,7 @@ sub set_xprop {
 # 14 soc handle
 # 15 serial number
 {
+
 package DeviceData;
 my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
 my ($b_bt_check);
@@ -22054,9 +22060,12 @@ sub set_disklabel_data {
 				else {
 					@working = split(/:?\s+#?\s*/, $row);
 					# netbsd: disklabel: super block size 0 AFTER partitions started!
-					next if $working[0] && $working[0] eq 'disklabel';
 					# note: 'unused' fs type is NOT unused space, it's often the entire disk!!
-					next if $working[3] && $working[3] eq 'unused';
+					if (($working[0] && $working[0] eq 'disklabel') ||
+					 ($working[3] && $working[3] =~ /ISO9660|unused/i) || 
+					 (!$working[1] || !main::is_numeric($working[1]))){
+						next;
+					}
 					$part_id = $id . $working[0];
 					$working[1] = $working[1]*$bytes_sector/1024 if $working[1];
 					$disks_bsd{$id}->{'partitions'}{$part_id}{'size'} = $working[1];
@@ -22084,11 +22093,13 @@ sub set_gpart_data {
 	eval $start if $b_log;
 	my @data = main::grabber($alerts{'gpart'}->{'path'} . " list 2>/dev/null",'','strip');
 	main::log_data('dump', 'gpart: @data', \@data) if $b_log;
-	my ($id,$part_id,$type);
+	my ($b_cd,$id,$part_id,$type);
 	for (@data){
 		my @working = split(/\s*:\s*/, $_);
 		if ($working[0] eq 'Geom name'){
 			$id = $working[1];
+			# [1. Name|Geom name]: iso9660/FVBE
+			$b_cd = ($id =~ /iso9660/i) ? 1: 0;
 			next;
 		}
 		elsif ($working[0] eq 'scheme'){
@@ -22103,7 +22114,7 @@ sub set_gpart_data {
 			$type = 'part';
 			next;
 		}
-		if ($type && $type eq 'part'){
+		if (!$b_cd && $type && $type eq 'part'){
 			if ($working[0] =~ /^[0-9]+\.\s*Name/){
 				$part_id = $working[1];
 			}
@@ -22127,9 +22138,13 @@ sub set_gpart_data {
 			elsif ($working[0] eq 'Stripesize'){
 				$disks_bsd{$id}->{'partitions'}{$part_id}{'logical-block-size'} = $working[1];
 			}
+			elsif ($working[0] eq 'type'){
+				$working[1] =~ s/\(|\)//g; 
+				$disks_bsd{$id}->{'partitions'}{$part_id}{'fs'} = $working[1];
+			}
 		}
 		# really strange results happen if no dboot disks were found and it's zfs!
-		elsif ($type && $type eq 'disk' && $disks_bsd{$id}->{'size'}) {
+		elsif (!$b_cd && $type && $type eq 'disk' && $disks_bsd{$id}->{'size'}) {
 			# need to see raid, may be > 1 Consumers
 			if ($working[0] =~ /^[0-9]+\.\s*Name/){
 				$id = $working[1];
