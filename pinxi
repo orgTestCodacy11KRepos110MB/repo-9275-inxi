@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-08';
-my $self_patch='36';
+my $self_patch='38';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6267,6 +6267,8 @@ sub row_defaults {
 	'ps-data-null' => 'No process data available.',
 	'raid-data' => 'No RAID data found.',
 	'ram-data' => 'No RAM data found.',
+	'ram-data-complete' => 'For complete report, try with --dmidecode',
+	'ram-data-dmidecode' => 'No RAM data found. Try with --dmidecode',
 	'recommends' => 'see --recommends',
 	'root-required' => '<superuser required>',
 	'root-suggested' => 'try sudo/root',# gdm only
@@ -16417,18 +16419,24 @@ sub get {
 	my (@data,@rows,$key1,@ram,$val1);
 	my $num = 0;
 	@rows = MemoryData::full('ram') if !$loaded{'memory'};
-	if ( !$fake{'dmidecode'} && $alerts{'dmidecode'}->{'action'} ne 'use'){
-		$key1 = $alerts{'dmidecode'}->{'action'};
-		$val1 = $alerts{'dmidecode'}->{'message'};
-		push(@rows, {
-		main::key($num++,1,1,'RAM Report') => '',
-		main::key($num++,0,2,$key1) => $val1,
-		});
+	if ($bsd_type && !$force{'dmidecode'} && ($dboot{'ram'} || $fake{'dboot'})){
+		@ram = dboot_data();
+		if (@ram){
+			@data = ram_output(\@ram,'dboot');
+		}
+		else {
+			$key1 = 'message';
+			$val1 = main::row_defaults('ram-data-dmidecode');
+			@data = ({
+			main::key($num++,1,1,'RAM Report') => '',
+			main::key($num++,0,2,$key1) => $val1,
+			});
+		}
 	}
-	else {
+	elsif ($fake{'dmidecode'} || $alerts{'dmidecode'}->{'action'} eq 'use'){
 		@ram = dmidecode_data();
 		if (@ram){
-			@data = ram_output(\@ram);
+			@data = ram_output(\@ram,'dmidecode');
 		}
 		else {
 			$key1 = 'message';
@@ -16438,20 +16446,33 @@ sub get {
 			main::key($num++,0,2,$key1) => $val1,
 			});
 		}
-		push(@rows,@data);
 	}
+	else {
+		$key1 = $alerts{'dmidecode'}->{'action'};
+		$val1 = $alerts{'dmidecode'}->{'message'};
+		push(@rows, {
+		main::key($num++,1,1,'RAM Report') => '',
+		main::key($num++,0,2,$key1) => $val1,
+		});
+	}
+	push(@rows,@data);
 	eval $end if $b_log;
 	return @rows;
 }
 
 sub ram_output {
 	eval $start if $b_log;
-	my ($ram) = @_;
+	my ($ram,$source) = @_;
 	return if !@$ram;
 	my $num = 0;
 	my $j = 0;
 	my (@rows,$b_non_system);
 	my ($arrays,$modules,$slots,$type_holder) = (0,0,0,'');
+	if ($source eq 'dboot'){
+		push(@rows, {
+		main::key($num++,0,1,'Message') => main::row_defaults('ram-data-complete'),
+		});
+	}
 	foreach my $item (@$ram){
 		$j = scalar @rows;
 		if (!$show{'ram-short'}){
@@ -16523,11 +16544,9 @@ sub ram_output {
 							$mod->{'speed'} = $mod->{'configured-clock-speed'};
 							$mod->{'speed-note'} = $mod->{'configured-note'} if $mod->{'configured-note'} ;
 						}
-						# rare instances, dmi type 6, no speed
-						else {
-							$mod->{'speed'} = 'N/A';
-						}
 					}
+					# rare instances, dmi type 6, no speed, dboot also no speed
+					$mod->{'speed'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,1,3,'speed')} = $mod->{'speed'};
 					$rows[$j]->{main::key($num++,0,4,'note')} = $mod->{'speed-note'} if $mod->{'speed-note'};
 				}
@@ -16539,19 +16558,19 @@ sub ram_output {
 						$rows[$j]->{main::key($num++,0,3,'detail')} = $mod->{'device-type-detail'};
 					}
 				}
-				if ($extra > 2 ){
+				if ($source ne 'dboot' && $extra > 2){
 					$mod->{'data-width'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,3,'bus-width')} = $mod->{'data-width'};
 					$mod->{'total-width'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,3,'total')} = $mod->{'total-width'};
 				}
-				if ($extra > 1 ){
+				if ($source ne 'dboot' && $extra > 1){
 					$mod->{'manufacturer'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,3,'manufacturer')} = $mod->{'manufacturer'};
 					$mod->{'part-number'} ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,3,'part-no')} = $mod->{'part-number'};
 				}
-				if ($extra > 2 ){
+				if ($source ne 'dboot' && $extra > 2){
 					$mod->{'serial'} = main::apply_filter($mod->{'serial'});
 					$rows[$j]->{main::key($num++,0,3,'serial')} = $mod->{'serial'};
 				}
@@ -16825,9 +16844,82 @@ sub dmidecode_data {
 			last;
 		}
 	}
+	print Data::Dumper::Dumper \@ram if $dbg[36];
+	main::log_data('dump','@ram',\@ram) if $b_log;
 	@ram = process_data(\@ram) if @ram;
 	main::log_data('dump','@ram',\@ram) if $b_log;
-	# print Data::Dumper::Dumper \@ram;
+	print Data::Dumper::Dumper \@ram if $dbg[36];
+	eval $end if $b_log;
+	return @ram;
+}
+sub dboot_data {
+	eval $start if $b_log;
+	my (@ram);
+	my $check = main::row_defaults('note-check');
+	my $est = main::row_defaults('note-est');
+	my ($addr,$holder,$derived_module_size,$slots) = (0,0,0,0);
+	foreach (@{$dboot{'ram'}}){
+		my ($detail,$device_detail,$ecc,$index,$locator,$size,$speed,$type);
+		if (/^(spdmem([\d]+)):at iic([\d]+)(\saddr 0x([0-9a-f]+))?/){
+			$index = $3;
+			$locator = $1;
+			if ($index != $holder){
+				$holder = $index;
+			}
+			if ($5){
+				$addr = hex($5);
+				$ram[$index]->{'slots-16'} = $addr - 80 + 1;
+				$locator = 'Slot-' . $ram[$index]->{'slots-16'};
+			}
+			$ram[$index]->{'slots-qualifier'} = $est;
+			if (/(non?[\s-]parity)/i){
+				$device_detail = $1;
+				$ecc = 'None';
+			}
+			elsif (/EEC/i){
+				$device_detail = 'EEC';
+				$ecc = 'EEC';
+			}
+			if (/:(\d+[MGT])B?\s(DDR[0-9]*)\b/){
+				$size = main::translate_size($1)/1024;
+				$type = $2;
+				$ram[$index]->{'device-count-found'}++;
+				# build up actual capacity found for override tests
+				$ram[$index]->{'max-capacity-16'} += $size;
+				$ram[$index]->{'max-cap-qualifier'} = $est;
+				$ram[$index]->{'slots-16'}++ if !$addr;
+				$derived_module_size = $size if $size > $derived_module_size;
+			}
+			if (/\b(PC[0-9]+-\S+)\b/){
+				$speed = $1;
+				my $temp = speed_mapper($speed);
+				if ($temp ne $speed){
+					$detail = $speed;
+					$speed = $temp;
+				}
+			}
+			$ram[$index]->{'eec'} = $ecc;
+			$ram[$index]->{'derived-module-size'} = $derived_module_size;
+			push(@{$ram[$index]->{'modules'}},{
+			'device-type'  => $type,
+			'device-type-detail'  => $detail,
+			'locator' => $locator,
+			'size' => $size,
+			'speed' => $speed,
+			});
+		}
+	}
+	for (my $i = 0; $i++ ;scalar @ram){
+		next if ref $ram[$i] ne 'HASH';
+		if ($ram[$i]->{'slots'} && $ram[$i]->{'slots'} > 2 && $ram[$i]->{'slots'} % 2 == 1){
+			$ram[$i]->{'slots'}++;
+		}
+	}
+	print Data::Dumper::Dumper \@ram if $dbg[36];
+	main::log_data('dump','@ram',\@ram) if $b_log;
+	@ram = process_data(\@ram) if @ram;
+	main::log_data('dump','@ram',\@ram) if $b_log;
+	print Data::Dumper::Dumper \@ram if $dbg[36];
 	eval $end if $b_log;
 	return @ram;
 }
@@ -16874,7 +16966,6 @@ sub process_data {
 		if ($b_debug){
 			print "3: dcf: $item->{'device-count-found'} :dms: $item->{'derived-module-size'} :mc: $max_cap :uc: $item->{'used-capacity'}\n";
 		}
-		
 		# note: some cases memory capacity == max module size, so one stick will fill it
 		# but I think only with cases of 2 slots does this happen, so if > 2, use the count of slots.
 		if ($max_cap && ($item->{'device-count-found'} || $item->{'slots-16'}) ){
@@ -16985,6 +17076,11 @@ sub process_data {
 			$item->{'slots-16'} = scalar @{$item->{'modules'}};
 			print "L\n" if $b_debug;
 		}
+		# only bsds using dmesg data
+		elsif ($item->{'slots-qualifier'}){
+			$est_slots = $item->{'slots-qualifier'};
+			$est_cap = $est;
+		}
 		push(@return, {
 		'capacity' => $max_cap,
 		'cap-qualifier' => $est_cap,
@@ -17058,6 +17154,42 @@ sub calculate_size {
 	}
 	# print "d-2: $data s-3: $size\n";
 	return $size;
+}
+sub speed_mapper {
+	my ($type) = @_;
+	my %speeds = (
+	# DDR
+	'PC-1600' => 200,
+	'PC-2100' => 266,
+	'PC-2400' => 300,
+	'PC-2700' => 333,
+	'PC-3200' => 400,
+	# DDR2
+	'PC2-3200' => 400,
+	'PC2-4200' => 533,
+	'PC2-5300' => 667,
+	'PC2-6400' => 800,
+	'PC2-8000' => 1000,
+	# DDR3
+	'PC3-6400' => 800,
+	'PC3-8500' => 1066,
+	'PC3-10600' => 1333,
+	'PC3-12800' => 1600,
+	# DDR4
+	'PC4-19200' => 2400,
+	'PC4-21300' => 2666,
+	'PC4-23400' => 2933,
+	'PC4-24000' => 3000,
+	'PC4-25600' => 3200,
+	'PC4-28800' => 3600,
+	'PC4-32000' => 4000,
+	'PC4-35200' => 4400,
+	# DDR5
+	'PC5-38400' => 4800,
+	'PC5-51200' => 6400,
+	# DDR6, coming...
+	);
+	return ($speeds{$type}) ?  $speeds{$type} . ' MT/s' : $type;
 }
 sub set_vendors {
 	@vendors = (
@@ -20502,7 +20634,7 @@ sub set_dboot_data {
 			print("cpu:\n", Dumper $dboot{'cpu'});
 			print("disk:\n", Dumper $dboot{'disk'});
 			print("optical:\n", Dumper $dboot{'optical'});
-			print("memory:\n", Dumper $dboot{'ram'});
+			print("ram:\n", Dumper $dboot{'ram'});
 			print("usb:\n", Dumper $dboot{'usb'});
 			print("sys battery:\n", Dumper $sysctl{'battery'});
 			print("sys machine:\n", Dumper $sysctl{'machine'});
