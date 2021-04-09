@@ -323,6 +323,7 @@ sub set_commands {
 			$commands{'sysctl'} = ['exec-sys','','kern.osrelease'];
 		}
 		if ($use{'bsd-partition'}){
+			$commands{'bioctl'} = ['missing','',''];
 			$commands{'disklabel'} = ['missing','',''];
 			$commands{'gpart'} = ['missing','',''];
 		}
@@ -10020,8 +10021,13 @@ sub drive_output {
 			$rows[$j]->{main::key($num++,0,2,'rotation')} = $row->{'rotation'};
 		}
 		if ($extra > 1){
-			my $serial = main::apply_filter($row->{'serial'});
-			$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
+			if (!$row->{'serial'} && $alerts{'bioctl'} && $alerts{'bioctl'}->{'action'} eq 'permissions'){
+				$row->{'serial'} = main::row_defaults('root-required');
+			}
+			else {
+				$row->{'serial'} = main::apply_filter($row->{'serial'});
+			}
+			$rows[$j]->{main::key($num++,0,2,'serial')} = $row->{'serial'};
 			if ($row->{'drive-serial'}){
 				$rows[$j]->{main::key($num++,0,2,'drive serial')} = main::apply_filter($row->{'drive-serial'});
 			}
@@ -21376,7 +21382,6 @@ sub set_xprop {
 # 14 soc handle
 # 15 serial number
 {
-
 package DeviceData;
 my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
 my ($b_bt_check);
@@ -22034,6 +22039,7 @@ sub pci_class {
 	return $type;
 }
 }
+
 # DiskDataBSD
 # handles disks and partition extra data for disks bsd, raid-zfs, 
 # partitions, swap, unmounted
@@ -22147,11 +22153,30 @@ sub set_dboot_disks {
 				$disks_bsd{$id}->{'speed'} =~ s/\.[0-9]+// if $disks_bsd{$id}->{'speed'};
 			}
 			$disks_bsd{$id}->{'model'} = main::disk_cleaner($disks_bsd{$id}->{'model'});
+			if (!$disks_bsd{$id}->{'serial'} && $alerts{'bioctl'}->{'action'} eq 'use'){
+				$disks_bsd{$id}->{'serial'} = bioctl_data($id);
+			}
 		}
 	}
 	print Data::Dumper::Dumper \%disks_bsd if $dbg[34];
 	main::log_data('dump','%disks_bsd',\%disks_bsd) if $b_log;
 	eval $end if $b_log;
+}
+sub bioctl_data {
+	eval $start if $b_log;
+	my $id = $_[0];
+	my $serial;
+	my $working = (main::grabber($alerts{'bioctl'}->{'path'} . " $id  2>&1",'','strip'))[0];
+	if ($working){
+		if ($working =~ /permission/i){
+			$alerts{'bioctl'}->{'action'} = 'permissions';
+		}
+		elsif ($working =~ /serial(|number|no.?)?\s+(\S+)$/i) {
+			$serial = $2;
+		}
+	}
+	eval $end if $b_log;
+	return $serial;
 }
 sub set_disklabel_data {
 	eval $start if $b_log;
