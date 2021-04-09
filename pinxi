@@ -9035,7 +9035,7 @@ sub cpu_properties {
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	if ($b_elbrus && $processors_count){
-		my @elbrus = elbrus_data($cpu->{'model_id'},$processors_count,$cpu->{'arch'});
+		my @elbrus = elbrus_data($cpu->{'family_id'},$cpu->{'model_id'},$processors_count,$cpu->{'arch'});
 		$cpu_cores = $elbrus[0];
 		$phyical_count = $elbrus[1];
 		$cpu->{'arch'} = $elbrus[2];
@@ -9440,24 +9440,28 @@ sub cpu_dies_sys {
 # returns: 0 - per cpu cores; 1 - phys cpu count; 2 - override model defaul names
 sub elbrus_data {
 	eval $start if $b_log;
-	my ($model_id,$count,$arch) = @_;
+	my ($family_id,$model_id,$count,$arch) = @_;
 	# 0: cores
-	my @cores;
 	my @return = (0,1,$arch);
-	$cores[1] = 1;
-	$cores[2] = 1;
-	$cores[3] = 4;
-	$cores[4] = 2;
-	$cores[6] = 1;
-	$cores[7] = 8;
-	$cores[8] = 1;
-	$cores[9] = 8;
-	$cores[10] = 12;
-	$cores[11] = 16;
-	$cores[12] = 2;
-	if (main::is_numeric($model_id) && $cores[$model_id]){
-		$return[0] = $cores[$model_id] ;
-	}
+	my %cores = (
+	# key=family id + model id
+	'41' => 1,
+	'42' => 1,
+	'43' => 4,
+	'44' => 2,
+	'46' => 1,
+	'47' => 8,
+	'48' => 1,
+	'49' => 8,
+	'59' => 8,
+	'4A' => 12,
+	'4B' => 16,
+	'4C' => 2,
+	'6A' => 12,
+	'6B' => 16,
+	'6C' => 2,
+	);
+	$return[0] = $cores{$family_id . $model_id} if $cores{$family_id . $model_id};
 	if ($return[0]){
 		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
 	}
@@ -9647,12 +9651,12 @@ sub cpu_arch {
 	elsif ( $type eq 'elbrus'){ 
 		# E8CB
 		if ($family eq '4'){
-			if ( $model eq '1' ) {$arch = 'Elbrus'}
-			elsif ( $model eq '2' ) {$arch = 'Elbrus-S'}
-			elsif ( $model eq '3' ) {$arch = 'Elbrus-4C'}
-			elsif ( $model eq '4' ) {$arch = 'Elbrus-2C+'}
-			elsif ( $model eq '6' ) {$arch = 'Elbrus-2CM'}
-			elsif ( $model eq '7' ) {
+			if ($model eq '1') {$arch = 'Elbrus'}
+			elsif ($model eq '2') {$arch = 'Elbrus-S'}
+			elsif ($model eq '3') {$arch = 'Elbrus-4C'}
+			elsif ($model eq '4') {$arch = 'Elbrus-2C+'}
+			elsif ($model eq '6') {$arch = 'Elbrus-2CM'}
+			elsif ($model eq '7') {
 				if ($stepping >= 2) {$arch = 'Elbrus-8C1';}
 				else {$arch = 'Elbrus-8C';}
 			} # note: stepping > 1 may be 8C1
@@ -9661,9 +9665,9 @@ sub cpu_arch {
 			elsif ( $model eq '9' ) {
 				$arch = 'Elbrus-8CV/8C2';
 				$note = $check;}
-			elsif ( $model eq 'A' ) {$arch = 'Elbrus-12C'}
-			elsif ( $model eq 'B' ) {$arch = 'Elbrus-16C'}
-			elsif ( $model eq 'C' ) {$arch = 'Elbrus-2C3'}
+			elsif ($model eq 'A') {$arch = 'Elbrus-12C'}
+			elsif ($model eq 'B') {$arch = 'Elbrus-16C'}
+			elsif ($model eq 'C') {$arch = 'Elbrus-2C3'}
 			else {
 				$arch = 'Elbrus-??';
 				$note = $check;}
@@ -9675,10 +9679,16 @@ sub cpu_arch {
 				$note = $check;}
 		}
 		elsif ($family eq '6'){
-			if ($model eq 'C') {$arch = 'Elbrus-2C3'}
+			if ($model eq 'A') {$arch = 'Elbrus-12C'}
+			elsif ($model eq 'B') {$arch = 'Elbrus-16C'}
+			elsif ($model eq 'C') {$arch = 'Elbrus-2C3'}
 			else {
 				$arch = 'Elbrus-??';
 				$note = $check;}
+		}
+		else {
+			$arch = 'Elbrus-??';
+			$note = $check;
 		}
 	}
 	elsif ( $type eq 'intel'){
