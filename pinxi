@@ -16860,6 +16860,7 @@ sub dboot_data {
 	my ($addr,$holder,$derived_module_size,$slots) = (0,0,0,0);
 	foreach (@{$dboot{'ram'}}){
 		my ($detail,$device_detail,$ecc,$index,$locator,$size,$speed,$type);
+		# note: seen one netbsd with multiline spdmem0/1 etc but not consistent so don't use
 		if (/^(spdmem([\d]+)):at iic([\d]+)(\saddr 0x([0-9a-f]+))?/){
 			$index = $3;
 			$locator = $1;
@@ -16871,7 +16872,6 @@ sub dboot_data {
 				$ram[$index]->{'slots-16'} = $addr - 80 + 1;
 				$locator = 'Slot-' . $ram[$index]->{'slots-16'};
 			}
-			$ram[$index]->{'slots-qualifier'} = $est;
 			if (/(non?[\s-]parity)/i){
 				$device_detail = $1;
 				$ecc = 'None';
@@ -16898,15 +16898,19 @@ sub dboot_data {
 					$speed = $temp;
 				}
 			}
-			$ram[$index]->{'eec'} = $ecc;
-			$ram[$index]->{'derived-module-size'} = $derived_module_size;
-			push(@{$ram[$index]->{'modules'}},{
-			'device-type'  => $type,
-			'device-type-detail'  => $detail,
-			'locator' => $locator,
-			'size' => $size,
-			'speed' => $speed,
-			});
+			# we want to avoid netbsd trying to complete @ram without real data
+			if ($size){
+				$ram[$index]->{'slots-qualifier'} = $est;
+				$ram[$index]->{'eec'} = $ecc;
+				$ram[$index]->{'derived-module-size'} = $derived_module_size;
+				push(@{$ram[$index]->{'modules'}},{
+				'device-type'  => $type,
+				'device-type-detail'  => $detail,
+				'locator' => $locator,
+				'size' => $size,
+				'speed' => $speed,
+				});
+			}
 		}
 	}
 	for (my $i = 0; $i++ ;scalar @ram){
