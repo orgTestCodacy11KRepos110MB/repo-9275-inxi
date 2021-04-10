@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-09';
-my $self_patch='39';
+my $self_date='2021-04-10';
+my $self_patch='40';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -196,7 +196,7 @@ sub initialize {
 	set_user_paths();
 	set_basics();
 	set_system_files();
-	get_configs();
+	Configs::get();
 	# set_downloader();
 	set_display_width('live');
 }
@@ -887,7 +887,7 @@ sub select_schema {
 	start_selector();
 	create_color_selections();
 	if (! $b_irc ){
-		main::check_config_file();
+		Configs::check_file();
 		get_selection();
 	}
 	else {
@@ -1137,14 +1137,10 @@ sub print_irc_message {
 #### CONFIGS
 #### -------------------------------------------------------------------
 
-sub check_config_file {
-	$user_config_file = "$user_config_dir/$self_name.conf";
-	if ( ! -f $user_config_file ){
-		open( my $fh, '>', $user_config_file ) or error_handler('create', $user_config_file, $!);
-	}
-}
-
-sub get_configs {
+# Configs
+{
+package Configs;
+sub get {
 	my ($configs) = @_;
 	my ($key, $val,@config_files);
 	if (!$configs){
@@ -1171,59 +1167,58 @@ sub get_configs {
 			next unless length;
 			($key, $val) = split(/\s*=\s*/, $_, 2);
 			next unless length($val);
-			get_config_item($key,$val);
+			process_item($key,$val);
 			# print "f: $file key: $key val: $val\n";
 		}
 		close $fh;
 	}
 }
-
 # note: someone managed to make a config file with corrupted values, so check int 
 # explicitly, don't assume it was done correctly.
 # args: 0: key; 1: value
-sub get_config_item {
+sub process_item {
 	my ($key,$val) = @_;
-	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$use{'update'} = $val if is_int($val)}
-	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$use{'weather'} = $val if is_int($val)}
-	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if is_numeric($val)}
-	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = $val if is_int($val)}
+	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE') {$use{'update'} = $val if main::is_int($val)}
+	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER') {$use{'weather'} = $val if main::is_int($val)}
+	elsif ($key eq 'CPU_SLEEP') {$cpu_sleep = $val if main::is_numeric($val)}
+	elsif ($key eq 'DL_TIMEOUT') {$dl_timeout = $val if main::is_int($val)}
 	elsif ($key eq 'DOWNLOADER') {
 		if ($val =~ /^(curl|fetch|ftp|perl|wget)$/){
 			# this dumps all the other data and resets %dl for only the
 			# desired downloader.
-			$val = set_perl_downloader($val);
+			$val = main::set_perl_downloader($val);
 			%dl = ('dl' => $val, $val => 1);
 		}}
 	elsif ($key eq 'FILTER_STRING') {$filter_string = $val}
 	elsif ($key eq 'LANGUAGE') {$language = $val if $val =~ /^(en)$/}
-	elsif ($key eq 'LIMIT') {$limit = $val if is_int($val)}
+	elsif ($key eq 'LIMIT') {$limit = $val if main::is_int($val)}
 	elsif ($key eq 'OUTPUT_TYPE') {$output_type = $val if $val =~ /^(json|screen|xml)$/}
-	elsif ($key eq 'NO_DIG') {$force{'no-dig'} = $val if is_int($val)}
-	elsif ($key eq 'NO_DOAS') {$force{'no-doas'} = $val if is_int($val)}
-	elsif ($key eq 'NO_HTML_WAN') {$force{'no-html-wan'} = $val if is_int($val)}
-	elsif ($key eq 'NO_SUDO') {$force{'no-sudo'} = $val if is_int($val)}
+	elsif ($key eq 'NO_DIG') {$force{'no-dig'} = $val if main::is_int($val)}
+	elsif ($key eq 'NO_DOAS') {$force{'no-doas'} = $val if main::is_int($val)}
+	elsif ($key eq 'NO_HTML_WAN') {$force{'no-html-wan'} = $val if main::is_int($val)}
+	elsif ($key eq 'NO_SUDO') {$force{'no-sudo'} = $val if main::is_int($val)}
 	elsif ($key eq 'PARTITION_SORT') {
 		if ($val =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/){
 			$show{'partition-sort'} = $val;
 		}}
-	elsif ($key eq 'PS_COUNT') {$ps_count = $val if is_int($val) }
-	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if is_int($val)}
+	elsif ($key eq 'PS_COUNT') {$ps_count = $val if main::is_int($val) }
+	elsif ($key eq 'SENSORS_CPU_NO') {$sensors_cpu_nu = $val if main::is_int($val)}
 	elsif ($key eq 'SENSORS_EXCLUDE') {@sensors_exclude = split(/\s*,\s*/, $val) if $val}
 	elsif ($key eq 'SENSORS_USE') {@sensors_use = split(/\s*,\s*/, $val) if $val}
 	elsif ($key eq 'SHOW_HOST' || $key eq 'B_SHOW_HOST') {
-		if (is_int($val)){
+		if (main::is_int($val)){
 			$show{'host'} = $val;
 			$show{'no-host'} = 1 if !$show{'host'};
 		}
 	}
-	elsif ($key eq 'USB_SYS') {$force{'usb-sys'} = $val if is_int($val)}
+	elsif ($key eq 'USB_SYS') {$force{'usb-sys'} = $val if main::is_int($val)}
 	elsif ($key eq 'WAN_IP_URL') {
 		if ($val =~ /^(ht|f)tp[s]?:\//i){
 			$wan_url = $val;
 			$force{'no-dig'} = 1;
 		}
 	}
-	elsif ($key eq 'WEATHER_SOURCE') {$weather_source = $val if is_int($val)}
+	elsif ($key eq 'WEATHER_SOURCE') {$weather_source = $val if main::is_int($val)}
 	elsif ($key eq 'WEATHER_UNIT') { 
 		$val = lc($val) if $val;
 		if ($val && $val =~ /^(c|f|cf|fc|i|m|im|mi)$/){
@@ -1233,25 +1228,32 @@ sub get_config_item {
 		}
 	}
 	# layout
-	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = $val if is_int($val)}
-	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = $val if is_int($val)}
-	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = $val if is_int($val)}
-	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = $val if is_int($val)}
-	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = $val if is_int($val)}
-	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = $val if is_int($val)}
+	elsif ($key eq 'CONSOLE_COLOR_SCHEME') {$colors{'console'} = $val if main::is_int($val)}
+	elsif ($key eq 'GLOBAL_COLOR_SCHEME') {$colors{'global'} = $val if main::is_int($val)}
+	elsif ($key eq 'IRC_COLOR_SCHEME') {$colors{'irc-gui'} = $val if main::is_int($val)}
+	elsif ($key eq 'IRC_CONS_COLOR_SCHEME') {$colors{'irc-console'} = $val if main::is_int($val)}
+	elsif ($key eq 'IRC_X_TERM_COLOR_SCHEME') {$colors{'irc-virt-term'} = $val if main::is_int($val)}
+	elsif ($key eq 'VIRT_TERM_COLOR_SCHEME') {$colors{'virt-term'} = $val if main::is_int($val)}
 	# note: not using the old short SEP1/SEP2
 	elsif ($key eq 'SEP1_IRC') {$sep{'s1-irc'} = $val}
 	elsif ($key eq 'SEP1_CONSOLE') {$sep{'s1-console'} = $val}
 	elsif ($key eq 'SEP2_IRC') {$sep{'s2-irc'} = $val}
 	elsif ($key eq 'SEP2_CONSOLE') {$sep{'s2-console'} = $val}
 	# size
-	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = $val if is_int($val)}
-	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = $val if is_int($val)}
-	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = $val if is_int($val)}
-	elsif ($key eq 'INDENT') {$size{'indent'} = $val if is_int($val)}
-	elsif ($key eq 'WRAP_MAX' || $key eq 'INDENT_MIN') {$size{'wrap-max'} = $val if is_int($val)}
+	elsif ($key eq 'COLS_MAX_CONSOLE') {$size{'console'} = $val if main::is_int($val)}
+	elsif ($key eq 'COLS_MAX_IRC') {$size{'irc'} = $val if main::is_int($val)}
+	elsif ($key eq 'COLS_MAX_NO_DISPLAY') {$size{'no-display'} = $val if main::is_int($val)}
+	elsif ($key eq 'INDENT') {$size{'indent'} = $val if main::is_int($val)}
+	elsif ($key eq 'WRAP_MAX' || $key eq 'INDENT_MIN') {$size{'wrap-max'} = $val if main::is_int($val)}
 	#  print "mc: key: $key val: $val\n";
 	# print Dumper (keys %size) . "\n";
+}
+sub check_file {
+	$user_config_file = "$user_config_dir/$self_name.conf";
+	if ( ! -f $user_config_file ){
+		open( my $fh, '>', $user_config_file ) or main::error_handler('create', $user_config_file, $!);
+	}
+}
 }
 
 #### -------------------------------------------------------------------
@@ -5991,7 +5993,7 @@ sub set_konvi_data {
 	# it sources config files like $HOME/.kde/share/apps/konversation/scripts/inxi.conf
 	if ($config_tool){
 		my @data = main::grabber("$config_tool --path data 2>/dev/null",':');
-		main::get_configs(\@data);
+		Configs::get(\@data);
 	}
 	eval $end if $b_log;
 }
