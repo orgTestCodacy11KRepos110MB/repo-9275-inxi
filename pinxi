@@ -8530,7 +8530,7 @@ sub cpuinfo_data {
 			}
 			elsif (!$cpu{'l3-cache'} && $line[0] eq 'l3 cache size'){
 				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
-					$cpu{'l2-cache'} = main::translate_size($1);
+					$cpu{'l3-cache'} = main::translate_size($1);
 				}
 			}
 			if ($cpu{'type'} eq 'elbrus'){
@@ -8895,7 +8895,7 @@ sub dboot_data {
 	eval $end if $b_log;
 	return %values;
 }
-sub cpu_dmi_data {
+sub dmidecode_data {
 	eval $start if $b_log;
 	return if !@dmi;
 	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'ext-clock' => undef, 'socket' => undef, 
@@ -8989,7 +8989,7 @@ sub cpu_dmi_data {
 sub cpu_properties {
 	my ($cpu) = @_;
 	my ($b_amd_zen,$b_epyc,$b_ht,$b_elbrus,$b_intel,$b_ryzen,$b_xeon);
-	my ($bsd_x,$cache_check) = (1,'');
+	my ($cores_x,$cache_check) = (1,'');
 	if ($cpu->{'type'} ){
 		if ($cpu->{'type'} eq 'intel'){
 			$b_intel = 1;
@@ -9014,13 +9014,13 @@ sub cpu_properties {
 	}
 	# my @dies = $phys[0]->[0];
 	my @phys = @{$cpu->{'ids'}};
-	my $phyical_count = 0;
-	# my $phyical_count = scalar @phys;
+	my $physical_count = 0;
+	# my $physical_count = scalar @phys;
 	my @processors;
 	my ($speed,$speed_key);
 	# handle case where cpu reports say, phys id 0, 2, 4, 6 [yes, seen it]
 	foreach (@phys) {
-		$phyical_count++ if $_;
+		$physical_count++ if $_;
 	}
 	# count unique processors ##
 	# note, this fails for intel cpus at times
@@ -9035,13 +9035,13 @@ sub cpu_properties {
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	if ($b_elbrus && $processors_count){
-		my @elbrus = elbrus_data($cpu->{'family_id'},$cpu->{'model_id'},$processors_count,$cpu->{'arch'});
+		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model_id'},$processors_count,$cpu->{'arch'});
 		$cpu_cores = $elbrus[0];
-		$phyical_count = $elbrus[1];
+		$physical_count = $elbrus[1];
 		$cpu->{'arch'} = $elbrus[2];
-		# print 'model id: ' . $cpu->{'model_id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $phyical_count proc: $processors_count \n";
+		# print 'model id: ' . $cpu->{'model_id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $physical_count proc: $processors_count \n";
 	}
-	$phyical_count ||= 1; # assume 1 if no id found, as with ARM
+	$physical_count ||= 1; # assume 1 if no id found, as with ARM
 	foreach my $die_ref (@phys){
 		next if ref $die_ref ne 'ARRAY';
 		$core_count = 0;
@@ -9108,8 +9108,8 @@ sub cpu_properties {
 # 	}
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
-	if ( $cpu_cores == 0 && ($cpu->{'cores'} * $phyical_count > 1)){
-		$cpu_cores = ($cpu->{'cores'} * $phyical_count);
+	if ( $cpu_cores == 0 && ($cpu->{'cores'} * $physical_count > 1)){
+		$cpu_cores = ($cpu->{'cores'} * $physical_count);
 	}
 	# last check, seeing some intel cpus and vms with intel cpus that do not show any
 	# core id data at all, or siblings.
@@ -9135,18 +9135,22 @@ sub cpu_properties {
 	# so far only OpenBSD has a way to detect MT cpus
 	if ($bsd_type){
 		if ($cpu->{'siblings'}){
-			$bsd_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
+			$cores_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
 		}
 		# if no siblings we couldn't get MT status of cpu so can't trust cache
 		else {
 			$cache_check = main::row_defaults('note-check');
 		}
 	}
+	# only elbrus shows L1 / L3 cache data in cpuinfo
+	else {
+		$cores_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
+	}
 	# last test to catch some corner cases 
 	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
 	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
-	# print "prc: $processors_count phc: $phyical_count coc: $core_count cpc: $cpu_cores\n";
-	if (!$b_arm && $processors_count == $phyical_count*$core_count && $cpu_cores > $core_count){
+	# print "prc: $processors_count phc: $physical_count coc: $core_count cpc: $cpu_cores\n";
+	if (!$b_arm && $processors_count == $physical_count*$core_count && $cpu_cores > $core_count){
 		$b_ht = 0;
 		#$b_xeon = 0;
 		$b_intel = 0;
@@ -9157,16 +9161,16 @@ sub cpu_properties {
 	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
 		# note: dmidecode has one entry per cpu per cache type, so this already 
 		# has done the arithmetic on > 1 cpus for L1 and L3. 
-		my %cpu_dmi = cpu_dmi_data();
+		my %cpu_dmi = dmidecode_data();
 		my $multi = ($bsd_type) ? $cpu_cores: 1;
-		$l1_cache = $cpu_dmi{'L1'} * $phyical_count if $cpu_dmi{'L1'};
+		$l1_cache = $cpu_dmi{'L1'} * $physical_count if $cpu_dmi{'L1'};
 		# note: bsds often won't have L2 catch data found yet
 		$cpu->{'l2-cache'} = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
-		$l3_cache = $cpu_dmi{'L3'} * $phyical_count if $cpu_dmi{'L3'};
+		$l3_cache = $cpu_dmi{'L3'} * $physical_count if $cpu_dmi{'L3'};
 		# bsd sysctl can have these values so let's check just in case
-		$l1_cache = $cpu->{'l1-cache'} * $bsd_x * $phyical_count if !$l1_cache && $cpu->{'l1-cache'};
-		# leave off $bsd_x *  for now, not sure about that one.
-		$l3_cache = $cpu->{'l3-cache'} * $phyical_count if !$l3_cache && $cpu->{'l3-cache'};
+		$l1_cache = $cpu->{'l1-cache'} * $cores_x * $physical_count if !$l1_cache && $cpu->{'l1-cache'};
+		# L3 is almost always per physical cpu, not per core
+		$l3_cache = $cpu->{'l3-cache'} * $physical_count if !$l3_cache && $cpu->{'l3-cache'};
 		$cache_check = '' if !$l1_cache && !$cpu->{'l2-cache'} && !$l3_cache; # nothing to check!
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
@@ -9184,7 +9188,7 @@ sub cpu_properties {
 	# if = 1 processor then single core/processor Uni-Processor (UP)
 	if ($processors_count > 1 || ($b_intel && $cpu->{'siblings'} > 0)) {
 		# non-multicore MT
-		if ($processors_count == ($phyical_count * $cpu_cores * 2)){
+		if ($processors_count == ($physical_count * $cpu_cores * 2)){
 			# print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
@@ -9197,7 +9201,7 @@ sub cpu_properties {
 			$cpu_type .= 'MT'; 
 		}
 		# non-MT multi-core or MT multi-core
-		if ( ($processors_count == $cpu_cores ) || ($phyical_count < $cpu_cores)){
+		if ( ($processors_count == $cpu_cores ) || ($physical_count < $cpu_cores)){
 			my $sep = ($cpu_type) ? ' ' : '' ;
 			$cpu_type .= $sep . 'MCP'; 
 		}
@@ -9207,7 +9211,7 @@ sub cpu_properties {
 			$cpu_type .= $sep . 'MCM'; 
 		}
 		# >1 cpu sockets active: Symetric Multi Processing
-		if ($phyical_count > 1){
+		if ($physical_count > 1){
 			my $sep = ($cpu_type) ? ' ' : '' ;
 			$cpu_type .= $sep . 'SMP'; 
 		}
@@ -9215,8 +9219,8 @@ sub cpu_properties {
 	else {
 		$cpu_type = 'UP';
 	}
-	if ($phyical_count > 1){
-		$cpu_layout = $phyical_count . 'x ';
+	if ($physical_count > 1){
+		$cpu_layout = $physical_count . 'x ';
 	}
 	$cpu_layout .= count_alpha($cpu_cores) . 'Core';
 	$cpu_layout .= ' (' . $cpu->{'dies'}. '-Die)' if !$bsd_type && $cpu->{'dies'} > 1;
@@ -9227,19 +9231,19 @@ sub cpu_properties {
 	# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
 	# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
 	elsif ($bsd_type){
-		$l2_cache = $cpu->{'l2-cache'} * $bsd_x * $phyical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $cores_x * $physical_count;
 	}
 	# AMD SOS chips appear to report full L2 cache per core
 	elsif ($cpu->{'type'} eq 'amd' && ($cpu->{'family'} eq '14' || $cpu->{'family'} eq '15' || $cpu->{'family'} eq '16')){
-		$l2_cache = $cpu->{'l2-cache'} * $phyical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $physical_count;
 	}
 	elsif ($cpu->{'type'} ne 'intel'){
-		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $phyical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $physical_count;
 	}
 	## note: this handles how intel reports L2, total instead of per core like AMD does
 	# note that we need to multiply by number of actual cpus here to get true cache size
 	else {
-		$l2_cache = $cpu->{'l2-cache'} * $phyical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $physical_count;
 	}
 	if ($cpu->{'cur-freq'} && $cpu->{'min-freq'} && $cpu->{'max-freq'} ){
 		$min_max = "$cpu->{'min-freq'}/$cpu->{'max-freq'} MHz";
@@ -16879,21 +16883,27 @@ sub dboot_data {
 	eval $start if $b_log;
 	my (@ram);
 	my $est = main::row_defaults('note-est');
-	my ($addr,$holder,$derived_module_size,$subtract) = (0,0,0,0);
+	my ($arr,$derived_module_size,$subtract) = (0,0,0);
+	my ($holder);
 	foreach (@{$dboot{'ram'}}){
-		my ($detail,$device_detail,$ecc,$index,$locator,$size,$speed,$type);
+		my ($addr,$detail,$device_detail,$ecc,$iic,$locator,$size,$speed,$type);
 		# note: seen one netbsd with multiline spdmem0/1 etc but not consistent so don't use
 		if (/^(spdmem([\d]+)):at iic([\d]+)(\saddr 0x([0-9a-f]+))?/){
-			$index = $3;
+			$iic = $3;
 			$locator = $1;
-			if ($index != $holder){
-				$subtract += $ram[$holder]->{'slots-16'} ;
-				$holder = $index;
+			$holder = $iic if !defined $holder; # prime for first use
+			# note: seen iic2 as only device
+			if ($iic != $holder){
+				if ($ram[$arr] && $ram[$arr]->{'slots-16'}){
+					$subtract += $ram[$arr]->{'slots-16'};
+				}
+				$holder = $iic;
+				# then since we are on a new iic device, assume new ram array.
+				# this needs more data to confirm this guess.
+				$arr++; 
 			}
 			if ($5){
 				$addr = hex($5);
-				$ram[$index]->{'slots-16'} = $addr - 80 + 1 - $subtract;
-				$locator = 'Slot-' . $ram[$index]->{'slots-16'};
 			}
 			if (/(non?[\s-]parity)/i){
 				$device_detail = $1;
@@ -16915,16 +16925,20 @@ sub dboot_data {
 			if (/:(\d+[MGT])B?\s(DDR[0-9]*)\b/){
 				$size = main::translate_size($1)/1024;
 				$type = $2;
-				$ram[$index]->{'device-count-found'}++;
+				if ($addr){
+					$ram[$arr]->{'slots-16'} = $addr - 80 + 1 - $subtract;
+					$locator = 'Slot-' . $ram[$arr]->{'slots-16'};
+				}
+				$ram[$arr]->{'device-count-found'}++;
 				# build up actual capacity found for override tests
-				$ram[$index]->{'max-capacity-16'} += $size;
-				$ram[$index]->{'max-cap-qualifier'} = $est;
-				$ram[$index]->{'slots-16'}++ if !$addr;
+				$ram[$arr]->{'max-capacity-16'} += $size;
+				$ram[$arr]->{'max-cap-qualifier'} = $est;
+				$ram[$arr]->{'slots-16'}++ if !$addr;
 				$derived_module_size = $size if $size > $derived_module_size;
-				$ram[$index]->{'slots-qualifier'} = $est;
-				$ram[$index]->{'eec'} = $ecc;
-				$ram[$index]->{'derived-module-size'} = $derived_module_size;
-				push(@{$ram[$index]->{'modules'}},{
+				$ram[$arr]->{'slots-qualifier'} = $est;
+				$ram[$arr]->{'eec'} = $ecc;
+				$ram[$arr]->{'derived-module-size'} = $derived_module_size;
+				push(@{$ram[$arr]->{'modules'}},{
 				'device-type'  => $type,
 				'device-type-detail'  => $detail,
 				'locator' => $locator,
