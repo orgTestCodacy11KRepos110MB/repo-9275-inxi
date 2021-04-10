@@ -10111,6 +10111,14 @@ sub drive_output {
 		if (defined $row->{'partition-table'}){
 			$rows[$j]->{main::key($num++,0,2,'scheme')} = $row->{'partition-table'};
 		}
+		if ($extra > 2 && $alerts{'bioctl'}){
+			if (!$row->{'duid'} && $alerts{'bioctl'}->{'action'} eq 'permissions'){
+				$rows[$j]->{main::key($num++,0,2,'duid')} = main::row_defaults('root-required');
+			}
+			elsif ($row->{'duid'}) {
+				$rows[$j]->{main::key($num++,0,2,'duid')} = main::apply_filter($row->{'duid'});
+			}
+		}
 		if ($row->{'smart'} || $row->{'smart-error'}){
 			$j = scalar @rows;
 			## Basic SMART and drive info ##
@@ -10448,7 +10456,7 @@ sub bsd_data {
 	eval $start if $b_log;
 	my ($used) = @_;
 	my (@data,@drives,@temp);
-	my ($i,$size,$working) = (0,0,0);
+	my ($i,$logical_size,$size,$working) = (0,0,0,0);
 	my $file = $system_files{'dmesg-boot'};
 	DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
 	# we don't want non dboot disk data from gpart or disklabel
@@ -10471,7 +10479,12 @@ sub bsd_data {
 			$drives[$i]->{'partition-table'} = $disks_bsd{$id}->{'scheme'};
 			$drives[$i]->{'serial'} = $disks_bsd{$id}->{'serial'};
 			$drives[$i]->{'size'} = $disks_bsd{$id}->{'size'};
-			$size += $drives[$i]->{'size'} if $drives[$i]->{'size'};
+			# don't count OpenBSD RAID virtual disks!
+			# this is wrong, we don't want to count the raid components!
+			if ($drives[$i]->{'size'} && 
+			 (!$disks_bsd{$id}->{'model'} || $disks_bsd{$id}->{'model'} !~ /raid/i)){
+				$size += $drives[$i]->{'size'} if $drives[$i]->{'size'};
+			}
 			$drives[$i]->{'spec'} = $disks_bsd{$id}->{'spec'};
 			$drives[$i]->{'speed'} = $disks_bsd{$id}->{'speed'};
 			$drives[$i]->{'type'} = $disks_bsd{$id}->{'type'};
@@ -10482,13 +10495,25 @@ sub bsd_data {
 				$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
 				$drives[$i]->{'model'} = $device_data[1] if $device_data[1];
 			}
+			if ($disks_bsd{$id}->{'duid'}){
+				$drives[$i]->{'duid'} = $disks_bsd{$id}->{'duid'};
+			}
 			$i++;
+		}
+		# raw_logical[0] is total of all logical raid/lvm found
+		# raw_logical[1] is total of all components found. If this totally fails,
+		# and we end up with raw logical less than used, give up
+		if (@raw_logical && $size && $raw_logical[0] && 
+		 (!$used || $raw_logical[0] > $used)){
+			$logical_size = ($size - $raw_logical[1] + $raw_logical[0]);
 		}
 		if (!$size){
 			$size = main::row_defaults('data-bsd');
 		}
 	}
 	@data = ({
+	'logical-size' => $logical_size,
+	'logical-free' => $raw_logical[2],
 	'size' => $size,
 	'used' => $used,
 	});
@@ -19624,6 +19649,7 @@ sub bsd_data {
 		foreach my $part (sort keys %{$disks_bsd{$id}->{'partitions'}}){
 			if (!(grep {$_ =~ /$part$/} @mounted)){
 				$fs = $disks_bsd{$id}->{'partitions'}{$part}{'fs'};
+				next if $fs && $fs =~ /(raid|_member)$/i; 
 				$label = $disks_bsd{$id}->{'partitions'}{$part}{'label'};
 				$size = $disks_bsd{$id}->{'partitions'}{$part}{'size'};
 				$uuid = $disks_bsd{$id}->{'partitions'}{$part}{'uuid'};
@@ -22290,6 +22316,7 @@ sub set_disklabel_data {
 						$bytes_sector = $working[1];
 					}
 					elsif ($working[0] eq 'duid'){
+						$working[1] =~ s/^0+$//; # dump duid if all 0s
 						$disks_bsd{$id}->{'duid'} = $working[1];
 					}
 					elsif ($working[0] eq 'label'){
