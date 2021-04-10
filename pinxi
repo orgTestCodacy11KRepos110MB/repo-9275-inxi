@@ -5113,6 +5113,8 @@ sub post_process {
 			$use{'bsd-ram'} = 1;}
 		if ($show{'sensor'}){
 			$use{'bsd-sensor'} = 1;}
+		if ($show{'system'}){
+			$use{'bsd-kernel'} = 1;}
 		# always use this, it's too core
 		$use{'sysctl'} = 1;
 	}
@@ -20550,16 +20552,18 @@ sub version_bsd {
 	eval $start if $b_log;
 	my (@compiler,@working);
 	if ($alerts{'sysctl'}->{'action'} && $alerts{'sysctl'}->{'action'} eq 'use'){
-		my @working;
-		foreach (@{$sysctl{'main'}}){
-			# Not every line will have a : separator though the processor should make 
-			# most have it. This appears to be 10.x late feature add, I don't see it
-			# on earlier BSDs
-			if (/^kern.compiler_version/){
-				@working = split(/:\s*/, $_);
-				$working[1] =~ /.*(gcc|clang)\sversion\s([\S]+)\s.*/;
-				@compiler = ($1,$2);
-				last;
+		if ($sysctl{'kernel'}){
+			my @working;
+			foreach (@{$sysctl{'kernel'}}){
+				# Not every line will have a : separator though the processor should make 
+				# most have it. This appears to be 10.x late feature add, I don't see it
+				# on earlier BSDs
+				if (/^kern.compiler_version/){
+					@working = split(/:\s*/, $_);
+					$working[1] =~ /.*(gcc|clang)\sversion\s([\S]+)\s.*/;
+					@compiler = ($1,$2);
+					last;
+				}
 			}
 		}
 		# OpenBSD doesn't show compiler data in sysctl or dboot but it's going to
@@ -24877,6 +24881,9 @@ sub set_sysctl_data {
 		elsif ($use{'bsd-disk'} && /^hw\.disknames/){
 			push(@{$dboot{'disk'}}, $_);
 		}
+		elsif ($use{'bsd-kernel'} && /^kern.compiler_version/){
+			push(@{$dboot{'kernel'}}, $_);
+		}
 		elsif ($use{'bsd-machine'} && 
 		 /^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@{$sysctl{'machine'}}, $_);
@@ -24897,6 +24904,7 @@ sub set_sysctl_data {
 		print("audio\n", Dumper $sysctl{'audio'});
 		print("battery\n", Dumper $sysctl{'battery'});
 		print("cpu\n", Dumper $sysctl{'cpu'});
+		print("kernel\n", Dumper $sysctl{'kernel'});
 		print("machine\n", Dumper $sysctl{'machine'});
 		print("memory\n", Dumper $sysctl{'memory'});
 		print("sensors\n", Dumper $sysctl{'sensor'});
@@ -24907,6 +24915,7 @@ sub set_sysctl_data {
 		main::log_data('dump','$sysctl{audio}',$sysctl{'audio'});
 		main::log_data('dump','$sysctl{battery}',$sysctl{'battery'});
 		main::log_data('dump','$sysctl{cpu}',$sysctl{'cpu'});
+		main::log_data('dump','$sysctl{kernel}',$sysctl{'kernel'});
 		main::log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		main::log_data('dump','$sysctl{memory}',$sysctl{'memory'});
 		main::log_data('dump','$sysctl{sensors}',$sysctl{'sensor'});
