@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-11';
-my $self_patch='41';
+my $self_patch='42';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -80,7 +80,7 @@ my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
 
 ## Disk/Logical/Partition/RAID arrays 
 my (@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
-@raw_logical,@swaps,@uuids,@zfs_raid);
+@raw_logical,@soft_raid,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
@@ -5100,6 +5100,8 @@ sub post_process {
 		 $show{'raid'} || $show{'swap'} || $show{'unmounted'}){
 			$use{'bsd-disk'} = 1;
 			$use{'bsd-partition'} = 1;}
+		if ($show{'system'}){
+			$use{'bsd-kernel'} = 1;}
 		if ($show{'machine'}){
 			$use{'bsd-machine'} = 1;}
 		if ($show{'short'} || $show{'info'} || $show{'ps-mem'} || $show{'ram'}){
@@ -5109,12 +5111,13 @@ sub post_process {
 		# strictly only used to fill in pci drivers if tool doesn't support that
 		if ($use{'pci'}){
 			$use{'bsd-pci'} = 1;}
-		if ($show{'ram'}){
+		if ($show{'raid'}){
+			$use{'bsd-raid'} = 1;}
+		if ($show{'raid'}){
 			$use{'bsd-ram'} = 1;}
 		if ($show{'sensor'}){
 			$use{'bsd-sensor'} = 1;}
-		if ($show{'system'}){
-			$use{'bsd-kernel'} = 1;}
+		
 		# always use this, it's too core
 		$use{'sysctl'} = 1;
 	}
@@ -15538,7 +15541,7 @@ sub get {
 	# print 'get: ', Data::Dumper::Dumper \@lvm_raid;
 	# print 'get: ', Data::Dumper::Dumper \@md_raid;
 	# print 'get: ', Data::Dumper::Dumper \@zfs_raid;
-	if (!@lvm_raid && !@md_raid && !@zfs_raid && !@hardware_raid){
+	if (!@lvm_raid && !@md_raid && !@zfs_raid && !@soft_raid && !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('raid-data');
@@ -15553,6 +15556,9 @@ sub get {
 		}
 		if (@md_raid){
 			push(@rows,md_output());
+		}
+		if (@soft_raid){
+			push(@rows,soft_output());
 		}
 		if (@zfs_raid){
 			push(@rows,zfs_output());
@@ -15605,7 +15611,7 @@ sub hw_output {
 }
 sub lvm_output {
 	eval $start if $b_log;
-	my (@components,@components_good,@components_meta,@rows);
+	my (@components,@good,@components_meta,@rows);
 	my ($size);
 	my ($j,$num) = (0,0);
 	foreach my $row (sort {$a->{'id'} cmp $b->{'id'}} @lvm_raid){
@@ -15646,20 +15652,20 @@ sub lvm_output {
 			$rows[$j]->{main::key($num++,0,4,'vg-free')} = $size;
 		}
 		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
-		@components_good = ();
+		@good = ();
 		@components_meta = ();
 		foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
 			if ($item->[4] =~ /_rmeta/){
 				push(@components_meta, $item);
 			}
 			else {
-				push(@components_good, $item);
+				push(@good, $item);
 			}
 		}
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
 		my $b_bump;
-		components_output('lvm','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+		components_output('lvm','Online',\@rows,\@good,\$j,\$num,\$b_bump);
 		components_output('lvm','Meta',\@rows,\@components_meta,\$j,\$num,\$b_bump);
 	}
 	eval $end if $b_log;
@@ -15668,7 +15674,7 @@ sub lvm_output {
 }
 sub md_output {
 	eval $start if $b_log;
-	my (@components,@components_good,@failed,@inactive,@rows,@spare,@temp);
+	my (@components,@good,@failed,@inactive,@rows,@spare,@temp);
 	my ($blocks,$chunk,$level,$report,$size,$status);
 	my ($j,$num) = (0,0);
 	# print Data::Dumper::Dumper \@md_raid;
@@ -15731,7 +15737,7 @@ sub md_output {
 			}
 		}
 		@components = (ref $row->{'components'} eq 'ARRAY') ? @{$row->{'components'}} : ();
-		@components_good = ();
+		@good = ();
 		@failed = ();
 		@inactive = ();
 		@spare = ();
@@ -15748,13 +15754,13 @@ sub md_output {
 				push(@inactive, $item);
 			}
 			else {
-				push(@components_good, $item);
+				push(@good, $item);
 			}
 		}
 		$j = scalar @rows;
 		$rows[$j]->{main::key($num++,1,2,'Components')} = '';
 		my $b_bump;
-		components_output('mdraid','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+		components_output('mdraid','Online',\@rows,\@good,\$j,\$num,\$b_bump);
 		components_output('mdraid','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
 		components_output('mdraid','Inactive',\@rows,\@inactive,\$j,\$num,\$b_bump);
 		components_output('mdraid','Spare',\@rows,\@spare,\$j,\$num,\$b_bump);
@@ -15783,9 +15789,20 @@ sub md_output {
 	return @rows;
 }
 
+sub soft_output {
+	eval $start if $b_log;
+	my (@components,@good,@failed,@inactive,@rows,@spare,@temp);
+	my ($level,$size,$status);
+	my ($j,$num) = (0,0);
+	# print Data::Dumper::Dumper \@md_raid;
+	eval $end if $b_log;
+	# print Data::Dumper::Dumper \@rows;
+	return @rows;
+}
+
 sub zfs_output {
-		eval $start if $b_log;
-	my (@arrays,@arrays_holder,@components,@components_good,@failed,@rows,@spare);
+	eval $start if $b_log;
+	my (@arrays,@arrays_holder,@components,@good,@failed,@rows,@spare);
 	my ($allocated,$available,$level,$size,$status);
 	my ($b_row_1_sizes);
 	my ($j,$num) = (0,0);
@@ -15863,7 +15880,7 @@ sub zfs_output {
 			@components = (ref $row2->{'components'} eq 'ARRAY') ? @{$row2->{'components'}} : ();
 			@failed = ();
 			@spare = ();
-			@components_good = ();
+			@good = ();
 			# @spare = split(/\s+/, $row->{'unused'}) if $row->{'unused'};
 			foreach my $item (sort { $a->[0] cmp $b->[0]} @components){
 				if (defined $item->[3] && $item->[3] =~ /^(DEGRADED|FAULTED|UNAVAIL)$/){
@@ -15875,13 +15892,13 @@ sub zfs_output {
 				# note: spares in use show: INUSE but technically it's still a spare,
 				# but since it's in use, consider it online.
 				else {
-					push(@components_good, $item);
+					push(@good, $item);
 				}
 			}
 			$j = scalar @rows;
 			$rows[$j]->{main::key($num++,1,3,'Components')} = '';
 			my $b_bump;
-			components_output('zfs','Online',\@rows,\@components_good,\$j,\$num,\$b_bump);
+			components_output('zfs','Online',\@rows,\@good,\$j,\$num,\$b_bump);
 			components_output('zfs','Failed',\@rows,\@failed,\$j,\$num,\$b_bump);
 			components_output('zfs','Available',\@rows,\@spare,\$j,\$num,\$b_bump);
 		}
@@ -15962,6 +15979,10 @@ sub raid_data {
 	}
 	if ($fake{'raid-md'} || (my $file = $system_files{'proc-mdstat'})){
 		@md_raid = md_data($file);
+	}
+	if ($fake{'raid-soft'} || $sysctl{'softraid'}){
+		DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
+		@soft_raid = soft_data();
 	}
 	if ($fake{'raid-zfs'} || (my $path = main::check_program('zpool') )){
 		DiskDataBSD::set() if $bsd_type && !$loaded{'disk-data-bsd'};
@@ -16063,7 +16084,6 @@ sub lvm_data {
 		'vg-used' => $vg_used,
 		});
 	}
-	
 	# print Data::Dumper::Dumper \@lvraid;
 	main::log_data('dump','@lvraid',\@lvraid) if $b_log;
 	eval $end if $b_log;
@@ -16289,6 +16309,60 @@ sub md_details {
 	return %details;
 }
 
+sub soft_data {
+	eval $start if $b_log;
+	my ($cmd,$id,$state,$status,@data,@softraid,@working);
+	# already been set in DiskDataBSD but we know the device exists
+	return if $alerts{'bioctl'}->{'action'} eq 'permissions';
+	foreach my $device (@{$sysctl{'softraid'}}){
+		if ($device =~ /\.drive[\d]+:([\S]+)\s\(([a-z0-9]+)\)[,\s]+(\S+)/){
+			my ($level,$size,@components);
+			$id = $2;
+			$status = $1;
+			$state = $3;
+			$cmd = $alerts{'bioctl'}->{'path'} . " $id 2>/dev/null";
+			@data = main::grabber($cmd,'','strip');
+			main::log_data('dump','softraid @data',\@data) if $b_log;
+			shift @data if @data; # get rid of headers 
+			foreach my $row (@data){
+				@working = split(/\s+/,$row);
+				next if !defined $working[0];
+				if ($working[0] =~ /^softraid/){
+					if ($working[3] && main::is_numeric($working[3])){
+						$size = $working[3]/1024;# it's in bytes
+						$raw_logical[0] += $size;
+					}
+					$level = lc($working[5]) if $working[5];
+				}
+				elsif ($working[0] =~ /^[\d]{1,2}$/){
+					my ($c_id,$c_size,$c_status);
+					if ($working[2] && main::is_numeric($working[2])){
+						$c_size = $working[2]/1024;# it's in bytes
+						$raw_logical[1] += $c_size;
+					}
+					$c_status = lc($working[1]) if $working[1];
+					if ($working[5] && $working[5] =~ /<([^>]+)>/){
+						$c_id = $1;
+					}
+					push(@components,[$c_id,$c_size,$c_status]) if $c_id;
+				}
+			}
+			push(@softraid, {
+			'components' => \@components,
+			'id' => $id,
+			'level' => $level,
+			'size' => $size,
+			'status' => $status,
+			'type' => 'softraid',
+			});
+		}
+	}
+	print Data::Dumper::Dumper \@softraid if $dbg[37];
+	main::log_data('dump','@softraid',\@softraid) if $b_log;
+	eval $end if $b_log;
+	return @softraid;
+}
+
 sub zfs_data {
 	eval $start if $b_log;
 	my ($zpool) = @_;
@@ -16433,7 +16507,7 @@ sub zfs_data {
 		$j++;
 	}
 	@zfs = zfs_status($zpool,\@zfs);
-	# print Data::Dumper::Dumper \@zfs;
+	print Data::Dumper::Dumper \@zfs if $dbg[37];
 	eval $end if $b_log;
 	return @zfs;
 }
@@ -19673,21 +19747,29 @@ sub bsd_data {
 }
 sub get_mounted {
 	eval $start if $b_log;
-	my (@mounted);
+	my (@arrays,@mounted);
 	foreach my $row (@partitions){
 		push(@mounted, $row->{'dev-base'}) if $row->{'dev-base'};
 	}
 	# print Data::Dumper::Dumper \@zfs_raid;
-	foreach my $row ((@lvm_raid,@md_raid,@zfs_raid)){
+	foreach my $row ((@lvm_raid,@md_raid,@soft_raid,@zfs_raid)){
 		# we want to not show md0 etc in unmounted report
 		push(@mounted, $row->{'id'}) if $row->{'id'}; 
-		my @arrays = (ref $row->{'arrays'} eq 'ARRAY' ) ? @{$row->{'arrays'}} : ();
+		# print Data::Dumper::Dumper $row;
+		# arrays->components: zfs; components: lvm,mdraid,softraid
+		if ($row->{'arrays'} && ref $row->{'arrays'} eq 'ARRAY'){
+			push(@arrays,@{$row->{'arrays'}});
+		}
+		elsif ($row->{'components'} && ref $row->{'components'} eq 'ARRAY'){
+			push(@arrays,$row);
+		}
 		@arrays = grep {defined $_} @arrays;
-		foreach my $array (@arrays){
-			my @components = (ref $array->{'components'} eq 'ARRAY') ? @{$array->{'components'}} : ();
+		foreach my $item (@arrays){
+			# print Data::Dumper::Dumper $item;
+			my @components = (ref $item->{'components'} eq 'ARRAY') ? @{$item->{'components'}} : ();
 			foreach my $component (@components){
-				my @temp = split('~', $component->[0]); # md has ~, not zfs or lvm
-				push(@mounted, $temp[0]);
+				my $temp = (split('~', $component->[0]))[0]; # md has ~, not zfs,lvm,softraid
+				push(@mounted, $temp);
 			}
 		}
 	}
@@ -24925,6 +25007,9 @@ sub set_sysctl_data {
 		 !/^hw\.sensors\.softraid/) || /^hw\.acpi\.thermal/)){
 			push(@{$sysctl{'sensor'}}, $_);
 		}
+		elsif ($use{'bsd-raid'} && /^hw\.sensors\.softraid[0-9]\.drive[0-9]/){
+			push(@{$sysctl{'softraid'}}, $_);
+		}
 	}
 	if ($dbg[7]){
 		print("main\n", Dumper $sysctl{'main'});
@@ -24935,6 +25020,7 @@ sub set_sysctl_data {
 		print("machine\n", Dumper $sysctl{'machine'});
 		print("memory\n", Dumper $sysctl{'memory'});
 		print("sensors\n", Dumper $sysctl{'sensor'});
+		print("softraid\n", Dumper $sysctl{'softraid'});
 	}
 	# this thing can get really long.
 	if ($b_log){
@@ -24946,6 +25032,7 @@ sub set_sysctl_data {
 		main::log_data('dump','$sysctl{machine}',$sysctl{'machine'});
 		main::log_data('dump','$sysctl{memory}',$sysctl{'memory'});
 		main::log_data('dump','$sysctl{sensors}',$sysctl{'sensor'});
+		main::log_data('dump','$sysctl{softraid}',$sysctl{'softraid'});
 	}
 	eval $end if $b_log;
 }
