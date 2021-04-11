@@ -325,6 +325,7 @@ sub set_commands {
 		if ($use{'bsd-partition'}){
 			$commands{'bioctl'} = ['missing','',''];
 			$commands{'disklabel'} = ['missing','',''];
+			$commands{'fdisk'} = ['missing','',''];
 			$commands{'gpart'} = ['missing','',''];
 		}
 	}
@@ -10110,10 +10111,6 @@ sub drive_output {
 		if ($extra > 0 && $row->{'temp'}){
 			$rows[$j]->{main::key($num++,0,2,'temp')} = $row->{'temp'} . ' C';
 		}
-		# extra level tests already done
-		if (defined $row->{'partition-table'}){
-			$rows[$j]->{main::key($num++,0,2,'scheme')} = $row->{'partition-table'};
-		}
 		if ($extra > 1 && $alerts{'bioctl'}){
 			if (!$row->{'duid'} && $alerts{'bioctl'}->{'action'} eq 'permissions'){
 				$rows[$j]->{main::key($num++,0,2,'duid')} = main::row_defaults('root-required');
@@ -10122,6 +10119,11 @@ sub drive_output {
 				$rows[$j]->{main::key($num++,0,2,'duid')} = main::apply_filter($row->{'duid'});
 			}
 		}
+		# extra level tests already done
+		if (defined $row->{'partition-table'}){
+			$rows[$j]->{main::key($num++,0,2,'scheme')} = $row->{'partition-table'};
+		}
+		
 		if ($row->{'smart'} || $row->{'smart-error'}){
 			$j = scalar @rows;
 			## Basic SMART and drive info ##
@@ -10501,6 +10503,9 @@ sub bsd_data {
 			}
 			if ($disks_bsd{$id}->{'duid'}){
 				$drives[$i]->{'duid'} = $disks_bsd{$id}->{'duid'};
+			}
+			if ($disks_bsd{$id}->{'partition-table'}){
+				$drives[$i]->{'partition-table'} = $disks_bsd{$id}->{'partition-table'};
 			}
 			$i++;
 		}
@@ -14761,7 +14766,9 @@ sub create_output {
 		if ($extra > 0 && $row->{'dev-mapped'}){
 			$rows[$j]->{main::key($num++,0,3,'mapped')} = $row->{'dev-mapped'};
 		}
-		if ($dev_type eq 'dev' || $row->{'label'} || $row->{'uuid'}){
+		# add fs known to not use label/uuid here
+		if (($dev_type eq 'dev' && $fs !~ /^(ffs)$/) || 
+		 $row->{'label'} || $row->{'uuid'}){
 			if ($show{'label'}){
 				$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '') if $use{'filter-label'};
 				$rows[$j]->{main::key($num++,0,2,'label')} = ($row->{'label'}) ? $row->{'label'}: 'N/A';
@@ -19691,8 +19698,11 @@ sub create_output {
 		$row->{'uuid'} ||= 'N/A';
 		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 		$rows[$j]->{main::key($num++,0,2,'fs')} = $fs;
-		$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
-		$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
+		# don't show for fs known to not have label/uuid
+		if ($fs !~ /^(ffs)$/){
+			$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
+			$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
+		}
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -22404,7 +22414,8 @@ sub set_dboot_disks {
 				$disks_bsd{$id}->{'speed'} =~ s/\.[0-9]+// if $disks_bsd{$id}->{'speed'};
 			}
 			$disks_bsd{$id}->{'model'} = main::disk_cleaner($disks_bsd{$id}->{'model'});
-			if (!$disks_bsd{$id}->{'serial'} && $alerts{'bioctl'}->{'action'} eq 'use'){
+			if (!$disks_bsd{$id}->{'serial'} && $extra > 1 && 
+			 $alerts{'bioctl'}->{'action'} eq 'use'){
 				$disks_bsd{$id}->{'serial'} = bioctl_data($id);
 			}
 		}
@@ -22433,6 +22444,10 @@ sub set_disklabel_data {
 	eval $start if $b_log;
 	my ($cmd,@data,@working);
 	# see docs/inxi-data.txt for fs info
+	my %fs = (
+	'4.2bsd' => 'ffs',
+	'4.4lfs' => 'lfs',
+	);
 	foreach my $id (keys %disks_bsd){
 		$cmd = "$alerts{'disklabel'}->{'path'} $id 2>&1";
 		@data = main::grabber($cmd,'','strip');
@@ -22444,10 +22459,9 @@ sub set_disklabel_data {
 		}
 		else {
 			my ($b_part,$duid,$part_id,$bytes_sector) = undef;
-			my %fs = (
-			'4.2bsd' => 'ffs',
-			'4.4lfs' => 'lfs',
-			);
+			if ($extra > 2 and $alerts{'fdisk'}->{'action'} eq 'use'){
+				$disks_bsd{$id}->{'partition-table'} = fdisk_data($id);
+			}
 			foreach my $row (@data){
 				if ($row =~ /^\d+\spartitions:/){
 					$b_part = 1;
@@ -22499,6 +22513,24 @@ sub set_disklabel_data {
 	print Data::Dumper::Dumper \%disks_bsd if $dbg[34];
 	main::log_data('dump', '%disks_bsd', \%disks_bsd) if $b_log;
 	eval $end if $b_log;
+}
+sub fdisk_data {
+	eval $start if $b_log;
+	my $id = $_[0];
+	my ($scheme);
+	my @data = main::grabber($alerts{'fdisk'}->{'path'} . " -v $id 2>/dev/null",'','strip');
+	foreach (@data){
+		if (/^GUID:/){
+			$scheme = 'GPT';
+			last;
+		}
+		elsif (/^MBR:/){
+			$scheme = 'MBR';
+			last;
+		}
+	}
+	eval $start if $b_log;
+	return $scheme;
 }
 # 2021-03: openbsd: n/a; dragonfly: no 'list'; freebsd: yes
 sub set_gpart_data {
