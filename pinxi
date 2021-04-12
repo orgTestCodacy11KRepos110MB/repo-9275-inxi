@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-11';
-my $self_patch='42';
+my $self_patch='43';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6325,7 +6325,8 @@ sub row_defaults {
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
 	'sensors-data-linux' => 'No sensor data found. Is lm-sensors configured?',
 	'sensors-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
-	'smartctl-command-failed' => 'A mandatory SMART command failed. Various possible causes.',
+	'smartctl-command' => 'A mandatory SMART command failed. Various possible causes.',
+	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
 	'smartctl-udma-crc' => 'Bad cable/connection?',
 	'smartctl-usb' => 'Unknown USB bridge. Flash drive/Unsupported enclosure?',
 	'swap-admin' => 'No admin swap data available.',
@@ -10640,6 +10641,8 @@ sub smartctl_data {
 		# m2 nvme failed on nvme0n1 drive id:
 		$id = $data->[$i]{'id'};
 		$id =~ s/n[0-9]+$// if $id =~ /^nvme/;
+		# openbsd needs the 'c' partition, which is the entire disk
+		$id .= 'c' if $bsd_type && $bsd_type eq 'openbsd';
 		$cmd = $alerts{'smartctl'}->{'path'} . " -AHi /dev/" . $id . ' 2>/dev/null';
 		@result = main::grabber("$cmd", '', 'strip');
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
@@ -10653,7 +10656,10 @@ sub smartctl_data {
 				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-usb');
 			}
 			elsif (grep {/A mandatory SMART command failed/i} @result){
-				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command-failed');
+				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command');
+			}
+			elsif (grep {/open device.*Operation not supported by device/i} @result){
+				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-open');
 			}
 			else {
 				$data->[$i]{'smart-error'} = main::row_defaults('tool-unknown-error','smartctl');
@@ -22414,7 +22420,7 @@ sub set_dboot_disks {
 				$disks_bsd{$id}->{'speed'} =~ s/\.[0-9]+// if $disks_bsd{$id}->{'speed'};
 			}
 			$disks_bsd{$id}->{'model'} = main::disk_cleaner($disks_bsd{$id}->{'model'});
-			if (!$disks_bsd{$id}->{'serial'} && $extra > 1 && 
+			if (!$disks_bsd{$id}->{'serial'} && $show{'disk'} && $extra > 1 && 
 			 $alerts{'bioctl'}->{'action'} eq 'use'){
 				$disks_bsd{$id}->{'serial'} = bioctl_data($id);
 			}
@@ -22459,7 +22465,7 @@ sub set_disklabel_data {
 		}
 		else {
 			my ($b_part,$duid,$part_id,$bytes_sector) = undef;
-			if ($extra > 2 and $alerts{'fdisk'}->{'action'} eq 'use'){
+			if ($extra > 2 && $show{'disk'} && $alerts{'fdisk'}->{'action'} eq 'use'){
 				$disks_bsd{$id}->{'partition-table'} = fdisk_data($id);
 			}
 			foreach my $row (@data){
@@ -22518,14 +22524,14 @@ sub fdisk_data {
 	eval $start if $b_log;
 	my $id = $_[0];
 	my ($scheme);
-	my @data = main::grabber($alerts{'fdisk'}->{'path'} . " -v $id 2>/dev/null",'','strip');
+	my @data = main::grabber($alerts{'fdisk'}->{'path'} . " -v $id  2>&1",'','strip');
 	foreach (@data){
-		if (/^GUID:/){
-			$scheme = 'GPT';
+		if (/permission/i){
+			$alerts{'fdisk'}->{'action'} = 'permissions';
 			last;
 		}
-		elsif (/^MBR:/){
-			$scheme = 'MBR';
+		elsif (/^(GUID|MBR):/){
+			$scheme = ($1 eq 'GUID') ? 'GPT' : $1;
 			last;
 		}
 	}
