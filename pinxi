@@ -4856,8 +4856,8 @@ sub get {
 	'fake:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|';
-			$wl .= 'pciconf|pcictl|pcidump|raid-hw|raid-lvm|raid-md|raid-zfs|';
+			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|pciconf|';
+			$wl .= 'pcictl|pcidump|raid-hw|raid-lvm|raid-md|raid-soft|raid-zfs|';
 			$wl .= 'sensors|sysctl|uptime|usbconfig|usbdevs|vmstat|xorg-log';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -16403,6 +16403,8 @@ sub soft_data {
 							$size = $working[3]/1024;# it's in bytes
 							$raw_logical[0] += $size;
 						}
+						$status = lc($working[2]) if $working[2];
+						$state = lc(join(' ', @working[6..$#working])) if $working[6];
 						$level = lc($working[5]) if $working[5];
 					}
 					elsif ($working[0] =~ /^[\d]{1,2}$/){
@@ -16417,6 +16419,11 @@ sub soft_data {
 						}
 						if ($working[5] && $working[5] =~ /<([^>]+)>/){
 							$c_id = $1;
+						}
+						# when offline, there will be no $c_id, but we want to show device
+						if (!$c_id && $c_device){
+							$c_id = $c_device;
+							$c_device = undef;
 						}
 						push(@components,[$c_id,$c_size,$c_status,$c_device]) if $c_id;
 					}
