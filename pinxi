@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.03';
 my $self_date='2021-04-13';
-my $self_patch='46';
+my $self_patch='47';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -13601,7 +13601,7 @@ sub machine_data_dmi {
 # it uses hw. info from sysctl -a and bios info from dmesg.boot
 sub machine_data_sysctl {
 	eval $start if $b_log;
-	my (%data,$vm);
+	my (%data,$product,$vendor,$vm);
 	# ^hw\.(vendor|product|version|serialno|uuid)
 	foreach (@{$sysctl{'machine'}}){
 		next if ! $_;
@@ -13665,12 +13665,13 @@ sub machine_data_sysctl {
 		}
 	}
 	if ($data{'board_vendor'} || $data{'sys_vendor'} || $data{'board_name'} || $data{'product_name'}){
-		my $vendor = $data{'sys_vendor'};
+		$vendor = $data{'sys_vendor'};
 		$vendor = $data{'board_vendor'} if !$vendor;
-		my $product = $data{'product_name'};
+		$product = $data{'product_name'};
 		$product = $data{'board_name'} if !$product;
-		$data{'device'} = get_device_vm($vendor,$product);
 	}
+	# detections can be from other sources.
+	$data{'device'} = get_device_vm($vendor,$product);
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
@@ -13752,7 +13753,7 @@ sub get_device_vm {
 			my @vm_data = main::grabber("$program 2>/dev/null");
 			if (@vm_data){
 				if (grep {/kqemu/i} @vm_data){$vm = 'kqemu'}
-				elsif (grep {/kvm/i} @vm_data){$vm = 'kvm'}
+				elsif (grep {/kvm|qumranet/i} @vm_data){$vm = 'kvm'}
 				elsif (grep {/qemu/i} @vm_data){$vm = 'qemu'}
 			}
 		}
@@ -13761,8 +13762,7 @@ sub get_device_vm {
 	if (!$vm || lc($vm) eq 'bochs' ) {
 		# $device_vm is '' if nothing detected
 		my @vm_data = ($device_vm);
-		push(@vm_data,@{$sysctl{'main'}}) if $sysctl{'main'};
-		push(@vm_data,@{$dboot{'main'}}) if $dboot{'main'};
+		push(@vm_data,@{$dboot{'machine-vm'}}) if $dboot{'machine-vm'};
 		if (-e '/dev/disk/by-id'){
 			my @dev = glob('/dev/disk/by-id/*');
 			push(@vm_data,@dev);
@@ -13772,6 +13772,20 @@ sub get_device_vm {
 		}
 		elsif (grep {/vmware/i} @vm_data){
 			$vm = 'vmware';
+		}
+		# needs to be first, because contains virtio;qumranet, grabber only gets 
+		# first instance then stops, so make sure patterns are right.
+		elsif ( grep {/(openbsd[\s-]vmm)/i} @vm_data){
+			$vm = 'vmm';
+		}
+		elsif ( grep {/(\bhvm\b)/i} @vm_data){
+			$vm = 'hvm';
+		}
+		elsif ( grep {/(qemu)/i} @vm_data){
+			$vm = 'qemu';
+		}
+		elsif ( grep {/(\bkvm\b|qumranet|virtio)/i} @vm_data){
+			$vm = 'kvm';
 		}
 		elsif (grep {/Virtual HD/i} @vm_data){
 			$vm = 'hyper-v';
@@ -13784,7 +13798,7 @@ sub get_device_vm {
 			$vm = 'virtual-machine';
 		}
 	}
-	if (!$vm  && $product_name){
+	if (!$vm && $product_name){
 		if ($product_name eq 'VMware'){
 			$vm = 'vmware';
 		}
@@ -20903,6 +20917,10 @@ sub set_dboot_data {
 			if ($use{'bsd-machine'} && /^bios[0-9]:(at|vendor)/){
 				push(@{$sysctl{'machine'}}, $_);
 			}
+			elsif ($use{'bsd-machine'} && !$dboot{'machine-vm'} && 
+			 /(\bhvm\b|innotek|\bkvm\b|qemu|qumranet|openbsd[\s-]vmm|vbox|virtio|virtualbox|vmware)/i){
+				push(@{$dboot{'machine-vm'}}, $_);
+			}
 			elsif ($use{'bsd-optical'} && /^(cd)[0-9]+(\([^)]+\))?(:|\sat\s)/){
 				push(@{$dboot{'optical'}},$_);
 			}
@@ -20919,6 +20937,7 @@ sub set_dboot_data {
 		if ($dboot{'main'} && $b_log){
 			log_data('dump','$dboot{cpu}',$dboot{'cpu'});
 			log_data('dump','$dboot{disk}',$dboot{'disk'});
+			log_data('dump','$dboot{machine-vm}',$dboot{'machine-vm'});
 			log_data('dump','$dboot{optical}',$dboot{'optical'});
 			log_data('dump','$dboot{ram}',$dboot{'ram'});
 			log_data('dump','$dboot{usb}',$dboot{'usb'});
@@ -20928,6 +20947,7 @@ sub set_dboot_data {
 		if ($dboot{'main'} && $dbg[11]){
 			print("cpu:\n", Dumper $dboot{'cpu'});
 			print("disk:\n", Dumper $dboot{'disk'});
+			print("machine vm:\n", Dumper $dboot{'machine-vm'});
 			print("optical:\n", Dumper $dboot{'optical'});
 			print("ram:\n", Dumper $dboot{'ram'});
 			print("usb:\n", Dumper $dboot{'usb'});
@@ -25116,6 +25136,10 @@ sub set_sysctl_data {
 		 /^(hw\.|machdep\.dmi\.(bios|board|system)-)(date|product|serial(no)?|uuid|vendor|version)/){
 			push(@{$sysctl{'machine'}}, $_);
 		}
+		elsif ($use{'bsd-machine'} && !$dboot{'machine-vm'} && 
+			 /(\bhvm\b|innotek|\bkvm\b|openbsd[\s-]vmm|qemu|qumranet|vbox|virtio|virtualbox|vmware)/i){
+				push(@{$dboot{'machine-vm'}}, $_);
+			}
 		elsif ($use{'bsd-memory'} && /^(hw\.(physmem|usermem)|Free Memory)/){
 			push(@{$sysctl{'memory'}}, $_);
 		}
@@ -25132,6 +25156,7 @@ sub set_sysctl_data {
 	}
 	if ($dbg[7]){
 		print("main\n", Dumper $sysctl{'main'});
+		print("dboot-machine-vm\n", Dumper $dboot{'machine-vm'});
 		print("audio\n", Dumper $sysctl{'audio'});
 		print("battery\n", Dumper $sysctl{'battery'});
 		print("cpu\n", Dumper $sysctl{'cpu'});
@@ -25144,6 +25169,7 @@ sub set_sysctl_data {
 	# this thing can get really long.
 	if ($b_log){
 		main::log_data('dump','$sysctl{main}',$sysctl{'main'});
+		main::log_data('dump','$dboot{machine-vm}',$sysctl{'machine-vm'});
 		main::log_data('dump','$sysctl{audio}',$sysctl{'audio'});
 		main::log_data('dump','$sysctl{battery}',$sysctl{'battery'});
 		main::log_data('dump','$sysctl{cpu}',$sysctl{'cpu'});
