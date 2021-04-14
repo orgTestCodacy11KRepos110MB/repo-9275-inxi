@@ -8722,7 +8722,8 @@ sub sysctl_data {
 			$cpu{'l3-cache'} = $line[1]/1024;
 		}
 		# this is in mghz in samples
-		elsif ($line[0] eq 'hw.clockrate' || $line[0] eq 'hw.cpuspeed') {
+		elsif (!$cpu{'cur-freq'} && 
+		 ($line[0] eq 'hw.clockrate' || $line[0] eq 'hw.cpuspeed')){
 			$cpu{'cur-freq'} = $line[1];
 		}
 		# these are in hz: 2400000000
@@ -8735,11 +8736,14 @@ sub sysctl_data {
 		elsif ($line[0] eq 'hw.busfrequency_max') {
 			$cpu{'max-freq'} = $line[1]/1000000;
 		}
-		elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\.freq$/){
-			$speed = speed_cleaner($line[1]);
-			$cpu{'processors'}->[$1] = $speed;
-		}
-		# weird FB thing, only sometimes shows all core freq, so emulate
+		# FB seems to call freq something other than clock speed, unreliable 
+		# eg: 1500 Mhz real shows as 2400 freq, which is wrong
+		# elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\.freq$/){
+		#	 $speed = speed_cleaner($line[1]);
+		#	 $cpu{'processors'}->[$1] = $speed;
+		# }
+		# weird FB thing, freq can be wrong, so just count the cores and call it 
+		# done.
 		elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\./ && 
 			(!$cpu{'processors'} || !defined $cpu{'processors'}->[$1])){
 			$cpu{'processors'}->[$1] = undef;
@@ -8754,9 +8758,11 @@ sub sysctl_data {
 		elsif ($line[0] eq 'hw.ncpu' ) {
 			$cpu{'cores'} = $line[1];
 		}
-		# Freebsd does some voltage hacking to actually run at lowest listed frequencies.
-		# The cpu does not actually support all the speeds output here but works in freebsd. 
-		elsif ($line[0] eq 'dev.cpu.0.freq_levels') {
+		# Freebsd does some voltage hacking to actually run at lowest listed 
+		# frequencies. The cpu does not actually support all the speeds output 
+		# here but works in freebsd. Disabled this, the freq appear to refer to 
+		# something else, not cpu clock. Remove XXX to enable
+		elsif ($line[0] eq 'dev.cpu.0.freq_levelsXXX') {
 			$line[1] =~ s/^\s+|\/[0-9]+|\s+$//g;
 			if ( $line[1] =~ /[0-9]+\s+[0-9]+/ ) {
 				# get rid of -1 in FB: 2400/-1 2200/-1 2000/-1 1800/-1
@@ -8767,7 +8773,8 @@ sub sysctl_data {
 				$cpu{'scalings'} = \@temp;
 			}
 		}
-		elsif (!$cpu{'cur-freq'} && $line[0] eq 'dev.cpu.0.freq' ) {
+		# Disabled w/XXX. this is almost certainly bad data, should not be used
+		elsif (!$cpu{'cur-freq'} && $line[0] eq 'dev.cpu.0.freqXXX' ) {
 			$cpu{'cur-freq'} = $line[1];
 		}
 		# the following have only been seen in DragonflyBSD data but thumbs up!
