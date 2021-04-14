@@ -8739,6 +8739,11 @@ sub sysctl_data {
 			$speed = speed_cleaner($line[1]);
 			$cpu{'processors'}->[$1] = $speed;
 		}
+		# weird FB thing, only sometimes shows all core freq, so emulate
+		elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\./ && 
+			(!$cpu{'processors'} || !defined $cpu{'processors'}->[$1])){
+			$cpu{'processors'}->[$1] = undef;
+		}
 		elsif ($line[0] eq 'machdep.cpu.vendor') {
 			$cpu{'type'} = cpu_vendor($line[1]);
 		}
@@ -8754,6 +8759,8 @@ sub sysctl_data {
 		elsif ($line[0] eq 'dev.cpu.0.freq_levels') {
 			$line[1] =~ s/^\s+|\/[0-9]+|\s+$//g;
 			if ( $line[1] =~ /[0-9]+\s+[0-9]+/ ) {
+				# get rid of -1 in FB: 2400/-1 2200/-1 2000/-1 1800/-1
+				$line[1] =~ s|/-1||g;
 				my @temp = split(/\s+/, $line[1]);
 				$cpu{'max-freq'} = $temp[0];
 				$cpu{'min-freq'} = $temp[-1];
@@ -9385,8 +9392,9 @@ sub cpu_speeds {
 		}
 	}
 	if (!@speeds){
+		# handle special case, FB, where we use undef for no processor speed found
 		foreach (@$processors){
-			if ($_ || $_ eq '0'){
+			if ($_ || (defined $_ && $_ eq '0')){
 				$_ = sprintf("%.0f", $_);
 				push(@speeds, $_);
 			}
