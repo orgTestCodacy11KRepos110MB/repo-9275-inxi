@@ -70,10 +70,9 @@ if (eval {require OpenBSD::Pledge}){
 my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
 
 ## Hashes
-# %trigger is local to OptionsHandler but Perl 5.008 lost it at times
 my (%alerts,%build_prop,%client,%colors,%disks_bsd,%dboot,%devices,%dl,
-%dmmapper,%force,%loaded,%mapper,%program_values,%rows,
-%sensors_raw,%service_tool,%show,%sysctl,%system_files,%trigger,%usb);
+%dmmapper,%force,%loaded,%mapper,%program_values,%rows,%sensors_raw,
+%service_tool,%show,%sysctl,%system_files,%usb);
 
 ## System Arrays
 my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
@@ -4440,13 +4439,13 @@ sub get {
 		$show{'graphic'} = 1; 
 		$show{'graphic-basic'} = 1; },
 	'h|help|?' => sub {
-		$trigger{'help'} = 1; },
+		$show{'help'} = 1; },
 	'i|ip' => sub {
 		$show{'short'} = 0;
 		$show{'ip'} = 1;
 		$show{'network'} = 1;
 		$show{'network-advanced'} = 1;
-		$trigger{'downloader'} = 1 if ! main::check_program('dig');},
+		$use{'downloader'} = 1 if ! main::check_program('dig');},
 	'I|info' => sub {
 		$show{'short'} = 0;
 		$show{'info'} = 1; },
@@ -4609,7 +4608,7 @@ sub get {
 				$extra = 2;
 			}
 			if ($arg >= 7 ){
-				$trigger{'downloader'} = 1 if !main::check_program('dig');
+				$use{'downloader'} = 1 if !main::check_program('dig');
 				$show{'battery-forced'} = 1;
 				$show{'bluetooth-forced'} = 1;
 				$show{'cpu-flag'} = 1;
@@ -4620,7 +4619,7 @@ sub get {
 			}
 			if ($arg >= 8 ){
 				$b_admin = 1;
-				$trigger{'downloader'} = 1;
+				$use{'downloader'} = 1;
 				$show{'process'} = 1;
 				$show{'ps-cpu'} = 1;
 				$show{'ps-mem'} = 1;
@@ -4633,11 +4632,11 @@ sub get {
 			main::error_handler('bad-arg',$opt,$arg);
 		} },
 	'V|version' => sub { 
-		$trigger{'version'} = 1 },
+		$show{'version'} = 1 },
 	'w|weather' => sub {
 		my ($opt) = @_;
 		$show{'short'} = 0;
-		$trigger{'downloader'} = 1;
+		$use{'downloader'} = 1;
 		if ( $use{'weather'} ){
 			$show{'weather'} = 1;
 		}
@@ -4649,7 +4648,7 @@ sub get {
 		$arg ||= '';
 		$arg =~ s/\s//g;
 		$show{'short'} = 0;
-		$trigger{'downloader'} = 1;
+		$use{'downloader'} = 1;
 		if ($use{'weather'}){
 			if ($arg){
 				$show{'weather'} = 1;
@@ -4721,21 +4720,21 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg == 40) {
 			$dl{'tiny'} = 0;
-			$trigger{'downloader'} = 1;}
+			$use{'downloader'} = 1;}
 		elsif ($arg == 41) {
 			$dl{'curl'} = 0;
-			$trigger{'downloader'} = 1;}
+			$use{'downloader'} = 1;}
 		elsif ($arg == 42) {
 			$dl{'fetch'} = 0;
-			$trigger{'downloader'} = 1;}
+			$use{'downloader'} = 1;}
 		elsif ($arg == 43) {
 			$dl{'wget'} = 0;
-			$trigger{'downloader'} = 1;}
+			$use{'downloader'} = 1;}
 		elsif ($arg == 44) {
 			$dl{'curl'} = 0;
 			$dl{'fetch'} = 0;
 			$dl{'wget'} = 0;
-			$trigger{'downloader'} = 1;}
+			$use{'downloader'} = 1;}
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
@@ -4847,7 +4846,7 @@ sub get {
 				# desired downloader.
 				$arg = main::set_perl_downloader($arg);
 				%dl = ('dl' => $arg, $arg => 1);
-				$trigger{'downloader'} = 1;
+				$use{'downloader'} = 1;
 			}
 		}
 		else {
@@ -4907,7 +4906,7 @@ sub get {
 	'irc' => sub {
 		$b_irc = 1; },
 	'man' => sub {
-		$trigger{'use-man'} = 1; },
+		$use{'yes-man'} = 1; },
 	'mips' => sub {
 		$b_mips = 1 },
 	'output:s' => sub {
@@ -4928,7 +4927,7 @@ sub get {
 	'no-html-wan' => sub {
 		$force{'no-html-wan'}= 1;},
 	'no-man' => sub {
-		$trigger{'no-man-force'} = 0; },
+		$use{'no-man'} = 0; },
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
 	'no-sudo' => sub {
@@ -4949,9 +4948,9 @@ sub get {
 	'ppc' => sub {
 		$b_ppc = 1 },
 	'recommends' => sub {
-		$trigger{'recommends'} = 1;},
+		$show{'recommends'} = 1;},
 	'sensors-default' => sub {
-		$trigger{'sensors-default'} = 1; },
+		$use{'sensors-default'} = 1; },
 	'sensors-exclude:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -5010,16 +5009,16 @@ sub get {
 	eval $end if $b_log;
 }
 sub post_process {
-	CheckRecommends::run() if $trigger{'recommends'};
+	CheckRecommends::run() if $show{'recommends'};
 	# sets for either config or arg here
-	if ($trigger{'downloader'} || $wan_url || ($force{'no-dig'} && $show{'ip'})){
+	if ($use{'downloader'} || $wan_url || ($force{'no-dig'} && $show{'ip'})){
 		main::set_downloader();
 	}
 	main::set_xorg_log() if $show{'graphic'};
-	main::show_version() if $trigger{'version'};
-	main::show_options() if $trigger{'help'};
-	$use{'man'} = 0 if (!$trigger{'use-man'} || $trigger{'no-man-force'});
-	main::update_me($self_download, $download_id) if $trigger{'updater'};
+	main::show_version() if $show{'version'};
+	main::show_options() if $show{'help'};
+	$use{'man'} = 0 if (!$use{'yes-man'} || $use{'no-man'});
+	main::update_me($self_download, $download_id) if $use{'update-trigger'};
 	if ($b_pledge){
 		my $b_update;
 		# if -c 9x, remove in SelectColors::set_selection(), else remove here
@@ -5045,7 +5044,7 @@ sub post_process {
 		}
 	}
 	$show{'graphic-basic'} = 0 if $b_admin;
-	if ($trigger{'sensors-default'}){
+	if ($use{'sensors-default'}){
 		@sensors_exclude = ();
 		@sensors_use = ();
 	}
@@ -5126,9 +5125,9 @@ sub post_process {
 }
 sub process_updater {
 	my ($opt,$arg) = @_;
-	$trigger{'downloader'} = 1;
+	$use{'downloader'} = 1;
 	if ($use{'update'}){
-		$trigger{'updater'} = 1;
+		$use{'update-trigger'} = 1;
 		if (!$arg && $self_name eq 'pinxi'){
 			$use{'man'} = 1;
 			$download_id = 'inxi-perl branch';
@@ -5144,7 +5143,7 @@ sub process_updater {
 				$download_id = 'main branch';
 				$self_download = main::get_defaults('inxi-main');
 				$use{'man'} = 1;
-				$trigger{'use-man'} = 1;
+				$use{'yes-man'} = 1;
 			}
 			elsif ( $arg =~ /^[12]$/){
 				$download_id = "branch $arg";
