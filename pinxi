@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.03';
-my $self_date='2021-04-15';
-my $self_patch='48';
+my $self_date='2021-04-16';
+my $self_patch='49';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -1474,9 +1474,9 @@ sub run_debugger {
 	print "Starting $self_name debugging data collector...\n";
 	print "Loading required debugger Perl File:: modules... \n";
 	# Fedora/Redhat doesn't include File::Find File::Copy in 
-	# core modules!! why? Or rather, they deliberately removed them!!
+	# core modules. why? Or rather, they deliberately removed them.
 	if (main::check_perl_module('File::Find')){
-		File::Find->import('find');
+		File::Find->import;
 	}
 	else {
 		main::error_handler('required-module', 'File', 'File::Find');
@@ -2329,22 +2329,40 @@ sub process_sys_traverse {
 }
 
 sub wanted {
+	# note: we want these directories pruned before the -d test so find 
+	# doesn't try to read files inside of the directories
+	if ($parse_src eq 'proc'){
+		if ($File::Find::name =~ m!^/proc/[0-9]+! || 
+		 $File::Find::name =~ m!^/proc/(irq|spl|sys)! ||
+		 # these choke on sudo/root: kmsg kcore kpage and we don't want keys or kallsyms
+		 $File::Find::name =~ m!^/proc/k! ||
+		 $File::Find::name =~ m!^/proc/bus/pci! ||
+		 $File::Find::name =~ m!^/proc/(irq|spl|sys)!){
+			# perl compiler complains on start if defined test not used
+			$File::Find::prune = 1 if defined $File::Find::prune;
+			return;
+		}
+	}
+	elsif ($parse_src eq 'sys'){
+		# note: a new file in 4.11 /sys can hang this, it is /parameter/ then
+		# a few variables. Since inxi does not need to see that file, we will
+		# not use it. Also do not need . files or __ starting files
+		if ($File::Find::name =~ m!/(\.[a-z]|kernel/|trace/|parameters|debug)!){
+			$File::Find::prune = 1 if defined $File::Find::prune;
+		}
+	}
 	return if -d; # not directory
 	return unless -e; # Must exist
 	return unless -f; # Must be file
 	return unless -r; # Must be readable
 	if ($parse_src eq 'sys'){
-		# note: a new file in 4.11 /sys can hang this, it is /parameter/ then
-		# a few variables. Since inxi does not need to see that file, we will
-		# not use it. Also do not need . files or __ starting files
 		# print $File::Find::name . "\n";
 		# block maybe: cfgroup\/
 		# picdec\/|, wait_for_fb_sleep/wake is an odroid thing caused hang
 		# wakeup_count also fails for android, but works fine on regular systems
-		return if $b_arm && $File::Find::name =~ /^\/sys\/power\/(wait_for_fb_|wakeup_count$)/;
-		return if $File::Find::name =~ /\/(\.[a-z]|kernel\/|trace\/|parameters\/|debug\/)/;
+		return if $b_arm && $File::Find::name =~ m!^/sys/power/(wait_for_fb_|wakeup_count$)!;
 		# pp_num_states: amdgpu driver bug; android: wakeup_count
-		return if $File::Find::name =~ /\/pp_num_states$/;
+		return if $File::Find::name =~ m!/pp_num_states$!;
 		# comment this one out if you experience hangs or if 
 		# we discover syntax of foreign language characters
 		# Must be ascii like. This is questionable and might require further
@@ -2354,12 +2372,7 @@ sub wanted {
 		# return unless -T; 
 	}
 	elsif ($parse_src eq 'proc') {
-		return if $File::Find::name =~ /^\/proc\/[0-9]+\//;
-		return if $File::Find::name =~ /^\/proc\/bus\/pci\//;
-		return if $File::Find::name =~ /^\/proc\/(irq|spl|sys)\//;
-		# these choke on sudo/root: kmsg kcore kpage and we don't want keys or kallsyms
-		return if $File::Find::name =~ /^\/proc\/k/; 
-		return if $File::Find::name =~ /(\/mb_groups|debug)$/;
+		return if $File::Find::name =~ m!(/mb_groups|debug)$!;
 	}
 	# print $File::Find::name . "\n";
 	push(@content, $File::Find::name);
@@ -8889,7 +8902,8 @@ sub dboot_data {
 			# 8-way means 1 per core, 16-way means 1/2 per core
 			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/){
 				# cpu0: 32KB 64b/line 4-way L1 VIPT I-cache, 32KB 64b/line 4-way L1 D-cache
-				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\s(L1 VIPT\s)?I[\s-]?cache/){
+				# cpu0:48KB 64b/line 3-way L1 PIPT I-cache, 32KB 64b/line 2-way L1 D-cache
+				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\s(L1 \S+\s)?I[\s-]?cache/){
 					$l1 = main::translate_size($1);
 				}
 				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sD[\s-]?cache/){
@@ -10669,13 +10683,14 @@ sub smartctl_data {
 		main::log_data('dump','@result', \@result) if $b_log; # log before cleanup
 		@result = grep {!/^(smartctl|Copyright|==)/} @result;
 		print 'Drive:/dev/' . $id . ":\n", Data::Dumper::Dumper\@result if $dbg[12];
-		if (scalar @result < 4 ){
+		if (scalar @result < 5 ){
 			if (grep {/failed: permission denied/i} @result){
 				$data->[$i]{'smart-permissions'} = main::row_defaults('tool-permissions','smartctl');
 			}
 			elsif (grep {/unknown usb bridge/i} @result){
 				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-usb');
 			}
+			# can come later in output too
 			elsif (grep {/A mandatory SMART command failed/i} @result){
 				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command');
 			}
@@ -10704,6 +10719,10 @@ sub smartctl_data {
 				if ($b_attributes){
 					$split[$t] = (main::is_numeric($split[$t])) ? int($split[$t]) : 0;
 					$split[$v] = (main::is_numeric($split[$v])) ? int($split[$v]) : 0;
+				}
+				# can occur later in output so retest it here
+				if ($split[$a] =~ /A mandatory SMART command failed/i){
+					$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command');
 				}
 				## DEVICE INFO ##
 				if ($split[$a] eq 'Device Model'){
@@ -25708,9 +25727,9 @@ sub sys_data {
 	@files = grep {!/\/[0-9]+-0:/} @files;
 	# print join("\n", @files);
 	foreach (@files){
-		@uevent = main::reader("$_/uevent") if -r "$_/uevent";
-		$ids = main::awk(\@uevent,'^(DEVNAME|DEVICE\b)',2,'=');
-		if ($ids){
+		# be careful, sometimes uevent is not readable
+		@uevent = (-r "$_/uevent") ? main::reader("$_/uevent") : undef;
+		if (@uevent && ($ids = main::awk(\@uevent,'^(DEVNAME|DEVICE\b)',2,'='))){
 			@drivers = ();
 			($b_hub,$class_id,$protocol_id,$subclass_id) = (0,0,0,0);
 			($configuration,$driver,$interfaces,$name,$ports,$product,$serial,$speed,
