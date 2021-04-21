@@ -21138,8 +21138,14 @@ sub prep_desktop_value {
 }
 sub get_kde_trinity_data {
 	eval $start if $b_log;
-	my ($program,@version_data,@version_data2);
+	my ($kded,$program,@version_data,@version_data2);
 	my $kde_full_session = ($ENV{'KDE_FULL_SESSION'}) ? $ENV{'KDE_FULL_SESSION'} : '';
+	if ($kde_full_session && ($program = main::check_program('kded' . $kde_full_session))){
+		$kded = $program;
+	}
+	elsif ($program = main::check_program('kded')){
+		$kded = $program;
+	}
 	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || (grep {/^tde/} @ps_gui) ){
 		$desktop[0] = 'Trinity';
 		if ($program = main::check_program('kdesktop')){
@@ -21157,13 +21163,13 @@ sub get_kde_trinity_data {
 	# actual desktop data, so once that's in debian/ubuntu, if it gets in, add that test
 	elsif ($xdg_desktop eq 'kde' || $kde_session_version){
 		if ($kde_session_version && $kde_session_version <= 4){
-			@data = main::program_values("kded$kde_session_version");
+			@data = ($kded) ? main::program_values($kded) : ();
 			if (@data){
 				$desktop[0] = $data[3];
-				$desktop[1] = main::program_version("kded$kde_session_version",$data[0],$data[1],$data[2],$data[5],$data[6]);
+				$desktop[1] = main::program_version($kded,$data[0],$data[1],$data[2],$data[5],$data[6]);
 				# kded exists, so we can now get the qt data string as well
-				if ($desktop[1] && ($program = main::check_program("kded$kde_session_version")) ){
-					@version_data = main::grabber("$program --version 2>/dev/null");
+				if ($desktop[1] && $kded){
+					@version_data = main::grabber("$kded --version 2>/dev/null");
 				}
 			}
 			$desktop[0] = 'KDE' if !$desktop[0];
@@ -21179,8 +21185,8 @@ sub get_kde_trinity_data {
 			if (!@version_data && ($program = main::check_program("kf$kde_session_version-config") )){
 				@version_data = main::grabber("$program --version 2>/dev/null");
 			}
-			if (!@version_data && ($program = main::check_program("kded$kde_session_version"))){
-				@version_data = main::grabber("$program --version 2>/dev/null");
+			if (!@version_data && $kded){
+				@version_data = main::grabber("$kded --version 2>/dev/null");
 			}
 			if ($program = main::check_program("plasmashell")){
 				@version_data2 = main::grabber("$program --version 2>/dev/null");
@@ -21208,7 +21214,7 @@ sub get_kde_trinity_data {
 	}
 	# KDE_FULL_SESSION property is only available since KDE 3.5.5.
 	elsif ($kde_full_session eq 'true'){
-		@version_data = main::grabber("kded --version 2>/dev/null");
+		@version_data = ($kded) ? main::grabber("$kded --version 2>/dev/null") : ();
 		$desktop[0] = 'KDE';
 		$desktop[1] = main::awk(\@version_data,'^KDE:',2,'\s+') if @version_data;
 		if (!$desktop[1]){
