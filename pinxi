@@ -38,7 +38,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 use POSIX qw(ceil uname strftime ttyname);
-# use Benchmark qw(:all);
+# use Benchmark qw(:all);_
 # use Devel::Size qw(size total_size);
 # use feature qw(say state); # 5.10 or newer Perl
 
@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.04';
-my $self_date='2021-04-16';
-my $self_patch='01';
+my $self_date='2021-04-21';
+my $self_patch='02';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -2327,7 +2327,8 @@ sub process_sys_traverse {
 	close $fh;
 	# print $fh "$result";
 }
-
+# perl compiler complains on start if prune = 1 used only once, so either 
+# do $File::Find::prune = 1 if !$File::Find::prune; OR use no warnings 'once'
 sub wanted {
 	# note: we want these directories pruned before the -d test so find 
 	# doesn't try to read files inside of the directories
@@ -2338,17 +2339,16 @@ sub wanted {
 		 $File::Find::name =~ m!^/proc/k! ||
 		 $File::Find::name =~ m!^/proc/bus/pci! ||
 		 $File::Find::name =~ m!^/proc/(irq|spl|sys)!){
-			# perl compiler complains on start if defined test not used
-			$File::Find::prune = 1 if defined $File::Find::prune;
+			$File::Find::prune = 1;
 			return;
 		}
 	}
 	elsif ($parse_src eq 'sys'){
 		# note: a new file in 4.11 /sys can hang this, it is /parameter/ then
 		# a few variables. Since inxi does not need to see that file, we will
-		# not use it. Also do not need . files or __ starting files
-		if ($File::Find::name =~ m!/(\.[a-z]|kernel/|trace/|parameters|debug)!){
-			$File::Find::prune = 1 if defined $File::Find::prune;
+		# not use it. 
+		if ($File::Find::name =~ m!/(kernel/|trace/|parameters|debug)!){
+			$File::Find::prune = 1;
 		}
 	}
 	return if -d; # not directory
@@ -2361,6 +2361,8 @@ sub wanted {
 		# picdec\/|, wait_for_fb_sleep/wake is an odroid thing caused hang
 		# wakeup_count also fails for android, but works fine on regular systems
 		return if $b_arm && $File::Find::name =~ m!^/sys/power/(wait_for_fb_|wakeup_count$)!;
+		# do not need . files or __ starting files
+		return if $File::Find::name =~ m!/\.[a-z]!;
 		# pp_num_states: amdgpu driver bug; android: wakeup_count
 		return if $File::Find::name =~ m!/pp_num_states$!;
 		# comment this one out if you experience hangs or if 
@@ -22725,7 +22727,7 @@ sub get_display_manager {
 	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
 	# extension in Arch note: to avoid positives with directories, test for -f 
 	# explicitly, not -e. Guessing on cdm.pid. pcdm uses vt, PCDM-vt9.pid
-	my @dms = qw(cdm.pid entranced.pid gdm.pid gdm3.pid kdm.pid ldm.pid 
+	my @dms = qw(cdm.pid entranced.pid gdm.pid gdm3.pid kdm.pid kdm3.pid ldm.pid 
 	lightdm.pid lxdm.pid mdm.pid nodm.pid pcdm.pid sddm.pid slim.lock 
 	slim.pid tdm.pid udm.pid wdm.pid xdm.pid xenodm.pid);
 	# these are the only one I know of so far that have version info
