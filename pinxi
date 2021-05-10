@@ -4971,6 +4971,8 @@ sub get {
 		$b_ppc = 1 },
 	'recommends' => sub {
 		$show{'recommends'} = 1;},
+	'rpm' => sub {
+		$use{'pkg-rpm'} = 1 },
 	'sensors-default' => sub {
 		$use{'sensors-default'} = 1; },
 	'sensors-exclude:s' => sub {
@@ -5592,6 +5594,8 @@ sub show_options {
 	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output." ],
 	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
 	Change sort order of ${partition_string} output. See man page for specifics." ],
+	['1', '', '--rpm', "Force use of rpm package counts for packages feature. Due to possible 
+	massive rpm package query times, disabled by default." ],
 	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and SENSORS_EXCLUDE.
 	Same as default behavior." ],
 	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude supplied sensor 
@@ -6334,6 +6338,7 @@ sub row_defaults {
 	'pci-card-data' => 'No device data found.',
 	'pci-card-data-root' => 'Device data requires root.',
 	'pci-slot-data' => 'No PCI Slot data found.',
+	'pkg' => "disabled, see --$id",
 	'ps-data-null' => 'No process data available.',
 	'raid-data' => 'No RAID data found.',
 	'ram-data' => 'No RAM data found.',
@@ -24389,10 +24394,10 @@ sub package_counts {
 	 '-d \'/var/lib/pkgtools/packages\''],
 	['pkgtool','pkgtool','d','/var/log/packages/',1,5,'\\/',
 	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\''],
-	# way too slow without nodigest/sig!! confirms packages exist
+	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	# ['rpm','rpm','p','-qa --nodigest --nosignature',1,0,''],
+	['rpm','rpm','pkg-rpm','-qa --nodigest --nosignature',1,0,''],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
@@ -24411,20 +24416,30 @@ sub package_counts {
 	foreach (@pkg_managers){
 		if ($program = main::check_program($_->[1])){
 			next if $_->[7] && !eval $_->[7];
-			if ($_->[2] eq 'p'){
+			my $error;
+			if ($_->[2] eq 'p' || ($_->[2] ne 'd' && $use{$_->[2]})){
 				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
-			else {
+			elsif ($_->[2] eq 'd') {
 				@list = main::globber($_->[3]);
 			}
-			$libs = undef;
-			$count = scalar @list;
-			# print Data::Dumper::Dumper \@list;
-			if ($b_admin && $count && $_->[4]){
-				$libs = count_libs(\@list,$_->[5],$_->[6]);
+			else {
+				@list = undef;
+				$error = main::row_defaults('pkg','rpm');
 			}
-			$counts{$_->[0]} = [$count,$libs];
-			$counts{'total'} += $count;
+			$libs = undef;
+			# print Data::Dumper::Dumper \@list;
+			if (!$error){
+				$count = scalar @list;
+				if ($b_admin && $count && $_->[4]){
+					$libs = count_libs(\@list,$_->[5],$_->[6]);
+				}
+				$counts{$_->[0]} = [$count,$libs];
+				$counts{'total'} += $count;
+			}
+			else {
+				$counts{$_->[0]} = [$error,$libs];
+			}
 			# print Data::Dumper::Dumper \%counts;
 		}
 	}
