@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.04';
-my $self_date='2021-05-10';
-my $self_patch='06';
+my $self_date='2021-05-11';
+my $self_patch='07';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -4895,8 +4895,8 @@ sub get {
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'display|dmidecode|hddtemp|lsusb|man|meminfo|';
-			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|usb-sys|vmstat|wmctrl';
+			my $wl = 'display|dmidecode|hddtemp|lsusb|man|meminfo|no-dig|';
+			$wl .= 'no-doas|no-html-wan|no-sudo|pkg|usb-sys|vmstat|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$force{lc($1)} = 1;
@@ -4967,12 +4967,12 @@ sub get {
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
+	'pkg' => sub {
+		$force{'pkg'} = 1 },
 	'ppc' => sub {
 		$b_ppc = 1 },
 	'recommends' => sub {
 		$show{'recommends'} = 1;},
-	'rpm' => sub {
-		$use{'pkg-rpm'} = 1 },
 	'sensors-default' => sub {
 		$use{'sensors-default'} = 1; },
 	'sensors-exclude:s' => sub {
@@ -5594,8 +5594,8 @@ sub show_options {
 	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output." ],
 	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
 	Change sort order of ${partition_string} output. See man page for specifics." ],
-	['1', '', '--rpm', "Force use of rpm package counts for packages feature. Due to possible 
-	massive rpm package query times, disabled by default." ],
+	['1', '', '--pkg', "Force use of disabled package manager counts for packages feature. 
+	RPM disabled by default due to possible massive rpm package query times." ],
 	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and SENSORS_EXCLUDE.
 	Same as default behavior." ],
 	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude supplied sensor 
@@ -6338,7 +6338,7 @@ sub row_defaults {
 	'pci-card-data' => 'No device data found.',
 	'pci-card-data-root' => 'Device data requires root.',
 	'pci-slot-data' => 'No PCI Slot data found.',
-	'pm-disabled' => "$id disabled, try --$id",
+	'pm-disabled' => "$id disabled, try --pkg",
 	'ps-data-null' => 'No process data available.',
 	'raid-data' => 'No RAID data found.',
 	'ram-data' => 'No RAM data found.',
@@ -24335,6 +24335,7 @@ sub create_output {
 		delete $counts{'total'};
 		my $b_mismatch;
 		foreach (keys %counts){
+			next if $_ eq 'note';
 			if ($counts{$_}->[0] && $counts{$_}->[0] != $total){
 				$b_mismatch = 1;
 				last;
@@ -24343,7 +24344,10 @@ sub create_output {
 		$total = '' if !$b_mismatch;
 	}
 	$output{main::key($$num++,1,1,'Packages')} = $total;
-	$output{main::key($$num++,0,2,'note')} = $counts{'note'} if $counts{'note'};
+	# if blocked pm secondary, only show if admin
+	if ($counts{'note'} && ($total < 100 || $b_admin)){
+		$output{main::key($$num++,0,2,'note')} = $counts{'note'};
+	}
 	if ($extra > 1 && %counts){
 		foreach (sort keys %counts){
 			my ($cont,$ind) = (1,2);
@@ -24402,7 +24406,7 @@ sub package_counts {
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	['rpm','rpm','pkg-rpm','-qa --nodigest --nosignature',1,0,''],
+	['rpm','rpm','pkg','-qa --nodigest --nosignature',1,0,''],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
@@ -24422,7 +24426,7 @@ sub package_counts {
 		if ($program = main::check_program($_->[1])){
 			next if $_->[7] && !eval $_->[7];
 			my $error;
-			if ($_->[2] eq 'p' || ($_->[2] ne 'd' && $use{$_->[2]})){
+			if ($_->[2] eq 'p' || ($_->[2] eq 'pkg' && $force{'pkg'})){
 				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
 			elsif ($_->[2] eq 'd') {
@@ -24430,7 +24434,7 @@ sub package_counts {
 			}
 			else {
 				@list = undef;
-				$error = main::row_defaults('pm-disabled','rpm');
+				$error = main::row_defaults('pm-disabled',$_->[0]);
 			}
 			$libs = undef;
 			# print Data::Dumper::Dumper \@list;
