@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.04';
 my $self_date='2021-05-13';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6331,7 +6331,7 @@ sub row_defaults {
 	'optical-data' => 'No optical or floppy data found.',
 	'optical-data-bsd' => 'No optical or floppy data found.',
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
-	'packages' => 'No packages detected. Unsupported package manager?',
+	'package-data' => 'No packages detected. Unsupported package manager?',
 	'partition-data' => 'No partition data found.',
 	'partition-hidden' => 'N/A (hidden?)',
 	'pci-advanced-data' => 'bus/chip ids unavailable',
@@ -6345,6 +6345,8 @@ sub row_defaults {
 	'ram-data-complete' => 'For complete report, try with --dmidecode',
 	'ram-data-dmidecode' => 'No RAM data found. Try with --dmidecode',
 	'recommends' => 'see --recommends',
+	'repo-data', "No repo data detected. Does $self_name support your package manager?",
+	'repo-data-bsd', "No repo data detected. Does $self_name support $id?",
 	'root-feature' => 'Feature requires superuser permissions.',
 	'root-item-incomplete' => "Full $id report requires superuser permissions.",
 	'root-required' => '<superuser required>',
@@ -17616,7 +17618,7 @@ sub get {
 	eval $start if $b_log;
 	($debugger_dir) = @_;
 	my (@data,@rows,@rows_p,@rows_r);
-	if ($extra > 0 && !$loaded{'packages'}){
+	if ($extra > 0 && !$loaded{'package-data'}){
 		my %packages = PackageData::get('main',\$num);
 		my @data;
 		for (keys %packages){
@@ -17637,10 +17639,14 @@ sub get {
 	}
 	else {
 		if (!@rows_r){
-			my $pm = (!$bsd_type) ? 'package manager': 'OS type';
-			@data = (
-			{main::key($num++,0,1,'Alert') => "No repo data detected. Does $self_name support your $pm?"},
-			);
+			my $pm_missing;
+			if ($bsd_type){
+				$pm_missing = main::row_defaults('repo-data-bsd',$uname[0]);
+			}
+			else {
+				$pm_missing = main::row_defaults('repo-data');
+			}
+			@data = ({main::key($num++,0,1,'Alert') => $pm_missing});
 		}
 		@rows = (@rows_p,@rows_r,@data);
 	}
@@ -17656,6 +17662,7 @@ sub get_repos_linux {
 	my $apt_termux = '/data/data/com.termux/files/usr' . $apt;
 	$apt = $apt_termux if -e $apt_termux; # for android termux
 	my $cards = '/etc/cards.conf';
+	my $dnf_conf = '/etc/dnf/dnf.conf';
 	my $eopkg_dir = '/var/lib/eopkg/';
 	my $nix = '/etc/nix/nix.conf';
 	my $pacman = '/etc/pacman.conf';
@@ -17871,16 +17878,17 @@ sub get_repos_linux {
 		}
 	}
 	# redhat/suse
-	if (-d $yum_repo_dir || -f $yum_conf || -d $zypp_repo_dir){
+	if (-f $dnf_conf ||-d $yum_repo_dir || -f $yum_conf || -d $zypp_repo_dir){
 		if (-d $yum_repo_dir || -f $yum_conf){
 			@files = main::globber("$yum_repo_dir*.repo");
 			push(@files, $yum_conf) if -f $yum_conf;
-			$repo = 'yum';
 		}
-		elsif (-d $zypp_repo_dir){
+		if (-f $dnf_conf){
+			push(@files, $dnf_conf);
+		}
+		if (-d $zypp_repo_dir){
 			@files = main::globber("$zypp_repo_dir*.repo");
 			main::log_data('data',"zypp repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
-			$repo = 'zypp';
 		}
  		#$repo = 'yum';
  		# push(@files, "$ENV{'HOME'}/bin/scripts/inxi/data/repo/yum/rpmfusion-nonfree-1.repo");
@@ -17888,6 +17896,15 @@ sub get_repos_linux {
 			foreach (sort @files){
 				@data2 = main::reader($_);
 				push(@dbg_files, $_) if $debugger_dir;
+				if (/yum/){
+					$repo = 'yum';
+				}
+				elsif (/dnf/){
+					$repo = 'dnf';
+				}
+				elsif(/zypp/){
+					$repo = 'zypp';
+				}
 				my ($enabled,$url,$title) = (undef,'','');
 				foreach my $line (@data2){
 					# this is a hack, assuming that each item has these fields listed, we collect the 3
@@ -17928,6 +17945,7 @@ sub get_repos_linux {
 				if ($url && $title && $enabled){
 					push(@content, "$title ~ $url");
 				}
+				
 				if (! @content){
 					$key = repo_data('missing',$repo);
 				}
@@ -18319,6 +18337,8 @@ sub repo_data {
 	'bsd-package-missing' => 'No enabled BSD pkg servers in',
 	'cards-active' => 'Active CARDS collections in',
 	'cards-missing' => 'No active CARDS collections in',
+	'dnf-active' => 'Active dnf repos in',
+	'dnf-missing' => 'No active dnf repos in',
 	'eopkg-active' => 'Active eopkg repo',
 	'eopkg-missing' => 'No active eopkg repos found',
 	'files-missing' => 'No repo files found in',
@@ -24324,11 +24344,11 @@ sub create_output {
 		$total = $counts{'total'};
 	}
 	else {
-		if ($type eq 'inner'){
+		if ($type eq 'inner' || $counts{'note'}){
 			$total = 'N/A';
 		}
 		else {
-			$total = main::row_defaults('packages','');
+			$total = main::row_defaults('package-data');
 		}
 	}
 	if ($counts{'total'} && $extra > 1){
