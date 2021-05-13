@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.04';
-my $self_date='2021-05-11';
-my $self_patch='07';
+my $self_date='2021-05-13';
+my $self_patch='08';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -25296,7 +25296,7 @@ sub set_sysctl_data {
 
 sub get_uptime {
 	eval $start if $b_log;
-	my ($days,$hours,$minutes,$seconds,$uptime) = ('','','','','');
+	my ($days,$hours,$minutes,$seconds,$sys_time,$uptime) = ('','','','','','');
 	if (check_program('uptime')){
 		$uptime = qx(uptime);
 		$uptime = trimmer($uptime);
@@ -25310,21 +25310,34 @@ sub get_uptime {
 			# $uptime = '9:51 PM  up 2 mins, 1 user, load average: 0:58, 0.27, 0.11';
 			# $uptime = '05:36:47 up 3 min,  4 users,  load average: 1,88, 0,98, 0,62';
 			# $uptime = '9:51 PM  up 49 secs, 1 user, load average: 0:58, 0.27, 0.11';
+			# $uptime = '04:11am  up   0:00,  1 user,  load average: 0.08, 0.03, 0.01'; # openSUSE 13.1 (Bottle)
 		}
-		if ($uptime && 
-		 $uptime =~ /[\S]+\s+up\s+(([0-9]+)\s+day[s]?,\s+)?(([0-9]{1,2}):([0-9]{1,2})|([0-9]+)\smin[s]?|([0-9]+)\ssec[s]?),\s+([0-9]+\s+user|load average)/){
-			$days = $2 . 'd' if $2;
-			$days .= ' ' if ($days && ($4 || $6));
-			if ($4 && $5){
-				$hours = $4 . 'h ';
-				$minutes = $5 . 'm';
+		if ($uptime){
+			# trim off and store system time and up, and cut off user/load data
+			$uptime =~ s/^([0-9:])\s*([AP]M)?.+up\s+|,?\s*([0-9]+\suser|load).*$//gi;
+			# print "ut: $uptime\n";
+			if ($1){
+				$sys_time = $1;
+				$sys_time .= lc($2) if $2;
 			}
-			elsif ($6){
-				$minutes = $6 . 'm';
+			if ($uptime =~ /\b([0-9]+)\s+day[s]?\b/){
+				$days = ($1 + 0) . 'd';
 			}
-			elsif ($7){
-				$seconds = $7 . 's';
+			if ($uptime =~ /\b([0-9]{1,2}):([0-9]{1,2})\b/){
+				$hours =( $1 + 0) . 'h';
+				$minutes = ($2 + 0) . 'm';
 			}
+			else {
+				if ($uptime =~ /\b([0-9]+)\smin[s]?\b/){
+					$minutes = ($1 + 0) . 'm';
+				}
+				if ($uptime =~ /\b([0-9]+)\ssec[s]?\b/){
+					$seconds = ($1 + 0) . 's';
+				}
+			}
+			$days .= ' ' if $days && ($hours || $minutes || $seconds);
+			$hours .= ' ' if $hours && $minutes;
+			$minutes .= ' ' if $minutes && $seconds;
 			$uptime = $days . $hours . $minutes . $seconds;
 		}
 	}
