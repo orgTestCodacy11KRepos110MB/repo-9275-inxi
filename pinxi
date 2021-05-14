@@ -17665,6 +17665,7 @@ sub get_repos_linux {
 	$apt = $apt_termux if -e $apt_termux; # for android termux
 	my $cards = '/etc/cards.conf';
 	my $dnf_conf = '/etc/dnf/dnf.conf';
+	my $dnf_repo_dir = '/etc/dnf.repos.d/';
 	my $eopkg_dir = '/var/lib/eopkg/';
 	my $nix = '/etc/nix/nix.conf';
 	my $pacman = '/etc/pacman.conf';
@@ -17881,18 +17882,15 @@ sub get_repos_linux {
 	}
 	# redhat/suse
 	if (-f $dnf_conf ||-d $yum_repo_dir || -f $yum_conf || -d $zypp_repo_dir){
-		if (-d $yum_repo_dir || -f $yum_conf){
-			@files = main::globber("$yum_repo_dir*.repo");
-			push(@files, $yum_conf) if -f $yum_conf;
-		}
-		if (-f $dnf_conf){
-			push(@files, $dnf_conf);
-		}
+		@files = ();
+		push(@files, $dnf_conf) if -f $dnf_conf;
+		push(@files, main::globber("$dnf_repo_dir*.repo")) if -d $dnf_repo_dir;
+		push(@files, $yum_conf) if -f $yum_conf;
+		push(@files, main::globber("$yum_repo_dir*.repo")) if -d $yum_repo_dir;
 		if (-d $zypp_repo_dir){
-			@files = main::globber("$zypp_repo_dir*.repo");
+			push(@files, main::globber("$zypp_repo_dir*.repo"));
 			main::log_data('data',"zypp repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		}
- 		#$repo = 'yum';
  		# push(@files, "$ENV{'HOME'}/bin/scripts/inxi/data/repo/yum/rpmfusion-nonfree-1.repo");
 		if (@files){
 			foreach (sort @files){
