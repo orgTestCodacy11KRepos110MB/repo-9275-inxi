@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.04';
-my $self_date='2021-05-13';
-my $self_patch='10';
+my $self_date='2021-05-24';
+my $self_patch='11';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -3880,6 +3880,10 @@ sub set_program_values {
 	'xfdesktop' => ['xfdesktop[[:space:]]version',5,'--version','Xfce',0,1,0,'',''],
 	# command: xfdesktop
 	'xfdesktop-toolkit' => ['Built[[:space:]]with[[:space:]]GTK',4,'--version','Gtk',0,1,0,'',''],
+	# '        This is xfwm4 version 4.16.1 (revision 5f61a84ad) for Xfce 4.16'
+	'xfwm' => ['xfwm[3-8]? version',5,'--version','xfwm',0,1,0,'^^\s+',''],# unverified
+	'xfwm4' => ['xfwm4? version',5,'--version','xfwm',0,1,0,'^^\s+',''],
+	'xfwm5' => ['xfwm5? version',5,'--version','xfwm',0,1,0,'^^\s+',''], # unverified
 	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
 	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
 	## Toolkits ##
@@ -12786,6 +12790,9 @@ sub display_compositor {
 		['wayhouse','wayhouse','','wayhouse'],
 		['westford','westford','','westford'],
 		['xcompmgr','xcompmgr','','xcompmgr'],
+		['xfwm4','xfwm4','','xfwm4'],
+		['xfwm5','xfwm5','','xfwm5'],
+		['xfwm','xfwm','','xfwm'],
 		);
 		foreach my $item (@compositors){
 			# no need to use check program with short list of ps_gui
@@ -16761,7 +16768,7 @@ sub check_zfs_status {
 ## RamItem
 {
 package RamItem;
-my (@vendors);
+my (@vendors,%vendor_ids);
 sub get {
 	my (@data,@rows,$key1,@ram,$val1);
 	my $num = 0;
@@ -17164,7 +17171,15 @@ sub dmidecode_data {
 			if ((!$manufacturer || $manufacturer =~ /^([a-f0-9]{4})$/i) && $part_number){
 				$vendor_id = lc($1) if $1;
 				($manufacturer,$part_number) = ram_vendor($part_number);
-				$manufacturer = $vendor_id if !$manufacturer && $vendor_id;
+			}
+			if ($vendor_id && !$manufacturer){
+				set_vendor_ids() if !%vendor_ids;
+				if ($vendor_ids{$vendor_id}){
+					$manufacturer = $vendor_ids{$vendor_id};
+				}
+				else {
+					$manufacturer = $vendor_id;
+				}
 			}
 			$ram[$handle]->{'derived-module-size'} = $derived_module_size;
 			$ram[$handle]->{'modules'}[$i]{'configured-clock-speed'} = $configured_speed;
@@ -17564,6 +17579,7 @@ sub set_vendors {
 	['^(CY|Cypress)','Cypress','Cypress',''],
 	['^(SNP|Dell)','Dell','Dell',''],
 	['^(PE[\d]{4}|Edge)','Edge','Edge',''],
+	['^(Elpida|EB)','^Elpida','Elpida',''],
 	['^(GVT|Galvantech)','Galvantech','Galvantech',''],
 	# if we get more G starters, make rules tighter
 	['^(G[A-Z]|Geil)','Geil','Geil',''],
@@ -17571,6 +17587,8 @@ sub set_vendors {
 	['^(F4|G[\s\.-]?Skill)','G[\s\.-]?Skill','G.Skill',''], 
 	['^(HP)','','HP',''], # no IDs found
 	['^(HX|HyperX)','HyperX','HyperX',''],
+	# qimonda spun out of infineon, same ids
+	# ['^(HYS]|Qimonda)','Qimonda','Qimonda',''],
 	['^(HY|Infineon)','Infineon','Infineon',''],#HY[A-Z]\d
 	['^(KSM|KVR|Kingston)','Kingston','Kingston',''],
 	['^(MT|Micron)','Micron','Micron',''],
@@ -17591,6 +17609,40 @@ sub set_vendors {
 	['^(TR\d|JM\d|Transcend)','Transcend','Transcend',''],
 	['^(VK\d|Vaseky)','Vaseky','Vaseky',''],
 	);
+}
+# note: many of these are pci ids, not confirmed valid for ram
+sub set_vendor_ids {
+	%vendor_ids = {
+	# '0314' => '',# confirmed
+	'01f4' => 'Transcend',# confirmed
+	'02fe' => 'Elpida',# confirmed
+	'1014' => 'IBM',
+	'1099' => 'Samsung',
+	'10c3' => 'Samsung',
+	'11e2' => 'Samsung',
+	'1249' => 'Samsung',
+	'144d' => 'Samsung',
+	'15d1' => 'Infineon',
+	'167d' => 'Samsung',
+	'196e' => 'PNY',
+	'1b1c' => 'Corsair',
+	'1b85' => 'OCZ',
+	'1c5c' => 'SK-Hynix',
+	'1cc1' => 'A-Data',
+	'0215' => 'Corsair',# confirmed
+	'2646' => 'Kingston',
+	'2c00' => 'Micron',# confirmed
+	'5105' => 'Qimonda',# confirmed
+	'802c' => 'Micron',# confirmed
+	'80ad' => 'SK-Hynix',# confirmed
+	'80ce' => 'Samsung',# confirmed
+	'8551' => 'Qimonda',# confirmed
+	'8564' => 'Transcend',
+	'ad00' => 'SK-Hynix',# confirmed
+	'c0a9' => 'Crucial',
+	'ce00' => 'Samsung',# confirmed
+	# '' => '',
+	}
 }
 sub ram_vendor {
 	eval $end if $b_log;
@@ -21692,7 +21744,7 @@ sub get_wm_main {
 		$wms .= 'penrose|ratpoison|sawfish|scrotwm|snapwm|spectrwm|';
 		$wms .= 'stumpwm|sway|tinywm|tvtwm|twm|ukwm|';
 		$wms .= 'way-?cooler|windowlab|WindowMaker|wingo|wm2|wmfs2?|wmii2?|wmx|';
-		$wms .= 'xfwm[45]|xmonad|yeahwm';
+		$wms .= 'xfwm[45]?|xmonad|yeahwm';
 		foreach (@ps_gui){
 			if (/^($wms)$/){
 				$working = $1;
@@ -24657,7 +24709,7 @@ sub set_ps_gui {
 		@temp=qw(budgie-wm compiz deepin-wm gala gnome-shell
 		twin kwin_wayland kwin_x11 kwin marco 
 		deepin-metacity metacity metisse mir muffin deepin-mutter mutter
-		ukwm xfwm4 xfwm5);
+		ukwm xfwm[45]?);
 		push(@match,@temp);
 		# startx: /bin/sh /usr/bin/startx
 		@temp=qw(ly .*startx xinit); # possible dm values
@@ -24673,7 +24725,7 @@ sub set_ps_gui {
 		perlpanel plank plasma-desktop plasma-netbook polybar pypanel
 		razor-panel razorqt-panel stalonetray swaybar taskbar tint2 trayer
 		ukui-panel vala-panel wbar wharf wingpanel witray 
-		xfce4-panel xfce5-panel xmobar yabar);
+		xfce[45]?-panel xmobar yabar);
 		push(@match,@temp);
 	}
 	# compositors (for wayland these are also the server, note.
@@ -24684,7 +24736,8 @@ sub set_ps_gui {
 		liri marco metisse mir moblin motorcar muffin mutter
 		orbital papyros perceptia picom rustland sommelier sway swc
 		ukwm unagi unity-system-compositor
-		wavy waycooler way-cooler wayfire wayhouse westford weston xcompmgr);
+		wavy waycooler way-cooler wayfire wayhouse westford weston xcompmgr 
+		xfwm[45]?);
 		push(@match,@temp);
 	}
 	uniq(\@match);
