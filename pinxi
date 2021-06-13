@@ -16635,7 +16635,7 @@ sub zfs_data {
 		# this second is a single device not in an array
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
 		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
-		# this is using /dev/disk/by-id 
+		# third is using /dev/disk/by-id 
 		#     ata-VBOX_HARDDISK_VB5b6350cd-06618d58      -      -      -        -         -      -      -      -  ONLINE
 		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|nvme|scsi)-\S+)$/ && 
 		 ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/)){
@@ -16650,7 +16650,8 @@ sub zfs_data {
 			}
 			elsif (!$bsd_type && $row[1] =~ /^(ata|nvme|scsi)-/ && 
 			 -e "/dev/disk/by-id/$row[1]" && (my $real = Cwd::abs_path('/dev/disk/by-id/'.$row[1]))){
-				$working = $real if $real;
+				$real =~ s|/dev/||;
+				$working = $real;
 			}
 			# kind of a hack, things like cache may not show size/free
 			# data since they have no array row, but they might show it in 
@@ -19936,14 +19937,19 @@ sub proc_data {
 		# note: $working[2] != 1 is wrong, it's not related
 		# note: for zfs using /dev/sda no partitions, previous rule would have removed
 		# the unmounted report because sdb was found in sdb1, but match of eg sdb1 and sdb12
-		# makes this a problem, so usinig zfs_member test instead to filter out zfs members.
+		# makes this a problem, so using zfs_member test instead to filter out zfs members.
+		# For zfs using entire disk, ie, sda, in that case, all partitions sda1 sda9 (8BiB) 
+		# belong to zfs, and aren't unmmounted, so if sda and partition sda9,
+		# remove from list. this only works for sdxx drives, but is better than no fix
+		# This logic may also end up working for btrfs partitions, and maybe hammer?
 		# in arm/android seen /dev/block/mmcblk0p12
 		# print "mount: $row->[-1]\n";
-		if ( $row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
-		     $row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
-		     $row->[-1] !~ /\bloop/ && 
-		     !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
-		     !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted)){
+		if ($row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
+		    $row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
+		    $row->[-1] !~ /\bloop/ && 
+		    !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
+		    !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted) &&
+		    !(grep {$_ =~ /^sd[a-z]+$/ && $row->[-1] =~ /^$_[0-9]+/} @mounted)){
 			$dev_mapped = $dmmapper{$row->[-1]} if $dmmapper{$row->[-1]};
 			if (@lsblk){
 				my $id = ($dev_mapped) ? $dev_mapped: $row->[-1];
@@ -19959,7 +19965,7 @@ sub proc_data {
 			$size ||= $row->[2];
 			$fs = unmounted_filesystem($row->[-1]) if !$fs;
 			# seen: (zfs|lvm2|linux_raid)_member; crypto_luks
-			# no			te: lvm, raid members are neverm ounted. luks member is never mounted.
+			# no			te: lvm, raid members are never mounted. luks member is never mounted.
 			next if $fs && $fs =~ /(bcache|crypto|luks|_member)$/i; 
 			# these components of lvm raid will show as partitions byt are reserved private lvm member
 			# See man lvm for all current reserved private volume names
