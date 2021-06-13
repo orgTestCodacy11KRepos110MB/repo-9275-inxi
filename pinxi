@@ -16612,6 +16612,7 @@ sub zfs_data {
 		}
 		# print Data::Dumper::Dumper \@zfs;
 		# raid level is the second item in the output, unless it is not, sometimes it is absent
+		
 		if ($row[1] =~ /raid|mirror/){
 			$row[1] =~ s/^raid1/mirror/;
 			#$row[1] =~ s/^raid/raid-/; # need to match in zpool status <device>
@@ -16634,14 +16635,22 @@ sub zfs_data {
 		# this second is a single device not in an array
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
 		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
-		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*)$/ && 
-		       ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/ )){
-			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*)\s*(DEGRADED|FAULTED|OFFLINE)?$/;
+		# this is using /dev/disk/by-id 
+		#     ata-VBOX_HARDDISK_VB5b6350cd-06618d58      -      -      -        -         -      -      -      -  ONLINE
+		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|nvme|scsi)-\S+)$/ && 
+		 ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTP]$/)){
+			print "r1:$row[1]",' :: ', Cwd::abs_path('/dev/disk/by-id/'.$row[1]), "\n";
+			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|nvme|scsi)-\S+)\s.*?(DEGRADED|FAULTED|OFFLINE)?$/;
+			#my $working = '';
 			my $working = ($1) ? $1 : ''; # note: the negative case can never happen
-			my $state = ($3) ? $3 : '';
+			my $state = ($4) ? $4 : '';
 			my ($maj_min,$part_size);
 			if ($bsd_type && $working =~ /[\S]+\//){
 				$working = GlabelData::get($working);
+			}
+			elsif (!$bsd_type && $row[1] =~ /^(ata|nvme|scsi)-/ && 
+			 -e "/dev/disk/by-id/$row[1]" && (my $real = Cwd::abs_path('/dev/disk/by-id/'.$row[1]))){
+				$working = $real if $real;
 			}
 			# kind of a hack, things like cache may not show size/free
 			# data since they have no array row, but they might show it in 
