@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.04';
-my $self_date='2021-06-13';
-my $self_patch='13';
+my $self_date='2021-06-15';
+my $self_patch='14';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -15987,10 +15987,10 @@ sub zfs_output {
 		main::key($num++,0,2,'type') => $row->{'type'},
 		main::key($num++,0,2,'status') => $row->{'status'},
 		});
-		$size = ($row->{'size'}) ? main::get_size($row->{'size'},'string') : '';
-		$available = main::get_size($row->{'free'},'string',''); # could be zero free
+		$size = ($row->{'raw-size'}) ? main::get_size($row->{'raw-size'},'string') : '';
+		$available = main::get_size($row->{'raw-free'},'string',''); # could be zero free
 		if ($extra > 2){
-			$allocated = ($row->{'allocated'}) ? main::get_size($row->{'allocated'},'string') : '';
+			$allocated = ($row->{'raw-allocated'}) ? main::get_size($row->{'raw-allocated'},'string') : '';
 		}
 		@arrays = @{$row->{'arrays'}};
 		@arrays = grep {defined $_} @arrays;
@@ -16005,45 +16005,51 @@ sub zfs_output {
 		}
 		if ($size){
 			# print "here 0\n";
-			$rows[$j]->{main::key($num++,0,2,'size')} = $size;
+			$rows[$j]->{main::key($num++,0,2,'raw-size')} = $size;
 			$size = '';
 			$b_row_1_sizes = 1;
 		}
 		if ($available){
-			$rows[$j]->{main::key($num++,0,2,'free')} = $available;
+			$rows[$j]->{main::key($num++,0,2,'raw-free')} = $available;
 			$available = '';
 			$b_row_1_sizes = 1;
 		}
 		if ($allocated){
-			$rows[$j]->{main::key($num++,0,2,'allocated')} = $allocated;
+			$rows[$j]->{main::key($num++,0,2,'raw-allocated')} = $allocated;
 			$allocated = '';
+		}
+		if ($row->{'zfs-size'}){
+			$rows[$j]->{main::key($num++,0,2,'zfs-size')} = main::get_size($row->{'zfs-size'},'string');
+		}
+		if ($row->{'zfs-free'}){
+			$rows[$j]->{main::key($num++,0,2,'zfs-free')} = main::get_size($row->{'zfs-free'},'string');
 		}
 		foreach my $row2 (@arrays){
 			if ($count > 1){
 				$j = scalar @rows;
 				$num = 1;
-				$size = ($row2->{'size'}) ? main::get_size($row2->{'size'},'string') : 'N/A';
-				$available = ($row2->{'free'}) ? main::get_size($row2->{'free'},'string') : 'N/A';
+				$size = ($row2->{'size'}) ? main::get_size($row2->{'raw-size'},'string') : 'N/A';
+				$available = ($row2->{'free'}) ? main::get_size($row2->{'raw-free'},'string') : 'N/A';
 				$level = (defined $row2->{'level'}) ? $row2->{'level'}: 'linear';
 				$status = ($row2->{'status'}) ? $row2->{'status'}: 'N/A';
 				push(@rows, {
 				main::key($num++,1,2,'Array') => $level,
 				main::key($num++,0,3,'status') => $status,
-				main::key($num++,0,3,'size') => $size,
-				main::key($num++,0,3,'free') => $available,
+				main::key($num++,0,3,'raw-size') => $size,
+				main::key($num++,0,3,'raw-free') => $available,
 				});
 			}
 			# items like cache may have one component, with a size on that component
 			elsif (!$b_row_1_sizes){
 				# print "here $count\n";
-				$size = ($row2->{'size'}) ? main::get_size($row2->{'size'},'string') : 'N/A';
-				$available = ($row2->{'free'}) ? main::get_size($row2->{'free'},'string') : 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'size')} = $size;
-				$rows[$j]->{main::key($num++,0,2,'free')} = $available;
+				$size = ($row2->{'size'}) ? main::get_size($row2->{'raw-size'},'string') : 'N/A';
+				$available = ($row2->{'free'}) ? main::get_size($row2->{'raw-free'},'string') : 'N/A';
+				$rows[$j]->{main::key($num++,0,2,'raw-size')} = $size;
+				$rows[$j]->{main::key($num++,0,2,'raw-free')} = $available;
 				if ($extra > 2){
-					$allocated = ($row->{'allocated'}) ? main::get_size($row2->{'allocated'},'string') : '';
+					$allocated = ($row->{'raw-allocated'}) ? main::get_size($row2->{'allocated'},'string') : '';
 					if ($allocated){
-						$rows[$j]->{main::key($num++,0,2,'allocated')} = $allocated;
+						$rows[$j]->{main::key($num++,0,2,'raw-allocated')} = $allocated;
 					}
 				}
 			}
@@ -16553,9 +16559,8 @@ sub zfs_data {
 	eval $start if $b_log;
 	my ($zpool) = @_;
 	my (@components,@zfs);
-	# $size_logical appears to be legacy, double check to remove it
-	my ($allocated,$free,$size,$size_holder,$size_logical,$status,$zfs_used,
-	$zfs_avail,@working);
+	my ($allocated,$free,$size,$size_holder,$status,$zfs_used,$zfs_avail,
+	$zfs_size,@working);
 	my $b_v = 1;
 	my ($i,$j,$k) = (0,0,0);
 	if ($fake{'raid-zfs'}){
@@ -16597,21 +16602,30 @@ sub zfs_data {
 		if (/^[\S]+/){
 			@components = ();
 			$i = 0;
-			($zfs_used,$zfs_avail) = zfs_fs_sizes($row[0]);
-			# must be BEFORE '$size_holder =' because only used if hits a new device
-			# AND unassigned via raid/mirror arrays. Corner case for > 1 device systems. 
-			$raw_logical[0] += $size_holder if $size_holder; 
-			$size_holder = $size = ($row[1] && $row[1] ne '-') ? main::translate_size($row[1]): '';
+			$size = ($row[1] && $row[1] ne '-') ? main::translate_size($row[1]): '';
 			$allocated = ($row[2] && $row[2] ne '-')? main::translate_size($row[2]): '';
 			$free = ($row[3] && $row[3] ne '-')? main::translate_size($row[3]): '';
+			($zfs_used,$zfs_avail) = zfs_fs_sizes($zfs_path,$row[0]) if $zfs_path;
+			if (defined $zfs_used && defined $zfs_avail){
+				$zfs_size = $zfs_used + $zfs_avail;
+				$raw_logical[0] += $zfs_size; 
+			}
+			else {
+				# must be BEFORE '$size_holder =' because only used if hits a new device
+				# AND unassigned via raid/mirror arrays. Corner case for > 1 device systems. 
+				$raw_logical[0] += $size_holder if $size_holder; 
+				$size_holder = $size;
+			}
 			$status = (defined $row[$status_i] && $row[$status_i] ne '') ? $row[$status_i]: 'no-status';
 			$j = scalar @zfs;
 			push(@zfs, {
 			'id' => $row[0],
-			'allocated' => $allocated,
 			'arrays' => ([],),
-			'free' => $free,
-			'size' => $size,
+			'raw-allocated' => $allocated,
+			'raw-free' => $free,
+			'raw-size' => $size,
+			'zfs-free' => $zfs_avail,
+			'zfs-size' => $zfs_size,
 			'status' => $status,
 			'type' => 'zfs',
 			});
@@ -16624,12 +16638,14 @@ sub zfs_data {
 			$k = scalar @{$zfs[$j]->{'arrays'}};
 			$zfs[$j]->{'arrays'}[$k]{'level'} = $row[1];
 			$i = 0;
-			$size_logical = $size = ($row[2] && $row[2] ne '-') ? main::translate_size($row[2]) : '';
-			$size_holder = 0;
-			$raw_logical[0] += $size if $size;
-			$zfs[$j]->{'arrays'}[$k]{'size'} = $size;
-			$zfs[$j]->{'arrays'}[$k]{'allocated'} = ($row[3] && $row[3] ne '-') ? main::translate_size($row[3]) : '';
-			$zfs[$j]->{'arrays'}[$k]{'free'} = ($row[4] && $row[4] ne '-') ? main::translate_size($row[4]) : '';
+			$size = ($row[2] && $row[2] ne '-') ? main::translate_size($row[2]) : '';
+			if (!defined $zfs_used || !defined $zfs_avail){
+				$size_holder = 0;
+				$raw_logical[0] += $size if $size;
+			}
+			$zfs[$j]->{'arrays'}[$k]{'raw-allocated'} = ($row[3] && $row[3] ne '-') ? main::translate_size($row[3]) : '';
+			$zfs[$j]->{'arrays'}[$k]{'raw-free'} = ($row[4] && $row[4] ne '-') ? main::translate_size($row[4]) : '';
+			$zfs[$j]->{'arrays'}[$k]{'raw-size'} = $size;
 		}
 		# https://blogs.oracle.com/eschrock/entry/zfs_hot_spares
 		elsif ($row[1] =~ /spares/){
@@ -16663,7 +16679,7 @@ sub zfs_data {
 			# component row:
 			#   ada0s2    25.9G  19.6G  6.25G         -     0%    75%
 			if (!$zfs[$j]->{'size'} && $row[2] && $row[2] ne '-') {
-				$size_logical = $size = ($row[2])? main::translate_size($row[2]): '';
+				$size = ($row[2])? main::translate_size($row[2]): '';
 				$size_holder = 0;
 				$zfs[$j]->{'arrays'}[$k]{'size'} = $size;
 				$raw_logical[0] += $size if $size;
@@ -16713,9 +16729,16 @@ sub zfs_data {
 	return @zfs;
 }
 sub zfs_fs_sizes {
-	my $id = $_[0];
-	my ($used,$avail);
-	return ($used,$avail);
+	my ($path,$id) = @_;
+	eval $start if $b_log;
+	my @result = main::grabber("$path list -pH 2>/dev/null",'','strip');
+	main::log_data('dump','zfs list @result',\@result) if $b_log;
+	print Data::Dumper::Dumper \@result if $dbg[37];
+	my @working = split(/\s+/,$result[0]);
+	eval $end if $b_log;
+	$working[1] = $working[1]/1024 if $working[1];
+	$working[2] = $working[2]/1024 if $working[2];
+	return ($working[1],$working[2]);
 }
 sub zfs_status {
 	eval $start if $b_log;
