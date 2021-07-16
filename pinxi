@@ -10365,14 +10365,16 @@ sub drive_data {
 	my ($used) = (0);
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
 	RaidItem::raid_data() if !$loaded{'raid'};
-	my $fs_skip = 'archivemount(fs)?|avfs|cifs|glusterfs|gmailfs|hdfs|iso9660';
-	$fs_skip .= '|k(osmos)?fs|moosefs|nfs\d{0,2}|null(fs)?|overlay(fs)?|panfs|';
-	$fs_skip .= 's3fs|sshfs|smbfs|unionfs';
+	# see docs/inxi-data.txt PARTITION DATA for more on remote/fuse fs
+	my $fs_skip = 'afs|archivemount(fs)?|aufs|avfs|ceph|cifs|gfs\d{0,2}|glusterfs|';
+	$fs_skip .= 'gmailfs|hdfs|ipfs|iso9660||k(osmos)?fs|.*lafs|moosefs|nfs\d{0,2}|';
+	$fs_skip .= 'null(fs)?|ocfs\d{0,2}|openafs|orangefs|overlay(fs)?|panfs|s3fs|';
+	$fs_skip .= 'sheepdog|squashfs|sshfs|smbfs|unionfs|vmfs';
 	foreach my $row (@partitions){
 		# don't count remote used, also, some cases mount 
 		# panfs is parallel NAS volume manager, need more data
 		# null is hammer fs slice; nfs, nfs4; can be fuse.sshfs
-		next if ($row->{'fs'} && $row->{'fs'} =~ /^(fuse[\._-]?)?($fs_skip)$/);
+		next if ($row->{'fs'} && $row->{'fs'} =~ /^(fuse(blk)?[\._-]?)?($fs_skip)$/);
 		# don't count zfs or file type swap
 		next if ($row->{'swap-type'} && $row->{'swap-type'} ne 'partition');
 		# in some cases, like redhat, mounted cdrom/dvds show up in partition data
