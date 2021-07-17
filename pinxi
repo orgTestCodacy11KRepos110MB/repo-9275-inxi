@@ -11850,6 +11850,7 @@ sub hdd_temp_sys {
 	my $path_trimmed = Cwd::abs_path("/sys/block/$device");
 	# slice out the part of path that gives us hwmon in earlier kernel drivetemp
 	$path_trimmed =~ s%/(block|nvme)/.*$%% if $path_trimmed;
+	print "device: $device path: $path path_trimmed: $path_trimmed\n" if $dbg[21];
 	return if ! -e $path && (!$path_trimmed || ! -e "$path_trimmed/hwmon");
 	# first type, trimmed block,nvme (ata and nvme), 5.9 kernel:
 	# /sys/devices/pci0000:10/0000:10:08.1/0000:16:00.2/ata8/host7/target7:0:0/7:0:0:0/hwmon/hwmon5/
@@ -11858,6 +11859,7 @@ sub hdd_temp_sys {
 	# second type, 5.10+ kernel:
 	# /sys/devices/pci0000:20/0000:20:03.1/0000:21:00.0/nvme/nvme0/nvme0n1/device/hwmon1
 	# /sys/devices/pci0000:00/0000:00:08.1/0000:0b:00.2/ata12/host11/target11:0:0/11:0:0:0/block/sdd/device/hwmon/hwmon1
+	# we don't want these items: crit|max|min|lowest|highest
 	# original kernel 5.8/9 match for nvme and sd, 5.10+ match for sd
 	if (-e "$path_trimmed/hwmon/"){
 		@data = main::globber("$path_trimmed/hwmon/hwmon*/temp*_{input,label}");
@@ -11870,8 +11872,6 @@ sub hdd_temp_sys {
 	else {
 		@data = main::globber("$path/hwmon*/temp*_{input,label}");
 	}
-	# print "device: $device path: $path path_trimmed: $path_trimmed\n";
-	# we don't want these: crit|max|min|lowest|highest
 	# seeing long lag to read temp input files for some reason
 	foreach (sort @data){
 		# print "file: $_\n";
