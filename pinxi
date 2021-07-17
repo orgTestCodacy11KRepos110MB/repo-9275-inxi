@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.05';
-my $self_date='2021-07-16';
-my $self_patch='03';
+my $self_date='2021-07-17';
+my $self_patch='04';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -11844,18 +11844,36 @@ sub hdd_temp {
 sub hdd_temp_sys {
 	eval $start if $b_log;
 	my ($device) = @_;
-	my ($hdd_temp,$hdd_temp_alt,%sensors,@working);
+	my ($hdd_temp,$hdd_temp_alt,%sensors,@data,@working);
 	my ($holder,$index) = ('','');
-	my $path = Cwd::abs_path("/sys/block/$device");
-	return if !$path;
-	# slice out the part of path that gives us hwmon
-	$path =~ s%/(block|nvme)/.*$%%;
-	return if ! -e "$path/hwmon/";
+	my $path = "/sys/block/$device/device";
+	my $path_trimmed = Cwd::abs_path("/sys/block/$device");
+	$path_trimmed =~ s%/(block|nvme)/.*$%% if $path_trimmed;
+	return if ! -e $path && (!$path_trimmed || ! -e "$path_trimmed/hwmon");
+	# slice out the part of path that gives us hwmon in earlier kernel drivetemp
+	# first type, trimmed block,nvme (ata and nvme), 5.9 kernel:
+	# /sys/devices/pci0000:10/0000:10:08.1/0000:16:00.2/ata8/host7/target7:0:0/7:0:0:0/hwmon/hwmon5/
+	# /sys/devices/pci0000:10/0000:10:01.2/0000:13:00.0/hwmon/hwmon0/ < nvme
+	# /sys/devices/pci0000:00/0000:00:01.3/0000:01:00.1/ata2/host1/target1:0:0/1:0:0:0/hwmon/hwmon3/
+	# second type, 5.10+ kernel:
+	# /sys/devices/pci0000:20/0000:20:03.1/0000:21:00.0/nvme/nvme0/nvme0n1/device/hwmon1
+	# /sys/devices/pci0000:00/0000:00:08.1/0000:0b:00.2/ata12/host11/target11:0:0/11:0:0:0/block/sdd/device/hwmon/hwmon1
+	# on some systems, just one one of them. The nvme path changed sometime in 2021
+	# original kernel 5.8/9 match for nvme and sd, 5.10+ match for sd
+	if (-e "$path_trimmed/hwmon/"){
+		@data = main::globber("$path_trimmed/hwmon/hwmon*/temp*_{input,label}");
+	}
+	# this case only happens if path_full case isn't there, but leave in case
+	elsif (-e "$path/hwmon/"){
+		@data = main::globber("$path/hwmon/hwmon*/temp*_{input,label}");
+	}
+	# current match for nvme, but fails for 5.8/9 kernel nvme
+	else {
+		@data = main::globber("$path/hwmon*/temp*_{input,label}");
+	}
+	# print "device: $device path: $path path_trimmed: $path_trimmed\n";
 	# we don't want these: crit|max|min|lowest|highest
 	# seeing long lag to read temp input files for some reason
-	# on some systems, just one one of them.
-	my @data = main::globber("$path/hwmon/hwmon*/temp*_{input,label}");
-	# print "device: $device\n";
 	foreach (sort @data){
 		# print "file: $_\n";
 		# print(main::reader($_,'',0),"\n");
@@ -15203,7 +15221,7 @@ sub set_partitions {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
 			}
 			# assuming that all null/nullfs are parts of a logical fs
-			$b_logical = 1 if $fs && $fs =~ /^(hammer|null|zfs)/; 
+			$b_logical = 1 if $fs && $fs =~ /^(btrfs|hammer|null|zfs)/; 
 			$id = join(' ', @row[$cols .. $#row]);
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
@@ -15473,11 +15491,11 @@ sub partition_filters {
 	# snap mounts with squashfs; appimage/flatpak mount?
 	# swap is set in swap_data(); cgmfs is in ram, like devfs, sysfs; 
 	# union fs types: aufs, overlayfs, unionfs, mergerfs
-	my $filters = 'aufs|cgroup.*|cgmfs|configfs|debugfs|\/dev|dev|';
-	$filters .= '\/dev\/loop[0-9]*|devfs|devtmpfs|fdescfs|iso9660|';
-	$filters .= 'kernfs|linprocfs|linsysfs|none|overla(id|y)(fs)?|procfs|ptyfs|';
-	$filters .= '/run(\/.*)?|run|shm|squashfs|swap|sys|\/sys\/.*|sysfs|';
-	$filters .= 'tmpfs|type|udev|unionfs|vartmp';
+	my $filters = 'aufs|cgroup.*|cgmfs|configfs|debugfs|\/dev|dev|\/dev\/loop[0-9]*|';
+	$filters .= 'devfs|devtmpfs|efivarfs|fdescfs|hugetlbfs|iso9660|kernfs|';
+	$filters .= 'linprocfs|linsysfs|none|overla(id|y)(fs)?|procfs|ptyfs|';
+	$filters .= '/run(\/.*)?|run|securityfs|shm|squashfs|swap|sys|\/sys\/.*|sysfs|';
+	$filters .= 'tmpfs|tracefs|type|udev|unionfs|vartmp';
 	return $filters
 }
 # used to exclude disk used, partition/unmounted/swap label/uuid, unmounted label/uuid
