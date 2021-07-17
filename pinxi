@@ -10370,9 +10370,7 @@ sub drive_data {
 	# see docs/inxi-data.txt PARTITION DATA for more on remote/fuse fs
 	my $fs_skip = PartitionItem::fs_excludes('disk-used');
 	foreach my $row (@partitions){
-		# don't count remote used, also, some cases mount 
-		# panfs is parallel NAS volume manager, need more data
-		# null is hammer fs slice; nfs, nfs4; can be fuse.sshfs
+		# don't count remote/distributed/union type fs towards used
 		next if ($row->{'fs'} && $row->{'fs'} =~ /^(fuse(blk)?[\._-]?)?($fs_skip)$/);
 		# don't count zfs or file type swap
 		next if ($row->{'swap-type'} && $row->{'swap-type'} ne 'partition');
@@ -15479,10 +15477,12 @@ sub partition_filters {
 	$filters .= 'tmpfs|type|udev|unionfs|vartmp';
 	return $filters
 }
-# used to exclude disk used, partition/unmounted/swap label/uuid
+# used to exclude disk used, partition/unmounted/swap label/uuid, unmounted label/uuid
 # see docs/inxi-data.txt PARTITION DATA for more on remote/fuse fs
 sub fs_excludes {
 	my ($source) = @_;
+	# panfs is parallel NAS volume manager, need more data
+	# null is hammer fs slice; nfs, nfs4; can be eg fuse.sshfs
 	my $excludes = 'afs|archivemount(fs)?|aufs|avfs|ceph|cifs|gfs\d{0,2}|glusterfs|';
 	$excludes .= 'gmailfs|hdfs|ipfs|iso9660||k(osmos)?fs|.*lafs|mhddfs|moosefs|';
 	$excludes .= 'nfs\d{0,2}|null(fs)?|ocfs\d{0,2}|openafs|orangefs|overla(id|y)(fs)?|';
