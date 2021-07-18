@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.05';
-my $self_date='2021-07-17';
-my $self_patch='04';
+my $self_date='2021-07-18';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -79,8 +79,8 @@ my (@app,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
 @sensors_exclude,@sensors_use,@uname);
 
 ## Disk/Logical/Partition/RAID arrays 
-my (@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,@proc_partitions,
-@raw_logical,@soft_raid,@swaps,@uuids,@zfs_raid);
+my (@btrfs_raid,@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,
+@proc_partitions,@raw_logical,@soft_raid,@swaps,@uuids,@zfs_raid);
 
 ## Debuggers
 my %debugger = ('level' => 0);
@@ -356,6 +356,9 @@ sub set_commands {
 	if ($use{'block-tool'}){
 		$commands{'blockdev'} = ['missing','linux','',''];
 		$commands{'lsblk'} = ['missing','linux','',''];
+	}
+	if ($use{'btrfs'}){
+		$commands{'btrfs'} = ['missing','linux','',''];
 	}
 	if ($use{'mdadm'}){
 		$commands{'mdadm'} = ['missing','linux','',''];
@@ -1668,6 +1671,7 @@ sub disk_data {
 	copy_files(\@files, 'disk');
 	my @cmds = (
 	['blockdev', '--report'],
+	['btrfs', 'fi show'],
 	['btrfs', 'filesystem show'],
 	['btrfs', 'filesystem show --mounted'],
 	# ['btrfs', 'filesystem show --all-devices'],
@@ -4889,8 +4893,8 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|pciconf|';
-			$wl .= 'pcictl|pcidump|raid-hw|raid-lvm|raid-md|raid-soft|raid-zfs|';
-			$wl .= 'sensors|sysctl|uptime|usbconfig|usbdevs|vmstat|xorg-log';
+			$wl .= 'pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|raid-md|raid-soft|';
+			$wl .= 'raid-zfs|sensors|sysctl|uptime|usbconfig|usbdevs|vmstat|xorg-log';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -5094,6 +5098,7 @@ sub post_process {
 	}
 	if ($show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} 
 	 || $show{'unmounted'}){
+		$use{'btrfs'} = 1;
 		$use{'mdadm'} = 1;
 	}
 	if ($b_admin && $show{'disk'}){
@@ -15836,10 +15841,12 @@ sub get {
 	my $num = 0;
 	@hardware_raid = hw_data() if $use{'hardware-raid'} || $fake{'raid-hw'};
 	raid_data() if !$loaded{'raid'};
-	# print 'get: ', Data::Dumper::Dumper \@lvm_raid;
-	# print 'get: ', Data::Dumper::Dumper \@md_raid;
-	# print 'get: ', Data::Dumper::Dumper \@zfs_raid;
-	if (!@lvm_raid && !@md_raid && !@zfs_raid && !@soft_raid && !@hardware_raid){
+	# print 'get btrfs: ', Data::Dumper::Dumper \@btrfs_raid;
+	# print 'get lvm: ', Data::Dumper::Dumper \@lvm_raid;
+	# print 'get md: ', Data::Dumper::Dumper \@md_raid;
+	# print 'get zfs: ', Data::Dumper::Dumper \@zfs_raid;
+	if (!@btrfs_raid && !@lvm_raid && !@md_raid && !@zfs_raid && !@soft_raid && 
+	 !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
 			$val1 = main::row_defaults('raid-data');
@@ -15848,6 +15855,9 @@ sub get {
 	else {
 		if (@hardware_raid){
 			push(@rows,hw_output(\@hardware_raid));
+		}
+		if (@btrfs_raid){
+			push(@rows,btrfs_output());
 		}
 		if (@lvm_raid){
 			push(@rows,lvm_output());
@@ -15903,6 +15913,16 @@ sub hw_output {
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->{'class-id'} if $row->{'class-id'};
 		}
 	}
+	eval $end if $b_log;
+	# print Data::Dumper::Dumper \@rows;
+	return @rows;
+}
+sub btrfs_output {
+	eval $start if $b_log;
+	my (@components,@good,@rows);
+	my ($size);
+	my ($j,$num) = (0,0);
+	
 	eval $end if $b_log;
 	# print Data::Dumper::Dumper \@rows;
 	return @rows;
@@ -16337,8 +16357,12 @@ sub raid_data {
 	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	my (@data);
 	$loaded{'raid'} = 1;
+	if ($fake{'raid-btrfs'} || 
+	 ($alerts{'btrfs'}->{'action'} && $alerts{'btrfs'}->{'action'} eq 'use')){
+		@btrfs_raid = btrfs_data();
+	}
 	if ($fake{'raid-lvm'} || 
-	    ($alerts{'lvs'}->{'action'} && $alerts{'lvs'}->{'action'} eq 'use')){
+	 ($alerts{'lvs'}->{'action'} && $alerts{'lvs'}->{'action'} eq 'use')){
 		@lvm_raid = lvm_data();
 	}
 	if ($fake{'raid-md'} || (my $file = $system_files{'proc-mdstat'})){
@@ -16394,6 +16418,21 @@ sub hw_data {
 	main::log_data('dump','@hardware_raid',\@hardware_raid) if $b_log;
 	eval $end if $b_log;
 	return @hardware_raid;
+}
+sub btrfs_data {
+	eval $start if $b_log;
+	my (@btraid,@working);
+	if ($fake{'raid-btrfs'}){
+	
+	}
+	else {
+	
+	}
+	 print Data::Dumper::Dumper \@working;
+	
+	# print Data::Dumper::Dumper \@btraid;
+	eval $end if $b_log;
+	return @btraid;
 }
 sub lvm_data {
 	eval $start if $b_log;
@@ -20273,7 +20312,7 @@ sub get_mounted {
 		push(@mounted, $row->{'dev-base'}) if $row->{'dev-base'};
 	}
 	# print Data::Dumper::Dumper \@zfs_raid;
-	foreach my $row ((@lvm_raid,@md_raid,@soft_raid,@zfs_raid)){
+	foreach my $row ((@btrfs_raid,@lvm_raid,@md_raid,@soft_raid,@zfs_raid)){
 		# we want to not show md0 etc in unmounted report
 		push(@mounted, $row->{'id'}) if $row->{'id'}; 
 		# print Data::Dumper::Dumper $row;
@@ -24333,14 +24372,20 @@ sub set {
 	eval $start if $b_log;
 	$loaded{'lsblk'} = 1;
 	if ($alerts{'lsblk'} && $alerts{'lsblk'}->{'path'}){
-		my $cmd = $alerts{'lsblk'}->{'path'} . ' -bP --output NAME,TYPE,RM,FSTYPE,SIZE,LABEL,UUID,';
-		$cmd .= 'SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,MAJ:MIN,PKNAME 2>/dev/null';
+		# check to see if lsblk removes : - separators from accepted input syntax
+		my $cmd = $alerts{'lsblk'}->{'path'} . ' -bP --output NAME,TYPE,RM,FSTYPE,';
+		$cmd .= 'SIZE,LABEL,UUID,SERIAL,MOUNTPOINT,PHY-SEC,LOG-SEC,PARTFLAGS,';
+		$cmd .= 'MAJ:MIN,PKNAME 2>/dev/null';
+		print "cmd: $cmd\n" if $dbg[32];
+		my @working = main::grabber($cmd);
+		print Data::Dumper::Dumper \@working if $dbg[32];
+		# note: lsblk for some bizarre reason randomly decided to change - and : 
+		# to _ in the output, ignoring the input syntax. Bad lsblk bad!!!
 		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
 		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
 		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
-		$pattern .= 'PHY-SEC="([^"]*)"\s+LOG-SEC="([^"]*)"\s+PARTFLAGS="([^"]*)"\s+';
-		$pattern .= 'MAJ:MIN="([^"]*)"\s+PKNAME="([^"]*)"';
-		my @working = main::grabber($cmd);
+		$pattern .= 'PHY[_-]SEC="([^"]*)"\s+LOG[_-]SEC="([^"]*)"\s+';
+		$pattern .= 'PARTFLAGS="([^"]*)"\s+MAJ[:_-]MIN="([^"]*)"\s+PKNAME="([^"]*)"';
 		foreach (@working){
 			if (/$pattern/){
 				my $size = ($5) ? $5/1024: 0;
