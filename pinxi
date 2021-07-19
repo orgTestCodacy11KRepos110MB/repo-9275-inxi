@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.05';
-my $self_date='2021-07-18';
-my $self_patch='05';
+my $self_date='2021-07-19';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5513,7 +5513,7 @@ sub show_options {
 	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
 	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode installed)." ],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
-	rotation speed/SSD (if detected)." ],
+	type, rotation rpm (if available)." ],
 	['2', '-E', '', "Serial number, class ID, HCI version and revision." ],
 	['2', '-G', '', "Serial number, class ID." ],
 	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if present; 
@@ -10277,9 +10277,11 @@ sub drive_output {
 			$rows[$j]->{main::key($num++,0,2,'speed')} = $row->{'speed'};
 			$rows[$j]->{main::key($num++,0,2,'lanes')} = $row->{'lanes'} if $row->{'lanes'};
 		}
-		if ($extra > 2 && ($row->{'rotation'} || $row->{'drive-type'})){
-			$row->{'rotation'} = $row->{'drive-type'} if !$row->{'rotation'};
-			$rows[$j]->{main::key($num++,0,2,'rotation')} = $row->{'rotation'};
+		if ($extra > 2 && $row->{'drive-type'}){
+			$rows[$j]->{main::key($num++,0,2,'type')} = $row->{'drive-type'};
+			if ($row->{'rotation'}){
+				$rows[$j]->{main::key($num++,0,2,'rpm')} = $row->{'rotation'};
+			}
 		}
 		if ($extra > 1){
 			if (!$row->{'serial'} && $alerts{'bioctl'} && 
@@ -10629,7 +10631,7 @@ sub proc_data_advanced {
 			$pt_cmd = $data[0];
 			$drives->[$i]{'partition-table'} = uc($data[1]) if $data[1];
 			if ($data[2]){
-				$drives->[$i]{'rotation'} = "$data[2] rpm";
+				$drives->[$i]{'rotation'} = $data[2];
 				$drives->[$i]{'drive-type'} = 'HDD';
 			}
 			elsif (($block_type && $block_type ne 'sdx') ||
@@ -10908,6 +10910,7 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'Rotation Rate'){
 					if ($split[$r] !~ /^Solid/){
 						$data->[$i]{'rotation'} = $split[$r];
+						$data->[$i]{'rotation'} =~ s/\s*rpm$//i;
 						$data->[$i]{'drive-type'} = 'HDD';
 					}
 					else {
@@ -16444,6 +16447,7 @@ sub btrfs_data {
 	print Data::Dumper::Dumper \@working if $dbg[37];
 	
 	print Data::Dumper::Dumper \@btraid if $dbg[37];
+	main::log_data('dump','@lvraid',\@btraid) if $b_log;
 	eval $end if $b_log;
 	return @btraid;
 }
@@ -24392,8 +24396,7 @@ sub set {
 		print "cmd: $cmd\n" if $dbg[32];
 		my @working = main::grabber($cmd);
 		print Data::Dumper::Dumper \@working if $dbg[32];
-		# note: lsblk for some bizarre reason randomly decided to change - and : 
-		# to _ in the output, ignoring the input syntax. Bad lsblk bad!!!
+		# note: lsblk 2.37 changeed - and : to _ in the output.
 		my $pattern = 'NAME="([^"]*)"\s+TYPE="([^"]*)"\s+RM="([^"]*)"\s+';
 		$pattern .= 'FSTYPE="([^"]*)"\s+SIZE="([^"]*)"\s+LABEL="([^"]*)"\s+';
 		$pattern .= 'UUID="([^"]*)"\s+SERIAL="([^"]*)"\s+MOUNTPOINT="([^"]*)"\s+';
