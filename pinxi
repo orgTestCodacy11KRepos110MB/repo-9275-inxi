@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.06';
-my $self_date='2021-07-21';
-my $self_patch='01';
+my $self_date='2021-07-28';
+my $self_patch='02';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5479,7 +5479,7 @@ sub show_options {
 	driver check list of Xorg for the device vendor, but is not installed on system;
 	Xorg dpi." ],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
-	default runlevel. Adds parent program (or tty) for shell info if not in 
+	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found). Adds per package manager
 	installed package counts if not -r." ],
 	['2', '-j,-p,-P', '', "Swap priority." ],
@@ -26991,7 +26991,16 @@ sub info_item{
 		}
 		else {
 			ShellData::tty_number() if !$loaded{'tty-number'};
-			$parent = "tty $client{'tty-number'}" if $client{'tty-number'} ne '';
+			if ($client{'tty-number'} ne ''){
+				my $tty_type = '';
+				if ($client{'tty-number'} =~ /^[a-f0-9]+$/i){
+					$tty_type = 'tty ';
+				}
+				elsif ($client{'tty-number'} =~ /pts/i){
+					$tty_type = 'pty ';
+				}
+				$parent = "$tty_type$client{'tty-number'}";
+			}
 		}
 		# can be tty 0 so test for defined
 		$running_in = $parent if $parent;
@@ -27093,7 +27102,16 @@ sub system_item {
 			ShellData::console_irc_tty() if !$loaded{'con-irc-tty'};
 			$tty = $client{'con-irc-tty'};
 		}
-		$desktop = "tty $tty" if $tty ne '';
+		if ($tty ne ''){
+			my $tty_type = '';
+			if ($tty =~ /^[a-f0-9]+$/i){
+				$tty_type = 'tty ';
+			}
+			elsif ($tty =~ /pts/i){
+				$tty_type = 'pty ';
+			}
+			$desktop = "$tty_type$tty";
+		}
 		$desktop_key = 'Console';
 		$dm_key = 'DM';
 		$ind_dm = 1;
