@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.06';
-my $self_date='2021-09-04';
-my $self_patch='04';
+my $self_date='2021-09-10';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -4119,16 +4119,18 @@ sub reader {
 	my ($file,$strip,$index) = @_;
 	return if !$file;
 	open(my $fh, '<', $file) or error_handler('open', $file, $!);
-	chomp(my @rows = <$fh>);
-	close $fh if $fh;
-	if (@rows && $strip){
-		my @temp;
-		for (@rows){
-			next if /^\s*(#|$)/;
-			$_ =~ s/^\s+|\s+$//g;
-			push(@temp,$_);
+	if ($fh){
+		chomp(my @rows = <$fh>);
+		close $fh;
+		if (@rows && $strip){
+			my @temp;
+			for (@rows){
+				next if /^\s*(#|$)/;
+				$_ =~ s/^\s+|\s+$//g;
+				push(@temp,$_);
+			}
+			@rows = @temp;
 		}
-		@rows = @temp;
 	}
 	eval $end if $b_log;
 	# note: returns undef scalar value if $rows[index] does not exist
@@ -15434,14 +15436,14 @@ sub swap_data {
 sub swap_advanced_data {
 	eval $start if $b_log;
 	my ($swappiness,$cache_pressure) = (undef,undef);
-	if (-r "/proc/sys/vm/swappiness"){
-		$swappiness = main::reader("/proc/sys/vm/swappiness",'',0);
+	if (-r '/proc/sys/vm/swappiness'){
+		$swappiness = main::reader('/proc/sys/vm/swappiness','',0);
 		if (defined $swappiness){
 			$swappiness .= ($swappiness == 60) ? ' (default)' : ' (default 60)' ;
 		}
 	}
-	if (-r "/proc/sys/vm/vfs_cache_pressure"){
-		$cache_pressure = main::reader("/proc/sys/vm/vfs_cache_pressure",'',0);
+	if (-r '/proc/sys/vm/vfs_cache_pressure'){
+		$cache_pressure = main::reader('/proc/sys/vm/vfs_cache_pressure','',0);
 		if (defined $cache_pressure){
 			$cache_pressure .= ($cache_pressure == 100) ? ' (default)' : ' (default 100)' ;
 		}
@@ -22791,6 +22793,11 @@ sub soc_type {
 	elsif (($driver && $driver =~ /dummy/i) || ($info && $info =~ /dummy/i)){
 		$type = 'dummy';
 	}
+	# rome_vreg reg_fixed_voltage regulator-fixed wlan_en_vreg
+	elsif (($driver && $driver =~ /\bv?reg(ulat|_)|voltage/i) || 
+	 ($info && $info =~ /_v?reg|\bv?reg(ulat|_)|voltage/i)){
+		$type = 'regulator';
+	}
 	elsif ($type =~ /^(daudio|.*hifi.*|.*sound[_-]card|.*dac[0-9]?)$/i ||
 	 ($info && $info !~ /amp/i && $info =~ /(sound|audio)/i) || 
 	 ($driver && $driver =~ /(audio|snd|sound)/i)){
@@ -23188,7 +23195,7 @@ sub get_display_manager {
 		if ((($b_run && (-f "/run/$id" || -d "/run/$working")) || 
 		 ($b_vrun && (-f "/var/run/$id" || -d "/var/run/$working")) || 
 		 ($b_vrunrc && (-f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id"))) && 
-		 !grep {/$working/} @found){
+		 !grep {/$working/i} @found){
 			if ($extra > 2 && awk(\@dms_version, $working) && ($path = check_program($working))){}
 			else {$path = $working;}
 			# print "$path $extra\n";
