@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.06';
-my $self_date='2021-09-10';
-my $self_patch='05';
+my $self_date='2021-09-13';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -100,7 +100,7 @@ if (eval {require Time::HiRes}){
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 
 ## Booleans [busybox_ps not used actively]
-my ($b_admin,$b_android,$b_arm,$b_busybox_ps,$b_display,$b_irc,
+my ($b_admin,$b_android,$b_arm,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,
 $b_mips,$b_ppc,$b_root,$b_running_in_display,$b_sparc);
 
 ## System
@@ -502,6 +502,7 @@ sub set_os {
 	elsif ($cpu_arch =~ /mips/){$b_mips = 1}
 	elsif ($cpu_arch =~ /power|ppc/){$b_ppc = 1}
 	elsif ($cpu_arch =~ /sparc/){$b_sparc = 1}
+	elsif ($cpu_arch =~ /cygwin/){$b_cygwin = 1}
 	# aarch32 mips32 intel/amd handled in cpu
 	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9)/){
 		$bits_sys = 32;
@@ -22287,15 +22288,18 @@ sub lspci_data {
 		}
 		# note: arm servers can have more complicated patterns
 		# 0002:01:02.0 Ethernet controller [0200]: Cavium, Inc. THUNDERX Network Interface Controller virtual function [177d:a034] (rev 08)
+		# seen cases of lspci trimming too long lines like this:
+		# 01:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Topaz XT [Radeon R7 M260/M265 / M340/M360 / M440/M445 / 530/535 / 620/625 Mobile] [10... (rev c3)
 		elsif ($_ =~ /^(([0-9a-f]{2,4}:)?[0-9a-f]{2}:[0-9a-f]{2})[.:]([0-9a-f]+)\s(.*)\s\[([0-9a-f]{4}):([0-9a-f]{4})\](\s\(rev\s([^\)]+)\))?/){
 			$busid = $1;
 			$busid_nu = hex($3);
 			@temp = split(/:\s+/, $4);
 			$device = $temp[1];
 			$type = $temp[0];
-			$vendor_id = $5;
-			$chip_id = $6;
-			$rev = ($8)? $8 : '';
+			# cases of corrupted string set to ''
+			$vendor_id = (defined $5) ? $5 : '';
+			$chip_id = (defined $6) ? $6 : '';
+			$rev = (defined $8)? $8 : '';
 			$device = main::cleaner($device);
 			$temp[0] =~ /\[([^\]]+)\]$/;
 			$type_id = $1;
@@ -22303,7 +22307,6 @@ sub lspci_data {
 			$type = lc($type);
 			$type = main::pci_cleaner($type,'pci');
 			$type =~ s/\s+$//;
-			# print "$type\n";
 			($driver,$driver_nu,$modules,$subsystem,$subsystem_id) = ('','','','','');
 		}
 	}
@@ -22518,7 +22521,8 @@ sub pci_grabber {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/kot--book-lspci-nnv.txt";
-		# @data = main::reader($file,'strip');
+		 my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
+		 @data = main::reader($file,'strip');
 	}
 	else {
 		@data = main::grabber("$path $args 2>/dev/null",'','strip');
@@ -23480,6 +23484,10 @@ sub get_linux_distro {
 	# test for /etc/lsb-release as a backup in case of failure, in cases 
 	# where > one version/release file were found but the above resulted 
 	# in null distro value. 
+	if (!$distro && $b_cygwin){
+		$distro = $uname[0]; # like so: CYGWIN_NT-10.0-19043
+		$b_skip_osr = 1;
+	}
 	if (!$distro){
 		if (!$b_skip_osr && @osr){
 			$distro = get_os_release();
