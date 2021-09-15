@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.06';
-my $self_date='2021-09-13';
-my $self_patch='06';
+my $self_date='2021-09-15';
+my $self_patch='07';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -4139,9 +4139,12 @@ sub reader {
 	eval $start if $b_log;
 	my ($file,$strip,$index) = @_;
 	return if !$file || ! -r $file; # not all OS respect -r tests!!
-	open(my $fh, '<', $file) or error_handler('open', $file, $!);
-	my @rows;
-	if ($fh){
+	my ($error,@rows);
+	open(my $fh, '<', $file) or $error = $!; # $fh always non null, even on error
+	if ($error){
+		error_handler('open', $file, $error);
+	}
+	else {
 		chomp(@rows = <$fh>);
 		close $fh;
 		if (@rows && $strip){
@@ -6209,6 +6212,22 @@ sub general_cleaner {
 	return $string;
 }
 
+# args: $1 - vendor id; $2 - product id
+# returns print ready vendor:chip id string, or na variants
+sub get_chip_id {
+	my ($vendor,$product)= @_;
+	my $id = 'N/A';
+	if ($vendor && $product){
+		$id = "$vendor:$product";
+	}
+	elsif ($vendor){
+		$id = "$vendor:n/a";
+	}
+	elsif ($product){
+		$id = "n/a:$product";
+	}
+	return $id;
+}
 # args: $1 - size in KB, return KB, MB, GB, TB, PB, EB; $2 - 'string';
 # $3 - default value if null
 # returns string with units or array or size unmodified if not numeric
@@ -6973,13 +6992,7 @@ sub device_output {
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 		}
 		if ($extra > 1){
-			my $chip_id = 'N/A';
-			if ($row->[5] && $row->[6]){
-				$chip_id = "$row->[5]:$row->[6]";
-			}
-			elsif ($row->[6]){
-				$chip_id = $row->[6];
-			}
+			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
 			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
 			if ($extra > 2 && $row->[1]){
 				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
@@ -7742,13 +7755,7 @@ sub device_output {
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 		}
 		if ($extra > 1){
-			my $chip_id = 'N/A';
-			if ($row->[5] && $row->[6]){
-				$chip_id = "$row->[5]:$row->[6]";
-			}
-			elsif ($row->[6]){
-				$chip_id = $row->[6];
-			}
+			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
 			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
 			if ($extra > 2 && $row->[1]){
 				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
@@ -12131,7 +12138,8 @@ sub device_output {
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 		}
 		if ($extra > 1){
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = ($row->[5]) ? "$row->[5]:$row->[6]" : $row->[6];
+			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
+			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
 		}
 		if ($extra > 2 && $row->[1]){
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
@@ -14178,7 +14186,7 @@ sub device_output {
 		# print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
 		my $driver = $row->[9];
-		my $chip_id = "$row->[5]:$row->[6]";
+		my $chip_id = main::get_chip_id($row->[5],$row->[6]);
 		# working around a virtuo bug same chip id is used on two nics
 		if (!defined $holder{$chip_id}){
 			$holder{$chip_id} = 0;
@@ -15954,7 +15962,7 @@ sub hw_output {
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
-			my $chip_id = (defined $row->{'vendor-id'} && defined $row->{'chip-id'}) ? "$row->{'vendor-id'}.$row->{'chip-id'}": 'N/A' ;
+			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
 			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
 		}
 		if ($extra > 2){
@@ -22228,8 +22236,8 @@ sub set_xprop {
 # 15 serial number
 {
 package DeviceData;
-my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3);
-my ($b_bt_check);
+my (@bluetooth,@devices,@files,@full_names,@pcis,@temp,@temp2,@temp3,%lspci_n);
+my ($b_bt_check,$b_lspci_n);
 my ($busid,$busid_nu,$chip_id,$content,$device,$driver,$driver_nu,$file,
 $handle,$modules,$port,$rev,$serial,$temp,$type,$type_id,$vendor,$vendor_id);
 
@@ -22284,7 +22292,7 @@ sub set {
 
 sub lspci_data {
 	eval $start if $b_log;
-	my ($subsystem,$subsystem_id);
+	my ($busid_full,$subsystem,$subsystem_id);
 	my @data = pci_grabber('lspci');
 	# print Data::Dumper::Dumper \@data;
 	foreach (@data){
@@ -22320,30 +22328,97 @@ sub lspci_data {
 		# note: arm servers can have more complicated patterns
 		# 0002:01:02.0 Ethernet controller [0200]: Cavium, Inc. THUNDERX Network Interface Controller virtual function [177d:a034] (rev 08)
 		# seen cases of lspci trimming too long lines like this:
-		# 01:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Topaz XT [Radeon R7 M260/M265 / M340/M360 / M440/M445 / 530/535 / 620/625 Mobile] [10... (rev c3)
-		elsif ($_ =~ /^(([0-9a-f]{2,4}:)?[0-9a-f]{2}:[0-9a-f]{2})[.:]([0-9a-f]+)\s(.*)\s\[([0-9a-f]{4}):([0-9a-f]{4})\](\s\(rev\s([^\)]+)\))?/){
-			$busid = $1;
-			$busid_nu = hex($3);
-			@temp = split(/:\s+/, $4);
-			$device = $temp[1];
-			$type = $temp[0];
+		# 01:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Topaz XT [Radeon R7 M260/M265 / M340/M360 / M440/M445 / 530/535 / 620/625 Mobile] [10... (rev c3) (prog-if 00 [Normal decode])
+		# \s(.*)\s\[([0-9a-f]{4}):([0-9a-f]{4})\](\s\(rev\s([^\)]+)\))?
+		elsif ($_ =~ /^((([0-9a-f]{2,4}:)?[0-9a-f]{2}:[0-9a-f]{2})[.:]([0-9a-f]+))\s+/){
+			$busid_full = $1;
+			$busid = $2;
+			$busid_nu = hex($4);
+			($chip_id,$rev,$type,$type_id,$vendor_id) = ('','','','','');
+			$_ =~ s/^\Q$busid_full\E\s+//;
+			# old systems didn't use [...] but type will get caught in lspci_n check
+			if ($_ =~ /^(([^\[]+?)\s+\[([a-f0-9]{4})\]:\s+)/){
+				$type = $2;
+				$type_id = $3;
+				$_ =~ s/^\Q$1\E//;
+				$type = lc($type);
+				$type = main::pci_cleaner($type,'pci');
+				$type =~ s/\s+$//;
+			}
+			# trim off end prog-if and rev items
+			if ($_ =~ /(\s+\(prog[^\)]+\))/){
+				$_ =~ s/\Q$1\E//;
+			}
+			if ($_ =~ /(\s+\(rev\s+[^\)]+\))/){
+				$rev = $2;
+				$_ =~ s/\Q$1\E//;
+			}
+			# get rid of anything in parentheses at end in case other variants show 
+			# up, which they probably will.
+			if ($_ =~ /((\s+\([^\)]+\))+)$/){
+				$_ =~ s/\Q$1\E//;
+			}
+			if ($_ =~ /(\s+\[([0-9a-f]{4}):([0-9a-f]{4})\])$/){
+				$vendor_id = $2;
+				$chip_id = $3;
+				$_ =~ s/\Q$1\E//;
+			}
+			# lspci -nnv string trunctation bug
+			elsif ($_ =~ /(\s+\[[^\]]*\.\.\.)$/){
+				$_ =~ s/\Q$1\E//;
+			}
+			$device = $_;
 			# cases of corrupted string set to ''
-			$vendor_id = (defined $5) ? $5 : '';
-			$chip_id = (defined $6) ? $6 : '';
-			$rev = (defined $8)? $8 : '';
 			$device = main::cleaner($device);
-			$temp[0] =~ /\[([^\]]+)\]$/;
-			$type_id = $1;
+			# corrupted lspci truncation bug; and ancient lspci, 2.4 kernels
+			if (!$vendor_id){
+				my @temp = lspci_n_data($busid_full);
+				if (@temp){
+					$vendor_id = $temp[1];
+					$chip_id = $temp[2];
+					$type_id = $temp[0] if !$type_id;
+					$rev = $temp[3] if !$rev && $temp[3];
+				}
+			}
 			$use{'hardware-raid'} = 1 if $type_id eq '0104';
-			$type = lc($type);
-			$type = main::pci_cleaner($type,'pci');
-			$type =~ s/\s+$//;
-			($driver,$driver_nu,$modules,$subsystem,$subsystem_id) = ('','','','','');
+			($driver,$driver_nu,$modules,$port,$subsystem,$subsystem_id) = ('','','','','','');
 		}
 	}
 	print Data::Dumper::Dumper \@devices if $dbg[4];
 	main::log_data('dump','lspci @devices',\@devices) if $b_log;
 	eval $end if $b_log;
+}
+# arg: $1 - busID
+# returns if valid busID: (classID,vendorID,productID,revNu)
+# almost never used, only in case of lspci -nnv line truncation bug
+sub lspci_n_data {
+	eval $start if $b_log;
+	my ($bus_id) = @_;
+	my (@data);
+	return () if !$alerts{'lspci'}->{'path'};
+	if (!$b_lspci_n){
+		$b_lspci_n = 1;
+		if ($fake{'lspci'}){
+			# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-n.txt";
+			# @data = main::reader($file,'strip');
+		}
+		else {
+			@data = main::grabber($alerts{'lspci'}->{'path'} . ' -n 2>/dev/null','','strip');
+		}
+		foreach (@data){
+			if (/^([a-f0-9:\.]+)\s+([a-f0-9]{4}):\s+([a-f0-9]{4}):([a-f0-9]{4})(\s+\(rev\s+([0-9a-z\.]+)\))?/){
+				my $rev = (defined $6) ? $6 : '';
+				$lspci_n{$1} = [$2,$3,$4,$rev];
+			}
+		}
+		print Data::Dumper::Dumper \%lspci_n if $dbg[4];
+		main::log_data('dump','%lspci_n',\%lspci_n) if $b_log;
+	}
+	my @return = ($lspci_n{$bus_id}) ? @{$lspci_n{$bus_id}}: ();
+	print Data::Dumper::Dumper \@return if $dbg[4];
+	main::log_data('dump','@return',\@return) if $b_log;
+	eval $end if $b_log;
+	return @return;
 }
 
 # em0@pci0:6:0:0:	class=0x020000 card=0x10d315d9 chip=0x10d38086 rev=0x00 hdr=0x00
@@ -22552,8 +22627,8 @@ sub pci_grabber {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/kot--book-lspci-nnv.txt";
-		 my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
-		 @data = main::reader($file,'strip');
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
+		# @data = main::reader($file,'strip');
 	}
 	else {
 		@data = main::grabber("$path $args 2>/dev/null",'','strip');
