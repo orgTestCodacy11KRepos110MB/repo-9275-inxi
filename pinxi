@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.06';
 my $self_date='2021-10-03';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -10422,7 +10422,7 @@ sub drive_data {
 	my $fs_skip = PartitionItem::fs_excludes('disk-used');
 	foreach my $row (@partitions){
 		# don't count remote/distributed/union type fs towards used
-		next if ($row->{'fs'} && $row->{'fs'} =~ /^(fuse(blk)?[\._-]?)?($fs_skip)$/);
+		next if ($row->{'fs'} && $row->{'fs'} =~ /^$fs_skip$/);
 		# don't count non partition swap
 		next if ($row->{'swap-type'} && $row->{'swap-type'} ne 'partition');
 		# in some cases, like redhat, mounted cdrom/dvds show up in partition data
@@ -15097,8 +15097,8 @@ sub create_output {
 			$rows[$j]->{main::key($num++,0,3,'mapped')} = $row->{'dev-mapped'};
 		}
 		# add fs known to not use label/uuid here
-		if (($show{'label'} || $show{'uuid'}) && 
-		 $dev_type eq 'dev' && $fs !~ /^(fuse(blk)?[\._-]?)?($fs_skip)$/){
+		if (($show{'label'} || $show{'uuid'}) && $dev_type eq 'dev' && 
+		 $fs !~ /^$fs_skip$/){
 			if ($show{'label'}){
 				if ($use{'filter-label'}){
 					$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '');
@@ -15311,8 +15311,8 @@ sub set_partitions {
 					$dev_type = 'mapped';
 					$dev_base = $1;
 				}
-				# note: I have seen this: beta:data/ for sshfs path
-				elsif ($dev_base =~ /^\/\/|:\//){
+				# note: possible: sshfs path: beta:data/; remote: fuse.rclone
+				elsif ($dev_base =~ /^\/\/|:\// || ($fs && $fs =~ /(rclone)/)){
 					$dev_type = 'remote';
 				}
 				# a slice bsd system, zfs can't be detected this easily
@@ -15577,13 +15577,16 @@ sub fs_excludes {
 	my ($source) = @_;
 	# panfs is parallel NAS volume manager, need more data
 	# null is hammer fs slice; nfs/nfs3/nfs4; some can be fuse mounts: fuse.sshfs
-	my $excludes = 'afs|archivemount(fs)?|aufs|avfs|ceph|cifs|gfs\d{0,2}|glusterfs|';
-	$excludes .= 'gmailfs|hdfs|ipfs|iso9660||k(osmos)?fs|.*lafs|mhddfs|mergerfs|';
-	$excludes .= 'moosefs|nfs\d{0,2}|null(fs)?|ocfs\d{0,2}|openafs|orangefs|';
-	$excludes .= 'overla(id|y)(fs)?|panfs|pvfs\d{0,2}|s3fs|sheepdog|squashfs|';
-	$excludes .= 'sshfs|smbfs|unionfs|vmfs';
 	# for non disk used excludes
-	$excludes .= '|ffs|fuse(blk)?' if $source eq 'label-uuid';
+	# afs aufs avfs cifs ffs gfs\d{0,2} hdfs ipfs k(osmos)?fs .*lafs mhddfs
+	# mergerfs nfs\d{0,2} null ocfs\d{0,2} openafs orangefs overla(id|y)(fs)?
+	# panfs pvfs\d{0,2} s3fs squashfs sshfs smbfs unionfs vmfs
+	my $excludes = '(fuse(blk)?[\._-]?)?(';
+	$excludes .= 'f|' if $source eq 'label-uuid'; # ffs not remote, but no u/l
+	$excludes .= 'a|archivemount|au|av|ceph|ci|g|gluster|gmail|hd|ip|iso9660|';
+	$excludes .= 'k(osmos)?|.*la|mhdd|merger|moose|n|null|oc|opena|orange|';
+	$excludes .= 'overla(id|y)|pan|pv|s3|sheepdog|squash|ssh|smb|union|vm';
+	$excludes .= ')(fs)?(\d{0,2})?';
 	return $excludes;
 }
 sub get_mounts_fs {
@@ -20253,7 +20256,7 @@ sub create_output {
 		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 		$rows[$j]->{main::key($num++,0,2,'fs')} = $fs;
 		# don't show for fs known to not have label/uuid
-		if (($show{'label'} || $show{'uuid'}) && $fs !~ /^(fuse(blk)?[\._-]?)?($fs_skip)$/){
+		if (($show{'label'} || $show{'uuid'}) && $fs !~ /^$fs_skip$/){
 			if ($show{'label'}){
 				if ($use{'filter-label'}){
 					$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '');
