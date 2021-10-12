@@ -46,9 +46,9 @@ use POSIX qw(ceil uname strftime ttyname);
 
 ## INXI INFO ##
 my $self_name='pinxi';
-my $self_version='3.3.06';
-my $self_date='2021-10-05';
-my $self_patch='12';
+my $self_version='3.3.07';
+my $self_date='2021-10-11';
+my $self_patch='01';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -161,7 +161,7 @@ my %use = (
 #### -------------------------------------------------------------------
 
 sub main {
-# 	print Dumper \@ARGV;
+	#	print Dumper \@ARGV;
 	eval $start if $b_log;
 	initialize();
 	## Uncomment these two values for start client debugging
@@ -4927,9 +4927,9 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|lspci|';
-			$wl .= 'pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|raid-md|';
-			$wl .= 'raid-soft|raid-zfs|sensors|sysctl|uptime|usbconfig|usbdevs|';
-			$wl .= 'vmstat|xorg-log';
+			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
+			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|sysctl|uptime|usbconfig|';
+			$wl .= 'usbdevs|vmstat|xorg-log';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -11441,7 +11441,7 @@ sub set_vendors {
 	## THEN BETTER KNOWN ONESs ##
 	# A-Data can be in middle of string
 	['^(.*\bA-?DATA|ASP[0-9]|AX[MN]|CH11|HV[1-9]|IM2|HD[1-9]|HDD\s?CH|IUM)','A-?DATA','A-Data',''],
-	['^ASUS','^ASUS','ASUS',''],
+	['^(ASUS|ROG)','^ASUS','ASUS',''], # ROG ESD-S1C
 	# ATCS05 can be hitachi travelstar but not sure
 	['^ATP','^ATP\b','ATP',''],
 	# Force MP500
@@ -11454,7 +11454,7 @@ sub set_vendors {
 	['^((ATA\s)?Hitachi|HCS|HD[PST]|DK[0-9]|IC|HT|HU|HMS|HDE|0G[0-9])','Hitachi','Hitachi',''], 
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
 	['^(HP\b|[MV]B[0-6]|G[BJ][0-9]|DF[0-9]|F[BK]|0-9]|PSS|XR[0-9]{4}|c350|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$|VK0)','^HP','HP',''], 
-	['^(Lexar|LSD|JumpDrive|JD\s?Firefly|WorkFlow)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
+	['^(Lexar|LSD|JumpDrive|JD\s?Firefly|LX[0-9]|WorkFlow)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK)','^OCZ[\s-]','OCZ',''],
 	['^OWC','^OWC\b','OWC',''],
@@ -11467,6 +11467,8 @@ sub set_vendors {
 	## LAST: THEY ARE SHORT AND COULD LEAD TO FALSE ID, OR ARE UNLIKELY ##
 	# unknown: AL25744_12345678; ADP may be usb 2.5" adapter; udisk unknown: Z1E6FTKJ 00AAKS
 	# SSD2SC240G726A10 MRS020A128GTS25C EHSAJM0016GB
+	['^2[\s-]?Power','^2[\s-]?Power','2-Power',''], 
+	['^(3ware|9650SE)','^3ware','3ware (controller)',''], 
 	['^5ACE','^5ACE','5ACE',''], # could be seagate: ST316021 5ACE
 	['^(Aarvex|AX[0-9]{2})','^AARVEX','AARVEX',''],
 	['^(AbonMax|ASU[0-9])','^AbonMax','AbonMax',''],
@@ -11496,6 +11498,7 @@ sub set_vendors {
 	['^(ASM|2115)','^ASM','ASMedia',''],#asm1153e
 	['^(AVEXIR|AVSSD)','^AVEXIR','Avexir',''],
 	['^Axiom','^Axiom','Axiom',''],
+	['^(Baititon|BT[0-9])','^Baititon','Baititon',''],
 	['^Bamba','^Bamba','Bamba',''],
 	['^Bell\b','^Bell','Packard Bell',''],
 	['^(BelovedkaiAE|GhostPen)','^BelovedkaiAE','BelovedkaiAE',''],
@@ -11577,6 +11580,7 @@ sub set_vendors {
 	['^Geil','^Geil','Geil',''],
 	['^GelL','^GelL','GelL',''], # typo for Geil? GelL ZENITH R3 120GB
 	['^(Generic|UY[67])','^Generic','Generic',''],
+	['^Geonix','^Geonix','Geonix',''],
 	['^Getrich','^Getrich','Getrich',''],
 	['^Gigabyte','^Gigabyte','Gigabyte',''], # SSD
 	['^Gigastone','^Gigastone','Gigastone',''],
@@ -11598,15 +11602,19 @@ sub set_vendors {
 	['^(Hikvision|HKVSN|HS-SSD)','^Hikvision','Hikvision',''],
 	['^Hoodisk','^Hoodisk','Hoodisk',''],
 	['^HUAWEI','^HUAWEI','Huawei',''],
+	['^Hypertec','^Hypertec','Hypertec',''],
 	['^HyperX','^HyperX','HyperX',''],
 	['^Hyundai','^Hyundai','Hyundai',''],
 	['^(IBM|DT|ESA[1-9])','^IBM','IBM',''], 
 	['^IEI Tech','^IEI Tech(\.|nology)?( Corp(\.|oration)?)?','IEI Technology',''],
+	['^(IGEL|UD Pocket)','^IGEL','IGEL',''],
 	['^(Imation|Nano\s?Pro|HQT)','^Imation(\sImation)?','Imation',''], # Imation_ImationFlashDrive; TF20 is imation/tdk
 	['^(Inateck|FE20)','^Inateck','Inateck',''],
 	['^(Inca\b|Npenterprise)','^Inca','Inca',''],
 	['^(Indilinx|IND-)','^Indilinx','Indilinx',''],
 	['^INDMEM','^INDMEM','INDMEM',''],
+	['^(Infokit)','^Infokit','Infokit',''],
+	['^(Initio)','^Initio','Initio',''], 
 	['^Inland','^Inland','Inland',''],
 	['^(InnoDisk|Innolite|SATA\s?Slim)','^InnoDisk( Corp.)?','InnoDisk',''],
 	['Innostor','Innostor','Innostor',''],
@@ -11615,7 +11623,10 @@ sub set_vendors {
 	['^Intaiel','^Intaiel','Intaiel',''],
 	['^(INM|Integral|V\s?Series)','^Integral(\s?Memory)?','Integral Memory',''],
 	['^(lntenso|Intenso|(Alu|Basic|Business|Micro|c?Mobile|Premium|Rainbow|Slim|Speed|Twister|Ultra) Line|Rainbow)','^Intenso','Intenso',''],
+	['^(I-?O Data|HDCL)','^I-?O Data','I-O Data',''], 
+	['^(Integrated[\s-]?Technology|IT[0-9]+)','^Integrated[\s-]?Technology','Integrated Technology',''], 
 	['^(Iomega|ZIP\b|Clik!)','^Iomega','Iomega',''], 
+	['^ISOCOM','^ISOCOM','ISOCOM (Shenzhen Longsys Electronics)',''],
 	['^JingX','^JingX','JingX',''], #JingX 120G SSD - not confirmed, but guessing
 	['^Jingyi','^Jingyi','Jingyi',''],
 	# NOTE: ITY2 120GB hard to find
@@ -11624,7 +11635,7 @@ sub set_vendors {
 	['^Kimtigo','^Kimtigo','Kimtigo',''],
 	['^Kingbank','^Kingbank','Kingbank',''],
 	['^Kingchux[\s-]?ing','^Kingchux[\s-]?ing','Kingchuxing',''],
-	['^(KingDian|NGF)','^KingDian','KingDian',''],
+	['(KingDian|^NGF)','KingDian','KingDian',''],
 	['^Kingfast','^Kingfast','Kingfast',''],
 	['^KingMAX','^KingMAX','KingMAX',''],
 	['^Kingrich','^Kingrich','KingrSU04Gich',''],
@@ -11638,6 +11649,7 @@ sub set_vendors {
 	['^KLEVV','^KLEVV','KLEVV',''],
 	['^Kodak','^Kodak','Kodak',''],
 	['^(KUAIKAI|MSAM)','^KUAIKAI','KuaKai',''],
+	['(KUIJIA|DAHUA)','^KUIJIA','KUIJIA',''],
 	['^KUNUP','^KUNUP','KUNUP',''],
 	['^(Lacie|P92|itsaKey|iamaKey)','^Lacie','LaCie',''],
 	['^LANBO','^LANBO','LANBO',''],
@@ -11655,10 +11667,10 @@ sub set_vendors {
 	['^LONDISK','^LONDISK','LONDISK',''],
 	['^(LSI|MegaRAID)','^LSI\b','LSI',''],
 	['^(M-Systems|DiskOnKey)','^M-Systems','M-Systems',''],
-	['^(Mach\s*Xtreme|MXSSD|MXU)','^Mach\s*Xtreme','Mach Xtreme',''],
+	['^(Mach\s*Xtreme|MXSSD|MXU|MX[\s-])','^Mach\s*Xtreme','Mach Xtreme',''],
 	['^Maximus','^Maximus','Maximus',''],
 	['^Maxone','^Maxone','Maxone',''],
-	['^(MAXTOR|Atlas|TM[0-9]{4}|[KL]0[1-9]|Y[0-9]{3}[A-Z]|STM[0-9]|F[0-9]{3}L)','^MAXTOR','Maxtor',''], # note M2 M3 is usually maxtor, but can be samsung
+	['^(MAXTOR|Atlas|L(250|500)|TM[0-9]{4}|[KL]0[1-9]|Y[0-9]{3}[A-Z]|STM[0-9]|F[0-9]{3}L)','^MAXTOR','Maxtor',''], # note M2 M3 is usually maxtor, but can be samsung
 	['^(Memorex|TravelDrive|TD\s?Classic)','^Memorex','Memorex',''],
 	# note: C300/400 can be either micron or crucial, but C400 is M4 from crucial
 	['(^MT|^M5|^Micron|00-MT|C[34]00)','^Micron','Micron',''],# C400-MTFDDAK128MAM
@@ -11671,11 +11683,13 @@ sub set_vendors {
 	['^Medion','^Medion','Medion',''],
 	['^(MEDIAMAX|WL[0-9]{2})','^MEDIAMAX','MediaMax',''],
 	['^Mengmi','^Mengmi','Mengmi',''],
+	['^MGTEC','^MGTEC','MGTEC',''],
 	['^(Microsoft|S31)','^Microsoft','Microsoft',''],
 	['^MidasForce','^MidasForce','MidasForce',''],
 	['^(Mimoco|Mimobot)','^Mimoco','Mimoco',''],
 	['^MINIX','^MINIX','MINIX',''],
 	['^Miracle','^Miracle','Miracle',''],
+	['^Moba','^Moba','Moba',''],
 	# Monster MONSTER DIGITAL
 	['^(Monster\s)+(Digital)?|OD[\s-]?ADVANCE','^(Monster\s)+(Digital)?','Monster Digital',''],
 	['^Morebeck','^Morebeck','Morebeck',''],
@@ -11694,6 +11708,7 @@ sub set_vendors {
 	# NGFF is a type, like msata, sata
 	['^Nik','^Nikimi','Nikimi',''],
 	['^NOREL','^NOREL(SYS)?','NorelSys',''],
+	['^ODYS','^ODYS','ODYS',''],
 	['^Olympus','^Olympus','Olympus',''],
 	['^Orico','^Orico','Orico',''],
 	['^OSC','^OSC\b','OSC',''],
@@ -11748,6 +11763,7 @@ sub set_vendors {
 	['^(SMART( Storage Systems)?|TX)','^(SMART( Storage Systems)?)','Smart Storage Systems',''],
 	['^Sobetter','^Sobetter','Sobetter',''],
 	['^(S[FR]-|Sony)','^Sony','Sony',''],
+	['^(SSSTC|CL1-)','^SSSTC','SSSTC',''],
 	['^STE[CK]','^STE[CK]','sTec',''], # wd bought this one
 	['^STmagic','^STmagic','STmagic',''],
 	['^STORFLY','^STORFLY','StorFly',''],
@@ -11766,7 +11782,7 @@ sub set_vendors {
 	['^TC[\s-]*SUNBOW','^TC[\s-]*SUNBOW','TCSunBow',''],
 	['^(TDK|TF[1-9][0-9])','^TDK','TDK',''],
 	['^TEAC','^TEAC','TEAC',''],
-	['^TEAM','^TEAM(\s*Group)?','TeamGroup',''],
+	['^(TEAM|T[\s-]?Create)','^TEAM(\s*Group)?','TeamGroup',''],
 	['^(Teclast|CoolFlash)','^Teclast','Teclast',''],
 	['^Teelkoou','^Teelkoou','Teelkoou',''],
 	['^Tele2','^Tele2','Tele2',''],
@@ -11803,13 +11819,16 @@ sub set_vendors {
 	['^(Wearable|Air-?Stash)','^Wearable','Wearable',''],
 	['^Wellcomm','^Wellcomm','Wellcomm',''],
 	['^Wilk','^Wilk','Wilk',''],
+	['^WPC','^WPC','WPC',''], # WPC-240GB
 	['^(Wortmann(\sAG)?|Terra\s?US)','^Wortmann(\sAG)?','Wortmann AG',''],
+	['^(XinTop|XT-)','^XinTop','XinTop',''],
 	['^Xintor','^Xintor','Xintor',''],
 	['^XPG','^XPG','XPG',''],
 	['^XrayDisk','^XrayDisk','XrayDisk',''],
 	['^Xstar','^Xstar','Xstar',''],
 	['^(XUM|HX[0-9])','^XUM','XUM',''],
 	['^XUNZHE','^XUNZHE','XUNZHE',''],
+	['^(Yangtze|ZhiTai|PC00[5-9]|SC00[1-9])','^Yangtze(\s*Memory)?','Yangtze Memory',''],
 	['^(Yeyian|valk)','^Yeyian','Yeyian',''],
 	['^(YingChu|YGC)','^YingChu','YingChu',''],
 	['^(YUCUN|R880)','^YUCUN','YUCUN',''],
@@ -15144,32 +15163,40 @@ sub set_partitions {
 	# most current OS support -T and -k, but -P means different things
 	# in freebsd. However since most use is from linux, we make that default
 	# android 7 no -T support
-	if (!$bsd_type){
-		@partitions_working = main::grabber("df -P -T -k 2>/dev/null");
-		main::set_mapper() if !$loaded{'mapper'};
+	if (!$fake{'partitions'}){
+		if (!$bsd_type){
+			@partitions_working = main::grabber("df -P -T -k 2>/dev/null");
+			main::set_mapper() if !$loaded{'mapper'};
+		}
+		else {
+			# this is missing the file system data
+			if ($bsd_type ne 'darwin'){
+				@partitions_working = main::grabber("df -T -k 2>/dev/null");
+			}
+			#Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
+			else {
+				$cols = 8;
+				($back_size,$back_used) = (7,6);
+			}
+			# turns out freebsd uses this junk too
+			$b_fake_map = 1;
+		}
+		# busybox only supports -k and -P, openbsd, darwin
+		if (!@partitions_working){
+			@partitions_working = main::grabber("df -k 2>/dev/null");
+			$b_fs = 0;
+			$cols = 5 if !$bsd_type || $bsd_type ne 'darwin';
+			if (my $path = main::check_program('mount')){
+				@mount = main::grabber("$path 2>/dev/null");
+			}
+		}
 	}
 	else {
-		# this is missing the file system data
-		if ($bsd_type ne 'darwin'){
-			@partitions_working = main::grabber("df -T -k 2>/dev/null");
-		}
-		#Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
-		else {
-			$cols = 8;
-			($back_size,$back_used) = (7,6);
-		}
-		# turns out freebsd uses this junk too
-		$b_fake_map = 1;
+		# my $file;
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kTP-cygwin-1.txt";
+		# @partitions_working = main::reader($file);
 	}
-	# busybox only supports -k and -P, openbsd, darwin
-	if (!@partitions_working){
-		@partitions_working = main::grabber("df -k 2>/dev/null");
-		$b_fs = 0;
-		$cols = 5 if !$bsd_type || $bsd_type ne 'darwin';
-		if (my $path = main::check_program('mount')){
-			@mount = main::grabber("$path 2>/dev/null");
-		}
-	}
+	# print Data::Dumper::Dumper \@partitions_working;
 	# determine positions
 	my $row1 = shift @partitions_working;
 	# new kernels/df have rootfs and / repeated, creating two entries for the same partition
@@ -15210,6 +15237,7 @@ sub set_partitions {
 			next;
 		}
 		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
+		# cygwin C:\cygwin passes this test so has to be handled later
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
 			# this could point to by-label or by-uuid so get that first. In theory, abs_path should 
 			# drill down to get the real path, but it isn't always working.
@@ -15298,7 +15326,7 @@ sub set_partitions {
 			}
 			if (!$dev_type){
 				# C:/cygwin64, D:
-				if (!$dev_base && $b_cygwin && $row[0] =~ /^[A-Z]+:/){
+				if ($b_cygwin && $row[0] =~ /^[A-Z]+:/){
 					$dev_type = 'windows';
 					$dev_base = $row[0] if !$dev_base;
 					# looks weird if D:, yes, I know, windows uses \, but cygwin doesn't
@@ -25074,8 +25102,11 @@ sub get {
 sub proc_data {
 	eval $start if $b_log;
 	my $file = $_[0];
+	if ($fake{'partitions'}){
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/proc-partitions-1.txt";
+	}
 	my @parts = main::reader($file,'strip');
-	# print Dumper \@parts;
+	# print Data::Dumper::Dumper \@parts;
 	shift @parts if @parts; # get rid of headers
 	for (@parts){
 		my @temp = split(/\s+/, $_);
