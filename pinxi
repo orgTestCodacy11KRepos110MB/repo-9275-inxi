@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-10-29';
-my $self_patch='03';
+my $self_date='2021-10-30';
+my $self_patch='04';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -8265,7 +8265,7 @@ sub full_output {
 		my $flag = 'N/A';
 		if (@flags){
 			# failure to read dmesg.boot: dmesg.boot permissions; then short -Cx list flags
-			@flags = grep {/^(dmesg.boot|permissions|avx[2-9]?|lm|nx|pae|pni|(sss|ss)e([2-9])?([a-z])?(_[0-9])?|svm|vmx)$/} @flags;
+			@flags = grep {/^(dmesg.boot|permissions|avx[2-9]?|ht|lm|nx|pae|pni|(sss|ss)e([2-9])?([a-z])?(_[0-9])?|svm|vmx)$/} @flags;
 			@flags = map {s/pni/sse3/; $_} @flags;
 			@flags = sort @flags;
 			$flag = join(' ', @flags) if @flags;
@@ -17136,14 +17136,23 @@ sub zfs_data {
 sub zfs_fs_sizes {
 	my ($path,$id) = @_;
 	eval $start if $b_log;
+	my @data;
 	my @result = main::grabber("$path list -pH $id 2>/dev/null",'','strip');
 	main::log_data('dump','zfs list @result',\@result) if $b_log;
 	print Data::Dumper::Dumper \@result if $dbg[37];
-	my @working = split(/\s+/,$result[0]);
+	# yet unknown cause makes FreeBSD 14 zfs fail with null @result.
+	if (@result){
+		my @working = split(/\s+/,$result[0]);
+		$data[0] = $working[1]/1024 if $working[1];
+		$data[1] = $working[2]/1024 if $working[2];
+	}
+	elsif ($b_log || $dbg[37]) {
+		@result = main::grabber("$path list -pH $id 2>&1",'','strip');
+		main::log_data('dump','zfs list w/error @result',\@result) if $b_log;
+		print '@result w/error: ', Data::Dumper::Dumper \@result if $dbg[37];
+	}
 	eval $end if $b_log;
-	$working[1] = $working[1]/1024 if $working[1];
-	$working[2] = $working[2]/1024 if $working[2];
-	return ($working[1],$working[2]);
+	return @data;
 }
 sub zfs_status {
 	eval $start if $b_log;
