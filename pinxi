@@ -48,7 +48,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.08';
 my $self_date='2021-10-29';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -8245,13 +8245,13 @@ sub full_output {
 	 ((!$b_arm && !$b_mips && !$b_ppc) || $properties{'l2-cache'})){
 		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
 		if ($extra > 1 && $properties{'l1-cache'}){
-			$rows[$j]->{main::key($num++,0,3,'L1')} = main::get_size($properties{'l1-cache'},'string');
+			$rows[$j]->{main::key($num++,0,3,'L1')} = $properties{'l1-cache'};
 		}
 		# the arm + l2 will never be true since arm cpus don't have l2 cache
-		$properties{'l2-cache'} = ($properties{'l2-cache'}) ? main::get_size($properties{'l2-cache'},'string') : 'N/A';
+		$properties{'l2-cache'} = ($properties{'l2-cache'}) ? $properties{'l2-cache'} : 'N/A';
 		$rows[$j]->{main::key($num++,0,3,'L2')} = $properties{'l2-cache'};
 		if ($extra > 1 && $properties{'l3-cache'}){
-			$rows[$j]->{main::key($num++,0,3,'L3')} = main::get_size($properties{'l3-cache'},'string');
+			$rows[$j]->{main::key($num++,0,3,'L3')} = $properties{'l3-cache'};
 		}
 		if ($properties{'cache-check'}){
 			$rows[$j]->{main::key($num++,0,3,'note')} = $properties{'cache-check'};
@@ -8462,7 +8462,7 @@ sub prep_short_data {
 sub cpuinfo_data {
 	eval $start if $b_log;
 	my ($file,$type)=  @_;
-	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter);
+	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter,%caches);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
@@ -8507,6 +8507,10 @@ sub cpuinfo_data {
 	my @phys_cpus = (0);# start with 1 always
 	my ($core_count,$die_holder,$die_id,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
 	my ($phys_holder) = (undef);
+	if (my $path = main::check_program('getconf')){
+		get_caches($path,\%caches);
+		$cpu{'caches'} = 1 if %caches;
+	}
 	# need to prime for arm cpus, which do not have physical/core ids usually
 	# level 0 is phys id, level 1 is die id, level 2 is core id
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
@@ -8664,18 +8668,28 @@ sub cpuinfo_data {
 		}
 		## this is only for -C full cpu output
 		if ($type eq 'full'){
-			if (!$cpu{'l2-cache'} && ($line[0] eq 'cache size' || $line[0] eq 'l2 cache size')){
-				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
+			if (!$cpu{'l2-cache'}){
+				if ($caches{'L2'}){
+					$cpu{'l2-cache'} = $caches{'L2'};
+				}
+				elsif (($line[0] eq 'cache size' || $line[0] eq 'l2 cache size') &&
+				 $line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l2-cache'} = main::translate_size($1);
 				}
 			}
-			elsif (!$cpu{'l1-cache'} && $line[0] eq 'l1 cache size'){
-				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
+			if (!$cpu{'l1-cache'}){
+				if ($caches{'L1'}){
+					$cpu{'l1-cache'} = $caches{'L1'};
+				}
+				elsif ($line[0] eq 'l1 cache size' && $line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l1-cache'} = main::translate_size($1);
 				}
 			}
-			elsif (!$cpu{'l3-cache'} && $line[0] eq 'l3 cache size'){
-				if ($line[1] =~ /(\d+\s*[KMG])i?B?$/){
+			if (!$cpu{'l3-cache'}){
+				if ($caches{'L3'}){
+					$cpu{'l3-cache'} = $caches{'L3'};
+				}
+				elsif ($line[0] eq 'l3 cache size' && $line[1] =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l3-cache'} = main::translate_size($1);
 				}
 			}
@@ -8763,6 +8777,21 @@ sub cpuinfo_data {
 	print Data::Dumper::Dumper \%cpu if $dbg[8];
 	eval $end if $b_log;
 	return %cpu;
+}
+sub get_caches {
+	eval $start if $b_log;
+	my @data = main::grabber("$_[0] -a 2>/dev/null",'','strip');
+	# print Data::Dumper::Dumper \@data;
+	foreach (@data){
+		next if !/^LEVEL[1-4]_\S+?_SIZE\s/;
+		my @split = split(/\s+/,$_);
+		$split[0] =~ s/^LEVEL([1-4])_\S+/L$1/;
+		# are in byte units, not KiB
+		$_[1]->{$split[0]} += $split[1] / 1024; # add L1-D and L1-I as L1 total
+	}
+	main::log_data('dump','%cpu',$_[1]) if $b_log;
+	print Data::Dumper::Dumper $_[1] if $dbg[8];
+	eval $end if $b_log;
 }
 
 sub sysctl_data {
@@ -9087,7 +9116,8 @@ sub dmidecode_data {
 					$amount = main::translate_size($1);
 				}
 				if ($id && $amount){
-					$dmi_data{$id} += $amount;
+					$dmi_data{$id} = $amount;
+					$dmi_data{$id . '-total'} += $amount;
 					last;
 				}
 			}
@@ -9305,7 +9335,8 @@ sub cpu_properties {
 			$cache_check = main::row_defaults('note-check');
 		}
 	}
-	# only elbrus shows L1 / L3 cache data in cpuinfo
+	# only elbrus shows L1 / L3 cache data in cpuinfo, getconf data should show 
+	# for newer full linux.
 	else {
 		$cores_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
 	}
@@ -9322,18 +9353,32 @@ sub cpu_properties {
 		$cpu->{'siblings'} = 1;
 	}
 	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
-		# note: dmidecode has one entry per cpu per cache type, so this already 
-		# has done the arithmetic on > 1 cpus for L1 and L3. 
+		# note: dmidecode has one entry per cpu per cache type
 		my %cpu_dmi = dmidecode_data();
-		my $multi = ($bsd_type) ? $cpu_cores: 1;
-		$l1_cache = $cpu_dmi{'L1'} * $physical_count if $cpu_dmi{'L1'};
+		if ($physical_count == 1 && $cpu_dmi{'L2'} && 
+		 ($cpu_dmi{'L2-total'} % $cpu_dmi{'L2'} != 1)){
+			$physical_count = sprintf("%.0f",$cpu_dmi{'L2-total'} / $cpu_dmi{'L2'}) + 0;
+		}
+		# this is the total per cpu, not per core when using dmidecode
+		if ($cpu_dmi{'L1'} && (!$cpu->{'l1-cache'} || $force{'dmidecode'})){
+			$l1_cache = $cpu_dmi{'L1'};
+		}
 		# note: bsds often won't have L2 catch data found yet
-		$cpu->{'l2-cache'} = $cpu_dmi{'L2'} if !$cpu->{'l2-cache'} && $cpu_dmi{'L2'};
-		$l3_cache = $cpu_dmi{'L3'} * $physical_count if $cpu_dmi{'L3'};
-		# bsd sysctl can have these values so let's check just in case
-		$l1_cache = $cpu->{'l1-cache'} * $cores_x * $physical_count if !$l1_cache && $cpu->{'l1-cache'};
-		# L3 is almost always per physical cpu, not per core
-		$l3_cache = $cpu->{'l3-cache'} * $physical_count if !$l3_cache && $cpu->{'l3-cache'};
+		if ($cpu_dmi{'L2'} && (!$cpu->{'l2-cache'} || $force{'dmidecode'})){
+			$cpu->{'l2-cache'} = $cpu_dmi{'L2'};
+		}
+		if ($cpu_dmi{'L3'} && (!$cpu->{'l3-cache'} || $force{'dmidecode'})){
+			$l3_cache = $cpu_dmi{'L3'}; 
+		}
+		# bsd sysctl can have these values so let's check just in case; this is the
+		# total per core, not per cpu.
+		if (!$l1_cache && $cpu->{'l1-cache'}){
+			$l1_cache = $cpu->{'l1-cache'} * $cores_x;
+		}
+		# L3 is almost always per physical cpu, not per core. But may in future be > 1 L3 per phys cpu
+		if (!$l3_cache && $cpu->{'l3-cache'}){
+			$l3_cache = $cpu->{'l3-cache'};
+		}
 		$cache_check = '' if !$l1_cache && !$cpu->{'l2-cache'} && !$l3_cache; # nothing to check!
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
@@ -9390,23 +9435,28 @@ sub cpu_properties {
 	if (!$cpu->{'l2-cache'}){
 		# do nothing
 	}
-	# the only possible change for bsds is if we can get phys counts in the future
+	# the only possible change for bsds is if dmidecode method gives phy counts
 	# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
 	# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
 	elsif ($bsd_type){
-		$l2_cache = $cpu->{'l2-cache'} * $cores_x * $physical_count;
+		$l2_cache = $cpu->{'l2-cache'} * $cores_x;
 	}
-	# AMD SOS chips appear to report full L2 cache per core
-	elsif ($cpu->{'type'} eq 'amd' && ($cpu->{'family'} eq '14' || $cpu->{'family'} eq '15' || $cpu->{'family'} eq '16')){
-		$l2_cache = $cpu->{'l2-cache'} * $physical_count;
+	elsif ($cpu->{'caches'}){
+		$l2_cache = $cpu->{'l2-cache'} * $cores_x;
 	}
-	elsif ($cpu->{'type'} ne 'intel'){
-		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores * $physical_count;
+	# AMD SOS chips appear to report full L2 cache per cpu
+	elsif ($cpu->{'type'} eq 'amd' && !$cpu->{'caches'} && 
+	 ($cpu->{'family'} eq '14' || $cpu->{'family'} eq '15' || 
+	 $cpu->{'family'} eq '16')){
+		$l2_cache = $cpu->{'l2-cache'};
 	}
-	## note: this handles how intel reports L2, total instead of per core like AMD does
-	# note that we need to multiply by number of actual cpus here to get true cache size
+	elsif ($cpu->{'type'} ne 'intel' || $cpu->{'caches'}){
+		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores;
+	}
+	## note: this handles how intel reports L2, total instead of per core like 
+	## AMD does when cpuinfo sourced, when caches sourced, is per core as expected
 	else {
-		$l2_cache = $cpu->{'l2-cache'} * $physical_count;
+		$l2_cache = $cpu->{'l2-cache'};
 	}
 	if ($cpu->{'cur-freq'} && $cpu->{'min-freq'} && $cpu->{'max-freq'}){
 		$min_max = "$cpu->{'min-freq'}/$cpu->{'max-freq'} MHz";
@@ -9438,6 +9488,9 @@ sub cpu_properties {
  	if (!$bits_sys && !$b_arm && $cpu->{'flags'}){
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
+	$l1_cache = process_cache($l1_cache,$physical_count) if $l1_cache;
+	$l2_cache = process_cache($l2_cache,$physical_count) if $l2_cache;
+	$l3_cache = process_cache($l3_cache,$physical_count) if $l3_cache;
 	my %cpu_properties = (
 	'bits-sys' => $bits_sys,
 	'cache-check' => $cache_check,
@@ -9459,11 +9512,24 @@ sub cpu_properties {
 	);
 	main::log_data('dump','%cpu_properties',\%cpu_properties) if $b_log;
 	# print Data::Dumper::Dumper $cpu;
-	# print Data::Dumper::Dumper \%cpu_properties;
+	print Data::Dumper::Dumper \%cpu_properties if $dbg[38];
 	# my $dc = scalar @dies;
 	# print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
 	eval $end if $b_log;
 	return %cpu_properties;
+}
+sub process_cache {
+	my ($cache,$count) = @_;
+	my $output;
+	if ($count > 1){
+		$output = $count . 'x ' . main::get_size($cache,'string');
+		$output .= ' (' . main::get_size($cache * $count,'string') . ')';
+	}
+	else {
+		$output = main::get_size($cache,'string');
+	}
+	# print "$cache :: $count :: $output\n";
+	return $output;
 }
 
 sub cpu_bugs_sys {
@@ -16540,7 +16606,6 @@ sub btrfs_data {
 	
 	}
 	print Data::Dumper::Dumper \@working if $dbg[37];
-	
 	print Data::Dumper::Dumper \@btraid if $dbg[37];
 	main::log_data('dump','@lvraid',\@btraid) if $b_log;
 	eval $end if $b_log;
