@@ -8236,7 +8236,7 @@ sub full_output {
 	}
 	if ($b_admin){
 		$rows[$j]->{main::key($num++,0,2,'family')} = hex_and_decimal($cpu{'family'});
-		$rows[$j]->{main::key($num++,0,2,'model-id')} = hex_and_decimal($cpu{'model_id'});
+		$rows[$j]->{main::key($num++,0,2,'model-id')} = hex_and_decimal($cpu{'model-id'});
 		$rows[$j]->{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu{'stepping'});
 		if (!$b_arm && !$b_mips && !$b_ppc && $cpu{'type'} ne 'elbrus'){
 			$cpu{'microcode'} ||= 'N/A';
@@ -8592,12 +8592,12 @@ sub cpuinfo_data {
 			$cpu{'stepping'} = $line[1];
 		}
 		# this is hex so uc for cpu arch id. raspi 4 has Model rather than Hard
-		elsif (!$cpu{'model_id'} && (!$b_ppc && !$b_arm && $line[0] eq 'model')){
-			$cpu{'model_id'} = uc(sprintf("%x", $line[1]));
+		elsif (!$cpu{'model-id'} && (!$b_ppc && !$b_arm && $line[0] eq 'model')){
+			$cpu{'model-id'} = uc(sprintf("%x", $line[1]));
 		}
-		elsif (!$cpu{'model_id'} && $line[0] eq 'cpu variant'){
-			$cpu{'model_id'} = uc($line[1]);
-			$cpu{'model_id'} =~ s/^0X//;
+		elsif (!$cpu{'model-id'} && $line[0] eq 'cpu variant'){
+			$cpu{'model-id'} = uc($line[1]);
+			$cpu{'model-id'} =~ s/^0X//;
 		}
 		# cpu can show in arm
 		elsif (!$cpu{'model_name'} && ($line[0] eq 'model name' || 
@@ -8759,12 +8759,6 @@ sub cpuinfo_data {
 		}
 	}
 	$cpu{'ids'} = (\@ids);
-	if ($extra > 0 && !$cpu{'arch'} && $type ne 'short'){
-		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'stepping'});
-		# cpu_arch comes from set_os()
-		$cpu{'arch'} = $cpu_arch if (!$cpu{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc));
-		# print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
-	}
 	if (!$speeds{'cur-freq'}){
 		$cpu{'cur-freq'} = $cpu{'processors'}->[0];
 		$speeds{'min-freq'} = 0;
@@ -8954,17 +8948,13 @@ sub sysctl_data {
 		$cpu{'l2-cache'} = $dmesg_boot{'l2-cache'} if !$cpu{'l2-cache'};
 		$cpu{'l3-cache'} = $dmesg_boot{'l3-cache'} if !$cpu{'l3-cache'};
 		$cpu{'microcode'} = $dmesg_boot{'microcode'} if !$cpu{'microcode'};
-		$cpu{'model_id'} = $dmesg_boot{'model_id'} if !$cpu{'model_id'};
+		$cpu{'model-id'} = $dmesg_boot{'model-id'} if !$cpu{'model-id'};
 		$cpu{'max-freq'} = $dmesg_boot{'max-freq'} if !$cpu{'max-freq'};
 		$cpu{'min-freq'} = $dmesg_boot{'min-freq'} if !$cpu{'min-freq'};
 		$cpu{'scalings'} = $dmesg_boot{'scalings'} if !$cpu{'scalings'};
 		$cpu{'siblings'} = $dmesg_boot{'siblings'} if !$cpu{'siblings'};
 		$cpu{'stepping'} = $dmesg_boot{'stepping'} if !$cpu{'stepping'};
 		$cpu{'type'} = $dmesg_boot{'type'} if !$cpu{'type'};
-	}
-	if ($extra > 0 && !$cpu{'arch'} && $type ne 'short'){
-		($cpu{'arch'},$cpu{'arch-note'}) = cpu_arch($cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'stepping'});
-		# print "$cpu{'type'},$cpu{'family'},$cpu{'model_id'},$cpu{'arch'}\n";
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
 	print Data::Dumper::Dumper \%cpu if $dbg[8];
@@ -9079,7 +9069,7 @@ sub dboot_data {
 	'max-freq' => $max_freq,
 	'microcode' => $microcode,
 	'min-freq' => $min_freq,
-	'model_id' => $model,
+	'model-id' => $model,
 	'scalings' => \@scalings,
 	'siblings' => $siblings,
 	'stepping' => $stepping,
@@ -9180,7 +9170,6 @@ sub dmidecode_data {
 	eval $end if $b_log;
 	return %dmi_data;
 }
-
 sub cpu_properties {
 	my ($cpu) = @_;
 	my ($b_amd_zen,$b_epyc,$b_ht,$b_elbrus,$b_intel,$b_ryzen,$b_xeon);
@@ -9229,12 +9218,22 @@ sub cpu_properties {
 	my ($dmi_max_speed,$dmi_speed,$ext_clock,$socket,$upgrade,$volts) = (undef);
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
+	my ($info,$logic) = cpu_info($cpu->{'type'},$cpu->{'family'},$cpu->{'model-id'},$cpu->{'stepping'});
+		# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
+	if ($info->[0] && !$cpu->{'arch'}){
+		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$info};
+	}
+	# cpu_arch comes from set_os()
+	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
+		$cpu->{'arch'} = $cpu_arch;
+	}
+	# print "$cpu{'type'},$cpu{'family'},$cpu{'model-id'},$cpu{'arch'}\n";
 	if ($b_elbrus && $processors_count){
-		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model_id'},$processors_count,$cpu->{'arch'});
+		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model-id'},$processors_count,$cpu->{'arch'});
 		$cpu_cores = $elbrus[0];
 		$physical_count = $elbrus[1];
 		$cpu->{'arch'} = $elbrus[2];
-		# print 'model id: ' . $cpu->{'model_id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $physical_count proc: $processors_count \n";
+		# print 'model id: ' . $cpu->{'model-id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $physical_count proc: $processors_count \n";
 	}
 	$physical_count ||= 1; # assume 1 if no id found, as with ARM
 	foreach my $die_ref (@phys){
@@ -9268,7 +9267,7 @@ sub cpu_properties {
 		}
 	}
 	# print "cpu-c:$cpu_cores\n";
-	#$cpu_cores = $cpu->{'cores'}; 
+	# $cpu_cores = $cpu->{'cores'}; 
 	# like, intel core duo
 	# NOTE: sadly, not all core intel are HT/MT, oh well...
 	# xeon may show wrong core / physical id count, if it does, fix it. A xeon
@@ -9285,7 +9284,7 @@ sub cpu_properties {
 			}
 		}
 	}
-	# ryzen is made out of blocks of 8 core dies
+	# ryzen is made out of blocks of 8 core dies.. only it isn't that simple, sigh
 	elsif ($b_ryzen){
 		$cpu_cores = $cpu->{'cores'}; 
 		 # note: posix ceil isn't present in Perl for some reason, deprecated?
@@ -9357,31 +9356,28 @@ sub cpu_properties {
 	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
 		# note: dmidecode has one entry per cpu per cache type
 		my %cpu_dmi = dmidecode_data();
+		# fix for bsds that do not show physical cpus, like openbsd
 		if ($physical_count == 1 && $cpu_dmi{'L2'} && 
-		 ($cpu_dmi{'L2-total'} % $cpu_dmi{'L2'} != 1)){
+		 ($cpu_dmi{'L2-total'} / $cpu_dmi{'L2'} != 1)){
 			$physical_count = sprintf("%.0f",$cpu_dmi{'L2-total'} / $cpu_dmi{'L2'}) + 0;
 		}
 		# this is the total per cpu, not per core when using dmidecode
-		if ($cpu_dmi{'L1'} && (!$cpu->{'l1-cache'} || $force{'dmidecode'})){
+		if ($cpu_dmi{'L1'} && $cpu_dmi{'L1'} && 
+		 (!$cpu->{'l1-cache'} || $force{'dmidecode'})){
 			$l1_cache = $cpu_dmi{'L1'};
+			$logic->[0] = 0; # l1 here will be total, not per unit of cache assignment
 		}
-		# note: bsds often won't have L2 catch data found yet
-		if ($cpu_dmi{'L2'} && (!$cpu->{'l2-cache'} || $force{'dmidecode'})){
-			$cpu->{'l2-cache'} = $cpu_dmi{'L2'};
+		# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
+		# have these values so let's check just in case. 
+		if ($cpu_dmi{'L2'} && $cpu_dmi{'L2'} && 
+		 (!$cpu->{'l2-cache'} || $force{'dmidecode'})){
+			$l2_cache = $cpu_dmi{'L2'};
+			$logic->[1] = 0; # l2 here will be total, not per unit of cache assignment
 		}
 		if ($cpu_dmi{'L3'} && (!$cpu->{'l3-cache'} || $force{'dmidecode'})){
 			$l3_cache = $cpu_dmi{'L3'}; 
+			$logic->[2] = 0; # l3 here will be total
 		}
-		# bsd sysctl can have these values so let's check just in case; this is the
-		# total per core, not per cpu.
-		if (!$l1_cache && $cpu->{'l1-cache'}){
-			$l1_cache = $cpu->{'l1-cache'} * $cores_x;
-		}
-		# L3 is almost always per physical cpu, not per core. But may in future be > 1 L3 per phys cpu
-		if (!$l3_cache && $cpu->{'l3-cache'}){
-			$l3_cache = $cpu->{'l3-cache'};
-		}
-		$cache_check = '' if !$l1_cache && !$cpu->{'l2-cache'} && !$l3_cache; # nothing to check!
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
 		$upgrade = $cpu_dmi{'upgrade'} if $cpu_dmi{'upgrade'};
@@ -9434,8 +9430,18 @@ sub cpu_properties {
 	}
 	$cpu_layout .= count_alpha($cpu_cores) . 'Core';
 	$cpu_layout .= ' (' . $cpu->{'dies'}. '-Die)' if !$bsd_type && $cpu->{'dies'} > 1;
-	if (!$cpu->{'l2-cache'}){
-		# do nothing
+	
+	## START CACHE ##
+	# dmidecode sourced cache is total per cpu as far as I know, will confirm.
+	# with getconf cache data, we can now get L1 and L3 cache without dmidecode
+	# and sudo root, so those will now usually be there for Linux.
+	# L1 Cache
+	if (!$l1_cache && $cpu->{'l1-cache'}){
+		$l1_cache = $cpu->{'l1-cache'} * $cores_x;
+	}
+	# L2 Cache
+	if (!$cpu->{'l2-cache'} || $l2_cache){
+		# do nothing, it's either not there, or already summed by dmidecode
 	}
 	# the only possible change for bsds is if dmidecode method gives phy counts
 	# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
@@ -9455,11 +9461,23 @@ sub cpu_properties {
 	elsif ($cpu->{'type'} ne 'intel' || $cpu->{'caches'}){
 		$l2_cache = $cpu->{'l2-cache'} * $cpu_cores;
 	}
-	## note: this handles how intel reports L2, total instead of per core like 
-	## AMD does when cpuinfo sourced, when caches sourced, is per core as expected
+	# note: this handles how intel reports L2, total instead of per core like 
+	# AMD does when cpuinfo sourced, when caches sourced, is per core as expected
 	else {
 		$l2_cache = $cpu->{'l2-cache'};
 	}
+	# L3 Cache - almost always per physical cpu, not per core. 
+	# But may in future be > 1 L3 per phys cpu
+	if (!$l3_cache && $cpu->{'l3-cache'}){
+		$l3_cache = $cpu->{'l3-cache'};
+	}
+	$cache_check = '' if !$l1_cache && !$l2_cache && !$l3_cache; # nothing to check!
+	$l1_cache = process_cache($l1_cache,$physical_count) if $l1_cache;
+	$l2_cache = process_cache($l2_cache,$physical_count) if $l2_cache;
+	$l3_cache = process_cache($l3_cache,$physical_count) if $l3_cache;
+	## END CACHE ##
+	
+	## START SPEED/BITS ##
 	if ($cpu->{'cur-freq'} && $cpu->{'min-freq'} && $cpu->{'max-freq'}){
 		$min_max = "$cpu->{'min-freq'}/$cpu->{'max-freq'} MHz";
 		$min_max_key = "min/max";
@@ -9472,10 +9490,10 @@ sub cpu_properties {
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
 		$speed = "$cpu->{'cur-freq'} MHz";
  	}
-#  	elsif ($cpu->{'cur-freq'} && $cpu->{'max-freq'} && $cpu->{'cur-freq'} == $cpu->{'max-freq'}){
-# 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
-# 		$speed = "$cpu->{'cur-freq'} MHz (max)";
-#  	}
+	# elsif ($cpu->{'cur-freq'} && $cpu->{'max-freq'} && $cpu->{'cur-freq'} == $cpu->{'max-freq'}){
+	# 	$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
+	# 	$speed = "$cpu->{'cur-freq'} MHz (max)";
+	# }
  	elsif ($cpu->{'cur-freq'} && $cpu->{'min-freq'}){
 		$min_max = "$cpu->{'min-freq'} MHz";
 		$min_max_key = "min";
@@ -9486,13 +9504,10 @@ sub cpu_properties {
 		$speed_key = ($show{'short'} || $show{'cpu-basic'}) ? 'speed' : 'Speed';
 		$speed = "$cpu->{'cur-freq'} MHz";
  	}
- 	
  	if (!$bits_sys && !$b_arm && $cpu->{'flags'}){
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
-	$l1_cache = process_cache($l1_cache,$physical_count) if $l1_cache;
-	$l2_cache = process_cache($l2_cache,$physical_count) if $l2_cache;
-	$l3_cache = process_cache($l3_cache,$physical_count) if $l3_cache;
+	## END SPEED/BITS ##
 	my %cpu_properties = (
 	'bits-sys' => $bits_sys,
 	'cache-check' => $cache_check,
@@ -9665,7 +9680,7 @@ sub cpu_dies_sys {
 	my (@dies);
 	foreach (@data){
 		my $siblings = main::reader($_,'',0);
-		if (! grep {/$siblings/} @dies){
+		if (!grep {/$siblings/} @dies){
 			push(@dies, $siblings);
 		}
 	}
@@ -9770,9 +9785,12 @@ sub system_cpu_name {
 	return %cpus;
 }
 
-sub cpu_arch {
+sub cpu_info {
 	eval $start if $b_log;
 	my ($type,$family,$model,$stepping) = @_;
+	# 0: L1 cache; 1: L2 cache: 2: L3 cache; 3: Core math; 4: cores/die
+	# values: 0: per cpu; 1: per core; decimal: per cpu multiplier; math: cores
+	my @logic = (1,1,0,'$1*1',0);
 	$stepping = 0 if !main::is_numeric($stepping);
 	$family ||= '';
 	$model ||= '';
@@ -9844,6 +9862,7 @@ sub cpu_arch {
 				$arch = 'Bobcat'}
 		}
 		elsif ($family eq '15'){
+			@logic = (1,0,0,'$1*1',0); # shared L2 cache, 1 per cpu
 			if ($model =~ /^(0|1|2|3|4|5|6|7|8|9|A|B|C|D|E|F)$/){
 				$arch = 'Bulldozer'}
 			elsif ($model =~ /^(10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F)$/){
@@ -9865,8 +9884,15 @@ sub cpu_arch {
 				$arch = 'Jaguar'}
 		}
 		elsif ($family eq '17'){
-			if ($model =~ /^(1|11|18|20)$/){
-				$arch = 'Zen'}
+			@logic = (1,1,0,'$1*1',4);
+			# can't find stepping/model for no ht 2x2 core/die models, only first ones
+			if ($model =~ /^(1|11)$/){
+				$arch = 'Zen';
+				@logic = (1,1,0,'$1*1',2);
+			}
+			elsif ($model =~ /^(18|20)$/){
+				$arch = 'Zen';
+			}
 			# Seen: stepping 1 is Zen+ Ryzen 7 3750H. But stepping 1 Zen is: Ryzen 3 3200U
 			# Unknown if stepping 0 is Zen or either.
 			elsif ($model =~ /^(18)$/){
@@ -9875,26 +9901,32 @@ sub cpu_arch {
 			}
 			# shares model 8 with zen, stepping unknown
 			elsif ($model =~ /^(8)$/){
-				$arch = 'Zen+'}
+				$arch = 'Zen+';
+			}
 			# used this but it didn't age well:  ^(2[0123456789ABCDEF]|
 			elsif ($model =~ /^(31|47|60|68|71|90)$/){
-				$arch = 'Zen 2'}
+				$arch = 'Zen 2';
+			}
 			else {
 				$arch = 'Zen';
 				$note = $check;}
 		}
+		# Joint venture between AMD and Chinese companies. Type amd? or hygon?
 		elsif ($family eq '18'){
 			# model 0
+			@logic = (1,1,0,'$1*1',4); # guessing it's the same as zen after low end
 			$arch = 'Zen (Hygon Dhyana)';
 		}
 		elsif ($family eq '19'){
 			# model: 0 1 21 40 50
 			$arch = 'Zen 3';
+			@logic = (1,1,0,'$1*1',8);
 		}
-		# note: family 20 may be Zen 4 but not known for sure yet
+		# note: family 20 may be Zen 4 but not known for sure yet, zen 5 also in pipeline
 		# elsif ($family eq '20'){
-			# model: unknown
-		#	$arch = 'Zen 4';
+		# 	# model: unknown
+		#		$arch = 'Zen 4';
+		# 	@logic = (1,1,0,'$1x1',8);
 		# }
 	}
 	elsif ($type eq 'arm'){
@@ -10153,9 +10185,8 @@ sub cpu_arch {
 		}
 	}
 	eval $end if $b_log;
-	return ($arch,$note);
+	return ([$arch,$note],\@logic);
 }
-
 sub count_alpha {
 	my ($count) = @_;
 	# print "$count\n";
@@ -10183,7 +10214,7 @@ sub set_cpu_data {
 	'l3-cache' => 0, # store in KB
 	'max-freq' => 0,
 	'min-freq' => 0,
-	'model_id' => undef,
+	'model-id' => undef,
 	'model_name' => '',
 	'processors' => [],
 	'rev' => '',
