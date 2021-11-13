@@ -266,6 +266,109 @@ good graph/charts of intel core architectures
 https://www.realworldtech.com/sandy-bridge/2/
 
 https://www.nas.nasa.gov/hecc/support/kb/skylake-processors_550.html
+
+----------------------------------------
+Topology
+----------------------------------------
+
+https://www.spinics.net/lists/linux-tip-commits/msg48756.html
+
+topology: Create core_cpus and die_cpus sysfs attributes
+
+Create CPU topology sysfs attributes: "core_cpus" and "core_cpus_list"
+
+These attributes represent all of the logical CPUs that share the
+same core.
+
+These attriutes is synonymous with the existing "thread_siblings" and
+"thread_siblings_list" attribute, which will be deprecated.
+
+Create CPU topology sysfs attributes: "die_cpus" and "die_cpus_list".
+These attributes represent all of the logical CPUs that share the
+same die.
+
+-thread_siblings:
++core_cpus:
+ -	internal kernel map of cpuX's hardware threads within the same
+-	core as cpuX.
++	internal kernel map of CPUs within the same core.
++	(deprecated name: "thread_siblings")
+
+-thread_siblings_list:
++core_cpus_list:
+-	human-readable list of cpuX's hardware threads within the same
+-	core as cpuX.
++	human-readable list of CPUs within the same core.
++	(deprecated name: "thread_siblings_list");
+
++die_cpus:
++
++	internal kernel map of CPUs within the same die.
++
++die_cpus_list:
++
++	human-readable list of CPUs within the same die.
++
+
+----------------------------------------
+
+https://listman.redhat.com/archives/libvir-list/2020-January/msg00277.html
+
+Latest generation CPUs (CascadeLake-AP) support a new topology level
+known as a 'die', sitting between a socket and a core.
+
+QEMU supports this with -smp arg since 4.1.0
+
+Linux can report this via /sys/devices/system/cpu/cpuNNN/topology
+via 'die_id' and 'die_cpus' and 'die_cpus_list' files since 5.2
+
+This series adds support for <topology> in guest XML to have a new
+'dies' parameter, passed to QEMU, which defaults to '1' if omitted.
+
+It extends host capabilities so that NUMA topology reports a new
+'die_id' attribute
+
+We can't expand 'virNodeInfoPtr' struct to have a die field, so
+this will remain forever reporting 'cores' as being 'dies * cores'.
+
+The <topology> in host capabilities XML is an interesting question.
+
+If we are strict with our API semantics we would *not* add a 'dies'
+parameter with any value other than '1' to <topology> in the host
+capabilities.  If we reported a value other than 1, then any existing
+apps which multiple  sockets*cores*threads will get the wrong total
+CPU count.
+
+We already know <topology> is broken by design for asymetric
+hardware, so we could simply document that it will forever be broken
+wrt to CPU dies too.  In this case we might be better to not even
+report 'dies=1', just leave out the attr entirely.
+
+Interestingly though, <topology> is already more broken than it
+should be. For a VM with   -smp 12,sockets=2,dies=3,cores=2,threads=1
+it is reporting <topology sockets=1 dies=1 cores=12 threads=1>.
+It should at least do  <topology sockets=2 dies=1 cores=6 threads=1>.
+
+I suspect the presence of dies is confusing the really incredibly
+horrible logic in virHostCPUGetInfoLinux. This will also impact
+virNodeInfoPtr data.
+
+So even if we don't report dies, I think we still have a bug that
+needs fixing here for the coarse node topology.
+
+I'm also confused about what I see with EPYC. IIUC, it was supposed
+to use the 'dies' concept, but in machines I've tested, Linux never
+reports die count other than 1.  Perhaps only certain EPYC CPU
+models or generations use 'dies', or perhaps Linux isn't reporting
+correctly for EPYC, or perhaps I'm mislead into believeing it uses
+dies.
+
+Anyway, the upshot is I've not found any real hardware to test this
+series on. I've tested it only inside a QEMU guest with the suitable
+-smp arg to fake dies.
+
+Daniel P. Berrangé (5):
+
 ========================================
 DESKTOPS / WM DATA
 ----------------------------------------

@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-03';
-my $self_patch='06';
+my $self_date='2021-11-13';
+my $self_patch='07';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -9926,7 +9926,7 @@ sub cpu_info {
 		# elsif ($family eq '20'){
 		# 	# model: unknown
 		#		$arch = 'Zen 4';
-		# 	@logic = (1,1,0,'$1x1',8);
+		# 	@logic = (1,1,0,'$1*1',8);
 		# }
 	}
 	elsif ($type eq 'arm'){
@@ -17001,6 +17001,7 @@ sub zfs_data {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-gojev-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-w-spares-1.txt";
 		#@working = main::reader($file);$zpool = '';
 	}
 	else {
@@ -17080,20 +17081,22 @@ sub zfs_data {
 			$zfs[$j]->{'arrays'}[$k]{'raw-size'} = $size;
 		}
 		# https://blogs.oracle.com/eschrock/entry/zfs_hot_spares
-		elsif ($row[1] =~ /spares/){
+		elsif ($row[1] =~ /spares?/){
 			next;
 		}
-		# the first is a member of a raid array
-		#    ada2        -      -      -         -      -      -
-		# this second is a single device not in an array
+		# A member of a raid array:
+		#  ada2        -      -      -         -      -      -
+		# A single device not in an array:
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
 		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
-		# third is using /dev/disk/by-id 
-		#     ata-VBOX_HARDDISK_VB5b6350cd-06618d58      -      -      -        -         -      -      -      -  ONLINE
+		# Using /dev/disk/by-id:
+		#  ata-VBOX_HARDDISK_VB5b6350cd-06618d58      -      -      -        -         -      -      -      -  ONLINE
+		# Spare in use:
+		#  /home/fred/zvol/hdd-2-3          -      -      -        -         -      -      -      -  INUSE
 		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)$/ && 
 		 ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTPE]$/)){
 			#print "r1:$row[1]",' :: ', Cwd::abs_path('/dev/disk/by-id/'.$row[1]), "\n";
-			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)\s.*?(DEGRADED|FAULTED|OFFLINE)?$/;
+			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)\s.*?(DEGRADED|FAULTED|INUSE|OFFLINE)?$/;
 			#my $working = '';
 			my $working = ($1) ? $1 : ''; # note: the negative case can never happen
 			my $state = ($4) ? $4 : '';
@@ -17172,7 +17175,7 @@ sub zfs_fs_sizes {
 	my @result = main::grabber("$path list -pH $id 2>/dev/null",'','strip');
 	main::log_data('dump','zfs list @result',\@result) if $b_log;
 	print Data::Dumper::Dumper \@result if $dbg[37];
-	# yet unknown cause makes FreeBSD 14 zfs fail with null @result.
+	# some zfs devices do not have zfs data, lake spare storage devices
 	if (@result){
 		my @working = split(/\s+/,$result[0]);
 		$data[0] = $working[1]/1024 if $working[1];
