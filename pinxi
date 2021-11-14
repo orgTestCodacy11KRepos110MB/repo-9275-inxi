@@ -47,10 +47,9 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-13';
-my $self_patch='07';
+my $self_date='2021-11-14';
+my $self_patch='08';
 ## END INXI INFO ##
-
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
 	OpenBSD::Pledge->import();
@@ -26564,7 +26563,11 @@ sub sys_data {
 			# this will be a hex number
 			$class_id = sys_item("$_/bDeviceClass");
 			# $subclass_id = sys_item("$_/bDeviceSubClass");
+			# $protocol_id = sys_item("$_/bDeviceProtocol");
 			$class_id = hex($class_id) if $class_id;
+			# $subclass_id = hex($subclass_id) if $subclass_id;
+			# $protocol_id = hex($protocol_id) if $protocol_id;
+			# print "$path_id $class_id/$subclass_id/$protocol_id\n";
 			$power = sys_item("$_/bMaxPower");
 			process_power(\$power) if $power;
 			# this populates class, subclass, and protocol id with decimal numbers
@@ -26694,8 +26697,14 @@ sub uevent_data {
 		# print join("\n",@working), "\n";
 		if (@working){
 			$driver = main::awk(\@working,'^DRIVER',2,'=');
-			$interface = main::awk(\@working,'^INTERFACE',2,'=');
+			$interface = main::awk(\@working,'^INTERFACE',2,'='); 
 			if ($interface){
+				# for hubs, we need the specific protocol, which is in TYPE
+				if ($interface eq '9/0/0' && 
+				 (my $temp = main::awk(\@working,'^TYPE',2,'='))){
+					$interface = $temp; 
+				}
+				# print "$interface\n";
 				$interface = device_type($interface);
 				if ($interface){
 					if ($interface ne '<vendor specific>'){
@@ -26810,10 +26819,13 @@ sub device_type {
 	elsif ($types[0] eq '6'){$type = 'Still Imaging';}
 	elsif ($types[0] eq '7'){$type = 'Printer';}
 	elsif ($types[0] eq '8'){$type = 'Mass Storage';}
+	# note: there is a bug in linux kernel that always makes hubs 9/0/0
 	elsif ($types[0] eq '9'){
 		if ($types[2] eq '0'){$type = 'Full speed (or root) Hub';}
 		elsif ($types[2] eq '1'){$type = 'Hi-speed hub with single TT';}
 		elsif ($types[2] eq '2'){$type = 'Hi-speed hub with multiple TTs';}
+		# seen protocol 3, usb3 type hub
+		elsif ($types[2] eq '3'){$type = 'Super-speed hub';}
 	}
 	elsif ($types[0] eq '10'){$type = 'CDC-Data';}
 	elsif ($types[0] eq '11'){$type = 'Smart Card';}
