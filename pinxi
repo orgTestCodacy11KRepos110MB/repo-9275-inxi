@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-19';
-my $self_patch='11';
+my $self_date='2021-11-20';
+my $self_patch='12';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2064,9 +2064,9 @@ sub system_data {
 	['vcgencmd','get_mem gpu'],
 	);
 	run_commands(\@cmds,'system');
-	my $cmd = 'for i in $(ls /sys/devices/system/cpu/cpu*/{topology,cache/index*}/*);';
-	$cmd .= 'do echo -n "$i: ";cat $i;done';
-	# run_command('sys','cpu-data',$cmd);
+	my $glob = '/sys/devices/system/cpu/';
+	$glob .= '{cpufreq,cpufreq/policy*,cpu*/topology,cpu*/cache/index*}/*';
+	get_glob('sys','cpu-data',$glob);
 	@files = main::globber('/dev/bus/usb/*/*');
 	copy_files(\@files, 'system');
 }
@@ -2191,13 +2191,19 @@ sub run_commands {
 		}
 	}
 }
-sub run_command {
-	my ($type,$id,$cmd) = @_;
+sub get_glob {
+	my ($type,$id,$glob) = @_;
+	my @files = main::globber($glob);
+	return if !@files;
 	my @result;
-	print $cmd,"\n";
-	chomp(@result = exec($cmd));
-	print @result,"\n";
-	main::writer("$data_dir/$type-cmd-$id.txt",\@result);
+	foreach (sort @files){
+		next if -d $_;
+		my $item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
+		$item = 'UNDEFINED' if ! defined $item;
+		push(@result,$_ . '::' . $item);
+	}
+	# print Data::Dumper::Dumper \@result;
+	main::writer("$data_dir/$type-glob-$id.txt",\@result);
 }
 sub write_data {
 	my ($data_ref, $type) = @_;
@@ -8787,6 +8793,21 @@ sub cpuinfo_data {
 	eval $end if $b_log;
 	return %cpu;
 }
+sub cpu_data_sys {
+	my $glob = '/sys/devices/system/cpu/';
+	$glob .= '{cpufreq,cpufreq/policy*,cpu*/topology,cpu*/cache/index*}/*';
+	my @files = main::globber($glob);
+	return if !@files;
+	my @result;
+	foreach (sort @files){
+		next if -d $_;
+		my $item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
+		$item = 'UNDEFINED' if ! defined $item;
+		push(@result,$_ . '::' . $item);
+	}
+	# print Data::Dumper::Dumper \@result;
+}
+
 sub get_caches {
 	eval $start if $b_log;
 	my @data = main::grabber("$_[0] -a 2>/dev/null",'','strip');
@@ -9231,10 +9252,10 @@ sub cpu_properties {
 	my ($dmi_max_speed,$dmi_speed,$ext_clock,$socket,$upgrade,$volts) = (undef);
 	my ($l1_cache,$l2_cache,$l3_cache,$core_count,$cpu_cores,$die_count) = (0,0,0,0,0,0);
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
-	my ($info,$logic) = cpu_info($cpu->{'type'},$cpu->{'family'},$cpu->{'model-id'},$cpu->{'stepping'});
+	my $arch = cpu_arch($cpu->{'type'},$cpu->{'family'},$cpu->{'model-id'},$cpu->{'stepping'});
 		# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
-	if ($info->[0] && !$cpu->{'arch'}){
-		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$info};
+	if ($arch->[0] && !$cpu->{'arch'}){
+		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$arch};
 	}
 	# cpu_arch comes from set_os()
 	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
@@ -9378,18 +9399,15 @@ sub cpu_properties {
 		if ($cpu_dmi{'L1'} && $cpu_dmi{'L1'} && 
 		 (!$cpu->{'l1-cache'} || $force{'dmidecode'})){
 			$l1_cache = $cpu_dmi{'L1'};
-			$logic->[0] = 0; # l1 here will be total, not per unit of cache assignment
 		}
 		# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
 		# have these values so let's check just in case. 
 		if ($cpu_dmi{'L2'} && $cpu_dmi{'L2'} && 
 		 (!$cpu->{'l2-cache'} || $force{'dmidecode'})){
 			$l2_cache = $cpu_dmi{'L2'};
-			$logic->[1] = 0; # l2 here will be total, not per unit of cache assignment
 		}
 		if ($cpu_dmi{'L3'} && (!$cpu->{'l3-cache'} || $force{'dmidecode'})){
 			$l3_cache = $cpu_dmi{'L3'}; 
-			$logic->[2] = 0; # l3 here will be total
 		}
 		$dmi_max_speed = $cpu_dmi{'max-speed'} if $cpu_dmi{'max-speed'};
 		$socket = $cpu_dmi{'socket'} if $cpu_dmi{'socket'};
@@ -9693,7 +9711,7 @@ sub cpu_dies_sys {
 	my (@dies);
 	foreach (@data){
 		my $siblings = main::reader($_,'',0);
-		if (!grep {/$siblings/} @dies){
+		if (!grep {$_ eq $siblings} @dies){
 			push(@dies, $siblings);
 		}
 	}
@@ -9756,11 +9774,15 @@ sub cpu_vendor {
 	eval $end if $b_log;
 	return $vendor;
 }
+
 sub get_boost_status {
 	eval $start if $b_log;
 	my ($boost);
 	my $path = '/sys/devices/system/cpu/cpufreq/boost';
-	if (-r $path){
+	# older amd used per cpu: /sys/devices/system/cpu/cpufreq/policy0/cpb
+	my $path2 = '/sys/devices/system/cpu/cpufreq/policy0/cpb';
+	if (-r $path || -r $path2){
+		$path = $path2 if ! -r $path;
 		$boost = main::reader($path,'',0);
 		if (defined $boost && $boost =~ /^[01]$/){
 			$boost = ($boost) ? 'enabled' : 'disabled';
@@ -9798,12 +9820,11 @@ sub system_cpu_name {
 	return %cpus;
 }
 
-sub cpu_info {
+sub cpu_arch {
 	eval $start if $b_log;
 	my ($type,$family,$model,$stepping) = @_;
 	# 0: L1 cache; 1: L2 cache: 2: L3 cache; 3: Core math; 4: cores/die
 	# values: 0: per cpu; 1: per core; decimal: per cpu multiplier; math: cores
-	my @logic = (1,1,0,'$1*1',0);
 	$stepping = 0 if !main::is_numeric($stepping);
 	$family ||= '';
 	$model ||= '';
@@ -9875,7 +9896,6 @@ sub cpu_info {
 				$arch = 'Bobcat'}
 		}
 		elsif ($family eq '15'){
-			@logic = (1,0,0,'$1*1',0); # shared L2 cache, 1 per cpu
 			if ($model =~ /^(0|1|2|3|4|5|6|7|8|9|A|B|C|D|E|F)$/){
 				$arch = 'Bulldozer'}
 			elsif ($model =~ /^(10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F)$/){
@@ -9897,11 +9917,9 @@ sub cpu_info {
 				$arch = 'Jaguar'}
 		}
 		elsif ($family eq '17'){
-			@logic = (1,1,0,'$1*1',4);
 			# can't find stepping/model for no ht 2x2 core/die models, only first ones
 			if ($model =~ /^(1|11)$/){
 				$arch = 'Zen';
-				@logic = (1,1,0,'$1*1',2);
 			}
 			elsif ($model =~ /^(18|20)$/){
 				$arch = 'Zen';
@@ -9927,19 +9945,16 @@ sub cpu_info {
 		# Joint venture between AMD and Chinese companies. Type amd? or hygon?
 		elsif ($family eq '18'){
 			# model 0
-			@logic = (1,1,0,'$1*1',4); # guessing it's the same as zen after low end
 			$arch = 'Zen (Hygon Dhyana)';
 		}
 		elsif ($family eq '19'){
 			# model: 0 1 21 40 50
 			$arch = 'Zen 3';
-			@logic = (1,1,0,'$1*1',8);
 		}
 		# note: family 20 may be Zen 4 but not known for sure yet, zen 5 also in pipeline
 		# elsif ($family eq '20'){
 		# 	# model: unknown
 		#		$arch = 'Zen 4';
-		# 	@logic = (1,1,0,'$1*1',8);
 		# }
 	}
 	elsif ($type eq 'arm'){
@@ -10198,7 +10213,7 @@ sub cpu_info {
 		}
 	}
 	eval $end if $b_log;
-	return ([$arch,$note],\@logic);
+	return [$arch,$note];
 }
 sub count_alpha {
 	my ($count) = @_;
