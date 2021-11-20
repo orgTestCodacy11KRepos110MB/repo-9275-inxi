@@ -47,8 +47,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-15';
-my $self_patch='10';
+my $self_date='2021-11-19';
+my $self_patch='11';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2064,9 +2064,13 @@ sub system_data {
 	['vcgencmd','get_mem gpu'],
 	);
 	run_commands(\@cmds,'system');
+	my $cmd = 'for i in $(ls /sys/devices/system/cpu/cpu*/{topology,cache/index*}/*);';
+	$cmd .= 'do echo -n "$i: ";cat $i;done';
+	# run_command('sys','cpu-data',$cmd);
 	@files = main::globber('/dev/bus/usb/*/*');
 	copy_files(\@files, 'system');
 }
+
 sub system_files {
 	print "Collecting system files data...\n";
 	my (%data,@files,@files2);
@@ -2186,6 +2190,14 @@ sub run_commands {
 			}
 		}
 	}
+}
+sub run_command {
+	my ($type,$id,$cmd) = @_;
+	my @result;
+	print $cmd,"\n";
+	chomp(@result = exec($cmd));
+	print @result,"\n";
+	main::writer("$data_dir/$type-cmd-$id.txt",\@result);
 }
 sub write_data {
 	my ($data_ref, $type) = @_;
