@@ -30,6 +30,7 @@ use 5.008;
 
 use Cwd qw(abs_path); # #abs_path realpath getcwd
 use Data::Dumper qw(Dumper); # print_r
+$Data::Dumper::Sortkeys = 1;
 # NOTE: load in SystemDebugger unless encounter issues with require/import
 # use File::Find;
 use File::stat; # needed for Xorg.0.log file mtime comparisons
@@ -47,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-20';
-my $self_patch='12';
+my $self_date='2021-11-21';
+my $self_patch='13';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2065,7 +2066,7 @@ sub system_data {
 	);
 	run_commands(\@cmds,'system');
 	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpufreq/policy*,cpu*/topology,cpu*/cache/index*}/*';
+	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt}/*';
 	get_glob('sys','cpu-data',$glob);
 	@files = main::globber('/dev/bus/usb/*/*');
 	copy_files(\@files, 'system');
@@ -8486,6 +8487,7 @@ sub cpuinfo_data {
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter,%caches);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
+	cpu_data_sys(); # run now for logging and debugging
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
@@ -8793,21 +8795,6 @@ sub cpuinfo_data {
 	eval $end if $b_log;
 	return %cpu;
 }
-sub cpu_data_sys {
-	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpufreq/policy*,cpu*/topology,cpu*/cache/index*}/*';
-	my @files = main::globber($glob);
-	return if !@files;
-	my @result;
-	foreach (sort @files){
-		next if -d $_;
-		my $item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
-		$item = 'UNDEFINED' if ! defined $item;
-		push(@result,$_ . '::' . $item);
-	}
-	# print Data::Dumper::Dumper \@result;
-}
-
 sub get_caches {
 	eval $start if $b_log;
 	my @data = main::grabber("$_[0] -a 2>/dev/null",'','strip');
@@ -9580,6 +9567,88 @@ sub process_cache {
 	return $output;
 }
 
+sub cpu_data_sys {
+	eval $start if $b_log;
+	my $glob = '/sys/devices/system/cpu/';
+	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt}/*';
+	my @files = main::globber($glob);
+	main::log_data('dump','@files',\@files) if $b_log;
+	return if !@files;
+	my ($b_cache,$b_freq,$b_topo,$b_main,%cpu_sys);
+	my ($main_id,$main_key,$holder,$id,$item,$key) = ('','','','','','');
+	foreach (sort @files){
+		next if -d $_;
+		$key = $_;
+		$key =~ m|/([^/]+)/([^/]+)$|;
+		my ($key_1,$key_2) = ($1,$2);
+		if (m|/cpu(\d+)/|){
+			if (!$holder || $1 ne $holder){
+				$id = sprintf("%04d",$1);
+				$holder = $1;
+			}
+			$b_main = 0;
+			$b_cache = 0;
+			$b_freq = 0;
+			$b_topo = 0;
+			if ($key_1 eq 'cpufreq'){
+				$b_freq = 1;
+				$main_key = $key_2;
+				$key = $key_1;
+			}
+			elsif ($key_1 eq 'topology'){
+				$b_topo = 1;
+				$main_key = $key_2;
+				$key = $key_1;
+			}
+			elsif ($key_1 =~ /^index(\d+)$/){
+				$b_cache = 1;
+				$main_key = $key_2;
+				$main_id =  sprintf("%02d",$1);
+				$key = 'cache';
+			}
+		}
+		else {
+			$id = $key_1 . '-' . $key_2;
+			$b_main = 1;
+			$b_cache = 0;
+			$b_freq = 0;
+			$b_topo = 0;
+			$main_key = '';
+			$main_id = '';
+		}
+		$item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
+		$item = 'UNDEFINED' if ! defined $item;
+		if ($b_main){
+			$cpu_sys{$id} = $item;
+		}
+		elsif ($b_cache){
+			$cpu_sys{$id}->{$key}{$main_id}{$main_key} = $item;
+		}
+		elsif ($b_freq || $b_topo){
+			$cpu_sys{$id}->{$key}{$main_key} = $item;
+		}
+	}
+	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
+	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
+	eval $end if $b_log;
+}
+sub get_boost_status {
+	eval $start if $b_log;
+	my ($boost);
+	my $path = '/sys/devices/system/cpu/cpufreq/boost';
+	# older amd used per cpu: /sys/devices/system/cpu/cpufreq/policy0/cpb
+	my $path2 = '/sys/devices/system/cpu/cpufreq/policy0/cpb';
+	if (-r $path || -r $path2){
+		$path = $path2 if ! -r $path;
+		$boost = main::reader($path,'',0);
+		if (defined $boost && $boost =~ /^[01]$/){
+			$boost = ($boost) ? 'enabled' : 'disabled';
+		}
+	}
+	eval $end if $b_log;
+	return $boost;
+}
+
 sub cpu_bugs_sys {
 	eval $start if $b_log;
 	my (@bugs,$type,$value);
@@ -9603,8 +9672,19 @@ sub cpu_bugs_sys {
 sub cpu_speeds {
 	eval $start if $b_log;
 	my ($processors) = @_;
-	my (@speeds);
-	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq');
+	my ($b_skip,@temp,@speeds);
+	my @files = main::globber('/sys/devices/system/cpu/cpu*/cpufreq/{affected_cpus,scaling_cur_freq}');
+	# print Data::Dumper::Dumper \@files;
+	foreach (sort @files){
+		if (/affected_cpus$/){
+			# some cases, eg vm with shared cpu/threads, have speed but undefined affected_cpus
+			$b_skip = (defined main::reader($_,'strip',0)) ? 0: 1;
+		}
+		elsif (!$b_skip) {
+			push(@temp,$_);
+		}
+	}
+	@files = @temp if @temp;
 	foreach (@files){
 		my $speed = main::reader($_,'',0);
 		if (defined $speed){
@@ -9715,9 +9795,8 @@ sub cpu_dies_sys {
 			push(@dies, $siblings);
 		}
 	}
-	my $die_count = scalar @dies;
 	eval $end if $b_log;
-	return $die_count;
+	return scalar @dies;
 }
 # needed because no physical_id in cpuinfo, but > 1 cpu systems exist
 # returns: 0 - per cpu cores; 1 - phys cpu count; 2 - override model defaul names
@@ -9768,28 +9847,11 @@ sub cpu_vendor {
 	elsif ($string =~ /centaur/){
 		$vendor = "centaur"
 	}
-	elsif ($string =~ /e2k/){
+	elsif ($string =~ /(e2k|elbrus)/){
 		$vendor = "elbrus"
 	}
 	eval $end if $b_log;
 	return $vendor;
-}
-
-sub get_boost_status {
-	eval $start if $b_log;
-	my ($boost);
-	my $path = '/sys/devices/system/cpu/cpufreq/boost';
-	# older amd used per cpu: /sys/devices/system/cpu/cpufreq/policy0/cpb
-	my $path2 = '/sys/devices/system/cpu/cpufreq/policy0/cpb';
-	if (-r $path || -r $path2){
-		$path = $path2 if ! -r $path;
-		$boost = main::reader($path,'',0);
-		if (defined $boost && $boost =~ /^[01]$/){
-			$boost = ($boost) ? 'enabled' : 'disabled';
-		}
-	}
-	eval $end if $b_log;
-	return $boost;
 }
 sub system_cpu_name {
 	eval $start if $b_log;

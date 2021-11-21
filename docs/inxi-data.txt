@@ -341,6 +341,61 @@ That knob is still supported on AMD processors that support its underlying hardw
 
 The cpb knob is never present for any processors without the underlying hardware feature (e.g. all Intel ones), even if the CONFIG_X86_ACPI_CPUFREQ_CPB configuration option is set.
 
+https://lwn.net/Articles/254445/
+legacy cpu_map in /sys cpu data. If it's legacy you can tell either by presence of cpu_map file or by value of files.
+
+/sys/devices/system/cpu/cpu0/cache/index2/shared_cpu_map:["01"]
+
+/sys/devices/system/cpu/cpu0/topology/core_siblings:["01"]
+/sys/devices/system/cpu/cpu0/topology/thread_siblings:["01"]
+/sys/devices/system/cpu/cpu0/topology/core_id:["0"]
+
+ For a four-socket, dual-core Opteron machine the cache information looks like Table 5.2:
+
+    	type	level	shared_cpu_map
+    cpu0 	index0	Data	1	00000001
+					index1	Instruction	1	00000001
+					index2	Unified	2	00000001
+    cpu1 	index0	Data	1	00000002
+					index1	Instruction	1	00000002
+					index2	Unified	2	00000002
+    cpu2 	index0	Data	1	00000004
+					index1	Instruction	1	00000004
+					index2	Unified	2	00000004
+    cpu3 	index0	Data	1	00000008
+					index1	Instruction	1	00000008
+					index2	Unified	2	00000008
+    cpu4 	index0	Data	1	00000010
+					index1	Instruction	1	00000010
+					index2	Unified	2	00000010
+    cpu5 	index0	Data	1	00000020
+					index1	Instruction	1	00000020
+					index2	Unified	2	00000020
+    cpu6 	index0	Data	1	00000040
+					index1	Instruction	1	00000040
+					index2	Unified	2	00000040
+    cpu7 	index0	Data	1	00000080
+					index1	Instruction	1	00000080
+					index2	Unified	2	00000080
+    
+ Table 5.3 shows the interesting files in this hierarchy for the SMP Opteron machine.
+
+    	physical_
+    package_id 	core_id 	core_
+    siblings 	thread_
+    siblings
+    cpu0	0	0	00000003	00000001
+    cpu1 	1	00000003	00000002
+    cpu2	1	0	0000000c	00000004
+    cpu3 	1	0000000c	00000008
+    cpu4	2	0	00000030	00000010
+    cpu5 	1	00000030	00000020
+    cpu6	3	0	000000c0	00000040
+    cpu7 	1	000000c0	00000080
+    
+Taking Table 5.2 and Table 5.3 together we can see that no CPU has hyper-threads (the thread_siblings bitmaps have one bit set), that the system in fact has four processors (physical_package_id 0 to 3), that each processor has t
+
+https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-devices-system-cpu
 
 
 ----------------------------------------
@@ -471,6 +526,84 @@ series on. I've tested it only inside a QEMU guest with the suitable
 -smp arg to fake dies.
 
 Daniel P. Berrangé (5):
+
+----------------------------------------
+https://askubuntu.com/questions/1318432/cpufreq-is-missing-from-sys-devices-system-cpu-cpu0
+note: in some cases, /sys/devices/system/cpu/cpu0/cpufreq does not exist, maybe 
+if scaling driver missing, don't know.
+
+----------------------------------------
+https://android.googlesource.com/kernel/common/+/a7827a2a60218b25f222b54f77ed38f57aebe08b/Documentation/cpu-freq/user-guide.txt
+
+3.1 Preferred Interface: sysfs
+------------------------------
+The preferred interface is located in the sysfs filesystem. If you
+mounted it at /sys, the cpufreq interface is located in a subdirectory
+"cpufreq" within the cpu-device directory
+(e.g. /sys/devices/system/cpu/cpu0/cpufreq/ for the first CPU).
+cpuinfo_min_freq :		this file shows the minimum operating
+				frequency the processor can run at(in kHz) 
+cpuinfo_max_freq :		this file shows the maximum operating
+				frequency the processor can run at(in kHz) 
+cpuinfo_transition_latency	The time it takes on this CPU to
+				switch between two frequencies in nano
+				seconds. If unknown or known to be
+				that high that the driver does not
+				work with the ondemand governor, -1
+				(CPUFREQ_ETERNAL) will be returned.
+				Using this information can be useful
+				to choose an appropriate polling
+				frequency for a kernel governor or
+				userspace daemon. Make sure to not
+				switch the frequency too often
+				resulting in performance loss.
+scaling_driver :		this file shows what cpufreq driver is
+				used to set the frequency on this CPU
+scaling_available_governors :	this file shows the CPUfreq governors
+				available in this kernel. You can see the
+				currently activated governor in
+scaling_governor,		and by "echoing" the name of another
+				governor you can change it. Please note
+				that some governors won't load - they only
+				work on some specific architectures or
+				processors.
+cpuinfo_cur_freq :		Current frequency of the CPU as obtained from
+				the hardware, in KHz. This is the frequency
+				the CPU actually runs at.
+scaling_available_frequencies : List of available frequencies, in KHz.
+scaling_min_freq and
+scaling_max_freq		show the current "policy limits" (in
+				kHz). By echoing new values into these
+				files, you can change these limits.
+				NOTE: when setting a policy you need to
+				first set scaling_max_freq, then
+				scaling_min_freq.
+affected_cpus :			List of CPUs that require software coordination
+				of frequency.
+related_cpus :			List of CPUs that need some sort of frequency
+				coordination, whether software or hardware.
+scaling_driver :		Hardware driver for cpufreq.
+scaling_cur_freq :		Current frequency of the CPU as determined by
+				the governor and cpufreq core, in KHz. This is
+				the frequency the kernel thinks the CPU runs
+				at.
+bios_limit :			If the BIOS tells the OS to limit a CPU to
+				lower frequencies, the user can read out the
+				maximum available frequency from this file.
+				This typically can happen through (often not
+				intended) BIOS settings, restrictions
+				triggered through a service processor or other
+				BIOS/HW based implementations.
+				This does not cover thermal ACPI limitations
+				which can be detected through the generic
+				thermal driver.
+If you have selected the "userspace" governor which allows you to
+set the CPU operating frequency to a specific value, you can read out
+the current frequency in
+scaling_setspeed.		By "echoing" a new frequency into this
+				you can change the speed of the CPU,
+				but only within the limits of
+				scaling_min_freq and scaling_max_freq.
 
 ========================================
 DESKTOPS / WM DATA
