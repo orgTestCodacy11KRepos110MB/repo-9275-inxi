@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.08';
-my $self_date='2021-11-21';
-my $self_patch='13';
+my $self_date='2021-11-22';
+my $self_patch='14';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2066,7 +2066,8 @@ sub system_data {
 	);
 	run_commands(\@cmds,'system');
 	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt}/*';
+	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
+	$glob .= 'vulnerabilities}/*';
 	get_glob('sys','cpu-data',$glob);
 	@files = main::globber('/dev/bus/usb/*/*');
 	copy_files(\@files, 'system');
@@ -2196,11 +2197,16 @@ sub get_glob {
 	my ($type,$id,$glob) = @_;
 	my @files = main::globber($glob);
 	return if !@files;
-	my @result;
+	my ($item,@result);
 	foreach (sort @files){
 		next if -d $_;
-		my $item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
-		$item = 'UNDEFINED' if ! defined $item;
+		if (-r $_) {
+			$item = main::reader($_,'strip',0);
+		}
+		else {
+			$item = main::row_defaults('root-required');
+		}
+		$item = main::row_defaults('undefined') if ! defined $item;
 		push(@result,$_ . '::' . $item);
 	}
 	# print Data::Dumper::Dumper \@result;
@@ -6361,6 +6367,19 @@ sub regex_cleaner {
 	return $string;
 }
 
+# string of range types to generate single regex string for
+sub regex_range {
+	return if ! defined $_[0];
+	my @processed;
+	foreach my $item (split(/[,\s]+/,$_[0])){
+		if ($item =~ /(\d+)-(\d+)/){
+			$item = join('|',($1..$2));
+		}
+		push(@processed,$item);
+	}
+	return join('|',@processed);
+}
+
 sub remove_duplicates {
 	my ($string) = @_;
 	return if !$string;
@@ -6464,6 +6483,7 @@ sub row_defaults {
 	'tool-unknown-error' => "Unknown $id error. Unable to generate data.",
 	'tools-missing' => "This feature requires one of these tools: $id",
 	'tools-missing-bsd' => "This feature requires one of these tools: $id",
+	'undefined' => '<undefined>',
 	'unmounted-data' => 'No unmounted partitions found.',
 	'unmounted-data-bsd' => "Unmounted partition feature unsupported in $id.",
 	'unmounted-file' => 'No /proc/partitions file found.',
@@ -8363,11 +8383,10 @@ sub full_output {
 		},);
 	}
 	if ($b_admin){
-		my @bugs = cpu_bugs_sys();
 		my $value = '';
-		if (!@bugs){
-			if ($cpu{'bugs'}){
-				my @proc_bugs = split(/\s+/, $cpu{'bugs'});
+		if (!defined $cpu{'bugs-hash'}){
+			if ($cpu{'bugs-string'}){
+				my @proc_bugs = split(/\s+/, $cpu{'bugs-string'});
 				@proc_bugs = sort @proc_bugs;
 				$value = join(' ', @proc_bugs);
 			}
@@ -8378,11 +8397,11 @@ sub full_output {
 		push(@rows, {
 		main::key($num++,1,1,'Vulnerabilities') => $value,
 		},);
-		if (@bugs){
+		if (defined $cpu{'bugs-hash'}){
 			$j = $#rows;
-			foreach my $bug (@bugs){
-				$rows[$j]->{main::key($num++,1,2,'Type')} = $bug->[0];
-				$rows[$j]->{main::key($num++,0,3,$bug->[1])} = $bug->[2];
+			foreach my $key (sort keys %{$cpu{'bugs-hash'}}){
+				$rows[$j]->{main::key($num++,1,2,'Type')} = $key;
+				$rows[$j]->{main::key($num++,0,3,$cpu{'bugs-hash'}->{$key}[0])} = $cpu{'bugs-hash'}->{$key}[1];
 				$j++;
 			}
 		}
@@ -8487,7 +8506,7 @@ sub cpuinfo_data {
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter,%caches);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
-	cpu_data_sys(); # run now for logging and debugging
+	my $cpu_sys = cpu_data_sys();
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
@@ -8533,6 +8552,9 @@ sub cpuinfo_data {
 	if (my $path = main::check_program('getconf')){
 		get_caches($path,\%caches);
 		$cpu{'caches'} = 1 if %caches;
+	}
+	if (defined $cpu_sys->{'data'}{'vulnerabilities'}){
+		$cpu{'bugs-hash'} = $cpu_sys->{'data'}{'vulnerabilities'};
 	}
 	# need to prime for arm cpus, which do not have physical/core ids usually
 	# level 0 is phys id, level 1 is die id, level 2 is core id
@@ -8750,8 +8772,8 @@ sub cpuinfo_data {
 		}
 		if ($b_admin){
 			# note: not used unless maybe /sys data missing?
-			if (!$cpu{'bugs'} && $line[0] eq 'bugs'){
-				$cpu{'bugs'} = $line[1];
+			if (!$cpu{'bugs-string'} && $line[0] eq 'bugs'){
+				$cpu{'bugs-string'} = $line[1];
 			}
 			# unlike family and model id, microcode appears to be hex already
 			if (!$cpu{'microcode'} && $line[0] eq 'microcode'){
@@ -9566,15 +9588,115 @@ sub process_cache {
 	# print "$cache :: $count :: $output\n";
 	return $output;
 }
-
 sub cpu_data_sys {
 	eval $start if $b_log;
+	my (%cpu_sys);
+	my $working = get_sys_data();
+	return %cpu_sys if !%{$working};
+	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
+	my ($core_id,$phys_id) = (0,0);
+	my (%cache_ids,@freq_max,@freq_min,@speeds);
+	foreach my $key (sort keys %{$working->{'cpus'}}){
+		($core_id,$phys_id) = (0,0);
+		my $cpu_id = $key + 0;
+		my $cpu = $working->{'cpus'}{$key};
+		if (defined $cpu->{'topology'}{'physical_package_id'}){
+			$phys_id = $cpu->{'topology'}{'physical_package_id'};
+		}
+		if (defined $cpu->{'topology'}{'core_id'}){
+			# id is not consistent, seen 5 digit id
+			$core_id = sprintf("%08d",$cpu->{'topology'}{'core_id'});
+			if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'}){
+				# note: unassigned cpus don't have topology or core id data
+				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
+				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
+					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
+					push(@{$cpu_sys{$phys_id}->{'cores'}{$core_id}},$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					push(@speeds,$cpu->{'cpufreq'}{'scaling_cur_freq'});
+				}
+			}
+		}
+		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
+			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
+		}
+		if (defined $cpu->{'topology'}{'core_cpus_list'}){
+			$cpu->{'topology'}{'thread_siblings_list'} = $cpu->{'topology'}{'core_cpus_list'};
+		}
+		if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
+			$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
+			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
+				push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
+			}
+		}
+		if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
+			$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
+			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
+				push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+			}
+		}
+		if (defined $cpu->{'cache'} && keys %{$cpu->{'cache'}} > 0){
+			foreach my $key2 (sort keys %{$cpu->{'cache'}}){
+				my $cache = $cpu->{'cache'}{$key2};
+				my $type = ($cache->{'type'} =~ /^([DI])/i) ? lc($1): '';
+				my $level = 'l' . $cache->{'level'} . $type;
+				if (defined $cache->{'shared_cpu_list'}){
+					my $range = main::regex_range($cache->{'shared_cpu_list'});
+					my $size = main::translate_size($cache->{'size'});
+					# print "cpuid: $cpu_id phys-core: $phys_id-$core_id level: $level range: $range  shared: $cache->{'shared_cpu_list'}\n";
+					if ($cpu_id =~ /^($range)$/ && 
+					 !(grep {$_ eq $cache->{'shared_cpu_list'}} @{$cache_ids{$phys_id}->{$level}})){
+						push(@{$cache_ids{$phys_id}->{$level}},$cache->{'shared_cpu_list'});
+						push(@{$cpu_sys{$phys_id}->{'caches'}{$level}},$size);
+					}
+				}
+			}
+		}
+		# die_id is relatively new, core_siblings_list has been around longer
+		if (defined $cpu->{'topology'}{'die_id'} || 
+		 defined $cpu->{'topology'}{'core_siblings_list'}){
+			my $die = $cpu->{'topology'}{'die_id'};
+			$die = $cpu->{'topology'}{'core_siblings_list'} if !defined $die;
+			if (!grep {$_ eq $die} @{$cpu_sys{$phys_id}->{'dies'}}){
+				push(@{$cpu_sys{$phys_id}->{'dies'}},$die);
+			}
+		}
+	}
+	# cpuinfo_max_freq:["2000000"] cpuinfo_max_freq:["1500000"] 
+	# cpuinfo_min_freq:["200000"]
+	if (@freq_max){
+		$cpu_sys{'data'}->{'speeds'}{'max-freq'} = join(':',@freq_max);
+	}
+	if (@freq_min){
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@freq_min);
+	}
+	if (@speeds){
+		my $agg = 0;
+		$agg += $_ for @speeds;
+		$cpu_sys{'data'}->{'speeds'}{'avg-freq'} = int($agg/scalar @speeds);
+	}
+	if ((scalar @freq_max < 2 && scalar @freq_min < 2) && 
+		(defined $cpu_sys{'data'}->{'speeds'}{'min-freq'} && 
+		defined $cpu_sys{'data'}->{'speeds'}{'max-freq'}) &&
+		($cpu_sys{'data'}->{'speeds'}{'min-freq'} > $cpu_sys{'data'}->{'speeds'}{'max-freq'} || 
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} == $cpu_sys{'data'}->{'speeds'}{'max-freq'})){
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = 0;
+	}
+	# print Data::Dumper::Dumper \%cache_ids if $dbg[39];
+	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
+	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
+	eval $end if $b_log;
+	return \%cpu_sys;
+}
+sub get_sys_data {
+	eval $start if $b_log;
 	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt}/*';
+	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
+	$glob .= 'vulnerabilities}/*';
 	my @files = main::globber($glob);
 	main::log_data('dump','@files',\@files) if $b_log;
+	print Data::Dumper::Dumper \@files if $dbg[40];
 	return if !@files;
-	my ($b_cache,$b_freq,$b_topo,$b_main,%cpu_sys);
+	my ($b_bug,$b_cache,$b_freq,$b_topo,$b_main,%working);
 	my ($main_id,$main_key,$holder,$id,$item,$key) = ('','','','','','');
 	foreach (sort @files){
 		next if -d $_;
@@ -9586,9 +9708,10 @@ sub cpu_data_sys {
 				$id = sprintf("%04d",$1);
 				$holder = $1;
 			}
-			$b_main = 0;
+			$b_bug = 0;
 			$b_cache = 0;
 			$b_freq = 0;
+			$b_main = 0;
 			$b_topo = 0;
 			if ($key_1 eq 'cpufreq'){
 				$b_freq = 1;
@@ -9607,30 +9730,53 @@ sub cpu_data_sys {
 				$key = 'cache';
 			}
 		}
-		else {
-			$id = $key_1 . '-' . $key_2;
-			$b_main = 1;
+		elsif ($key_1 eq 'vulnerabilities'){
+			$id = $key_1;
+			$key = $key_2;
+			$b_bug = 1;
 			$b_cache = 0;
+			$b_main = 0;
 			$b_freq = 0;
 			$b_topo = 0;
 			$main_key = '';
 			$main_id = '';
 		}
-		$item = (-r $_) ? main::reader($_,'strip',0): 'NOT-READABLE';
-		$item = 'UNDEFINED' if ! defined $item;
+		else {
+			$id = $key_1 . '-' . $key_2;
+			$b_bug = 0;
+			$b_cache = 0;
+			$b_main = 1;
+			$b_freq = 0;
+			$b_topo = 0;
+			$main_key = '';
+			$main_id = '';
+		}
+		if (-r $_) {
+			$item = main::reader($_,'strip',0);
+		}
+		else {
+			$item = main::row_defaults('root-required');
+		}
+		$item = main::row_defaults('undefined') if ! defined $item;
 		if ($b_main){
-			$cpu_sys{$id} = $item;
+			$working{'data'}->{$id} = $item;
+		}
+		elsif ($b_bug){
+			my $type = ($item =~ /^Mitigation:/) ? 'mitigation': 'status';
+			$item =~ s/Mitigation: //;
+			$working{'data'}->{$id}{$key} = [$type,$item];
 		}
 		elsif ($b_cache){
-			$cpu_sys{$id}->{$key}{$main_id}{$main_key} = $item;
+			$working{'cpus'}->{$id}{$key}{$main_id}{$main_key} = $item;
 		}
 		elsif ($b_freq || $b_topo){
-			$cpu_sys{$id}->{$key}{$main_key} = $item;
+			$working{'cpus'}->{$id}{$key}{$main_key} = $item;
 		}
 	}
-	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
-	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
+	main::log_data('dump','%working',\%working) if $b_log;
+	print Data::Dumper::Dumper \%working if $dbg[39];
 	eval $end if $b_log;
+	return \%working;
 }
 sub get_boost_status {
 	eval $start if $b_log;
@@ -9651,7 +9797,7 @@ sub get_boost_status {
 
 sub cpu_bugs_sys {
 	eval $start if $b_log;
-	my (@bugs,$type,$value);
+	my (%bugs,$type,$value);
 	return if ! -d '/sys/devices/system/cpu/vulnerabilities/';
 	my @items = main::globber('/sys/devices/system/cpu/vulnerabilities/*');
 	if (@items){
@@ -9660,13 +9806,13 @@ sub cpu_bugs_sys {
 			$type = ($value =~ /^Mitigation:/) ? 'mitigation': 'status';
 			$_ =~ s/.*\/([^\/]+)$/$1/;
 			$value =~ s/Mitigation: //;
-			push(@bugs,[($_,$type,$value)]);
+			$bugs{$_} = [$type,$value];
 		}
 	}
-	main::log_data('dump','@bugs',\@bugs) if $b_log;
-	# print Data::Dumper::Dumper \@bugs;
+	main::log_data('dump','%bugs',\%bugs) if $b_log;
+	# print Data::Dumper::Dumper \%bugs;
 	eval $end if $b_log;
-	return @bugs;
+	return %bugs;
 }
 
 sub cpu_speeds {
