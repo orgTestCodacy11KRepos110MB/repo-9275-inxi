@@ -8213,7 +8213,7 @@ sub full_output {
 		else {
 			select(undef, undef, undef, $cpu_sleep);
 		}
-		$cpu_sys = cpu_data_sys();
+		$cpu_sys = cpu_sys_data();
 		$cpu = cpuinfo_data($file,'full',$cpu_sys);
 	}
 	elsif ($bsd_type){
@@ -8464,7 +8464,7 @@ sub short_data {
 		else {
 			select(undef, undef, undef, $cpu_sleep);
 		}
-		$cpu_sys = cpu_data_sys();
+		$cpu_sys = cpu_sys_data();
 		$cpu = cpuinfo_data($file,$type,$cpu_sys);
 	}
 	elsif ($bsd_type){
@@ -8837,6 +8837,213 @@ sub cpuinfo_data {
 	eval $end if $b_log;
 	return \%cpu;
 }
+
+sub cpu_sys_data {
+	eval $start if $b_log;
+	my (%cpu_sys);
+	my $working = get_sys_data();
+	return %cpu_sys if !%{$working};
+	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
+	my ($core_id,$phys_id,) = (0,0);
+	my (%cache_ids,@freq_max,@freq_min,@speeds);
+	foreach my $key (sort keys %{$working->{'cpus'}}){
+		($core_id,$phys_id) = (0,0);
+		my $cpu_id = $key + 0;
+		my $cpu = $working->{'cpus'}{$key};
+		if (defined $cpu->{'topology'}{'physical_package_id'}){
+			$phys_id = sprintf("%04d",$cpu->{'topology'}{'physical_package_id'});
+		}
+		if (defined $cpu->{'topology'}{'core_id'}){
+			# id is not consistent, seen 5 digit id
+			$core_id = sprintf("%08d",$cpu->{'topology'}{'core_id'});
+			if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'}){
+				# note: unassigned cpus don't have topology or core id data
+				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
+				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
+					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					push(@speeds,$cpu->{'cpufreq'}{'scaling_cur_freq'});
+				}
+			}
+		}
+		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
+			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
+		}
+		if (defined $cpu->{'topology'}{'core_cpus_list'}){
+			$cpu->{'topology'}{'thread_siblings_list'} = $cpu->{'topology'}{'core_cpus_list'};
+		}
+		if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
+			$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
+			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
+				push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
+			}
+		}
+		if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
+			$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
+			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
+				push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+			}
+		}
+		if (defined $cpu->{'cache'} && keys %{$cpu->{'cache'}} > 0){
+			foreach my $key2 (sort keys %{$cpu->{'cache'}}){
+				my $cache = $cpu->{'cache'}{$key2};
+				my $type = ($cache->{'type'} =~ /^([DI])/i) ? lc($1): '';
+				my $level = 'l' . $cache->{'level'} . $type;
+				if (defined $cache->{'shared_cpu_list'}){
+					my $range = main::regex_range($cache->{'shared_cpu_list'});
+					my $size = main::translate_size($cache->{'size'});
+					# print "cpuid: $cpu_id phys-core: $phys_id-$core_id level: $level range: $range  shared: $cache->{'shared_cpu_list'}\n";
+					if ($cpu_id =~ /^($range)$/ && 
+					 !(grep {$_ eq $cache->{'shared_cpu_list'}} @{$cache_ids{$phys_id}->{$level}})){
+						push(@{$cache_ids{$phys_id}->{$level}},$cache->{'shared_cpu_list'});
+						push(@{$cpu_sys{'cpus'}->{$phys_id}{'caches'}{$level}},$size);
+					}
+				}
+			}
+		}
+		# die_id is relatively new, core_siblings_list has been around longer
+		if (defined $cpu->{'topology'}{'die_id'} || 
+		 defined $cpu->{'topology'}{'core_siblings_list'}){
+			my $die = $cpu->{'topology'}{'die_id'};
+			$die = $cpu->{'topology'}{'core_siblings_list'} if !defined $die;
+			if (!grep {$_ eq $die} @{$cpu_sys{'cpus'}->{$phys_id}{'dies'}}){
+				push(@{$cpu_sys{'cpus'}->{$phys_id}{'dies'}},$die);
+			}
+		}
+	}
+	if (defined $cpu_sys{'data'}->{'cpufreq-boost'} &&
+	 $cpu_sys{'data'}->{'cpufreq-boost'} =~ /^[01]$/){
+		if ($cpu_sys{'data'}->{'cpufreq-boost'}){
+			$cpu_sys{'data'}->{'cpufreq-boost'} = 'enabled';
+		}
+		else {
+			$cpu_sys{'data'}->{'cpufreq-boost'} = 'disabled';
+		}
+	}
+	# cpuinfo_max_freq:["2000000"] cpuinfo_max_freq:["1500000"] 
+	# cpuinfo_min_freq:["200000"]
+	if (@freq_max){
+		$cpu_sys{'data'}->{'speeds'}{'max-freq'} = join(':',@freq_max);
+	}
+	if (@freq_min){
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@freq_min);
+	}
+	if (@speeds){
+		my ($agg,$high) = (0,0);
+		for (@speeds){
+			$agg += $_;
+			$high = $_ if $_ > $high;
+		}
+		# $agg += $_ for @speeds;
+		$cpu_sys{'data'}->{'speeds'}{'avg-freq'} = int($agg/scalar @speeds);
+		$cpu_sys{'data'}->{'speeds'}{'cur-freq'} = $high;
+		$cpu_sys{'data'}->{'speeds'}{'all'} = \@speeds;
+	}
+	if ((scalar @freq_max < 2 && scalar @freq_min < 2) && 
+		(defined $cpu_sys{'data'}->{'speeds'}{'min-freq'} && 
+		defined $cpu_sys{'data'}->{'speeds'}{'max-freq'}) &&
+		($cpu_sys{'data'}->{'speeds'}{'min-freq'} > $cpu_sys{'data'}->{'speeds'}{'max-freq'} || 
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} == $cpu_sys{'data'}->{'speeds'}{'max-freq'})){
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = 0;
+	}
+	# print Data::Dumper::Dumper \%cache_ids if $dbg[39];
+	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
+	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
+	eval $end if $b_log;
+	return \%cpu_sys;
+}
+sub get_sys_data {
+	eval $start if $b_log;
+	my $glob = '/sys/devices/system/cpu/';
+	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
+	$glob .= 'vulnerabilities}/*';
+	my @files = main::globber($glob);
+	main::log_data('dump','@files',\@files) if $b_log;
+	print Data::Dumper::Dumper \@files if $dbg[40];
+	return if !@files;
+	my ($b_bug,$b_cache,$b_freq,$b_topo,$b_main,%working);
+	my ($main_id,$main_key,$holder,$id,$item,$key) = ('','','','','','');
+	foreach (sort @files){
+		next if -d $_;
+		$key = $_;
+		$key =~ m|/([^/]+)/([^/]+)$|;
+		my ($key_1,$key_2) = ($1,$2);
+		if (m|/cpu(\d+)/|){
+			if (!$holder || $1 ne $holder){
+				$id = sprintf("%04d",$1);
+				$holder = $1;
+			}
+			$b_bug = 0;
+			$b_cache = 0;
+			$b_freq = 0;
+			$b_main = 0;
+			$b_topo = 0;
+			if ($key_1 eq 'cpufreq'){
+				$b_freq = 1;
+				$main_key = $key_2;
+				$key = $key_1;
+			}
+			elsif ($key_1 eq 'topology'){
+				$b_topo = 1;
+				$main_key = $key_2;
+				$key = $key_1;
+			}
+			elsif ($key_1 =~ /^index(\d+)$/){
+				$b_cache = 1;
+				$main_key = $key_2;
+				$main_id =  sprintf("%02d",$1);
+				$key = 'cache';
+			}
+		}
+		elsif ($key_1 eq 'vulnerabilities'){
+			$id = $key_1;
+			$key = $key_2;
+			$b_bug = 1;
+			$b_cache = 0;
+			$b_main = 0;
+			$b_freq = 0;
+			$b_topo = 0;
+			$main_key = '';
+			$main_id = '';
+		}
+		else {
+			$id = $key_1 . '-' . $key_2;
+			$b_bug = 0;
+			$b_cache = 0;
+			$b_main = 1;
+			$b_freq = 0;
+			$b_topo = 0;
+			$main_key = '';
+			$main_id = '';
+		}
+		if (-r $_) {
+			$item = main::reader($_,'strip',0);
+		}
+		else {
+			$item = main::row_defaults('root-required');
+		}
+		$item = main::row_defaults('undefined') if ! defined $item;
+		if ($b_main){
+			$working{'data'}->{$id} = $item;
+		}
+		elsif ($b_bug){
+			my $type = ($item =~ /^Mitigation:/) ? 'mitigation': 'status';
+			$item =~ s/Mitigation: //;
+			$working{'data'}->{$id}{$key} = [$type,$item];
+		}
+		elsif ($b_cache){
+			$working{'cpus'}->{$id}{$key}{$main_id}{$main_key} = $item;
+		}
+		elsif ($b_freq || $b_topo){
+			$working{'cpus'}->{$id}{$key}{$main_key} = $item;
+		}
+	}
+	main::log_data('dump','%working',\%working) if $b_log;
+	print Data::Dumper::Dumper \%working if $dbg[39];
+	eval $end if $b_log;
+	return \%working;
+}
+
 sub get_caches {
 	eval $start if $b_log;
 	my @data = main::grabber("$_[0] -a 2>/dev/null",'','strip');
@@ -9386,6 +9593,7 @@ sub cpu_properties {
 		$core_count = 1;
 		$cpu->{'siblings'} = 1;
 	}
+	
 	## START cpu_sys CACHE HANDLER ##
 	if (defined $cpu_sys->{'cpus'} && (my (@keys) = keys %{$cpu_sys->{'cpus'}})){
 		$physical_count = scalar @keys;
@@ -9443,12 +9651,12 @@ sub cpu_properties {
 	# Get BSD and legacy linux caches if not already from dmidecode or cpu_sys.
 	if (!$l1_cache && !$l2_cache && !$l2_cache){
 		# L1 Cache
-		if (!$l1_cache && $cpu->{'l1-cache'}){
+		if ($cpu->{'l1-cache'}){
 			$l1_cache = $cpu->{'l1-cache'} * $cores_x;
 		}
 		# L2 Cache
 		# If summed by dmidecode or from cpu_sys don't use this
-		if (!$l2_cache && $cpu->{'l2-cache'}){
+		if ($cpu->{'l2-cache'}){
 			# the only possible change for bsds is if dmidecode method gives phy counts
 			# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
 			# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
@@ -9474,7 +9682,7 @@ sub cpu_properties {
 			}
 		}
 		# L3 Cache - usually per physical cpu, but some rzyen will have per ccx. 
-		if (!$l3_cache && $cpu->{'l3-cache'}){
+		if ($cpu->{'l3-cache'}){
 			$l3_cache = $cpu->{'l3-cache'};
 		}
 	}
@@ -9660,211 +9868,6 @@ sub speed_info {
  	return \%info;
 }
 
-sub cpu_data_sys {
-	eval $start if $b_log;
-	my (%cpu_sys);
-	my $working = get_sys_data();
-	return %cpu_sys if !%{$working};
-	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
-	my ($core_id,$phys_id,) = (0,0);
-	my (%cache_ids,@freq_max,@freq_min,@speeds);
-	foreach my $key (sort keys %{$working->{'cpus'}}){
-		($core_id,$phys_id) = (0,0);
-		my $cpu_id = $key + 0;
-		my $cpu = $working->{'cpus'}{$key};
-		if (defined $cpu->{'topology'}{'physical_package_id'}){
-			$phys_id = sprintf("%04d",$cpu->{'topology'}{'physical_package_id'});
-		}
-		if (defined $cpu->{'topology'}{'core_id'}){
-			# id is not consistent, seen 5 digit id
-			$core_id = sprintf("%08d",$cpu->{'topology'}{'core_id'});
-			if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'}){
-				# note: unassigned cpus don't have topology or core id data
-				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
-				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
-					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
-					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},$cpu->{'cpufreq'}{'scaling_cur_freq'});
-					push(@speeds,$cpu->{'cpufreq'}{'scaling_cur_freq'});
-				}
-			}
-		}
-		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
-			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
-		}
-		if (defined $cpu->{'topology'}{'core_cpus_list'}){
-			$cpu->{'topology'}{'thread_siblings_list'} = $cpu->{'topology'}{'core_cpus_list'};
-		}
-		if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
-			$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
-				push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
-			}
-		}
-		if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
-			$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
-				push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
-			}
-		}
-		if (defined $cpu->{'cache'} && keys %{$cpu->{'cache'}} > 0){
-			foreach my $key2 (sort keys %{$cpu->{'cache'}}){
-				my $cache = $cpu->{'cache'}{$key2};
-				my $type = ($cache->{'type'} =~ /^([DI])/i) ? lc($1): '';
-				my $level = 'l' . $cache->{'level'} . $type;
-				if (defined $cache->{'shared_cpu_list'}){
-					my $range = main::regex_range($cache->{'shared_cpu_list'});
-					my $size = main::translate_size($cache->{'size'});
-					# print "cpuid: $cpu_id phys-core: $phys_id-$core_id level: $level range: $range  shared: $cache->{'shared_cpu_list'}\n";
-					if ($cpu_id =~ /^($range)$/ && 
-					 !(grep {$_ eq $cache->{'shared_cpu_list'}} @{$cache_ids{$phys_id}->{$level}})){
-						push(@{$cache_ids{$phys_id}->{$level}},$cache->{'shared_cpu_list'});
-						push(@{$cpu_sys{'cpus'}->{$phys_id}{'caches'}{$level}},$size);
-					}
-				}
-			}
-		}
-		# die_id is relatively new, core_siblings_list has been around longer
-		if (defined $cpu->{'topology'}{'die_id'} || 
-		 defined $cpu->{'topology'}{'core_siblings_list'}){
-			my $die = $cpu->{'topology'}{'die_id'};
-			$die = $cpu->{'topology'}{'core_siblings_list'} if !defined $die;
-			if (!grep {$_ eq $die} @{$cpu_sys{'cpus'}->{$phys_id}{'dies'}}){
-				push(@{$cpu_sys{'cpus'}->{$phys_id}{'dies'}},$die);
-			}
-		}
-	}
-	if (defined $cpu_sys{'data'}->{'cpufreq-boost'} &&
-	 $cpu_sys{'data'}->{'cpufreq-boost'} =~ /^[01]$/){
-		if ($cpu_sys{'data'}->{'cpufreq-boost'}){
-			$cpu_sys{'data'}->{'cpufreq-boost'} = 'enabled';
-		}
-		else {
-			$cpu_sys{'data'}->{'cpufreq-boost'} = 'disabled';
-		}
-	}
-	# cpuinfo_max_freq:["2000000"] cpuinfo_max_freq:["1500000"] 
-	# cpuinfo_min_freq:["200000"]
-	if (@freq_max){
-		$cpu_sys{'data'}->{'speeds'}{'max-freq'} = join(':',@freq_max);
-	}
-	if (@freq_min){
-		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@freq_min);
-	}
-	if (@speeds){
-		my ($agg,$high) = (0,0);
-		for (@speeds){
-			$agg += $_;
-			$high = $_ if $_ > $high;
-		}
-		# $agg += $_ for @speeds;
-		$cpu_sys{'data'}->{'speeds'}{'avg-freq'} = int($agg/scalar @speeds);
-		$cpu_sys{'data'}->{'speeds'}{'cur-freq'} = $high;
-		$cpu_sys{'data'}->{'speeds'}{'all'} = \@speeds;
-	}
-	if ((scalar @freq_max < 2 && scalar @freq_min < 2) && 
-		(defined $cpu_sys{'data'}->{'speeds'}{'min-freq'} && 
-		defined $cpu_sys{'data'}->{'speeds'}{'max-freq'}) &&
-		($cpu_sys{'data'}->{'speeds'}{'min-freq'} > $cpu_sys{'data'}->{'speeds'}{'max-freq'} || 
-		$cpu_sys{'data'}->{'speeds'}{'min-freq'} == $cpu_sys{'data'}->{'speeds'}{'max-freq'})){
-		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = 0;
-	}
-	# print Data::Dumper::Dumper \%cache_ids if $dbg[39];
-	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
-	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
-	eval $end if $b_log;
-	return \%cpu_sys;
-}
-sub get_sys_data {
-	eval $start if $b_log;
-	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
-	$glob .= 'vulnerabilities}/*';
-	my @files = main::globber($glob);
-	main::log_data('dump','@files',\@files) if $b_log;
-	print Data::Dumper::Dumper \@files if $dbg[40];
-	return if !@files;
-	my ($b_bug,$b_cache,$b_freq,$b_topo,$b_main,%working);
-	my ($main_id,$main_key,$holder,$id,$item,$key) = ('','','','','','');
-	foreach (sort @files){
-		next if -d $_;
-		$key = $_;
-		$key =~ m|/([^/]+)/([^/]+)$|;
-		my ($key_1,$key_2) = ($1,$2);
-		if (m|/cpu(\d+)/|){
-			if (!$holder || $1 ne $holder){
-				$id = sprintf("%04d",$1);
-				$holder = $1;
-			}
-			$b_bug = 0;
-			$b_cache = 0;
-			$b_freq = 0;
-			$b_main = 0;
-			$b_topo = 0;
-			if ($key_1 eq 'cpufreq'){
-				$b_freq = 1;
-				$main_key = $key_2;
-				$key = $key_1;
-			}
-			elsif ($key_1 eq 'topology'){
-				$b_topo = 1;
-				$main_key = $key_2;
-				$key = $key_1;
-			}
-			elsif ($key_1 =~ /^index(\d+)$/){
-				$b_cache = 1;
-				$main_key = $key_2;
-				$main_id =  sprintf("%02d",$1);
-				$key = 'cache';
-			}
-		}
-		elsif ($key_1 eq 'vulnerabilities'){
-			$id = $key_1;
-			$key = $key_2;
-			$b_bug = 1;
-			$b_cache = 0;
-			$b_main = 0;
-			$b_freq = 0;
-			$b_topo = 0;
-			$main_key = '';
-			$main_id = '';
-		}
-		else {
-			$id = $key_1 . '-' . $key_2;
-			$b_bug = 0;
-			$b_cache = 0;
-			$b_main = 1;
-			$b_freq = 0;
-			$b_topo = 0;
-			$main_key = '';
-			$main_id = '';
-		}
-		if (-r $_) {
-			$item = main::reader($_,'strip',0);
-		}
-		else {
-			$item = main::row_defaults('root-required');
-		}
-		$item = main::row_defaults('undefined') if ! defined $item;
-		if ($b_main){
-			$working{'data'}->{$id} = $item;
-		}
-		elsif ($b_bug){
-			my $type = ($item =~ /^Mitigation:/) ? 'mitigation': 'status';
-			$item =~ s/Mitigation: //;
-			$working{'data'}->{$id}{$key} = [$type,$item];
-		}
-		elsif ($b_cache){
-			$working{'cpus'}->{$id}{$key}{$main_id}{$main_key} = $item;
-		}
-		elsif ($b_freq || $b_topo){
-			$working{'cpus'}->{$id}{$key}{$main_key} = $item;
-		}
-	}
-	main::log_data('dump','%working',\%working) if $b_log;
-	print Data::Dumper::Dumper \%working if $dbg[39];
-	eval $end if $b_log;
-	return \%working;
-}
 # only used in cases where 
 sub cpu_speeds {
 	eval $start if $b_log;
