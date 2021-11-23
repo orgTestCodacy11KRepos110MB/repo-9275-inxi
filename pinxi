@@ -9238,19 +9238,11 @@ sub cpu_properties {
 	my (%tests,@phys,@processors);
 	my ($cores_x,$physical_count,$processors_count) = (1,0,0);
 	my ($l1_cache,$l1d_cache,$l1i_cache,$l2_cache,$l3_cache) = (0,0,0,0,0);
+	my ($cache_check) = ('');
 	my ($core_count,$cpu_cores,$die_count) = (0,0,0);
-	my ($cache_check,$cpu_layout,$cpu_type) = ('','','');
 	my ($dmi_max_speed,$dmi_speed,$ext_clock,$socket,$upgrade,$volts);
 	set_test_types($cpu,\%tests) if $cpu->{'type'};
-	my $arch = cpu_arch($cpu->{'type'},$cpu->{'family'},$cpu->{'model-id'},$cpu->{'stepping'});
-	# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
-	if ($arch->[0] && !$cpu->{'arch'}){
-		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$arch};
-	}
-# cpu_arch comes from set_os()
-	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
-		$cpu->{'arch'} = $cpu_arch;
-	}
+	
 	# my @dies = $phys[0]->[0];
 	@phys = @{$cpu->{'ids'}};
 	$physical_count = 0;
@@ -9394,8 +9386,8 @@ sub cpu_properties {
 		$core_count = 1;
 		$cpu->{'siblings'} = 1;
 	}
-	if (defined $cpu_sys->{'cpus'}){
-		my (@keys) = keys %{$cpu_sys->{'cpus'}};
+	## START cpu_sys CACHE HANDLER ##
+	if (defined $cpu_sys->{'cpus'} && (my (@keys) = keys %{$cpu_sys->{'cpus'}})){
 		$physical_count = scalar @keys;
 		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}){
 			$l1d_cache += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}};
@@ -9412,6 +9404,9 @@ sub cpu_properties {
 			$l3_cache += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}};
 		}
 	}
+	## END cpu_sys CACHE HANDLER ##
+	
+	## START dmidecode CACHE/DATA HANDLER ##
 	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
 		# note: dmidecode has one entry per cpu per cache type
 		my $cpu_dmi = dmidecode_data();
@@ -9442,10 +9437,10 @@ sub cpu_properties {
 		$ext_clock = $cpu_dmi->{'ext-clock'} if $cpu_dmi->{'ext-clock'};
 		$volts = $cpu_dmi->{'volts'} if $cpu_dmi->{'volts'};
 	}
+	## END dmidecode CACHE/DATA HANDLER ##
 	
-	## START CACHE ##
-	# First generate the cache from cpu_sys if available, but only if we didn't
-	# get it already from dmidecode or cpu_sys.
+	## START CACHE PROCESSING ##
+	# Get BSD and legacy linux caches if not already from dmidecode or cpu_sys.
 	if (!$l1_cache && !$l2_cache && !$l2_cache){
 		# L1 Cache
 		if (!$l1_cache && $cpu->{'l1-cache'}){
@@ -9487,9 +9482,10 @@ sub cpu_properties {
 	$l1_cache = process_cache($l1_cache,$physical_count) if $l1_cache;
 	$l2_cache = process_cache($l2_cache,$physical_count) if $l2_cache;
 	$l3_cache = process_cache($l3_cache,$physical_count) if $l3_cache;
-	## END CACHE ##
+	## END CACHE PROCESSING ##
 	
-	## START TYPE/LAYOUT ##
+	## START TYPE/LAYOUT/ARCH ##
+	my ($cpu_layout,$cpu_type) = ('','');
 	$cpu_type = cpu_type($physical_count,$processors_count,$cpu_cores,
 	 $cpu->{'dies'},$cpu->{'siblings'},\%tests);
 	# print "pc: $processors_count s: $cpu->{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
@@ -9500,7 +9496,16 @@ sub cpu_properties {
 	if (!$bsd_type && $cpu->{'dies'} > 1){
 		$cpu_layout .= ' (' . $cpu->{'dies'}. '-Die)';
 	}
-	## END TYPE/LAYOUT ##
+	my $arch = cpu_arch($cpu->{'type'},$cpu->{'family'},$cpu->{'model-id'},$cpu->{'stepping'});
+	# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
+	if ($arch->[0] && !$cpu->{'arch'}){
+		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$arch};
+	}
+	# cpu_arch comes from set_os()
+	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
+		$cpu->{'arch'} = $cpu_arch;
+	}
+	## END TYPE/LAYOUT/ARCH ##
 	
 	## START SPEED/BITS ##
 	my $speed_info = speed_info($cpu->{'cur-freq'},$cpu->{'avg-freq'},
