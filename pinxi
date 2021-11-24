@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-24';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -9302,7 +9302,6 @@ sub dboot_data {
 sub cpu_properties {
 	my ($cpu,$cpu_sys) = @_;
 	my (%dmi_data,%tests,@phys,@processors);
-	my ($cores_x,$physical_count,$processors_count) = (1,0,0);
 	my %caches = (
 	'l1' => 0,
 	'l1d' => 0,
@@ -9310,67 +9309,74 @@ sub cpu_properties {
 	'l2' => 0,
 	'l3' => 0,
 	);
+	my %counts = (
+	'dies' => 0,
+	'cpu-cores' => 0,
+	'cores' => 0,
+	'cores-mulitiplier' => 0,
+	'physical' => 0,
+	'processors' => 0,
+	);
 	my ($cache_check) = ('');
-	my ($core_count,$cpu_cores,$die_count) = (0,0,0);
 	cp_test_types($cpu,\%tests) if $cpu->{'type'};
 	# my @dies = $phys[0]->[0];
 	@phys = @{$cpu->{'ids'}};
-	$physical_count = 0;
-	# my $physical_count = scalar @phys;
+	$counts{'physical'} = 0;
+	# my $counts{'physical'} = scalar @phys;
 	# handle case where cpu reports say, phys id 0, 2, 4, 6 [yes, seen it]
 	foreach (@phys){
-		$physical_count++ if $_;
+		$counts{'physical'}++ if $_;
 	}
 	# count unique processors ##
 	# note, this fails for intel cpus at times
 	@processors = @{$cpu->{'processors'}};
 	# print ref $cpu->{'processors'}, "\n";
-	$processors_count = scalar @processors;
-	# print "p count:$processors_count\n";
+	$counts{'processors'} = scalar @processors;
+	# print "p count:$counts{'processors'}\n";
 	# print Data::Dumper::Dumper \@processors;
-	# $cpu_cores is per physical cpu
+	# $counts{'cpu-cores'} is per physical cpu
 	# note: elbrus supports turning off cores, so we need to add one for cases where rounds to 0 or 1 less
 	# print "$cpu{'type'},$cpu{'family'},$cpu{'model-id'},$cpu{'arch'}\n";
-	if ($tests{'elbrus'} && $processors_count){
-		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model-id'},$processors_count,$cpu->{'arch'});
-		$cpu_cores = $elbrus[0];
-		$physical_count = $elbrus[1];
+	if ($tests{'elbrus'} && $counts{'processors'}){
+		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model-id'},$counts{'processors'},$cpu->{'arch'});
+		$counts{'cpu-cores'} = $elbrus[0];
+		$counts{'physical'} = $elbrus[1];
 		$cpu->{'arch'} = $elbrus[2];
-		# print 'model id: ' . $cpu->{'model-id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $cpu_cores phyc: $physical_count proc: $processors_count \n";
+		# print 'model id: ' . $cpu->{'model-id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $counts{'cpu-cores'} phyc: $counts{'physical'} proc: $counts{'processors'} \n";
 	}
-	$physical_count ||= 1; # assume 1 if no id found, as with ARM
+	$counts{'physical'} ||= 1; # assume 1 if no id found, as with ARM
 	foreach my $die_ref (@phys){
 		next if ref $die_ref ne 'ARRAY';
-		$core_count = 0;
-		$die_count = scalar @$die_ref;
-		#$cpu->{'dies'} = $die_count;
+		$counts{'cores'} = 0;
+		$counts{'dies'} = scalar @$die_ref;
+		#$cpu->{'dies'} = $counts{'dies'};
 		foreach my $core_ref (@$die_ref){
 			next if ref $core_ref ne 'ARRAY';
-			$core_count = 0;# reset for each die!!
+			$counts{'cores'} = 0;# reset for each die!!
 			# NOTE: the counters can be undefined because the index comes from 
 			# core id: which can be 0 skip 1 then 2, which leaves index 1 undefined
 			# arm cpus do not actually show core id so ignore that counter
 			foreach my $id (@$core_ref){
-				$core_count++ if defined $id && !$b_arm;
+				$counts{'cores'}++ if defined $id && !$b_arm;
 			}
-			# print 'cores: ' . $core_count, "\n";
+			# print 'cores: ' . $counts{'cores'}, "\n";
 		}
 	}
 	# this covers potentially cases where ARM cpus have > 1 die 
-	$cpu->{'dies'} = ($b_arm && $die_count <= 1 && $cpu->{'dies'} > 1) ? $cpu->{'dies'}: $die_count;
+	$cpu->{'dies'} = ($b_arm && $counts{'dies'} <= 1 && $cpu->{'dies'} > 1) ? $cpu->{'dies'}: $counts{'dies'};
 	# this is an attempt to fix the amd family 15 bug with reported cores vs actual cores
 	# NOTE: amd A6-4400M APU 2 core reports: cores: 1 siblings: 2
 	# NOTE: AMD A10-5800K APU 4 core reports: cores: 2 siblings: 4
-	if (!$cpu_cores){
-		if ($cpu->{'cores'} && !$core_count || $cpu->{'cores'} >= $core_count){
-			$cpu_cores = $cpu->{'cores'};
+	if (!$counts{'cpu-cores'}){
+		if ($cpu->{'cores'} && !$counts{'cores'} || $cpu->{'cores'} >= $counts{'cores'}){
+			$counts{'cpu-cores'} = $cpu->{'cores'};
 		}
-		elsif ($core_count > $cpu->{'cores'}){
-			$cpu_cores = $core_count;
+		elsif ($counts{'cores'} > $cpu->{'cores'}){
+			$counts{'cpu-cores'} = $counts{'cores'};
 		}
 	}
-	# print "cpu-c:$cpu_cores\n";
-	# $cpu_cores = $cpu->{'cores'}; 
+	# print "cpu-c:$counts{'cpu-cores'}\n";
+	# $counts{'cpu-cores'} = $cpu->{'cores'}; 
 	# like, intel core duo
 	# NOTE: sadly, not all core intel are HT/MT, oh well...
 	# xeon may show wrong core / physical id count, if it does, fix it. A xeon
@@ -9382,44 +9388,44 @@ sub cpu_properties {
 				$tests{'ht'} = 0;
 			}
 			else {
-				$cpu_cores = ($cpu->{'siblings'}/2); 
+				$counts{'cpu-cores'} = ($cpu->{'siblings'}/2); 
 				$tests{'ht'} = 1;
 			}
 		}
 	}
 	# ryzen is made out of blocks of 8 core dies.. only it isn't that simple, sigh
 	elsif ($tests{'ryzen'}){
-		$cpu_cores = $cpu->{'cores'}; 
+		$counts{'cpu-cores'} = $cpu->{'cores'}; 
 		 # note: posix ceil isn't present in Perl for some reason, deprecated?
-		my $working = $cpu_cores / 8;
+		my $working = $counts{'cpu-cores'} / 8;
 		my @temp = split('\.', $working);
 		$cpu->{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
 	}
 	# these always have 4 dies
 	elsif ($tests{'epyc'}){
-		$cpu_cores = $cpu->{'cores'}; 
+		$counts{'cpu-cores'} = $cpu->{'cores'}; 
 		$cpu->{'dies'} = 4;
 	}
 	# elsif ($tests{'elbrus'}){
-	# 	$cpu_cores = 
+	# 	$counts{'cpu-cores'} = 
 	# }
 	# final check, override the num of cores value if it clearly is wrong
 	# and use the raw core count and synthesize the total instead of real count
-	if ($cpu_cores == 0 && ($cpu->{'cores'} * $physical_count > 1)){
-		$cpu_cores = ($cpu->{'cores'} * $physical_count);
+	if ($counts{'cpu-cores'} == 0 && ($cpu->{'cores'} * $counts{'physical'} > 1)){
+		$counts{'cpu-cores'} = ($cpu->{'cores'} * $counts{'physical'});
 	}
 	# last check, seeing some intel cpus and vms with intel cpus that do not show any
 	# core id data at all, or siblings.
-	if ($cpu_cores == 0 && $processors_count > 0){
-		$cpu_cores = $processors_count;
+	if ($counts{'cpu-cores'} == 0 && $counts{'processors'} > 0){
+		$counts{'cpu-cores'} = $counts{'processors'};
 	}
 	# this happens with BSDs which have very little cpu data available
-	if ($processors_count == 0 && $cpu_cores > 0){
-		$processors_count = $cpu_cores;
-		if ($bsd_type && ($tests{'ht'} || $tests{'amd-zen'}) && $cpu_cores > 2){
-			$cpu_cores = $cpu_cores/2;;
+	if ($counts{'processors'} == 0 && $counts{'cpu-cores'} > 0){
+		$counts{'processors'} = $counts{'cpu-cores'};
+		if ($bsd_type && ($tests{'ht'} || $tests{'amd-zen'}) && $counts{'cpu-cores'} > 2){
+			$counts{'cpu-cores'} = $counts{'cpu-cores'}/2;;
 		}
-		my $count = $processors_count;
+		my $count = $counts{'processors'};
 		$count-- if $count > 0;
 		$cpu->{'processors'}[$count] = 0;
 		# no way to get per processor speeds yet, so assign 0 to each
@@ -9432,7 +9438,7 @@ sub cpu_properties {
 	# so far only OpenBSD has a way to detect MT cpus
 	if ($bsd_type){
 		if ($cpu->{'siblings'}){
-			$cores_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
+			$counts{'cores-mulitiplier'} = $counts{'cpu-cores'} if $counts{'cpu-cores'} && $counts{'cpu-cores'} > 1;
 		}
 		# if no siblings we couldn't get MT status of cpu so can't trust cache
 		else {
@@ -9442,18 +9448,18 @@ sub cpu_properties {
 	# only elbrus shows L1 / L3 cache data in cpuinfo, cpu_sys data should show 
 	# for newer full linux.
 	else {
-		$cores_x = $cpu_cores if $cpu_cores && $cpu_cores > 1;
+		$counts{'cores-mulitiplier'} = $counts{'cpu-cores'} if $counts{'cpu-cores'} && $counts{'cpu-cores'} > 1;
 	}
 	# last test to catch some corner cases 
 	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
 	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
-	# print "prc: $processors_count phc: $physical_count coc: $core_count cpc: $cpu_cores\n";
-	if (!$b_arm && $processors_count == $physical_count*$core_count && $cpu_cores > $core_count){
+	# print "prc: $counts{'processors'} phc: $counts{'physical'} coc: $counts{'cores'} cpc: $counts{'cpu-cores'}\n";
+	if (!$b_arm && $counts{'processors'} == $counts{'physical'}*$counts{'cores'} && $counts{'cpu-cores'} > $counts{'cores'}){
 		$tests{'ht'} = 0;
 		# $tests{'xeon'} = 0;
 		$tests{'intel'} = 0;
-		$cpu_cores = 1;
-		$core_count = 1;
+		$counts{'cpu-cores'} = 1;
+		$counts{'cores'} = 1;
 		$cpu->{'siblings'} = 1;
 	}
 	
@@ -9462,7 +9468,7 @@ sub cpu_properties {
 		cp_sys_data(
 		$cpu_sys,
 		\%caches,
-		\$physical_count
+		\%counts
 		);
 	}
 	## END cpu_sys CACHE HANDLER ##
@@ -9473,7 +9479,7 @@ sub cpu_properties {
 		$cpu,
 		\%dmi_data,
 		\%caches,
-		\$physical_count # only to set BSD phys cpu counts if not found
+		\%counts # only to set BSD phys cpu counts if not found
 		);
 	}
 	## END dmidecode CACHE/DATA HANDLER ##
@@ -9482,33 +9488,36 @@ sub cpu_properties {
 	# Get BSD and legacy linux caches if not already from dmidecode or cpu_sys.
 	if (!$caches{'l1'} && !$caches{'l2'} && !$caches{'l2'}){
 		cp_caches_fallback(
-		$cores_x,
+		\%counts,
 		$cpu,
-		$cpu_cores,
 		\%caches
 		);
 	}
 	$cache_check = '' if !$caches{'l1'} && !$caches{'l2'} && !$caches{'l3'}; # nothing to check!
-	$caches{'l1'} = cp_cache_processor($caches{'l1'},$physical_count) if $caches{'l1'};
-	$caches{'l2'} = cp_cache_processor($caches{'l2'},$physical_count) if $caches{'l2'};
-	$caches{'l3'} = cp_cache_processor($caches{'l3'},$physical_count) if $caches{'l3'};
+	if ($caches{'l1'}){
+		$caches{'l1'} = cp_cache_processor($caches{'l1'},$counts{'physical'});
+	}
+	if ($caches{'l2'}){
+		$caches{'l2'} = cp_cache_processor($caches{'l2'},$counts{'physical'});
+	}
+	if ($caches{'l3'}){
+		$caches{'l3'} = cp_cache_processor($caches{'l3'},$counts{'physical'});
+	}
 	## END CACHE PROCESSING ##
 	
 	## START TYPE/LAYOUT/ARCH/BUGS ##
 	my ($cpu_layout,$cpu_type) = ('','');
 	$cpu_type = cp_cpu_type(
-	$physical_count,
-	$processors_count,
-	$cpu_cores,
+	\%counts,
 	$cpu->{'dies'},
 	$cpu->{'siblings'},
 	\%tests
 	);
-	# print "pc: $processors_count s: $cpu->{'siblings'} cpuc: $cpu_cores corec: $core_count\n";
-	if ($physical_count > 1){
-		$cpu_layout = $physical_count . 'x ';
+	# print "pc: $counts{'processors'} s: $cpu->{'siblings'} cpuc: $counts{'cpu-cores'} corec: $counts{'cores'}\n";
+	if ($counts{'physical'} > 1){
+		$cpu_layout = $counts{'physical'} . 'x ';
 	}
-	$cpu_layout .= cp_count_alpha($cpu_cores) . 'Core';
+	$cpu_layout .= cp_count_alpha($counts{'cpu-cores'}) . 'Core';
 	if (!$bsd_type && $cpu->{'dies'} > 1){
 		$cpu_layout .= ' (' . $cpu->{'dies'}. '-Die)';
 	}
@@ -9585,10 +9594,10 @@ sub cp_cache_processor {
 	return $output;
 }
 sub cp_caches_fallback {
-	my ($cores_x,$cpu,$cpu_cores,$caches) = @_;
+	my ($counts,$cpu,$caches) = @_;
 	# L1 Cache
 	if ($cpu->{'l1-cache'}){
-		$caches->{'l1'} = $cpu->{'l1-cache'} * $cores_x;
+		$caches->{'l1'} = $cpu->{'l1-cache'} * $counts->{'cores-mulitiplier'};
 	}
 	# L2 Cache
 	# If summed by dmidecode or from cpu_sys don't use this
@@ -9597,7 +9606,7 @@ sub cp_caches_fallback {
 		# Looks like Intel on bsd shows L2 per core, not total. Note: Pentium N3540
 		# uses 2(not 4)xL2 cache size for 4 cores, sigh... you just can't win...
 		if ($bsd_type){
-			$caches->{'l2'} = $cpu->{'l2-cache'} * $cores_x;
+			$caches->{'l2'} = $cpu->{'l2-cache'} * $counts->{'cores-mulitiplier'};
 		}
 		# AMD SOS chips appear to report full L2 cache per cpu
 		elsif ($cpu->{'type'} eq 'amd' && ($cpu->{'family'} eq '14' || 
@@ -9605,7 +9614,7 @@ sub cp_caches_fallback {
 			$caches->{'l2'} = $cpu->{'l2-cache'};
 		}
 		elsif ($cpu->{'type'} ne 'intel'){
-			$caches->{'l2'} = $cpu->{'l2-cache'} * $cpu_cores;
+			$caches->{'l2'} = $cpu->{'l2-cache'} * $counts->{'cpu-cores'};
 		}
 		# note: this handles how intel reports L2, total instead of per core like 
 		# AMD does when cpuinfo sourced, when caches sourced, is per core as expected
@@ -10032,12 +10041,12 @@ sub cp_cpu_arch {
 # if > 1 processor && processor ids (physical id) > 1 then Symmetric Multi Processing (SMP)
 # if = 1 processor then single core/processor Uni-Processor (UP)
 sub cp_cpu_type {
-	my ($phys_count,$proc_count,$cpu_cores,$dies,$siblings,$tests) = @_;
+	my ($counts,$dies,$siblings,$tests) = @_;
 	my $cpu_type = '';
-	if ($proc_count > 1 || 
+	if ($counts->{'processors'} > 1 || 
 	 (defined $tests->{'intel'} && $tests->{'intel'} && $siblings > 0)){
 		# non-multicore MT
-		if ($proc_count == ($phys_count * $cpu_cores * 2)){
+		if ($counts->{'processors'} == ($counts->{'physical'} * $counts->{'cpu-cores'} * 2)){
 			# print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
@@ -10045,12 +10054,12 @@ sub cp_cpu_type {
 		# 	# print "mt:2\n";
 		# 	$cpu_type .= 'MT'; 
 		# }
-		elsif ($siblings > 1 && ($siblings == 2 * $cpu_cores)){
+		elsif ($siblings > 1 && ($siblings == 2 * $counts->{'cpu-cores'})){
 			# print "mt:3\n";
 			$cpu_type .= 'MT'; 
 		}
 		# non-MT multi-core or MT multi-core
-		if (($proc_count == $cpu_cores) || ($phys_count < $cpu_cores)){
+		if (($counts->{'processors'} == $counts->{'cpu-cores'}) || ($counts->{'physical'} < $counts->{'cpu-cores'})){
 			$cpu_type .= ' MCP'; 
 		}
 		# only solidly known > 1 die cpus will use this, ryzen and arm for now
@@ -10058,7 +10067,7 @@ sub cp_cpu_type {
 			$cpu_type .= ' MCM'; 
 		}
 		# >1 cpu sockets active: Symetric Multi Processing
-		if ($phys_count > 1){
+		if ($counts->{'physical'} > 1){
 			$cpu_type .= ' SMP'; 
 		}
 		$cpu_type =~ s/^\s+//;
@@ -10070,13 +10079,13 @@ sub cp_cpu_type {
 }
 # everything is passed by reference so no need to return anything
 sub cp_dmi_data {
-	my ($cpu,$dmi_data,$caches,$physical_count) = @_;
+	my ($cpu,$dmi_data,$caches,$counts) = @_;
 	# note: dmidecode has one entry per cpu per cache type
 	my $cpu_dmi = dmidecode_data();
 	# fix for bsds that do not show physical cpus, like openbsd
-	if (!$caches->{'l2'} && $physical_count == 1 && $cpu_dmi->{'L2'} && 
+	if (!$caches->{'l2'} && $counts->{'physical'} == 1 && $cpu_dmi->{'L2'} && 
 		($cpu_dmi->{'L2-total'} / $cpu_dmi->{'L2'} != 1)){
-		$$physical_count = sprintf("%.0f",$cpu_dmi->{'L2-total'} / $cpu_dmi->{'L2'}) + 0;
+		$counts->{'physical'} = sprintf("%.0f",$cpu_dmi->{'L2-total'} / $cpu_dmi->{'L2'}) + 0;
 	}
 	# this is the total per cpu, not per core when using dmidecode
 	if (((!$cpu->{'l1-cache'} && !$caches->{'l1'}) || $force{'dmidecode'}) &&
@@ -10264,10 +10273,10 @@ sub cp_speed_data {
 }
 # all values passed by reference so no need for returns
 sub cp_sys_data {
-	my ($cpu_sys,$caches,$physical_count) = @_;
+	my ($cpu_sys,$caches,$counts) = @_;
 	my (@keys) = (keys %{$cpu_sys->{'cpus'}});
 	return if !@keys;
-	$$physical_count = scalar @keys;
+	$counts->{'physical'} = scalar @keys;
 	if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}){
 		$caches->{'l1d'} += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}};
 		$caches->{'l1'} += $caches->{'l1d'};
