@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-11-22';
-my $self_patch='01';
+my $self_date='2021-11-24';
+my $self_patch='02';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6409,6 +6409,7 @@ sub row_defaults {
 	'cpu-bugs-null' => 'No CPU vulnerability/bugs data available.',
 	'cpu-model-null' => 'Model N/A',
 	'cpu-speeds' => 'No per core speed data found.',
+	'cpu-speeds-bsd' => 'No OS support for per core speeds.',
 	'darwin-feature' => 'Feature not supported iu Darwin/OSX.',
 	'disk-data' => 'No disk data found.',
 	'disk-data-bsd' => 'No disk data found.',
@@ -8202,8 +8203,8 @@ sub get {
 sub full_output {
 	eval $start if $b_log;
 	my $num = 0;
-	my ($b_flags,$b_speeds,$core_speeds_value,$cpu,$cpu_sys,$flag_key,
-	$speeds,@flags,@rows);
+	my ($b_flags,$b_speeds,$core_speeds_value,$cpu,$cpu_sys,$flag_key);
+	my (@flags,@rows);
 	my $sleep = $cpu_sleep * 1000000;
 	if (my $file = $system_files{'proc-cpuinfo'}){
 		# bsd sleep is set before sysctl runs, same idea
@@ -8214,7 +8215,7 @@ sub full_output {
 			select(undef, undef, undef, $cpu_sleep);
 		}
 		$cpu_sys = cpu_sys_data();
-		$cpu = cpuinfo_data($file,'full',$cpu_sys);
+		$cpu = cpuinfo_data($file,'full');
 	}
 	elsif ($bsd_type){
 		my ($key1,$val1) = ('','');
@@ -8234,12 +8235,6 @@ sub full_output {
 	}
 	my $properties = cpu_properties($cpu,$cpu_sys);
 	my $type = ($properties->{'cpu-type'}) ? $properties->{'cpu-type'}: '';
-	if ($cpu_sys->{'data'}{'speeds'}{'all'}){
-		$speeds = $cpu_sys->{'data'}{'speeds'}{'all'};
-	}
-	else {
-		$speeds = cpu_speeds($cpu->{'processors'});
-	}
 	my $j = scalar @rows;
 	$cpu->{'model_name'} ||= 'N/A'; 
 	push(@rows, {
@@ -8330,6 +8325,7 @@ sub full_output {
 		$rows[$j]->{main::key($num++,0,2,'bogomips')} = $bogomips;
 	}
 	$j = scalar @rows;
+	my $speeds = $cpu->{'processors'};
 	my $core_key = (defined $speeds && scalar @{$speeds} > 1) ? 'cores' : 'core';
 	my $speed_key = ($properties->{'speed-key'}) ? $properties->{'speed-key'}: 'Speed';
 	my $min_max = ($properties->{'min-max'}) ? $properties->{'min-max'}: 'N/A';
@@ -8338,18 +8334,20 @@ sub full_output {
 	if (!$properties->{'avg-speed-key'}){
 		$speed = (defined $properties->{'speed'}) ? $properties->{'speed'}: 'N/A';
 	}
-	# aren't able to get per core speeds in bsds yet
-	if (defined $speeds && @{$speeds}){
-		if (grep {$_ ne '0'} @{$speeds}){
+	# Aren't able to get per core speeds in BSDs. Why don't they support this?
+	if (defined $speeds && @$speeds){
+		# only if defined and not 0
+		if (grep {$_} @{$speeds}){
 			$core_speeds_value = '';
 			$b_speeds = 1;
 		}
 		else {
-			$core_speeds_value = main::row_defaults('cpu-speeds');
+			my $id = ($bsd_type) ? 'cpu-speeds-bsd' : 'cpu-speeds';
+			$core_speeds_value = main::row_defaults($id);
 		}
 	}
 	else {
-		$core_speeds_value = 'N/A';
+		$core_speeds_value = main::row_defaults('cpu-speeds');
 	}
 	$j = scalar @rows;
 	push(@rows, {
@@ -8357,6 +8355,9 @@ sub full_output {
 	});
 	if ($properties->{'avg-speed-key'}){
 		$rows[$j]->{main::key($num++,0,2,$properties->{'avg-speed-key'})} = $properties->{'speed'};
+		if ($extra > 0 && $properties->{'high-speed-key'}){
+			$rows[$j]->{main::key($num++,0,2,$properties->{'high-speed-key'})} = $cpu->{'high-freq'};
+		}
 	}
 	$rows[$j]->{main::key($num++,0,2,$min_max_key)} = $min_max;
 	if ($b_admin && $properties->{'dmi-speed'} && $properties->{'dmi-max-speed'}){
@@ -8465,7 +8466,7 @@ sub short_data {
 			select(undef, undef, undef, $cpu_sleep);
 		}
 		$cpu_sys = cpu_sys_data();
-		$cpu = cpuinfo_data($file,$type,$cpu_sys);
+		$cpu = cpuinfo_data($file,$type);
 	}
 	elsif ($bsd_type){
 		my ($key1,$val1) = ('','');
@@ -8519,7 +8520,7 @@ sub prep_short_data {
 
 sub cpuinfo_data {
 	eval $start if $b_log;
-	my ($file,$type,$cpu_sys)=  @_;
+	my ($file,$type)=  @_;
 	my ($arch,@ids,@line,$b_first,$b_proc_int,$note,$starter);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
@@ -8564,12 +8565,6 @@ sub cpuinfo_data {
 	my @phys_cpus = (0);# start with 1 always
 	my ($core_count,$die_holder,$die_id,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
 	my ($phys_holder) = (undef);
-	if ($b_admin && defined $cpu_sys->{'data'}{'vulnerabilities'}){
-		$cpu{'bugs-hash'} = $cpu_sys->{'data'}{'vulnerabilities'};
-	}
-	if (defined $cpu_sys->{'data'}{'cpufreq-boost'}){
-		$cpu{'boost'} = $cpu_sys->{'data'}{'cpufreq-boost'};
-	}
 	# need to prime for arm cpus, which do not have physical/core ids usually
 	# level 0 is phys id, level 1 is die id, level 2 is core id
 	# note, there con be a lot of processors, 32 core HT would have 64, for example.
@@ -8807,18 +8802,6 @@ sub cpuinfo_data {
 		}
 	}
 	$cpu{'ids'} = (\@ids);
-	if (defined $cpu_sys->{'data'}{'speeds'}{'all'}){
-		$cpu{'speeds'} = $cpu_sys->{'data'}{'speeds'}{'all'};
-	}
-	if (!defined $cpu_sys->{'data'}{'speeds'}{'cur-freq'}){
-		$cpu{'cur-freq'} = $cpu{'processors'}->[0];
-	}
-	else {
-		$cpu{'avg-freq'} = $cpu_sys->{'data'}{'speeds'}{'avg-freq'};
-		$cpu{'cur-freq'} = $cpu_sys->{'data'}{'speeds'}{'cur-freq'};
-		$cpu{'min-freq'} = $cpu_sys->{'data'}{'speeds'}{'min-freq'};
-		$cpu{'max-freq'} = $cpu_sys->{'data'}{'speeds'}{'max-freq'};
-	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
 	print Data::Dumper::Dumper \%cpu if $dbg[8];
 	eval $end if $b_log;
@@ -8832,7 +8815,7 @@ sub cpu_sys_data {
 	return \%cpu_sys if !%{$working};
 	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
 	my ($core_id,$phys_id,) = (0,0);
-	my (%cache_ids,@freq_max,@freq_min,@speeds);
+	my (%cache_ids,@freq_max,@freq_min);
 	foreach my $key (sort keys %{$working->{'cpus'}}){
 		($core_id,$phys_id) = (0,0);
 		my $cpu_id = $key + 0;
@@ -8848,8 +8831,10 @@ sub cpu_sys_data {
 				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
 				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
 					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
-					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},$cpu->{'cpufreq'}{'scaling_cur_freq'});
-					push(@speeds,$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},
+					$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},
+					$cpu->{'cpufreq'}{'scaling_cur_freq'});
 				}
 			}
 		}
@@ -8919,17 +8904,6 @@ sub cpu_sys_data {
 	}
 	if (@freq_min){
 		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@freq_min);
-	}
-	if (@speeds){
-		my ($agg,$high) = (0,0);
-		for (@speeds){
-			$agg += $_;
-			$high = $_ if $_ > $high;
-		}
-		# $agg += $_ for @speeds;
-		$cpu_sys{'data'}->{'speeds'}{'avg-freq'} = int($agg/scalar @speeds);
-		$cpu_sys{'data'}->{'speeds'}{'cur-freq'} = $high;
-		$cpu_sys{'data'}->{'speeds'}{'all'} = \@speeds;
 	}
 	if ((scalar @freq_max < 2 && scalar @freq_min < 2) && 
 		(defined $cpu_sys{'data'}->{'speeds'}{'min-freq'} && 
@@ -9207,7 +9181,6 @@ sub sysctl_data {
 	eval $end if $b_log;
 	return \%cpu;
 }
-
 sub dboot_data {
 	eval $start if $b_log;
 	my ($max_freq,$min_freq,@scalings,%values);
@@ -9340,7 +9313,6 @@ sub cpu_properties {
 	my ($cache_check) = ('');
 	my ($core_count,$cpu_cores,$die_count) = (0,0,0);
 	cp_test_types($cpu,\%tests) if $cpu->{'type'};
-	
 	# my @dies = $phys[0]->[0];
 	@phys = @{$cpu->{'ids'}};
 	$physical_count = 0;
@@ -9522,7 +9494,7 @@ sub cpu_properties {
 	$caches{'l3'} = cp_cache_processor($caches{'l3'},$physical_count) if $caches{'l3'};
 	## END CACHE PROCESSING ##
 	
-	## START TYPE/LAYOUT/ARCH ##
+	## START TYPE/LAYOUT/ARCH/BUGS ##
 	my ($cpu_layout,$cpu_type) = ('','');
 	$cpu_type = cp_cpu_type(
 	$physical_count,
@@ -9554,15 +9526,18 @@ sub cpu_properties {
 	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
 		$cpu->{'arch'} = $cpu_arch;
 	}
-	## END TYPE/LAYOUT/ARCH ##
+	if ($b_admin && defined $cpu_sys->{'data'}{'vulnerabilities'}){
+		$cpu->{'bugs-hash'} = $cpu_sys->{'data'}{'vulnerabilities'};
+	}
+	## END TYPE/LAYOUT/ARCH/BUGS ##
 	
 	## START SPEED/BITS ##
-	my $speed_info = cp_speed_data($cpu);
+	my $speed_info = cp_speed_data($cpu,$cpu_sys);
  	if (!$bits_sys && !$b_arm && $cpu->{'flags'}){
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
 	## END SPEED/BITS ##
-	
+
 	## LOAD %cpu_properties
 	my %cpu_properties = (
 	'avg-speed-key' => $speed_info->{'avg-speed-key'},
@@ -9573,6 +9548,7 @@ sub cpu_properties {
 	'dmi-max-speed' => $dmi_data{'max-speed'},
 	'dmi-speed' => $dmi_data{'speed'},
 	'ext-clock' => $dmi_data{'ext-clock'},
+	'high-speed-key' => $speed_info->{'high-speed-key'},
 	'min-max-key' => $speed_info->{'min-max-key'},
 	'min-max' => $speed_info->{'min-max'},
 	'socket' => $dmi_data{'socket'},
@@ -10216,8 +10192,51 @@ sub dmidecode_data {
 	return \%dmi_data;
 }
 sub cp_speed_data {
-	my ($cpu) = @_;
+	my ($cpu,$cpu_sys) = @_;
 	my %info;
+	if (defined $cpu_sys->{'data'}){
+		if (defined $cpu_sys->{'data'}{'speeds'}{'min-freq'}){
+			$cpu->{'min-freq'} = $cpu_sys->{'data'}{'speeds'}{'min-freq'};
+		}
+		if (defined $cpu_sys->{'data'}{'speeds'}{'max-freq'}){
+			$cpu->{'max-freq'} = $cpu_sys->{'data'}{'speeds'}{'max-freq'};
+		}
+		if (defined $cpu_sys->{'data'}{'speeds'}{'all'}){
+			$cpu->{'processors'} = $cpu_sys->{'data'}{'speeds'}{'all'};
+		}
+		if (defined $cpu_sys->{'data'}{'cpufreq-boost'}){
+			$cpu->{'boost'} = $cpu_sys->{'data'}{'cpufreq-boost'};
+		}
+	}
+	if (defined $cpu->{'processors'}){
+		if (scalar @{$cpu->{'processors'}} > 1){
+			my ($agg,$high) = (0,0);
+			for (@{$cpu->{'processors'}}){
+				next if !$_; # bsds might have 0 or undef value, that's junk
+				$agg += $_;
+				$high = $_ if $_ > $high;
+			}
+			if ($agg){
+				$cpu->{'avg-freq'} = int($agg/scalar @{$cpu->{'processors'}});
+				$cpu->{'cur-freq'} = $high;
+				$info{'avg-speed-key'} = 'avg';
+				$info{'speed'} = $cpu->{'avg-freq'};
+				if ($high > $cpu->{'avg-freq'}){
+					$cpu->{'high-freq'} = $high;
+					$info{'high-speed-key'} = 'high';
+				}
+			}
+		}
+		elsif ($cpu->{'processors'}[0]) {
+			$cpu->{'cur-freq'} = $cpu->{'processors'}[0];
+			$info{'speed'} = $cpu->{'cur-freq'};
+		}
+	}
+	# BSDs generally will have processors count, but not per core speeds
+	if ($cpu->{'cur-freq'} && !$info{'speed'}){
+		$info{'speed'} = $cpu->{'cur-freq'};
+	}
+	# BSDs generally will have processors count, but not per core speeds
 	if ($cpu->{'min-freq'} && $cpu->{'max-freq'}){
 		$info{'min-max'} = "$cpu->{'min-freq'}/$cpu->{'max-freq'}";
 		$info{'min-max-key'} = "min/max";
@@ -10240,13 +10259,6 @@ sub cp_speed_data {
 		else {
 			$info{'speed-key'} = 'Speed (MHz)';
 		}
-		$info{'avg-speed-key'} = 'avg' if $cpu->{'avg-freq'};
-		# if ($cpu->{'max-freq'} && $cpu->{'cur-freq'} == $cpu->{'max-freq'}){
-		# 	$info{'speed'} = "$cpu->{'cur-freq'} MHz (max)";
-		# }
-		# else {
-		$info{'speed'} = ($cpu->{'avg-freq'}) ? $cpu->{'avg-freq'}: $cpu->{'cur-freq'};
-		# }
  	}
  	return \%info;
 }
@@ -10312,23 +10324,6 @@ sub cpu_dies_sys {
 	eval $end if $b_log;
 	return scalar @dies;
 }
-# only used in cases where no cpu_sys speed data found
-sub cpu_speeds {
-	eval $start if $b_log;
-	my ($processors) = @_;
-	my (@speeds);
-	# handle special case, FB, where we use undef for no processor speed found
-	foreach (@$processors){
-		if ($_ || (defined $_ && $_ eq '0')){
-			$_ = sprintf("%.0f", $_);
-			push(@speeds, $_);
-		}
-	}
-	# print join('; ', @speeds), "\n";
-	eval $end if $b_log;
-	return \@speeds;
-}
-
 # only elbrus ID is actually used live
 sub cpu_vendor {
 	eval $start if $b_log;
