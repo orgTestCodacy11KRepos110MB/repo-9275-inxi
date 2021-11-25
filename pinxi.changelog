@@ -6,6 +6,11 @@ Date: 2021-??-??
 RELEASE NOTES:
 --------------------------------------------------------------------------------
 
+Huge refactor of CPU physical/core/cache logic. That was some very old logic 
+with a lot of hacks and patches, but it had never been actually rewritten to 
+take advantage of Perl's far more powerful and robust data structures and logic. 
+This caused a continuous stream of error cases in subtle ways, or not so subtle, 
+and fixes were just changing how the errors manifested.
 
 --------------------------------------------------------------------------------
 KNOWN ISSUES:
@@ -14,13 +19,54 @@ KNOWN ISSUES:
 --------------------------------------------------------------------------------
 BUGS:
 
+1. 3.3.09,10 CPU bugs:
+* Failed to filter out certain virtual machine CPU core speeds, and showed more
+speeds than the instance actually has. Noticed this with KVM running on Xeon 
+CPUs.
+* For many cases, L2 cache, particularly for Intel, was completely wrong, it was 
+showing L3 caches, or L3+L2. Failed to handle cases where L2 cache belongs to 
+more than 1 core, except for using a crude hack for AMD Bulldozer microarch. 
+Older Intel Core 4 core CPUs would sometimes be 1 L2 per die, and the 4 cores 
+were actually 2 core duo cpu dies, with one L2 cache per die.
+* Shows wrong core count for complex core complexes like those found in Intel 
+Alder Lake, now shows correct count of actual cores, regardless of the MT or ST 
+state of each core.
+
 
 --------------------------------------------------------------------------------
 FIXES:
 
 
+
+
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
+
+1. CPU: most Linux will now show L1 and L3 cache with -Cxx without needing 
+sudo/root.
+
+2. CPU: shows physical processor count * L1/L2/L3 totals, and shows actual full 
+system total in parentheses, like: L2: 1.5 MiB (3 MiB).
+
+3. CPU: A long standing annoyance, previously for main CPU 'Speed:' item, showed 
+the fastest core speed found, now shows avg: [speed] and with -Cx, shows the 
+'high:' as well if > 1 cores, 1 or more cores have a higher speed than the 
+other(s). 
+
+4. CPU: Handles advanced cases of new architectures, like Alder Lake with 
+Performance and Efficiency cores, future Zen, and existing ARM CPUs with 2 or 
+more different core sets, with different max/min frequencies. Previously a hack 
+was used to handle only ARM CPUs with this type of architecture. Will show 
+correct CPU core counts, which previous inxi versions would fail to do for Alder 
+Lake type scenarios of 8 single threaded CPUs and 4-8 multithreaded )MT) 
+perforance cores.
+
+5. CPU: will show with -Ca for cases where different L1/L2 caches found per 
+physical CPU, as with Alder Lake, how many of each size cache were found. 
+
+6. CPU: will show, for cases like Alder Lake with different core types in one 
+physical CPU, the number that are single threaded (ST) and number that are 
+multi-threaded (MT).
 
 
 --------------------------------------------------------------------------------
@@ -49,10 +95,11 @@ DOCUMENTATION:
 CODE:
 
 1. Removed legacy /sys cpu functions: cpu_bugs_sys(); get_boost_status(); 
-set_cpu_speeds_sys(). cpu_speeds() is deprecated and now will only be used for
-legacy Linux and BSDs if they had any per core speeds found; get_caches() was
-only a placeholder for the full featured cpu_sys data source, and was removed;
-cpu_speeds() no longer needed, integrated into other logic.
+set_cpu_speeds_sys(). cpu_speeds() is deprecated and now will only be used for 
+legacy Linux and BSDs if they had any per core speeds found; get_caches() was 
+only a placeholder for the full featured cpu_sys data source, and was removed; 
+cpu_speeds() no longer needed, integrated into other logic; cpu_dies_sys() 
+removed, integrated into other logic.
 
 This logic is now integrated into cpu_data_sys() data generator.
 
