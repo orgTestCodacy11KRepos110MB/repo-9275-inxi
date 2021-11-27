@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-26';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8190,14 +8190,14 @@ sub bluetooth_version {
 ## CpuItem
 {
 package CpuItem;
-
+my ($type);
 sub get {
 	eval $start if $b_log;
-	my ($type) = @_;
+	($type) = @_;
 	my (@rows);
 	if ($type eq 'short' || $type eq 'basic'){
 		# note, for short form, just return the raw data, not the processed output
-		@rows = short_data($type);
+		@rows = short_data();
 		if ($type eq 'basic'){
 			@rows = short_output(\@rows);
 		}
@@ -8224,7 +8224,7 @@ sub full_output {
 		else {
 			select(undef, undef, undef, $cpu_sleep);
 		}
-		$cpu = cpuinfo_data($file,'full');
+		$cpu = cpuinfo_data($file);
 	}
 	elsif ($bsd_type){
 		my ($key1,$val1) = ('','');
@@ -8232,7 +8232,7 @@ sub full_output {
 			if ($alerts{'sysctl'}->{'action'} eq 'use'){
 # 				$key1 = 'Status';
 # 				$val1 = main::row_defaults('dev');
-				$cpu = sysctl_data('full');
+				$cpu = sysctl_data();
 			}
 			else {
 				$key1 = ucfirst($alerts{'sysctl'}->{'action'});
@@ -8297,13 +8297,24 @@ sub full_output {
 	 ((!$b_arm && !$b_mips && !$b_ppc) || $properties->{'l2-cache'})){
 		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
 		if ($extra > 1 && $properties->{'l1-cache'}){
-			$rows[$j]->{main::key($num++,0,3,'L1')} = $properties->{'l1-cache'};
+			$rows[$j]->{main::key($num++,2,3,'L1')} = $properties->{'l1-cache'};
+			if ($b_admin && $properties->{'l1d-desc'}){
+				my $desc = 'd-' . $properties->{'l1d-desc'};
+				$desc .= '; i-' . $properties->{'l1i-desc'};
+				$rows[$j]->{main::key($num++,0,4,'desc')} = $desc;
+			}
 		}
 		# the arm + l2 will never be true since arm cpus don't have l2 cache
 		$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
-		$rows[$j]->{main::key($num++,0,3,'L2')} = $properties->{'l2-cache'};
+		$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
+		if ($b_admin && $properties->{'l2-desc'}){
+			$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l2-desc'};
+		}
 		if ($extra > 1 && $properties->{'l3-cache'}){
-			$rows[$j]->{main::key($num++,0,3,'L3')} = $properties->{'l3-cache'};
+			$rows[$j]->{main::key($num++,1,3,'L3')} = $properties->{'l3-cache'};
+		}
+		if ($b_admin && $properties->{'l3-desc'}){
+			$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l3-desc'};
 		}
 		if ($properties->{'cache-check'}){
 			$rows[$j]->{main::key($num++,0,3,'note')} = $properties->{'cache-check'};
@@ -8462,7 +8473,6 @@ sub short_output {
 ## SHORT OUTPUT DATA ##
 sub short_data {
 	eval $start if $b_log;
-	my ($type) = @_;
 	my $num = 0;
 	my ($cpu,@data,%speeds);
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
@@ -8476,7 +8486,7 @@ sub short_data {
 		else {
 			select(undef, undef, undef, $cpu_sleep);
 		}
-		$cpu = cpuinfo_data($file,$type);
+		$cpu = cpuinfo_data($file);
 	}
 	elsif ($bsd_type){
 		my ($key1,$val1) = ('','');
@@ -8618,7 +8628,7 @@ sub cpuinfo_grabber {
 }
 sub cpuinfo_data {
 	eval $start if $b_log;
-	my ($file,$type)=  @_;
+	my ($file)=  @_;
 	my ($arch,$note,$temp);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
@@ -9001,7 +9011,6 @@ sub get_sys_data {
 }
 sub sysctl_data {
 	eval $start if $b_log;
-	my ($type) = @_;
 	my %cpu = set_cpu_data();
 	my (@line,%speeds,@working);
 	my ($sep) = ('');
@@ -9423,7 +9432,7 @@ sub cpu_properties {
 		$counts{'dies'} = 1;
 		$cpu->{'dies'} = 1;
 	}
-	if ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'})){
+	if ($type eq 'full' && ($extra > 1 || ($bsd_type && !$cpu->{'l2-cache'}))){
 		cp_data_dmi(
 		$cpu,
 		\%dmi_data,
@@ -9437,7 +9446,7 @@ sub cpu_properties {
 	
 	## START CACHE PROCESSING ##
 	# Get BSD and legacy linux caches if not already from dmidecode or cpu_sys.
-	if (!$caches{'l1'} && !$caches{'l2'} && !$caches{'l2'}){
+	if ($type eq 'full' && !$caches{'l1'} && !$caches{'l2'} && !$caches{'l2'}){
 		cp_caches_fallback(
 		\%counts,
 		$cpu,
@@ -9445,15 +9454,17 @@ sub cpu_properties {
 		);
 	}
 	# nothing to check!
-	$cache_check = '' if !$caches{'l1'} && !$caches{'l2'} && !$caches{'l3'};
-	if ($caches{'l1'}){
-		$caches{'l1'} = cp_cache_processor($caches{'l1'},$counts{'physical'});
-	}
-	if ($caches{'l2'}){
-		$caches{'l2'} = cp_cache_processor($caches{'l2'},$counts{'physical'});
-	}
-	if ($caches{'l3'}){
-		$caches{'l3'} = cp_cache_processor($caches{'l3'},$counts{'physical'});
+	if ($type eq 'full'){
+		$cache_check = '' if !$caches{'l1'} && !$caches{'l2'} && !$caches{'l3'};
+		if ($caches{'l1'}){
+			$caches{'l1'} = cp_cache_processor($caches{'l1'},$counts{'physical'});
+		}
+		if ($caches{'l2'}){
+			$caches{'l2'} = cp_cache_processor($caches{'l2'},$counts{'physical'});
+		}
+		if ($caches{'l3'}){
+			$caches{'l3'} = cp_cache_processor($caches{'l3'},$counts{'physical'});
+		}
 	}
 	## END CACHE PROCESSING ##
 	
@@ -9516,8 +9527,12 @@ sub cpu_properties {
 	'upgrade' => $dmi_data{'upgrade'},
 	'volts' => $dmi_data{'volts'},
 	'l1-cache' => $caches{'l1'},
+	'l1d-desc' => $caches{'l1d-desc'},
+	'l1i-desc' => $caches{'l1i-desc'},
 	'l2-cache' => $caches{'l2'},
+	'l2-desc' => $caches{'l2-desc'},
 	'l3-cache' => $caches{'l3'},
+	'l3-desc' => $caches{'l3-desc'},
 	);
 	main::log_data('dump','%cpu_properties',\%cpu_properties) if $b_log;
 	# print Data::Dumper::Dumper $cpu;
@@ -9728,21 +9743,40 @@ sub cp_data_sys {
 	eval $start if $b_log;
 	my ($cpu,$cpu_sys,$caches,$counts) = @_;
 	my (@keys) = (keys %{$cpu_sys->{'cpus'}});
+	my (%cache_desc);
 	return if !@keys;
 	$counts->{'physical'} = scalar @keys;
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}){
-		$caches->{'l1d'} += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}};
-		$caches->{'l1'} += $caches->{'l1d'};
-	}
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}){
-		$caches->{'l1i'} += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}};
-		$caches->{'l1'} += $caches->{'l1i'};
-	}
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}){
-		$caches->{'l2'} += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}};
-	}
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}){
-		$caches->{'l3'} += $_ for @{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}};
+	if ($type eq 'full'){
+		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}){
+			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}}){
+				$caches->{'l1d'} += $_ ;
+				$cache_desc{$_}++ if $b_admin;
+			}
+			$caches->{'l1'} += $caches->{'l1d'};
+			$caches->{'l1d-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
+		}
+		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}){
+			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}}){
+				$caches->{'l1i'} += $_ ;
+				$cache_desc{$_}++ if $b_admin;
+			}
+			$caches->{'l1'} += $caches->{'l1i'};
+			$caches->{'l1i-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
+		}
+		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}){
+			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}}){
+				$caches->{'l2'} += $_ ;
+				$cache_desc{$_}++ if $b_admin;
+			}
+			$caches->{'l2-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
+		}
+		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}){
+			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}}){
+				$caches->{'l3'} += $_ ;
+				$cache_desc{$_}++ if $b_admin;
+			}
+			$caches->{'l3-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
+		}
 	}
 	if ($cpu_sys->{'cpus'}{$keys[0]}{'dies'}){
 		$counts->{'dies'} = scalar @{$cpu_sys->{'cpus'}{$keys[0]}{'dies'}};
@@ -9770,10 +9804,21 @@ sub cp_data_sys {
 			}
 		}
 	}
+	# print Data::Dumper::Dumper $caches;
 	eval $end if $b_log;
 }
 
 ## CPU PROPERTIES TOOLS ## 
+sub cp_cache_desc {
+	my ($cache_desc) = @_;
+	my ($desc,$sep) = ('','');
+	foreach (sort keys %{$cache_desc}){
+		$desc .= $sep . $cache_desc->{$_} . 'x' . main::get_size($_,'string');
+		$sep = '; ';
+	}
+	undef %{$cache_desc};
+	return $desc;
+}
 # $caches passed by reference
 sub cp_cache_processor {
 	my ($cache,$count) = @_;
