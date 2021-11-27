@@ -15,10 +15,28 @@ and fixes were just changing how the errors manifested.
 --------------------------------------------------------------------------------
 KNOWN ISSUES:
 
-1. I was not able to do as well with the cpuinfo data tool due to the need to
-preserve BSD functionality, which is an anchor on this logic due to there being
-virtually no meaningful data on the BSDs for CPUs, which is kind of strange if
-you stop to think about it...
+1. I was not able to do as well with the cpuinfo data tool due to the need to 
+preserve BSD functionality, which is an anchor weighing down on this logic due 
+to there being virtually no meaningful advanced data in the BSDs for CPUs, which 
+is kind of strange if you stop to think about it. dmesg.boot is NOT an adequate 
+or acceptable data source, and should not be treated as one, I'm sorry. And 
+sysctl -a is also completely inadequate for many if not most cases involving 
+anything even remotely complex. 
+
+At some point it would really benefit all the BSDs to get together and implement 
+an enhanced / improved integrated version of /proc and /sys data structures, 
+with syntax and structure standard across all the BSDs (thus helping break the 
+successful divide and conquor they have imposed on themselves... usually outside 
+forces do this to defeat their opponents, but they are doing it to themselves, 
+which is a strange strategy, to put it mildly), since those were both clearly 
+and obviously invented specifically to overcome a long term weakness in BSD 
+data.
+
+It would be more than appropriate to use those excellent Linux ideas to make an 
+even better unified data structure. This would fix many issues in BSD reporting 
+challenges, immediately, and would also immediately bring BSD data sources back 
+in line with what has been available in Linux since almost the beginning, and 
+more so every year with the further development of the /sys file system.
 
 --------------------------------------------------------------------------------
 BUGS:
@@ -36,7 +54,6 @@ were actually 2 core duo cpu dies, with one L2 cache per die.
 Alder Lake, now shows correct count of actual cores, regardless of the MT or ST 
 state of each core.
 
-
 --------------------------------------------------------------------------------
 FIXES:
 
@@ -47,15 +64,15 @@ FIXES:
 ENHANCEMENTS:
 
 1. CPU: most Linux will now show L1 and L3 cache with -Cxx without needing 
-sudo/root.
+sudo/root, and it will be more accurate than ever before.
 
-2. CPU: shows physical processor count * L1/L2/L3 totals, and shows actual full 
-system total in parentheses, like: L2: 1.5 MiB (3 MiB).
+2. CPU: shows per CPU L1/L2/L3 totals, and shows actual full system physical 
+processor count * L1/L2/L3 total in parentheses, like: L2: 1.5 MiB (3 MiB).
 
 3. CPU: A long standing annoyance, previously for main CPU 'Speed:' item, showed 
 the fastest core speed found, now shows avg: [speed] and with -Cx, shows the 
-'high:' as well if > 1 cores, 1 or more cores have a higher speed than the 
-other(s). 
+'high:' as well if > 1 cores, and if 1 or more cores have a higher speed than 
+the other(s). 
 
 4. CPU: Handles advanced cases of new architectures, like Alder Lake with 
 Performance and Efficiency cores, future Zen, and existing ARM CPUs with 2 or 
@@ -65,23 +82,35 @@ correct CPU core counts, which previous inxi versions would fail to do for Alder
 Lake type scenarios of 8 single threaded CPUs and 4-8 multithreaded )MT) 
 perforance cores.
 
-5. CPU: will show with -Ca for cases where different L1/L2 caches found per 
-physical CPU, as with Alder Lake, how many of each size cache were found, 
-otherwise will show how many of each cache were found. 
+This should also in theory show different the different min/max speeds if they 
+were detected. Those did not seem to be set correctly in Alder Lake sample data 
+I saw however, P and E cores were set to the same min/max speeds.
 
-6. CPU: will show, for cases like Alder Lake with different core types in one 
-physical CPU, the number that are single threaded (ST) and number that are 
-multi-threaded (MT).
+5. Added CPU types MST (Multi+Single Thread) and AMCP (Asymmetrical Multi Core 
+Processor). This will be applied to any CPU that has this type of complex 
+topology that has been dynamically detected, like Alder Lake.
 
+6. CPU: shows with -Ca for cases where different L1/L2/L3 caches found per 
+physical CPU, as with Alder Lake, but also many other variants that were poorly 
+or not at all handled before, how many of each size cache were found, otherwise 
+will show how many of each cache were found. 
+
+7. CPU: shows with -Ca, for cases like Alder Lake with different core types in 
+one physical CPU (type: MST AMCP), the number that are single threaded (st) and 
+number that are multi-threaded (mt). Sample: type: MST (4-mt, 8-st) AMCP
 
 --------------------------------------------------------------------------------
 CHANGES:
 
 1. If /sys or /proc/cpuinfo speed data available: 
-* For -b CPU item 'speed: [speed MHz]' becomes:
-   speed (MHz): avg: [speed]
-* For -C, Speed item 'Speed: [speed MHz]' becomes:
-   Speed (MHz): avg: [speed]
+* For -b CPU item:
+   speed: [speed MHz] min/max: [min]/[max] MHz
+  becomes:
+   speed (MHz): avg: [speed] min/max: [min]/[max]
+* For -C, Speed item 
+   Speed: [speed MHz] min/max: [min]/[max] MHz Cores (MHz): ...
+  becomes:
+   Speed (MHz): avg: [speed] min/max: [min]/[max] cores: ...
 * For short form, shows speed/min/max but uses average speed if available.
 
 For -b and -C, only shows one MHz in Speed line starter, which slightly shortens
@@ -92,10 +121,14 @@ found, which was the case before, but shows an average of all cpu speeds found.
 Showing the fastest made some sense back in the days of single core, or even 
 dual core CPUs, but makes little sense today with many core/threaded cpus.
 
+With -x, it will show the high: [speed] item as well, after 'avg:'.
+
 --------------------------------------------------------------------------------
 DOCUMENTATION:
 
-1. Updated man/help for new cpu extra data options.
+1. Updated man/help for new CPU extra data options. 
+
+2. Cleaned up and added sample outputs for man CPU items. 
 
 --------------------------------------------------------------------------------
 CODE:
@@ -127,6 +160,9 @@ combination of those, like 3,6,12-29
 
 5. Added --force cpuinfo to bypass all /sys based cpu logic, useful for testing
 to see what would have happened using old logic.
+
+6. Added --dbg switches 39, 40, 41, for the new cpu sys data features, also made
+more consistent --dbg 8 and --dbg 38 switches.
 
 --------------------------------------------------------------------------------
 -- Harald Hope - Mon, 22 Nov 2021 13:15:49 -0800

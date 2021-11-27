@@ -5314,8 +5314,8 @@ sub show_options {
 	['2', '98', '', "Console IRC not in  X" ],
 	['2', '99', '', "Global - Overrides/removes all settings. Setting specific 
 	removes global." ],
-	['1', '-C', '--cpu', "CPU output, including per CPU clock speed and average
-	CPU speed (if relevant and available)." ],
+	['1', '-C', '--cpu', "CPU output (if each item available): topology, model, 
+	type, cache, average CPU speed, min/max speeds, per core clock speeds." ],
 	['1', '-d', '--disk-full, --optical', "Optical drive data (and floppy disks, 
 	if present). Triggers -D." ],
 	['1', '-D', '--disk', "Hard Disk info, including total storage and details 
@@ -8810,7 +8810,7 @@ sub cpuinfo_data {
 sub cpu_sys_data {
 	eval $start if $b_log;
 	my (%cpu_sys);
-	my $working = get_sys_data();
+	my $working = sys_data_grabber();
 	return \%cpu_sys if !%{$working};
 	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
 	my ($core_id,$phys_id,) = (0,0);
@@ -8911,18 +8911,27 @@ sub cpu_sys_data {
 		$cpu_sys{'data'}->{'speeds'}{'min-freq'} == $cpu_sys{'data'}->{'speeds'}{'max-freq'})){
 		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = 0;
 	}
-	# print Data::Dumper::Dumper \%cache_ids if $dbg[39];
 	main::log_data('dump','%cpu_sys',\%cpu_sys) if $b_log;
-	print Data::Dumper::Dumper \%cpu_sys if $dbg[39];
+	print Data::Dumper::Dumper \%cpu_sys if $dbg[8];
 	eval $end if $b_log;
 	return \%cpu_sys;
 }
-sub get_sys_data {
+sub sys_data_grabber {
 	eval $start if $b_log;
-	my $glob = '/sys/devices/system/cpu/';
-	$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
-	$glob .= 'vulnerabilities}/*';
-	my @files = main::globber($glob);
+	my (@files);
+	# this data has to match the data in cpuinfo grabber fake cpu, and remember
+	# to use --arm flag if arm tests
+	if ($fake{'cpu'}){
+		# my $file;
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/sys-arm-4-core-pinebook-1.txt";
+		# @files = main::reader($file);
+	}
+	else {
+		my $glob = '/sys/devices/system/cpu/';
+		$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
+		$glob .= 'vulnerabilities}/*';
+		@files = main::globber($glob);
+	}
 	main::log_data('dump','@files',\@files) if $b_log;
 	print Data::Dumper::Dumper \@files if $dbg[40];
 	my ($b_bug,$b_cache,$b_freq,$b_topo,$b_main,%working);
@@ -8930,7 +8939,12 @@ sub get_sys_data {
 	# need to return hash reference on failure or old systems complain
 	return \%working if !@files; 
 	foreach (sort @files){
-		next if -d $_;
+		if ($fake{'cpu'}){
+			($_,$item) = split(/::/,$_,2);
+		}
+		else {
+			next if -d $_;
+		}
 		$key = $_;
 		$key =~ m|/([^/]+)/([^/]+)$|;
 		my ($key_1,$key_2) = ($1,$2);
@@ -8982,13 +8996,15 @@ sub get_sys_data {
 			$main_key = '';
 			$main_id = '';
 		}
-		if (-r $_) {
-			$item = main::reader($_,'strip',0);
+		if (!$fake{'cpu'}){
+			if (-r $_) {
+				$item = main::reader($_,'strip',0);
+			}
+			else {
+				$item = main::row_defaults('root-required');
+			}
+			$item = main::row_defaults('undefined') if ! defined $item;
 		}
-		else {
-			$item = main::row_defaults('root-required');
-		}
-		$item = main::row_defaults('undefined') if ! defined $item;
 		if ($b_main){
 			$working{'data'}->{$id} = $item;
 		}
@@ -9375,7 +9391,7 @@ sub dmidecode_data {
 		$dmi_data{'upgrade'} = $upgrade;
 	}
 	main::log_data('dump','%dmi_data',\%dmi_data) if $b_log;
-	# print Data::Dumper::Dumper \%dmi_data;
+	print Data::Dumper::Dumper \%dmi_data if $dbg[27];
 	eval $end if $b_log;
 	return \%dmi_data;
 }
@@ -9546,6 +9562,7 @@ sub cpu_properties {
 ## CPU DATA ENGINES ##
 # everything is passed by reference so no need to return anything
 sub cp_data_dmi {
+	eval $start if $b_log;
 	my ($cpu,$dmi_data,$caches,$counts) = @_;
 	# note: dmidecode has one entry per cpu per cache type
 	my $cpu_dmi = dmidecode_data();
@@ -9574,6 +9591,7 @@ sub cp_data_dmi {
 	$dmi_data->{'speed'} = $cpu_dmi->{'speed'} if $cpu_dmi->{'speed'};
 	$dmi_data->{'ext-clock'} = $cpu_dmi->{'ext-clock'} if $cpu_dmi->{'ext-clock'};
 	$dmi_data->{'volts'} = $cpu_dmi->{'volts'} if $cpu_dmi->{'volts'};
+	eval $end if $b_log;
 }
 sub cp_data_fallback {
 	eval $start if $b_log;
@@ -9597,7 +9615,7 @@ sub cp_data_fallback {
 	# where rounds to 0 or 1 less
 	# print "$cpu{'type'},$cpu{'family'},$cpu{'model-id'},$cpu{'arch'}\n";
 	if ($tests->{'elbrus'} && $counts->{'processors'}){
-		my @elbrus = elbrus_data($cpu->{'family'},$cpu->{'model-id'},
+		my @elbrus = cp_elbrus_data($cpu->{'family'},$cpu->{'model-id'},
 		$counts->{'processors'},$cpu->{'arch'});
 		$counts->{'cpu-cores'} = $elbrus[0];
 		$counts->{'physical'} = $elbrus[1];
@@ -9814,7 +9832,7 @@ sub cp_cache_desc {
 	my ($desc,$sep) = ('','');
 	foreach (sort keys %{$cache_desc}){
 		$desc .= $sep . $cache_desc->{$_} . 'x' . main::get_size($_,'string');
-		$sep = '; ';
+		$sep = ', ';
 	}
 	undef %{$cache_desc};
 	return $desc;
@@ -9834,6 +9852,7 @@ sub cp_cache_processor {
 	return $output;
 }
 sub cp_caches_fallback {
+	eval $start if $b_log;
 	my ($counts,$cpu,$caches) = @_;
 	# L1 Cache
 	if ($cpu->{'l1-cache'}){
@@ -9866,6 +9885,7 @@ sub cp_caches_fallback {
 	if ($cpu->{'l3-cache'}){
 		$caches->{'l3'} = $cpu->{'l3-cache'};
 	}
+	eval $end if $b_log;
 }
 sub cp_count_alpha {
 	my ($count) = @_;
@@ -10283,13 +10303,23 @@ sub cp_cpu_arch {
 # if > 1 processor && processor ids (physical id) > 1 then Symmetric Multi Processing (SMP)
 # if = 1 processor then single core/processor Uni-Processor (UP)
 sub cp_cpu_type {
+	eval $start if $b_log;
 	my ($counts,$cpu,$tests) = @_;
 	my $cpu_type = '';
 	if ($counts->{'processors'} > 1 || 
 	 (defined $tests->{'intel'} && $tests->{'intel'} && $cpu->{'siblings'} > 0)){
 		# cpu_sys detected MT
 		if ($counts->{'cores-mt'} > 0){
-			$cpu_type .= 'MT'; 
+			if ($counts->{'cores-mt'} > 0 && $counts->{'cores-st'} > 0){
+				$cpu_type .= 'MST'; 
+				if ($b_admin){
+					$cpu_type .= ' (' . $counts->{'cores-mt'} . '-mt, ';
+					$cpu_type .= $counts->{'cores-st'} . '-st)'
+				}
+			}
+			else {
+				$cpu_type .= 'MT'; 
+			}
 		}
 		# non-multicore MT
 		elsif ($counts->{'processors'} == ($counts->{'physical'} * $counts->{'cpu-cores'} * 2)){
@@ -10307,9 +10337,14 @@ sub cp_cpu_type {
 		# non-MT multi-core or MT multi-core
 		if ($counts->{'processors'} == $counts->{'cpu-cores'} || 
 		 $counts->{'physical'} < $counts->{'cpu-cores'}){
-			$cpu_type .= ' MCP'; 
+			if ($counts->{'cores-mt'} > 0 && $counts->{'cores-st'} > 0){
+				$cpu_type .= ' AMCP';
+			}
+			else {
+				$cpu_type .= ' MCP';
+			}
 		}
-		# only solidly known > 1 die cpus will use this, ryzen and arm for now
+		# only solidly known > 1 die cpus will use this
 		if ($cpu->{'dies'} > 1){
 			$cpu_type .= ' MCM'; 
 		}
@@ -10322,9 +10357,43 @@ sub cp_cpu_type {
 	else {
 		$cpu_type = 'UP';
 	}
+	eval $end if $b_log;
 	return $cpu_type;
 }
+# needed because no physical_id in cpuinfo, but > 1 cpu systems exist
+# returns: 0 - per cpu cores; 1 - phys cpu count; 2 - override model defaul names
+sub cp_elbrus_data {
+	eval $start if $b_log;
+	my ($family_id,$model_id,$count,$arch) = @_;
+	# 0: cores
+	my @return = (0,1,$arch);
+	my %cores = (
+	# key=family id + model id
+	'41' => 1,
+	'42' => 1,
+	'43' => 4,
+	'44' => 2,
+	'46' => 1,
+	'47' => 8,
+	'48' => 1,
+	'49' => 8,
+	'59' => 8,
+	'4A' => 12,
+	'4B' => 16,
+	'4C' => 2,
+	'6A' => 12,
+	'6B' => 16,
+	'6C' => 2,
+	);
+	$return[0] = $cores{$family_id . $model_id} if $cores{$family_id . $model_id};
+	if ($return[0]){
+		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
+	}
+	eval $end if $b_log;
+	return @return;
+}
 sub cp_speed_data {
+	eval $start if $b_log;
 	my ($cpu,$cpu_sys) = @_;
 	my %info;
 	if (defined $cpu_sys->{'data'}){
@@ -10393,6 +10462,7 @@ sub cp_speed_data {
 			$info{'speed-key'} = 'Speed (MHz)';
 		}
  	}
+ 	eval $end if $b_log;
  	return \%info;
 }
 # update $tests by reference
@@ -10442,38 +10512,6 @@ sub cpu_vendor {
 	}
 	eval $end if $b_log;
 	return $vendor;
-}
-# needed because no physical_id in cpuinfo, but > 1 cpu systems exist
-# returns: 0 - per cpu cores; 1 - phys cpu count; 2 - override model defaul names
-sub elbrus_data {
-	eval $start if $b_log;
-	my ($family_id,$model_id,$count,$arch) = @_;
-	# 0: cores
-	my @return = (0,1,$arch);
-	my %cores = (
-	# key=family id + model id
-	'41' => 1,
-	'42' => 1,
-	'43' => 4,
-	'44' => 2,
-	'46' => 1,
-	'47' => 8,
-	'48' => 1,
-	'49' => 8,
-	'59' => 8,
-	'4A' => 12,
-	'4B' => 16,
-	'4C' => 2,
-	'6A' => 12,
-	'6B' => 16,
-	'6C' => 2,
-	);
-	$return[0] = $cores{$family_id . $model_id} if $cores{$family_id . $model_id};
-	if ($return[0]){
-		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
-	}
-	eval $end if $b_log;
-	return @return;
 }
 sub set_cpu_data {
 	my %cpu =  (

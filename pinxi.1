@@ -15,7 +15,7 @@
 .\"  with this program; if not, write to the Free Software Foundation, Inc.,
 .\"  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 .\"  
-.TH INXI 1 "2021\-11\-26" "inxi" "inxi manual"
+.TH INXI 1 "2021\-11\-27" "inxi" "inxi manual"
 
 .SH NAME
 inxi  \- Command line system information script for console and IRC
@@ -170,17 +170,21 @@ Setting a specific color type removes the global color selection.
 
 .TP
 .B \-C\fR,\fB \-\-cpu\fR
-Show full CPU output, including per CPU clock speed and all cores average speed 
-(available, and if more than 1 core). See \fB\-x\fR for more options, including 
-showing the highest speed of all cores.
+Show full CPU output (if each item available): CPU topology, model, type, L2 
+cache, average speed of all cores (if > 1 core, otherwise speed of the core), 
+min/max speeds for CPU, and per CPU clock speed. More data available with 
+\fB\-x\fR, \fB\-xx\fR \fB\-xxx\fR, and \fB\-a\fR options. 
 
-For certain CPUs shows CPU die count (Linux only, if available).
+Explanation of CPU type (\fBtype: MT MCP\fR) abbreviations:
 
-The details for each CPU include a technical description e.g. \fBtype: MT 
-MCP\fR
+* \fBAMCP\fR \- Asymmetric Multi Core Processor (more than 1 core per CPU, and
+more than one core type - single and multithreaded cores in the same CPU).
 
-* \fBMT\fR \- Multi/Hyper Threaded CPU, more than 1 thread per core 
-(previously \fBHT\fR).
+* \fBMT\fR \- Multi/Hyper Threaded CPU (more than 1 thread per core, previously 
+\fBHT\fR).
+
+* \fBMST\fR \- Multi and Single Threaded CPU (a CPU with both Single and Multi 
+Threaded cores).
 
 * \fBMCM\fR \- Multi Chip Model (more than 1 die per CPU).
 
@@ -192,7 +196,16 @@ MCP\fR
 
 Note that \fBmin/max:\fR speeds are not necessarily true in cases of 
 overclocked CPUs or CPUs in turbo/boost mode. See \fB\-Ca\fR for alternate 
-\fBbase/boost:\fR speed data.
+\fBbase/boost:\fR speed data, more granular cache data, and more.
+
+Sample:
+.nf
+\fBCPU:
+  Info: 2x 8-Core model: Intel Xeon E5-2620 v4 bits: 64 type: MT MCP SMP
+  cache: L2: 2x 2 MiB (4 MiB)
+  Speed (MHz): avg: 1601 min/max: 1200/3000 cores: 1: 1280 2: 1595 3: 1416
+  ... 32: 1634\fR
+.fi
 
 .TP
 .B \-d\fR,\fB \-\-disk\-full\fR,\fB\-\-optical\fR
@@ -1124,9 +1137,9 @@ found for each distribution system base detection.
 
 .TP
 .B \-xx \-C\fR
-\- Adds \fBL1\-cache:\fR and \fBL3\-cache:\fR if either are present/available. 
-For Linux, uses \fBgetconf \-a\fR (if supported), otherwise uses dmidecode + 
-doas[BSDs]/sudo/root. Force use of dmidecode by adding \fB\-\-dmidecode\fR.
+\- Adds \fBL1:\fR and \fBL3:\fR cache types if either are present/available. 
+For BSD or legacy Linux, uses dmidecode + doas[BSDs]/sudo/root. Force use of 
+dmidecode cache values by adding \fB\-\-dmidecode\fR.
 
 .TP
 .B \-xx \-D\fR
@@ -1422,6 +1435,7 @@ knows could possibly be used instead.
 \- Adds CPU family, model\-id, and stepping (replaces \fBrev\fR of \fB\-Cx\fR). 
 Format is \fBhexadecimal (decimal)\fR if greater than 9, otherwise 
 \fBhexadecimal\fR. 
+
 \- Adds CPU microcode. Format is \fBhexadecimal\fR.
 
 \- Adds socket type (for motherboard CPU socket, if available). If results 
@@ -1443,13 +1457,26 @@ CPU \fBmin/max:\fR speed results, but often are using this source.
 Samples:
 .nf
 CPU not overclocked, with boost, like Ryzen:
-\fBSpeed: 2861 MHz min/max: 1550/3400 MHz boost: enabled base/boost: 3400/3900\fR 
+\fBSpeed (MHz): 
+  avg: 2861 
+  high: 3250 
+  min/max: 1550/3400 
+  boost: enabled
+  base/boost: 3400/3900\fR 
 
 Overclocked 2900 MHz CPU, with no boost available: 
-\fBSpeed: 2900 MHz min/max: 800/2900 MHz base/boost: 3350/3000\fR
+\fBSpeed (MHz): 
+  avg: 2345 
+  high: 2900 
+  min/max: 800/2900
+  base/boost: 3350/3000\fR
 
 Overclocked 3000 MHz CPU, with boosted max speed:
-\fBSpeed: 4190 MHz min/max: 1200/3001 MHz base/boost: 3000/4000\fR
+\fBSpeed (MHz): 
+  avg: 3260
+  high: 4190
+  min/max: 1200/3001
+  base/boost: 3000/4000\fR
 .fi
 
 Note that these numbers can be confusing, but basically, the \fBbase\fR
@@ -1465,6 +1492,35 @@ Note that the normal \fBmin/max:\fR speeds do NOT show actual overclocked OR
 boost/turbo mode speeds, and appear to be hard\-coded values, not dynamic real
 values. The \fBbase/boost:\fR values are sometimes real, and sometimes not. 
 \fBbase\fR appears in general to be real.
+
+\- Adds breakdown of MT/ST cores if Multi+Single Threaded (\fBMST AMCP\fR) 
+processor. Linux only. Sample:
+.nf
+\fBtype: MST (4-mt, 8-st) AMCP\fR
+.fi
+
+\- Adds description of cache topology per cpu. Linux only.
+.nf
+\fBCPU:
+  Info: 2x 8-Core
+    model: Intel Xeon E5-2620 v4
+    bits: 64
+    type: MT MCP SMP
+    arch: Broadwell
+    family: 6
+    model-id: 4F (79)
+    stepping: 1
+    microcode: B00003E
+    cache:
+      L1: 2x 512 KiB (1024 KiB)
+        desc: d-8x32 KiB; i-8x32 KiB
+      L2: 2x 2 MiB (4 MiB)
+        desc: 8x256 KiB
+      L3: 2x 20 MiB (40 MiB)
+        desc: 1x20 MiB
+    flags: avx avx2 ht lm nx pae sse sse2 sse3 sse4_1 sse4_2 ssse3 vmx
+    bogomips: 4199\fR
+.fi
 
 \- Adds CPU Vulnerabilities (bugs) as known by your current kernel. Lists by
 \fBType: ... (status|mitigation): ....\fR for systems that support this feature 
