@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-26';
-my $self_patch='09';
+my $self_patch='10';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8685,7 +8685,7 @@ sub cpuinfo_data {
 				}
 			}
 			$temp = main::either_or($block->{'stepping'},$block->{'cpu revision'});
-			# can be 0!!
+			# can be 0
 			if (defined $temp){
 				$cpu{'stepping'} = uc(sprintf("%x",$temp));
 			}
@@ -9256,7 +9256,7 @@ sub dboot_data {
 				}
 				# they don't seem to use hex for steppings, so convert it
 				if (/\bStepping\s*=\s*(0x)?([0-9a-f]+)\b/){
-					$stepping = (!$1) ? uc(sprintf("%X", $2)) : $2;
+					$stepping = (!$1) ? uc(sprintf("%X",$2)) : $2;
 				}
 			}
 			elsif (/^cpu0:.*?[0-9\.]+\s?MHz:\sspeeds:\s(.*?)\s?MHz/){
@@ -9905,9 +9905,15 @@ sub cp_count_alpha {
 sub cp_cpu_arch {
 	eval $start if $b_log;
 	my ($type,$family,$model,$stepping) = @_;
-	# 0: L1 cache; 1: L2 cache: 2: L3 cache; 3: Core math; 4: cores/die
-	# values: 0: per cpu; 1: per core; decimal: per cpu multiplier; math: cores
-	$stepping = 0 if !main::is_numeric($stepping);
+	# we can get various random strings for rev/stepping, particularly for arm,ppc
+	# but we want stepping to be integer for math comparisons, so convert, or set
+	# to 0 so it won't break anything.
+	if (defined $stepping && $stepping =~ /^[A-F0-9]{1,3}$/i){
+		$stepping = hex($stepping);
+	}
+	else {
+		$stepping = 0
+	}
 	$family ||= '';
 	$model ||= '';
 	my ($arch,$note) = ('','');
@@ -10594,7 +10600,10 @@ sub hex_and_decimal {
 	my ($data) = @_; 
 	$data = '' if !defined $data;
 	if ($data =~ /\S/){
-		$data .= ' (' . hex($data) . ')' if hex($data) ne $data;
+		# only handle if a short hex number!!
+		if ($data =~ /^[0-9a-f]{1,3}$/i){
+			$data .= ' (' . hex($data) . ')' if hex($data) ne $data;
+		}
 	}
 	else {
 		$data = 'N/A';
