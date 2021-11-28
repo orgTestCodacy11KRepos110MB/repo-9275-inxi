@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-11-26';
-my $self_patch='10';
+my $self_date='2021-11-27';
+my $self_patch='11';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6246,7 +6246,8 @@ sub either_or {
 }
 sub general_cleaner {
 	my ($string) = @_;
-	my $cleaner = '\b(defauult string|empty|none|undefined.*|unknown|unspecified)\b';
+	my $cleaner = '\b(defauult string|empty|none|not set|undefined.*|unknown|';
+	$cleaner .= 'unspecified)\b';
 	$string =~ s/$cleaner//i;
 	return $string;
 }
@@ -7323,7 +7324,8 @@ sub battery_output {
 		# we need to handle cases where charge or energy full is 0
 		if (defined $battery->{$key}{'energy_now'} && $battery->{$key}{'energy_now'} ne ''){
 			$charge = "$battery->{$key}{'energy_now'} Wh";
-			if ($battery->{$key}{'energy_full'} && main::is_numeric($battery->{$key}{'energy_full'})){
+			if ($battery->{$key}{'energy_full'} && 
+			 main::is_numeric($battery->{$key}{'energy_full'})){
 				my $percent = sprintf("%.1f", $battery->{$key}{'energy_now'}/$battery->{$key}{'energy_full'}*100);
 				$charge .= ' (' . $percent  . '%)';
 			}
@@ -7337,7 +7339,8 @@ sub battery_output {
 		}
 		if ($battery->{$key}{'energy_full'} || $battery->{$key}{'energy_full_design'}){
 			$battery->{$key}{'energy_full_design'} ||= 'N/A';
-			$battery->{$key}{'energy_full'}= (defined $battery->{$key}{'energy_full'} && $battery->{$key}{'energy_full'} ne '') ? $battery->{$key}{'energy_full'} : 'N/A';
+			$battery->{$key}{'energy_full'} = (defined $battery->{$key}{'energy_full'} && 
+			 $battery->{$key}{'energy_full'} ne '') ? $battery->{$key}{'energy_full'} : 'N/A';
 			$condition = "$battery->{$key}{'energy_full'}/$battery->{$key}{'energy_full_design'} Wh";
 			if ($battery->{$key}{'of_orig'}){
 				$condition .= " ($battery->{$key}{'of_orig'}%)"; 
@@ -7350,7 +7353,8 @@ sub battery_output {
 		main::key($num++,0,2,'charge') => $charge,
 		main::key($num++,0,2,'condition') => $condition,
 		},);
-		if ($extra > 0 || ($battery->{$key}{'voltage_now'} && $battery->{$key}{'voltage_min_design'} && 
+		if ($extra > 0 || ($battery->{$key}{'voltage_now'} && 
+		 $battery->{$key}{'voltage_min_design'} && 
 		 ($battery->{$key}{'voltage_now'} - $battery->{$key}{'voltage_min_design'}) < 0.5)){
 			$battery->{$key}{'voltage_now'} ||= 'N/A';
 			$rows[$j]->{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
@@ -7410,14 +7414,16 @@ sub battery_output {
 			if ($upower_data{'percent'}){
 				$charge = $upower_data{'percent'};
 			}
-			elsif ($battery->{$key}{'capacity_level'} && lc($battery->{$key}{'capacity_level'}) ne 'unknown'){
+			elsif ($battery->{$key}{'capacity_level'} &&
+			 lc($battery->{$key}{'capacity_level'}) ne 'unknown'){
 				$charge = $battery->{$key}{'capacity_level'};
 			}
 			else {
 				$charge = 'N/A';
 			}
 			$model = $battery->{$key}{'model_name'} if $battery->{$key}{'model_name'};
-			$status = ($battery->{$key}{'status'} && lc($battery->{$key}{'status'}) ne 'unknown') ? $battery->{$key}{'status'}: 'N/A' ;
+			$status = ($battery->{$key}{'status'} && 
+			 lc($battery->{$key}{'status'}) ne 'unknown') ? $battery->{$key}{'status'}: 'N/A' ;
 			$vendor = $battery->{$key}{'manufacturer'} if $battery->{$key}{'manufacturer'};
 			if ($vendor || $model){
 				if ($vendor && $model){
@@ -8280,14 +8286,21 @@ sub full_output {
 			$rows[$j]->{main::key($num++,0,3,'note')} = $cpu->{'arch-note'};
 		}
 		# ntoe: had if arch, but stepping can be defined where arch failed, stepping can be 0
-		if (!$b_admin && defined $cpu->{'stepping'}){
-			$rows[$j]->{main::key($num++,0,2,'rev')} = $cpu->{'stepping'};
+		if (!$b_admin && (defined $cpu->{'stepping'} || defined $cpu->{'revision'})){
+			my $rev = main::either_or($cpu->{'stepping'},$cpu->{'revision'});
+			$rows[$j]->{main::key($num++,0,2,'rev')} = $rev;
 		}
 	}
 	if ($b_admin){
 		$rows[$j]->{main::key($num++,0,2,'family')} = hex_and_decimal($cpu->{'family'});
 		$rows[$j]->{main::key($num++,0,2,'model-id')} = hex_and_decimal($cpu->{'model-id'});
-		$rows[$j]->{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu->{'stepping'});
+		if (defined $cpu->{'stepping'}){
+			$rows[$j]->{main::key($num++,0,2,'stepping')} = hex_and_decimal($cpu->{'stepping'});
+		}
+		elsif (defined $cpu->{'revision'}){
+			$rows[$j]->{main::key($num++,0,2,'rev')} = $cpu->{'revision'};
+		}
+		
 		if (!$b_arm && !$b_mips && !$b_ppc && $cpu->{'type'} ne 'elbrus'){
 			$cpu->{'microcode'} ||= 'N/A';
 			$rows[$j]->{main::key($num++,0,2,'microcode')} = $cpu->{'microcode'};
@@ -8684,14 +8697,15 @@ sub cpuinfo_data {
 					$cpu{'arch'} = $temp;
 				}
 			}
+			# note: stepping and ARM cpu revision are integers
 			$temp = main::either_or($block->{'stepping'},$block->{'cpu revision'});
 			# can be 0
 			if (defined $temp){
 				$cpu{'stepping'} = uc(sprintf("%x",$temp));
 			}
-			# PPC
+			# PPC revision is a string
 			elsif (defined $block->{'revision'}){
-				$cpu{'stepping'} = $block->{'revision'};
+				$cpu{'revision'} = $block->{'revision'};
 			}
 			# this is hex so uc for cpu arch id. raspi 4 has Model rather than Hardware
 			if (defined $block->{'model'}){
@@ -9004,7 +9018,7 @@ sub sys_data_grabber {
 			else {
 				$item = main::row_defaults('root-required');
 			}
-			$item = main::row_defaults('undefined') if ! defined $item;
+			$item = main::row_defaults('undefined') if !defined $item;
 		}
 		if ($b_main){
 			$working{'data'}->{$id} = $item;
@@ -10520,6 +10534,7 @@ sub cpu_vendor {
 	eval $end if $b_log;
 	return $vendor;
 }
+# do not define model-id, stepping, or revision, those can be 0 valid value
 sub set_cpu_data {
 	my %cpu =  (
 	'arch' => '',
@@ -10536,10 +10551,8 @@ sub set_cpu_data {
 	'l3-cache' => 0, # store in KB
 	'max-freq' => 0, # MHz
 	'min-freq' => 0, # MHz
-	'model-id' => undef,
 	'model_name' => '',
 	'processors' => [],
-	'rev' => '',
 	'scalings' => [],
 	'siblings' => 0,
 	'type' => '',
@@ -17987,11 +18000,11 @@ sub dmidecode_data {
 					$manufacturer = $temp[1];
 				}
 				elsif ($temp[0] eq 'Part Number'){
-					$temp[1] =~ s/(^[0]+$||.*Module.*|Undefined.*|PartNum.*|\[Empty\]|^To be filled.*)//g;
+					$temp[1] =~ s/(^[0]+$|.*Module.*|Undefined.*|PartNum.*|\[Empty\]|^To be filled.*)//ig;
 					$part_number = $temp[1];
 				}
 				elsif ($temp[0] eq 'Serial Number'){
-					$temp[1] =~ s/(^[0]+$|Undefined.*|SerNum.*|\[Empty\]|^To be filled.*)//g;
+					$temp[1] =~ s/(^[0]+$|Undefined.*|SerNum.*|\[Empty\]|^To be filled.*)//ig;
 					$serial = $temp[1];
 				}
 			}
