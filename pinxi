@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-11-27';
-my $self_patch='16';
+my $self_date='2021-11-28';
+my $self_patch='17';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -4805,12 +4805,14 @@ sub get {
 		} },
 	'z|filter' => sub {
 		$use{'filter'} = 1;},
-	'filter-label' => sub {
+	'filter-label|zl' => sub {
 		$use{'filter-label'} = 1;},
 	'Z|filter-override|no-filter' => sub {
 		$use{'filter-override'} = 1;},
-	'filter-uuid' => sub {
+	'filter-uuid|zu' => sub {
 		$use{'filter-uuid'} = 1;},
+	'filter-v|filter-vulnerabilities|zv' => sub {
+		$use{'filter-vulnerabilities'} = 1;},
 	## Start non data options
 	'alt:i' => sub { 
 		my ($opt,$arg) = @_;
@@ -5440,12 +5442,14 @@ sub show_options {
 	1 switches output to 1 key/value pair per line. Example:^inxi^-y^130" ],
 	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial numbers, 
 	location (-w), user home directory name, host name. Default on for IRC clients." ],
-	['1', '', '--filter-label', "Filters out ${partition_string} labels in -j, 
+	['1', '', '--zl,--filter-label', "Filters out ${partition_string} labels in -j, 
 	-o, -p, -P, -Sa." ],
+	['1', '', '--zu,--filter-uuid', "Filters out ${partition_string} UUIDs in -j, 
+	-o, -p, -P, -Sa." ],
+	['1', '', '--zv,--filter-vulnerabilities', "Filters out Vulnerabilities 
+	report in -Ca." ],
 	['1', '-Z', '--no-filter', "Disable output filters. Useful for 	debugging 
 	networking issues in IRC, or you needed to use --tty, for example." ],
-	['1', '', '--filter-uuid', "Filters out ${partition_string} UUIDs in -j, 
-	-o, -p, -P, -Sa." ],
 	['0', '', '', "$line" ],
 	['0', '', '', "Extra Data Options:" ],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
@@ -8456,6 +8460,11 @@ sub full_output {
 			else {
 				$value = main::row_defaults('cpu-bugs-null');
 			}
+		}
+		if ($use{'filter-vulnerabilities'} && 
+			(defined $cpu->{'bugs-hash'} || $cpu->{'bugs-string'})){
+			$value = $filter_string;
+			undef $cpu->{'bugs-hash'};
 		}
 		push(@rows, {
 		main::key($num++,1,1,'Vulnerabilities') => $value,
