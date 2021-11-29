@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-28';
-my $self_patch='17';
+my $self_patch='18';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -10239,13 +10239,14 @@ sub cp_cpu_arch {
 				$arch = 'M Tolapai'} # pentium M system on chip
 			elsif ($model =~ /^(17|1D)$/){
 				$arch = 'Penryn'}
-			# had 25 also, but that's westmere
+			# had 25 also, but that's westmere, at least for stepping 2
 			elsif ($model =~ /^(1A|1E|1F|2C|2E|2F)$/){
 				$arch = 'Nehalem'}
 			elsif ($model =~ /^(1C|26)$/){
 				$arch = 'Bonnell'} # atom Bonnell? 27?
 			elsif ($model =~ /^(27|35|36)$/){
 				$arch = 'Saltwell'}
+			# 25 may be nahelem in a stepping, check. Stepping 2 is westmere
 			elsif ($model =~ /^(25|2C|2F)$/){
 				$arch = 'Westmere'}
 			elsif ($model =~ /^(2A|2D)$/){
@@ -10473,7 +10474,12 @@ sub cp_speed_data {
 			$cpu->{'max-freq'} = $cpu_sys->{'data'}{'speeds'}{'max-freq'};
 		}
 		if (defined $cpu_sys->{'data'}{'speeds'}{'all'}){
-			$cpu->{'processors'} = $cpu_sys->{'data'}{'speeds'}{'all'};
+			# only replace if we got actual speed values from cpufreq, or if no legacy
+			# sourced processors data. Handles fake syz core speeds for counts.
+			if ((grep {$_} @{$cpu_sys->{'data'}{'speeds'}{'all'}}) ||
+			 !@{$cpu->{'processors'}}){
+				$cpu->{'processors'} = $cpu_sys->{'data'}{'speeds'}{'all'};
+			}
 		}
 		if (defined $cpu_sys->{'data'}{'cpufreq-boost'}){
 			$cpu->{'boost'} = $cpu_sys->{'data'}{'cpufreq-boost'};
