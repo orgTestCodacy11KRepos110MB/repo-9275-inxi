@@ -8557,11 +8557,18 @@ sub cpuinfo_grabber {
 	$loaded{'cpuinfo'} = 1;
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
+		## CPU sys/cpuinfo pairs:
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		## ARM/MIPS
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+		## x86
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
@@ -8578,9 +8585,7 @@ sub cpuinfo_grabber {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		## Elbrus
 		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/elbrus-2c3/cpuinfo.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
@@ -8602,7 +8607,7 @@ sub cpuinfo_grabber {
 		next if !defined $key;
 		# ARM: 'Hardware' can appear in processor block; system type (mips)
 		# ARM: CPU revision; machine: Revision/PPC: revision (CPU implied)
-		if (($b_arm || $b_ppc || $b_mips) && (lc($key) eq 'hardware' || 
+		if (($b_arm || $b_ppc || $b_mips || $b_riscv) && (lc($key) eq 'hardware' || 
 		 lc($key) eq 'model' || lc($key) eq 'system type' || 
 		 lc($key) eq 'motherboard' || lc($key) eq 'serial' || 
 		 lc($key) eq 'firmware' || (!$b_ppc && lc($key) eq 'revision') || 
@@ -8840,16 +8845,21 @@ sub cpu_sys_data {
 		if (defined $cpu->{'topology'}{'core_id'}){
 			# id is not consistent, seen 5 digit id
 			$core_id = sprintf("%08d",$cpu->{'topology'}{'core_id'});
+			# ARM etc do not always have cpufreq
 			if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'}){
 				# note: unassigned cpus don't have topology or core id data
 				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
 				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
 					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
 					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},
-					$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					 $cpu->{'cpufreq'}{'scaling_cur_freq'});
 					push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},
-					$cpu->{'cpufreq'}{'scaling_cur_freq'});
+					 $cpu->{'cpufreq'}{'scaling_cur_freq'});
 				}
+			}
+			else {
+				push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},0);
+				push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},0);
 			}
 		}
 		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
@@ -8937,9 +8947,10 @@ sub sys_data_grabber {
 	# this data has to match the data in cpuinfo grabber fake cpu, and remember
 	# to use --arm flag if arm tests
 	if ($fake{'cpu'}){
-		# my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/sys-arm-4-core-pinebook-1.txt";
-		# @files = main::reader($file);
+		 my $file;
+		## CPU sys/cpuinfo pairs:
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
+		 @files = main::reader($file);
 	}
 	else {
 		my $glob = '/sys/devices/system/cpu/';
