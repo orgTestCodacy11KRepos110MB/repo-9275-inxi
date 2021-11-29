@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-27';
-my $self_patch='11';
+my $self_patch='13';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -71,8 +71,8 @@ my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
 
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,,%cpuinfo_machine,%disks_bsd,
-%dboot,%devices,%dl,%dmmapper,%force,%loaded,%mapper,%program_values,%rows,
-%sensors_raw,%service_tool,%show,%sysctl,%system_files,%usb);
+%dboot,%devices,%dl,%dmmapper,%force,%loaded,%mapper,%program_values,%risc,
+%rows,%sensors_raw,%service_tool,%show,%sysctl,%system_files,%usb);
 
 ## System Arrays
 my (@app,@cpuinfo,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
@@ -100,8 +100,8 @@ if (eval {require Time::HiRes}){
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 
 ## Booleans [busybox_ps not used actively]
-my ($b_admin,$b_android,$b_arm,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,
-$b_mips,$b_ppc,$b_riscv,$b_root,$b_running_in_display,$b_sparc);
+my ($b_admin,$b_android,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,$b_root,
+$b_running_in_display);
 
 ## System
 my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
@@ -497,10 +497,11 @@ sub set_os {
 	@uname = uname();
 	$os = lc($uname[0]);
 	$cpu_arch = lc($uname[-1]);
-	if ($cpu_arch =~ /arm|aarch/){$b_arm = 1;}
-	elsif ($cpu_arch =~ /mips/){$b_mips = 1}
-	elsif ($cpu_arch =~ /power|ppc/){$b_ppc = 1}
-	elsif ($cpu_arch =~ /sparc/){$b_sparc = 1}
+	if ($cpu_arch =~ /arm|aarch/){$risc{'arm'} = 1;$risc{'id'} = 'arm';}
+	elsif ($cpu_arch =~ /mips/){$risc{'mips'} = 1;$risc{'id'} = 'mips';}
+	elsif ($cpu_arch =~ /power|ppc/){$risc{'ppc'} = 1;$risc{'id'} = 'ppc';}
+	elsif ($cpu_arch =~ /riscv/){$risc{'riscv'} = 1;$risc{'id'} = 'riscv';}
+	elsif ($cpu_arch =~ /sparc/){$risc{'sparc'} = 1;$risc{'id'} = 'sparc';}
 	# aarch32 mips32 intel/amd handled in cpu
 	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9)/){
 		$bits_sys = 32;
@@ -1525,7 +1526,9 @@ sub run_debugger {
 		if ($debugger{'sys'} && main::count_dir_files('/sys')){
 			build_tree('sys');
 			# kernel crash, not sure what creates it, for ppc, as root
-			sys_traverse_data() if ($debugger{'sys'} && ($debugger{'sys-force'} || !$b_root || !$b_ppc)) ; 
+			if ($debugger{'sys'} && ($debugger{'sys-force'} || !$b_root || !$risc{'ppc'})){
+				sys_traverse_data();
+			}
 		}
 		else {
 			print "Skipping /sys data collection.\n";
@@ -1567,10 +1570,7 @@ sub create_debug_directory {
 		$root_string = '-root';
 	}
 	my $id = ($debugger{'id'}) ? '-' . $debugger{'id'}: '';
-	if ($b_arm){$alt_string = '-ARM'}
-	elsif ($b_mips){$alt_string = '-MIPS'}
-	elsif ($b_ppc){$alt_string = '-PPC'}
-	elsif ($b_sparc){$alt_string = '-SPARC'}
+	$alt_string = '-' . uc($risc{'id'}) if %risc;
 	$alt_string .= "-BSD-$bsd_type" if $bsd_type;
 	$alt_string .= '-ANDROID' if $b_android; 
 	$alt_string .= '-CYGWIN' if $b_cygwin; # could be windows arm?
@@ -2419,7 +2419,7 @@ sub wanted {
 		# block maybe: cfgroup\/
 		# picdec\/|, wait_for_fb_sleep/wake is an odroid thing caused hang
 		# wakeup_count also fails for android, but works fine on regular systems
-		return if $b_arm && $File::Find::name =~ m!^/sys/power/(wait_for_fb_|wakeup_count$)!;
+		return if $risc{'arm'} && $File::Find::name =~ m!^/sys/power/(wait_for_fb_|wakeup_count$)!;
 		# do not need . files or __ starting files
 		return if $File::Find::name =~ m!/\.[a-z]!;
 		# pp_num_states: amdgpu driver bug; android: wakeup_count
@@ -4486,7 +4486,7 @@ sub get {
 	'B|battery' => sub {
 		$show{'short'} = 0;
 		$show{'battery'} = 1;
-		$show{'battery-forced'} = 1; },
+		$show{'battery-forced'} = 1;},
 	'c|color:i' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg >= 0 && $arg < main::get_color_scheme('count')){
@@ -4500,14 +4500,14 @@ sub get {
 		} },
 	'C|cpu' => sub {
 		$show{'short'} = 0;
-		$show{'cpu'} = 1; },
+		$show{'cpu'} = 1;},
 	'd|disk-full|optical' => sub {
 		$show{'short'} = 0;
 		$show{'disk'} = 1;
-		$show{'optical'} = 1; },
+		$show{'optical'} = 1;},
 	'D|disk' => sub {
 		$show{'short'} = 0;
-		$show{'disk'} = 1; },
+		$show{'disk'} = 1;},
 	'E|bluetooth' => sub {
 		$show{'short'} = 0;
 		$show{'bluetooth'} = 1; 
@@ -4515,7 +4515,7 @@ sub get {
 	'f|flags|flag' => sub {
 		$show{'short'} = 0;
 		$show{'cpu'} = 1;
-		$show{'cpu-flag'} = 1; },
+		$show{'cpu-flag'} = 1;},
 	'F|full' => sub {
 		$show{'short'} = 0;
 		$show{'audio'} = 1;
@@ -4533,13 +4533,13 @@ sub get {
 		$show{'raid'} = 1;
 		$show{'sensor'} = 1;
 		$show{'swap'} = 1;
-		$show{'system'} = 1; },
+		$show{'system'} = 1;},
 	'G|graphics|graphic' => sub {
 		$show{'short'} = 0;
 		$show{'graphic'} = 1; 
-		$show{'graphic-basic'} = 1; },
+		$show{'graphic-basic'} = 1;},
 	'h|help|?' => sub {
-		$show{'help'} = 1; },
+		$show{'help'} = 1;},
 	'i|ip' => sub {
 		$show{'short'} = 0;
 		$show{'ip'} = 1;
@@ -4548,13 +4548,13 @@ sub get {
 		$use{'downloader'} = 1 if ! main::check_program('dig');},
 	'I|info' => sub {
 		$show{'short'} = 0;
-		$show{'info'} = 1; },
+		$show{'info'} = 1;},
 	'j|swap|swaps' => sub {
 		$show{'short'} = 0;
 		$show{'swap'} = 1;},
 	'J|usb' => sub {
 		$show{'short'} = 0;
-		$show{'usb'} = 1; },
+		$show{'usb'} = 1;},
 	'l|labels|label' => sub {
 		$show{'label'} = 1;},
 	'limit:i' => sub {
@@ -4567,10 +4567,10 @@ sub get {
 		} },
 	'L|logical|lvm' => sub {
 		$show{'short'} = 0;
-		$show{'logical'} = 1; },
+		$show{'logical'} = 1;},
 	'm|memory' => sub {
 		$show{'short'} = 0;
-		$show{'ram'} = 1; },
+		$show{'ram'} = 1;},
 	'memory-modules' => sub {
 		$show{'short'} = 0;
 		$show{'ram'} = 1; 
@@ -4581,24 +4581,24 @@ sub get {
 		$show{'ram-short'} = 1;},
 	'M|machine' => sub {
 		$show{'short'} = 0;
-		$show{'machine'} = 1; },
+		$show{'machine'} = 1;},
 	'n|network-advanced' => sub {
 		$show{'short'} = 0;
 		$show{'network'} = 1;
-		$show{'network-advanced'} = 1; },
+		$show{'network-advanced'} = 1;},
 	'N|network' => sub {
 		$show{'short'} = 0;
-		$show{'network'} = 1; },
+		$show{'network'} = 1;},
 	'o|unmounted' => sub {
 		$show{'short'} = 0;
-		$show{'unmounted'} = 1; },
+		$show{'unmounted'} = 1;},
 	'p|partition-full|partitions-full' => sub {
 		$show{'short'} = 0;
 		$show{'partition'} = 0;
-		$show{'partition-full'} = 1; },
+		$show{'partition-full'} = 1;},
 	'P|partitions|partition' => sub {
 		$show{'short'} = 0;
-		$show{'partition'} = 1; },
+		$show{'partition'} = 1;},
 	'partition-sort:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(dev-base|fs|id|label|percent-used|size|uuid|used)$/){
@@ -4609,14 +4609,14 @@ sub get {
 		} },
 	'r|repos|repo' => sub {
 		$show{'short'} = 0;
-		$show{'repo'} = 1; },
+		$show{'repo'} = 1;},
 	'R|raid' => sub {
 		$show{'short'} = 0;
 		$show{'raid'} = 1;
-		$show{'raid-forced'} = 1; },
+		$show{'raid-forced'} = 1;},
 	's|sensors|sensor' => sub {
 		$show{'short'} = 0;
-		$show{'sensor'} = 1; },
+		$show{'sensor'} = 1;},
 	'sleep:s' => sub {
 		my ($opt,$arg) = @_;
 		$arg ||= 0;
@@ -4628,10 +4628,10 @@ sub get {
 		} },
 	'slots|slot' => sub {
 		$show{'short'} = 0;
-		$show{'slot'} = 1; },
+		$show{'slot'} = 1;},
 	'S|system' => sub {
 		$show{'short'} = 0;
-		$show{'system'} = 1; },
+		$show{'system'} = 1;},
 	't|processes|process:s' => sub {
 		my ($opt,$arg) = @_;
 		$show{'short'} = 0;
@@ -4804,13 +4804,13 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		} },
 	'z|filter' => sub {
-		$use{'filter'} = 1; },
+		$use{'filter'} = 1;},
 	'filter-label' => sub {
-		$use{'filter-label'} = 1; },
+		$use{'filter-label'} = 1;},
 	'Z|filter-override|no-filter' => sub {
-		$use{'filter-override'} = 1; },
+		$use{'filter-override'} = 1;},
 	'filter-uuid' => sub {
-		$use{'filter-uuid'} = 1; },
+		$use{'filter-uuid'} = 1;},
 	## Start non data options
 	'alt:i' => sub { 
 		my ($opt,$arg) = @_;
@@ -4835,7 +4835,9 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
 	'arm' => sub {
-		$b_arm = 1 },
+		undef %risc;
+		$risc{'id'} = 'arm';
+		$risc{'arm'} = 1;},
 	'bsd:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(darwin|dragonfly|freebsd|openbsd|netbsd)$/i){
@@ -4889,17 +4891,17 @@ sub get {
 	'debug-no-exit' => sub {
 		$debugger{'no-exit'} = 1 },
 	'debug-no-proc' => sub {
-		$debugger{'no-proc'} = 1; },
+		$debugger{'no-proc'} = 1;},
 	'debug-no-sys' => sub {
-		$debugger{'sys'} = 0; },
+		$debugger{'sys'} = 0;},
 	'debug-proc' => sub {
-		$debugger{'proc'} = 1; },
+		$debugger{'proc'} = 1;},
 	'debug-proc-print' => sub {
 		$debugger{'proc-print'} = 1;},
 	'debug-sys-print' => sub {
-		$debugger{'sys-print'} = 1; },
+		$debugger{'sys-print'} = 1;},
 	'debug-test-1' => sub {
-		$debugger{'test-1'} = 1; },
+		$debugger{'test-1'} = 1;},
 	'debug-width|debug-y|debug-zy:i' => sub { 
 		my ($opt,$arg) = @_;
 		$arg ||= 80;
@@ -4910,7 +4912,7 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		} },
 	'dig' => sub {
-		$force{'no-dig'} = 0; },
+		$force{'no-dig'} = 0;},
 	'display:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^:?([0-9\.]+)?$/){
@@ -4999,13 +5001,15 @@ sub get {
 		$show{'host'} = 1;
 		$show{'no-host'} = 0},
 	'html-wan' => sub {
-		$force{'no-html-wan'} = 0; },
+		$force{'no-html-wan'} = 0;},
 	'irc' => sub {
-		$b_irc = 1; },
+		$b_irc = 1;},
 	'man' => sub {
-		$use{'yes-man'} = 1; },
+		$use{'yes-man'} = 1;},
 	'mips' => sub {
-		$b_mips = 1 },
+		undef %risc;
+		$risc{'id'} = 'mips';
+		$risc{'mips'} = 1;},
 	'output:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^(json|screen|xml)$/){
@@ -5015,20 +5019,20 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
 	'no-dig' => sub {
-		$force{'no-dig'} = 1; },
+		$force{'no-dig'} = 1;},
 	'no-doas' => sub {
-		$force{'no-doas'} = 1; },
+		$force{'no-doas'} = 1;},
 	'no-host|no-hostname' => sub {
 		$show{'host'} = 0 ;
 		$show{'no-host'} = 1},
 	'no-html-wan' => sub {
 		$force{'no-html-wan'}= 1;},
 	'no-man' => sub {
-		$use{'no-man'} = 0; },
+		$use{'no-man'} = 0;},
 	'no-ssl' => sub {
 		$dl{'no-ssl-opt'}=1 },
 	'no-sudo' => sub {
-		$force{'no-sudo'} = 1; },
+		$force{'no-sudo'} = 1;},
 	'output-file:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -5045,11 +5049,17 @@ sub get {
 	'pkg' => sub {
 		$force{'pkg'} = 1 },
 	'ppc' => sub {
-		$b_ppc = 1 },
+		undef %risc;
+		$risc{'id'} = 'ppc';
+		$risc{'ppc'} = 1;},
 	'recommends' => sub {
 		$show{'recommends'} = 1;},
+	'riscv' => sub {
+		undef %risc;
+		$risc{'id'} = 'riscv';
+		$risc{'riscv'} = 1;},
 	'sensors-default' => sub {
-		$use{'sensors-default'} = 1; },
+		$use{'sensors-default'} = 1;},
 	'sensors-exclude:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -5067,11 +5077,13 @@ sub get {
 			main::error_handler('bad-arg',$opt,$arg);
 		}},
 	'sparc' => sub {
-		$b_sparc = 1; },
+		undef %risc;
+		$risc{'id'} = 'sparc';
+		$risc{'sparc'} = 1;},
 	'sys-debug' => sub {
-		$debugger{'sys-force'} = 1; },
+		$debugger{'sys-force'} = 1;},
 	'tty' => sub { # workaround for ansible running this
-		$b_irc = 0; },
+		$b_irc = 0;},
 	'U|update:s' => sub { # 1,2,3 OR http://myserver/path/inxi
 		my ($opt,$arg) = @_;
 		process_updater($opt,$arg);},
@@ -5275,7 +5287,7 @@ sub show_options {
 	my $color_scheme_count = get_color_scheme('count') - 1; 
 	my $partition_string='partition';
 	my $partition_string_u='Partition';
-	my $flags = ($b_arm) ? 'features' : 'flags' ;
+	my $flags = (%risc || $bsd_type) ? 'features' : 'flags' ;
 	if ($bsd_type){
 		$partition_string='slice';
 		$partition_string_u='Slice';
@@ -6408,7 +6420,6 @@ sub row_defaults {
 	$id ||= '';
 	my %unfound = (
 	'arm-cpu-f' => 'Use -f option to see features',
-	'arm-pci' => 'No ARM data found for this feature.',
 	'battery-data' => 'No system battery data found. Is one present?',
 	'battery-data-bsd' => 'No battery data found. Try with --dmidecode',
 	'battery-data-sys' => 'No /sys data found.',
@@ -6445,7 +6456,6 @@ sub row_defaults {
 	'machine-data-bsd' => 'No machine data: Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-force-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
-	'mips-pci' => 'No MIPS data found for this feature.',
 	'note-check' => 'check',
 	'note-est' => 'est.',
 	'optical-data' => 'No optical or floppy data found.',
@@ -6467,6 +6477,7 @@ sub row_defaults {
 	'recommends' => 'see --recommends',
 	'repo-data', "No repo data detected. Does $self_name support your package manager?",
 	'repo-data-bsd', "No repo data detected. Does $self_name support $id?",
+	'risc-pci' => 'No ' . uc($id) . ' data found for this feature.',
 	'root-feature' => 'Feature requires superuser permissions.',
 	'root-item-incomplete' => "Full $id report requires superuser permissions.",
 	'root-required' => '<superuser required>',
@@ -6980,17 +6991,16 @@ sub get {
 	eval $start if $b_log;
 	my (@rows);
 	my $num = 0;
-	if (($b_arm || $b_mips) && !$use{'soc-audio'} && !$use{'pci-tool'}){
-		my $type = ($b_arm) ? 'arm' : 'mips';
+	if (%risc && !$use{'soc-audio'} && !$use{'pci-tool'}){
 		my $key = 'Message';
 		push(@rows,{
-		main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+		main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
 		},);
 	}
 	else {
 		push(@rows,device_output());
 	}
-	if (((($b_arm || $b_mips) && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows) && 
+	if (((%risc && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows) && 
 	   (my $file = $system_files{'asound-cards'})){
 		push(@rows,asound_output($file));
 	}
@@ -7751,13 +7761,12 @@ sub get {
 	my $num = 0;
 	$b_bluetooth = 1 if @ps_cmd && (grep {m|/bluetoothd\b|} @ps_cmd);
 	# note: rapi 4 has pci bus
-	if (($b_arm || $b_mips) && !$use{'soc-bluetooth'} && !$use{'pci-tool'}){
+	if (%risc && !$use{'soc-bluetooth'} && !$use{'pci-tool'}){
 		# do nothing, but keep the test conditions to force 
-		# the non arm case to always run
-		# my $type = ($b_arm) ? 'arm' : 'mips';
+		# the non risc case to always run
 		# my $key = 'Message';
 		# push(@rows,{
-		# main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+		# main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
 		# },);
 	}
 	else {
@@ -8301,13 +8310,14 @@ sub full_output {
 			$rows[$j]->{main::key($num++,0,2,'rev')} = $cpu->{'revision'};
 		}
 		
-		if (!$b_arm && !$b_mips && !$b_ppc && $cpu->{'type'} ne 'elbrus'){
+		if (!%risc && $cpu->{'type'} ne 'elbrus'){
 			$cpu->{'microcode'} ||= 'N/A';
 			$rows[$j]->{main::key($num++,0,2,'microcode')} = $cpu->{'microcode'};
 		}
 	}
+	# note, risc cpus are using l1, L2, L3 more often, but if risc and no L2, skip
 	if (($extra > 1 && ($properties->{'l1-cache'} || $properties->{'l3-cache'})) || 
-	 ((!$b_arm && !$b_mips && !$b_ppc) || $properties->{'l2-cache'})){
+	 (!%risc || $properties->{'l2-cache'})){
 		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
 		if ($extra > 1 && $properties->{'l1-cache'}){
 			$rows[$j]->{main::key($num++,2,3,'L1')} = $properties->{'l1-cache'};
@@ -8336,7 +8346,7 @@ sub full_output {
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
 		@flags = split(/\s+/, $cpu->{'flags'}) if $cpu->{'flags'};
-		$flag_key = ($b_arm || $bsd_type) ? 'features': 'flags';
+		$flag_key = (%risc || $bsd_type) ? 'features': 'flags';
 		my $flag = 'N/A';
 		if (@flags){
 			# failure to read dmesg.boot: dmesg.boot permissions; then short -Cx list flags
@@ -8345,7 +8355,8 @@ sub full_output {
 			@flags = sort @flags;
 			$flag = join(' ', @flags) if @flags;
 		}
-		if ($b_arm && $flag eq 'N/A'){
+		# only ARM has Features, never seen them for MIPS/PPC/SPARC/RISCV, but check
+		if ($risc{'arm'} && $flag eq 'N/A'){
 			$flag = main::row_defaults('arm-cpu-f');
 		}
 		push(@rows, {
@@ -8416,7 +8427,7 @@ sub full_output {
 		}
 	}
 	if ($show{'cpu-flag'} && !$b_flags){
-		$flag_key = ($b_arm || $bsd_type) ? 'Features': 'Flags';
+		$flag_key = (%risc || $bsd_type) ? 'Features': 'Flags';
 		@flags = split(/\s+/, $cpu->{'flags'}) if $cpu->{'flags'};
 		my $flag = 'N/A';
 		if (@flags){
@@ -8558,7 +8569,8 @@ sub cpuinfo_grabber {
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
 		## CPU sys/cpuinfo pairs:
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
 		## ARM/MIPS
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
@@ -8602,17 +8614,17 @@ sub cpuinfo_grabber {
 	push(@raw,'~~~') if @raw;
 	my ($b_processor,$key,$value);
 	my ($i) = (0);
-	foreach (@raw){
-		($key,$value) = split(/\s*:\s*/,$_,2);
+	my @key_tests = ('firmware','hardware','mmu','model','motherboard',
+	 'platform','system type','timebase');
+	foreach my $row (@raw){
+		($key,$value) = split(/\s*:\s*/,$row,2);
 		next if !defined $key;
 		# ARM: 'Hardware' can appear in processor block; system type (mips)
 		# ARM: CPU revision; machine: Revision/PPC: revision (CPU implied)
-		if (($b_arm || $b_ppc || $b_mips || $b_riscv) && (lc($key) eq 'hardware' || 
-		 lc($key) eq 'model' || lc($key) eq 'system type' || 
-		 lc($key) eq 'motherboard' || lc($key) eq 'serial' || 
-		 lc($key) eq 'firmware' || (!$b_ppc && lc($key) eq 'revision') || 
-		 lc($key) eq 'timebase' || lc($key) eq 'mmu' || lc($key) eq 'platform')){
-			$b_processor = 0
+		# orangepi3 has Hardware/Processor embedded in processor block
+		if (%risc && ((grep {lc($key) eq $_} @key_tests) || 
+		 (!$risc{'ppc'} && lc($key) eq 'revision'))){
+			$b_processor = 0;
 		}
 		else {
 			$b_processor = 1;
@@ -8629,7 +8641,6 @@ sub cpuinfo_grabber {
 			$cpuinfo[$i]->{$key} = $value;
 		}
 		else {
-			# orangepi3 has Hardware/Processor embedded in processor block
 			next if $cpuinfo_machine{lc($key)}; 
 			$cpuinfo_machine{lc($key)} = $value;
 		}
@@ -8672,7 +8683,7 @@ sub cpuinfo_data {
 				$cpu{'model_name'} = $temp;
 				$cpu{'model_name'} = main::cleaner($cpu{'model_name'});
 				$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
-				if ($b_arm || $cpu{'model_name'} =~ /ARM|AArch/i){
+				if ($risc{'arm'} || $cpu{'model_name'} =~ /ARM|AArch/i){
 					$cpu{'type'} = 'arm';
 					if ($cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
 						$cpu{'model_name'} = $1;
@@ -8686,8 +8697,7 @@ sub cpuinfo_data {
 						# print "p0:\n";
 					}
 				}
-				elsif ($b_mips || $cpu{'model_name'} =~ /mips/i){
-					$b_mips = 1;
+				elsif ($risc{'mips'} || $cpu{'model_name'} =~ /mips/i){
 					$cpu{'type'} = 'mips';
 				}
 			}
@@ -8698,7 +8708,7 @@ sub cpuinfo_data {
 					# translate integers to hex
 					$cpu{'family'} = uc(sprintf("%x",$temp));
 				}
-				elsif ($b_arm){
+				elsif ($risc{'arm'}){
 					$cpu{'arch'} = $temp;
 				}
 			}
@@ -8815,11 +8825,13 @@ sub cpuinfo_data {
 	}
 	undef @cpuinfo; # we're done with it, dump it
 	undef %cpuinfo_machine;
-	if ($b_arm || $b_mips){
-		$cpu{'type'} = ($b_arm) ? 'arm' : 'mips' if !$cpu{'type'};
+	if (%risc){
+		if (!$cpu{'type'}){
+			$cpu{'type'} = $risc{'id'};
+		}
 		if (!$bsd_type){
-			my %system_cpus = system_cpu_name();
-			$cpu{'system-cpus'} = \%system_cpus if %system_cpus;
+			my $system_cpus = system_cpu_name();
+			$cpu{'system-cpus'} = $system_cpus if %$system_cpus;
 		}
 	}
 	main::log_data('dump','%cpu',\%cpu) if $b_log;
@@ -8833,7 +8845,7 @@ sub cpu_sys_data {
 	my $working = sys_data_grabber();
 	return \%cpu_sys if !%{$working};
 	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
-	my ($core_id,$phys_id,) = (0,0);
+	my ($core_id,$fake_core_id,$phys_id,) = (0,0,-1);
 	my (%cache_ids,@freq_max,@freq_min);
 	foreach my $key (sort keys %{$working->{'cpus'}}){
 		($core_id,$phys_id) = (0,0);
@@ -8859,7 +8871,9 @@ sub cpu_sys_data {
 			}
 			else {
 				push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},0);
-				push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},0);
+				# seen cases, riscv, where core id, phys id, are all -1
+				my $id = ($core_id != -1) ? $core_id: $fake_core_id++;
+				push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$id}},0);
 			}
 		}
 		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
@@ -8949,8 +8963,9 @@ sub sys_data_grabber {
 	if ($fake{'cpu'}){
 		 my $file;
 		## CPU sys/cpuinfo pairs:
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
-		 @files = main::reader($file);
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
+		  $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~sys-1.txt";
+		  @files = main::reader($file);
 	}
 	else {
 		my $glob = '/sys/devices/system/cpu/';
@@ -9469,8 +9484,7 @@ sub cpu_properties {
 		);
 	}
 	# some arm cpus report each core as its own die, but that's wrong
-	if (($b_arm || $b_mips) && $counts{'dies'} > 1 && 
-	 $counts{'cpu-cores'} == $counts{'dies'}){
+	if (%risc && $counts{'dies'} > 1 && $counts{'cpu-cores'} == $counts{'dies'}){
 		$counts{'dies'} = 1;
 		$cpu->{'dies'} = 1;
 	}
@@ -9535,7 +9549,7 @@ sub cpu_properties {
 		($cpu->{'arch'},$cpu->{'arch-note'}) = @{$arch};
 	}
 	# cpu_arch comes from set_os()
-	if (!$cpu->{'arch'} && $cpu_arch && ($b_mips || $b_arm || $b_ppc)){
+	if (!$cpu->{'arch'} && $cpu_arch && %risc){
 		$cpu->{'arch'} = $cpu_arch;
 	}
 	if ($b_admin && defined $cpu_sys->{'data'}{'vulnerabilities'}){
@@ -9545,7 +9559,7 @@ sub cpu_properties {
 	
 	## START SPEED/BITS ##
 	my $speed_info = cp_speed_data($cpu,$cpu_sys);
- 	if (!$bits_sys && !$b_arm && $cpu->{'flags'}){
+ 	if (!$bits_sys && !%risc && $cpu->{'flags'}){
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
 	## END SPEED/BITS ##
@@ -9659,16 +9673,17 @@ sub cp_data_fallback {
 			$counts->{'cores'} = 0;# reset for each die!!
 			# NOTE: the counters can be undefined because the index comes from 
 			# core id: which can be 0 skip 1 then 2, which leaves index 1 undefined
-			# arm cpus do not actually show core id so ignore that counter
+			# risc cpus do not actually show core id so ignore that counter
 			foreach my $id (@$core_ref){
-				$counts->{'cores'}++ if defined $id && !$b_arm;
+				$counts->{'cores'}++ if defined $id && !%risc;
 			}
 			# print 'cores: ' . $counts->{'cores'}, "\n";
 		}
 	}
 	# this covers potentially cases where ARM cpus have > 1 die 
+	# maybe applies to all risc, not sure, but dies is broken anyway for cpuinfo
 	if (!$cpu->{'dies'}){
-		if ($b_arm && $counts->{'dies'} <= 1 && $cpu->{'dies'} > 1){
+		if ($risc{'arm'} && $counts->{'dies'} <= 1 && $cpu->{'dies'} > 1){
 			$cpu->{'dies'} = $cpu->{'dies'};
 		}
 		else {
@@ -9770,7 +9785,8 @@ sub cp_data_fallback {
 	# seen a case where a xeon vm in a dual xeon system actually had 2 cores, no MT
 	# so it reported 4 siblings, 2 cores, but actually only had 1 core per virtual cpu
 	# print "prc: $counts->{'processors'} phc: $counts->{'physical'} coc: $counts->{'cores'} cpc: $counts->{'cpu-cores'}\n";
-	if (!$b_arm && 
+	# this test was for arm but I think it applies to all risc, but risc will be sys
+	if (!%risc && 
 	 $counts->{'processors'} == $counts->{'physical'} * $counts->{'cores'} && 
 	 $counts->{'cpu-cores'} > $counts->{'cores'}){
 		$tests->{'ht'} = 0;
@@ -10600,7 +10616,7 @@ sub system_cpu_name {
 	}
 	main::log_data('dump','%cpus',\%cpus) if $b_log;
 	eval $end if $b_log;
-	return %cpus;
+	return \%cpus;
 }
 
 ## CLEANERS/OUTPUT HANDLERS ##
@@ -12576,11 +12592,10 @@ sub get {
 	eval $start if $b_log;
 	my (@rows);
 	my $num = 0;
-	if (($b_arm || $b_mips) && !$use{'soc-gfx'} && !$use{'pci-tool'}){
-		my $type = ($b_arm) ? 'arm' : 'mips';
+	if (%risc && !$use{'soc-gfx'} && !$use{'pci-tool'}){
 		my $key = 'Message';
 		push(@rows, {
-		main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+		main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
 		},);
 	}
 	else {
@@ -13945,7 +13960,7 @@ sub get {
 	}
 	elsif (!$bsd_type){
 		# this uses /proc/cpuinfo so only GNU/Linux
-		if ($b_arm || $b_mips || $b_ppc){
+		if (%risc){
 			%data = machine_data_soc();
 			@rows = machine_soc_output(\%data) if %data;
 		}
@@ -14104,10 +14119,7 @@ sub machine_soc_output {
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
 	if ($soc_machine->{'device'} || $soc_machine->{'model'}){
-		if ($b_arm){$key = 'ARM Device'}
-		elsif ($b_mips){$key = 'MIPS Device'}
-		elsif ($b_ppc){$key = 'PowerPC Device'}
-		$rows[$j]->{main::key($num++,0,1,'Type')} = $key;
+		$rows[$j]->{main::key($num++,0,1,'Type')} = uc($risc{'id'});
 		my $system = 'System';
 		if (defined $soc_machine->{'model'}){
 			$rows[$j]->{main::key($num++,1,1,'System')} = $soc_machine->{'model'};
@@ -14646,7 +14658,7 @@ sub get {
 	eval $start if $b_log;
 	my (@rows);
 	my $num = 0;
-	if (($b_arm || $b_mips) && !$use{'soc-network'} && !$use{'pci-tool'}){
+	if (%risc && !$use{'soc-network'} && !$use{'pci-tool'}){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
 	}
@@ -14656,11 +14668,10 @@ sub get {
 	push(@rows,usb_output());
 	# note: raspberry pi uses usb networking only 
 	if (!@rows){
-		if ($b_arm || $b_mips){
-			my $type = ($b_arm) ? 'arm' : 'mips';
+		if (%risc){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults($type . '-pci',''),
+			main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
 			},);
 		}
 		else {
@@ -14769,7 +14780,7 @@ sub device_output {
 	}
 	# @rows = ();
 	# we want to handle ARM errors in main get
-	if (!@rows && !$b_arm && !$b_mips){
+	if (!@rows && !%risc){
 		my $key = 'Message';
 		my $type = 'pci-card-data';
 		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
@@ -14867,7 +14878,7 @@ sub advanced_data_sys {
 		# for usb, we already know where we are
 		if (!$b_usb){
 			# pi mmcnr has pcitool and also these vendor/device paths.
-			if ((!$b_arm && !$b_ppc) || $use{'pci-tool'}){
+			if (!%risc || $use{'pci-tool'}){
 				$path = "$_/device/vendor";
 				$data1 = main::reader($path,'',0) if -r $path;
 				$data1 =~ s/^0x// if $data1;
@@ -14880,7 +14891,7 @@ sub advanced_data_sys {
 			# there are cases where arm devices have a small pci bus
 			# or, with mmcnr devices, will show device/vendor info in data1/2
 			# which won't match with the path IDs
-			if (($b_arm || $b_ppc || $b_mips || $b_sparc) && $chip && Cwd::abs_path($_) =~ /\b$chip\b/){
+			if (%risc && $chip && Cwd::abs_path($_) =~ /\b$chip\b/){
 				$data1 = $vendor;
 				$data2 = $chip;
 			}
@@ -14888,7 +14899,7 @@ sub advanced_data_sys {
 		# print "d1:$data1 v:$vendor d2:$data2 c:$chip bus_id: $bus_id\n";
 		# print Cwd::abs_path($_), "\n" if $bus_id;
 		if ($b_usb || $b_check || ($data1 && $data2 && $data1 eq $vendor && $data2 eq $chip && 
-		 (($b_arm || $b_mips || $b_ppc || $b_sparc) || check_bus_id($_,$bus_id)))){
+		 (%risc || check_bus_id($_,$bus_id)))){
 			$if = $_;
 			$if =~ s/^\/.+\///;
 			# print "top: if: $if ifs: @ifs_found\n";
@@ -17067,7 +17078,7 @@ sub lvm_data {
 		}
 		if ($item->{'segtype'}){
 			if ($item->{'segtype'} eq 'raid1'){$item->{'segtype'} = 'mirror';}
-			else {$item->{'segtype'} =~ s/^raid([0-9]+)/raid-$1/; }
+			else {$item->{'segtype'} =~ s/^raid([0-9]+)/raid-$1/;}
 		}
 		push(@lvraid, {
 		'components' => \@components,
@@ -19173,13 +19184,13 @@ sub get_repos_bsd {
 					# first dump all lines that start with #
 					@content =  main::reader($_,'strip');
 					# then do some clean up on the lines
-					@content = map { $_ =~ s/{|}|,|\*//g; $_; } @content if @content;
+					@content = map { $_ =~ s/{|}|,|\*//g; $_;} @content if @content;
 					# get all rows not starting with a # and starting with a non space character
 					my $url = '';
 					foreach my $line (@content){
 						if ($line !~ /^\s*$/){
 							my @data2 = split(/\s*:\s*/, $line);
-							@data2 = map { $_ =~ s/^\s+|\s+$//g; $_; } @data2;
+							@data2 = map { $_ =~ s/^\s+|\s+$//g; $_;} @data2;
 							if ($data2[0] eq 'url'){
 								$url = "$data2[1]:$data2[2]";
 								$url =~ s/"|,//g;
@@ -20543,11 +20554,11 @@ sub get {
 	my (@rows,$key1,$val1);
 	my $num = 0;
 	if ($fake{'dmidecode'} || ($alerts{'dmidecode'}->{'action'} eq 'use' && 
-	 (!$b_arm || $use{'slot-tool'}))){
+	 (!%risc || $use{'slot-tool'}))){
 		@rows = slot_output();
 	}
-	elsif ($b_arm && !$use{'slot-tool'}){
-		$key1 = 'ARM';
+	elsif (%risc && !$use{'slot-tool'}){
+		$key1 = uc($risc{'id'});
 		$val1 = main::row_defaults('arm-pci','');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
@@ -22827,7 +22838,7 @@ sub set {
 			# ! -d '/proc/bus/pci'
 			# this is sketchy, a sbc won't have pci, but a non sbc arm may have it, so 
 			# build up both and see what happens
-			if ($b_arm || $b_mips || $b_ppc || $b_sparc){
+			if (%risc){
 				soc_data();
 			}
 		}
@@ -23421,7 +23432,7 @@ sub assign_data {
 		$use{'soc-timer'} = 1 if $tool eq 'soc';
 	}
 	# not used at this point, -M comes before ANG
-	# $device_vm = check_vm($data[4]) if ((!$b_ppc && !$b_mips) && !$device_vm);
+	# $device_vm = check_vm($data[4]) if ((!$risc{'ppc'} && !$risc{'mips'}) && !$device_vm);
 	push(@devices,[@$data]);
 }
 # note: for soc, these have been converted in soc_type()
@@ -23941,7 +23952,7 @@ sub get_bsd_os {
 			@working = main::reader($distro_file);
 			@working = grep {/(ProductName|ProductVersion)/} @working if @working;
 			@working = grep {/<string>/} @working if @working;
-			@working = map {s/<[\/]?string>//g; } @working if @working;
+			@working = map {s/<[\/]?string>//g;} @working if @working;
 			$distro = join(' ', @working);
 		}
 	}
@@ -24788,7 +24799,7 @@ sub get_init_data {
 		# output: /sbin/init --version:  init (upstart 1.1)
 		# init (upstart 0.6.3)
 		# openwrt /sbin/init hangs on --version command, I think
-		if ((!$b_mips && !$b_sparc && !$b_arm) && 
+		if (!%risc && 
 		 ($init_version = program_version('init', 'upstart', '3','--version'))){
 			$init = 'Upstart';
 		}
@@ -25234,7 +25245,7 @@ sub meminfo_data {
 			$available = main::get_piece($_,2);
 		}
 	}
-	$gpu = gpu_ram_arm() if $b_arm;
+	$gpu = gpu_ram_arm() if $risc{'arm'};
 	#$gpu = main::translate_size('128M');
 	$total += $gpu;
 	if ($available){
@@ -27373,7 +27384,7 @@ sub bus_id_alpha {
 # note: seen instance in android where reading file hangs endlessly!!!
 sub get_wakeups {
 	eval $start if $b_log;
-	return if $b_arm || $b_mips || $b_ppc;
+	return if %risc;
 	my ($wakeups);
 	my $path = '/sys/power/wakeup_count';
 	$wakeups = reader($path,'strip',0) if -r $path;
@@ -27434,7 +27445,7 @@ sub generate {
 			assign_data(\%row);
 		}
 		if ($show{'cpu'} || $show{'cpu-basic'}){
-			DeviceData::set(\$checks{'device'}) if $b_arm && !$checks{'device'};
+			DeviceData::set(\$checks{'device'}) if %risc && !$checks{'device'};
 			DmidecodeData::set(\$checks{'dmi'}) if $use{'dmidecode'} && !$checks{'dmi'}; 
 			my $arg = ($show{'cpu-basic'}) ? 'basic' : 'full' ;
 			%row = item_handler('CPU','cpu',$arg);
