@@ -19472,14 +19472,14 @@ sub get {
 sub sensors_output {
 	eval $start if $b_log;
 	my ($source,$sensors) = @_;
-	# note: might revisit this, since gpu sensors data might be present
-	return if ! %$sensors;
 	my (@gpu,@rows,@fan_default,@fan_main);
 	my ($data_source) = ('');
 	my $fan_number = 0;
 	my $num = 0;
 	my $j = 0;
 	@gpu = gpu_data() if ($source eq 'sensors' || $source eq 'lm-sensors');
+	# gpu sensors data might be present even if standard sensors data wasn't
+	return if !%$sensors && !@gpu;
 	my $temp_unit  = (defined $sensors->{'temp-unit'}) ? " $sensors->{'temp-unit'}": '';
 	my $cpu_temp = (defined $sensors->{'cpu-temp'}) ? $sensors->{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors->{'mobo-temp'}) ? $sensors->{'mobo-temp'} . $temp_unit: 'N/A';
@@ -19526,8 +19526,8 @@ sub sensors_output {
 		}
 	}
 	$j = scalar @rows;
-	@fan_main = @{$sensors->{'fan-main'}} if @{$sensors->{'fan-main'}};
-	@fan_default = @{$sensors->{'fan-default'}} if @{$sensors->{'fan-default'}};
+	@fan_main = @{$sensors->{'fan-main'}} if $sensors->{'fan-main'};
+	@fan_default = @{$sensors->{'fan-default'}} if $sensors->{'fan-default'};
 	my $fan_def = ($data_source) ? $data_source : '';
 	if (!@fan_main && !@fan_default){
 		$fan_def = ($fan_def) ? "$data_source N/A" : 'N/A';
@@ -19843,7 +19843,7 @@ sub lm_sensors_data {
 			# NOTE: I've seen an inexplicable case where: CPU:52.0°C fails to match with [\s°] but 
 			# does match with: [\s°]*. I can't account for this, but that's why the * is there
 			# Tdie is a new k10temp-pci syntax for cpu die temp
-			elsif ($_ =~ /^(T?CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i){
+			elsif ($_ =~ /^(Chip 0.*?|T?CPU.*|Tdie.*):([0-9\.]+)[\s°]*(C|F)/i){
 				$temp_working = $2;
 				$working_unit = $3;
 				if (!$sensors{'cpu-temp'} || 
@@ -19862,7 +19862,7 @@ sub lm_sensors_data {
 				$working_unit = $3;
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 			}
-			elsif ($_ =~ /^T?(dimm|mem|sodimm).*:([0-9\.]+)[\s°]*(C|F)/i){
+			elsif ($_ =~ /^T?(dimm|mem|sodimm).*?:([0-9\.]+)[\s°]*(C|F)/i){
 				$sensors{'sodimm-temp'} = $1;
 				$working_unit = $2;
 				$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
@@ -20016,6 +20016,7 @@ sub process_lm_sensors {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-pch-intel-1.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-ppc-sr71.txt";
 		# @sensors_data = main::reader($file);
 	}
 	else {
@@ -20524,7 +20525,7 @@ sub gpu_data {
 					 # print "temp: $_\n";
 				}
 				# speeds can be in percents or rpms, so need the 'fan' in regex
-				elsif (/^.*fan.*:([0-9\.]+).*(RPM)?/i){
+				elsif (/^.*?fan.*?:([0-9\.]+).*(RPM)?/i){
 					$gpudata[$j]->{'fan-speed'} = $1;
 					# NOTE: we test for nvidia %, everything else stays with nothing
 					$gpudata[$j]->{'speed-unit'} = '';
