@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-11-28';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8321,8 +8321,13 @@ sub full_output {
 	}
 	# note, risc cpus are using l1, L2, L3 more often, but if risc and no L2, skip
 	if (($extra > 1 && ($properties->{'l1-cache'} || $properties->{'l3-cache'})) || 
-	 (!%risc || $properties->{'l2-cache'})){
-		$rows[$j]->{main::key($num++,1,2,'cache')} = '';
+	 (!%risc || $properties->{'l2-cache'}) || $properties->{'cache'}){
+		my $value = '';
+		if ($properties->{'cache'} && !$properties->{'l1-cache'} && 
+		 !$properties->{'l2-cache'} && !$properties->{'l3-cache'}){
+			$value = $properties->{'cache'};
+		}
+		$rows[$j]->{main::key($num++,1,2,'cache')} = $value;
 		if ($extra > 1 && $properties->{'l1-cache'}){
 			$rows[$j]->{main::key($num++,2,3,'L1')} = $properties->{'l1-cache'};
 			if ($b_admin && ($properties->{'l1d-desc'} || $properties->{'l1i-desc'})){
@@ -8338,8 +8343,10 @@ sub full_output {
 			}
 		}
 		# the arm + l2 will never be true since arm cpus don't have l2 cache
-		$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
-		$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
+		if (!$value){
+			$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
+			$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
+		}
 		if ($b_admin && $properties->{'l2-desc'}){
 			$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l2-desc'};
 		}
@@ -8585,7 +8592,9 @@ sub cpuinfo_grabber {
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
 		## CPU sys/cpuinfo pairs:
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
 		## ARM/MIPS
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
@@ -8752,15 +8761,19 @@ sub cpuinfo_data {
 			}
 			## this is only for -C full cpu output
 			if ($type eq 'full'){
-				$temp = main::either_or($block->{'cache size'},$block->{'l2 cache size'});
-				if ($temp){
-					if ($temp =~ /(\d+\s*[KMG])i?B?$/){
-						$cpu{'l2-cache'} = main::translate_size($1);
-					}
+				# note: in cases where only cache is there, don't guess, it can be L1,
+				# L2, or L3, but never all of them added togehter, so give up.
+				if ($block->{'cache size'} && 
+					$block->{'cache size'} =~ /(\d+\s*[KMG])i?B?$/){
+					$cpu{'cache'} = main::translate_size($1);
 				}
 				if ($block->{'l1 cache size'} && 
 				 $block->{'l1 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
 					$cpu{'l1-cache'} = main::translate_size($1);
+				}
+				if ($block->{'l2 cache size'} && 
+					$block->{'l2 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
+					$cpu{'l2-cache'} = main::translate_size($1);
 				}
 				if ($block->{'l3 cache size'} && 
 				 $block->{'l3 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
@@ -8979,8 +8992,10 @@ sub sys_data_grabber {
 	if ($fake{'cpu'}){
 		 my $file;
 		## CPU sys/cpuinfo pairs:
-		  $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~sys-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~sys-1.txt";
+		  $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-sys.txt";
 		  @files = main::reader($file);
 	}
 	else {
@@ -9458,6 +9473,7 @@ sub cpu_properties {
 	my ($cpu) = @_;
 	my ($cpu_sys,%dmi_data,%tests);
 	my %caches = (
+	'cache' => 0, # general, non id'ed from cpuinfo generic cache
 	'l1' => 0,
 	'l1d' => 0,
 	'l1i' => 0,
@@ -9522,12 +9538,18 @@ sub cpu_properties {
 		cp_caches_fallback(
 		\%counts,
 		$cpu,
-		\%caches
+		\%caches,
+		\$cache_check,
 		);
 	}
 	# nothing to check!
 	if ($type eq 'full'){
-		$cache_check = '' if !$caches{'l1'} && !$caches{'l2'} && !$caches{'l3'};
+		if (!$caches{'l1'} && !$caches{'l2'} && !$caches{'l3'} && !$caches{'cache'}){
+			$cache_check = '';
+		}
+		if ($caches{'cache'}){
+			$caches{'cache'} = cp_cache_processor($caches{'cache'},$counts{'physical'});
+		}
 		if ($caches{'l1'}){
 			$caches{'l1'} = cp_cache_processor($caches{'l1'},$counts{'physical'});
 		}
@@ -9584,6 +9606,7 @@ sub cpu_properties {
 	my %cpu_properties = (
 	'avg-speed-key' => $speed_info->{'avg-speed-key'},
 	'bits-sys' => $bits_sys,
+	'cache' => $caches{'cache'},
 	'cache-check' => $cache_check,
 	'cpu-layout' => $cpu_layout,
 	'cpu-type' => $cpu_type,
@@ -9911,7 +9934,7 @@ sub cp_cache_processor {
 }
 sub cp_caches_fallback {
 	eval $start if $b_log;
-	my ($counts,$cpu,$caches) = @_;
+	my ($counts,$cpu,$caches,$cache_check) = @_;
 	# L1 Cache
 	if ($cpu->{'l1-cache'}){
 		$caches->{'l1'} = $cpu->{'l1-cache'} * $counts->{'cores-multiplier'};
@@ -9942,6 +9965,14 @@ sub cp_caches_fallback {
 	# l3 Cache - usually per physical cpu, but some rzyen will have per ccx. 
 	if ($cpu->{'l3-cache'}){
 		$caches->{'l3'} = $cpu->{'l3-cache'};
+	}
+	# don't do anything with it, we have no ideaw if it's L1, L2, or L3, generic
+	# cpuinfo fallback, it's junk data essentially, and will show as cache:
+	# only use this fallback if no cache data was found
+	if ($cpu->{'cache'} && !$caches->{'l1'} && !$caches->{'l2'} && 
+	 !$caches->{'l3'}){
+		$caches->{'cache'} = $cpu->{'cache'};
+		$$cache_check = main::row_defaults('note-check');
 	}
 	eval $end if $b_log;
 }
@@ -10067,13 +10098,11 @@ sub cp_cpu_arch {
 		}
 		elsif ($family eq '17'){
 			# can't find stepping/model for no ht 2x2 core/die models, only first ones
-			if ($model =~ /^(1|11)$/){
-				$arch = 'Zen';
-			}
-			elsif ($model =~ /^(18|20)$/){
+			if ($model =~ /^(1|11|20)$/){
 				$arch = 'Zen';
 			}
 			# Seen: stepping 1 is Zen+ Ryzen 7 3750H. But stepping 1 Zen is: Ryzen 3 3200U
+			# AMD Ryzen 3 3200G is stepping 1, Zen+
 			# Unknown if stepping 0 is Zen or either.
 			elsif ($model =~ /^(18)$/){
 				$arch = 'Zen/Zen+';
@@ -10238,7 +10267,7 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(15)$/){
 				$arch = 'M Tolapai'} # pentium M system on chip
 			elsif ($model =~ /^(17|1D)$/){
-				$arch = 'Penryn'}
+				$arch = 'Core Penryn'}
 			# had 25 also, but that's westmere, at least for stepping 2
 			elsif ($model =~ /^(1A|1E|1F|2C|2E|2F)$/){
 				$arch = 'Nehalem'}

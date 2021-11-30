@@ -76,13 +76,25 @@ rev: [string].
 
 2. Microarch:
 * AMD family 15, model 2 as bulldozer, actually piledriver. 
+* AMD family 17, model 18, was supposed to be zen/zen+, since I can't tell those
+apart, seen stepping 1 is zen+, but had incorrect match.
 * Intel family 6, model 25, stepping 2 as nehalem, should have been westmere.
+* Changed Penryn to Core Penryn, intel family 6, model 17
 
 3. Code fix 8, switched to global %risc for arm, mips, ppc, riscv, sparc. This
 corrects many sloppy handlers, and makes all risc processing the same, and calls
 device tree readers for all risc systems, not just arm or arm and mips.
 
 4. In cases where bogomips were 0 due to false values in risc results, show N/A.
+
+5. Removed all attempts to guess at what /proc/cpuinfo cache size: refers to,
+it can literally be anything, a per core L1, a per core or cpu L2, or an L3.
+So applying any math to it is just a random guess at that point. If any L1,2,3
+cache data is found, don't use the cache: value at all, but that will only be
+present if no /sys data was found anyway, and if cpuinfo had no specific cache
+type fields, only generic cache. 
+
+The only math applied is if > 1 physical cpu detected, then it's always handled.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -157,12 +169,26 @@ With -x, it will show the high: [speed] item as well, after 'avg:'.
 3. By suggestion, wrapped first Type item in Vulnerabilities to its own line,
 that's a verbose --admin option after all, no need to save lines!
 
+4. Going along with Fix 5, give up on trying to pretend we can guess at L2 
+cache, now if only 'cache' data was available from cpuinfo, will just say:
+cache: [cache size]
+ note: check
+ 
+and call it a day.
+
 --------------------------------------------------------------------------------
 DOCUMENTATION:
 
 1. Updated man/help for new CPU extra data options. 
 
 2. Cleaned up and added sample outputs for man CPU items. 
+
+3. Now that doas is getting into Linux distros, removed all mentions of doas as
+a BSD option, and made it a general doas/sudo item. Glad to see doas making it
+into linux distros, it's a good tool, much easier to configure and use than 
+sudo. Good job OpenBSD guys. Note that inxi already has had full doas support 
+for a while now, but this finalizes it, and makes it fully agnostic. Internally
+doas is actually preferred over sudo, by the way.
 
 --------------------------------------------------------------------------------
 CODE:
