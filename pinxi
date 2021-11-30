@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-11-28';
-my $self_patch='20';
+my $self_date='2021-11-29';
+my $self_patch='21';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8323,9 +8323,9 @@ sub full_output {
 	if (($extra > 1 && ($properties->{'l1-cache'} || $properties->{'l3-cache'})) || 
 	 (!%risc || $properties->{'l2-cache'}) || $properties->{'cache'}){
 		my $value = '';
-		if ($properties->{'cache'} && !$properties->{'l1-cache'} && 
-		 !$properties->{'l2-cache'} && !$properties->{'l3-cache'}){
-			$value = $properties->{'cache'};
+		if (!$properties->{'l1-cache'} && !$properties->{'l2-cache'} && 
+		 !$properties->{'l3-cache'}){
+			$value = ($properties->{'cache'}) ? $properties->{'cache'} : 'N/A';
 		}
 		$rows[$j]->{main::key($num++,1,2,'cache')} = $value;
 		if ($extra > 1 && $properties->{'l1-cache'}){
@@ -8342,7 +8342,6 @@ sub full_output {
 				$rows[$j]->{main::key($num++,0,4,'desc')} = $desc;
 			}
 		}
-		# the arm + l2 will never be true since arm cpus don't have l2 cache
 		if (!$value){
 			$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
 			$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
@@ -8686,6 +8685,40 @@ sub cpuinfo_data {
 	my ($arch,$note,$temp);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
+	# Run this logic first to make sure we get the speeds as raw as possible. 
+	# Not in function to avoid unnecessary cpu use, we have slept right before.
+	# ARM and legacy systems etc do not always have cpufreq.
+	if (-e '/sys/devices/system/cpu/'){
+		my $glob = '/sys/devices/system/cpu/cpu*/cpufreq/{affected_cpus,scaling_cur_freq}';
+		my ($error,$file,$key,%working,%freq,@value);
+		foreach (main::globber($glob)){
+			if (-r $_){
+				undef $error;
+				 # $fh always non null, even on error
+				open(my $fh, '<', $_) or $error = $!;
+				if (!$error){
+					m%/sys/devices/system/cpu/cpu(\d+)/cpufreq/(affected_cpus|scaling_cur_freq)%;
+					$key = $1;
+					$file = $2;
+					chomp(@value = <$fh>);
+					close $fh;
+					if ($file eq 'affected_cpus'){
+						# chomp seems to turn undefined into '', not sure why
+						$working{$key}->[0] = $value[0] if $value[0] ne '';
+					}
+					else {
+						$working{$key}->[1] = speed_cleaner($value[0],'khz');
+					}
+				}
+			}
+		}
+		if (%working){
+			foreach (keys %working){
+				$freq{sprintf("%04d",$_)} = $working{$_}->[1] if defined $working{$_}->[0];
+			}
+			$cpu{'sys-freq'} = \%freq if %freq;
+		}
+	}
 	cpuinfo_grabber($file) if !$loaded{'cpuinfo'};
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	my ($core_count,$proc_count,$speed) = (0,0,0);
@@ -8739,9 +8772,11 @@ sub cpuinfo_data {
 			}
 			# note: stepping and ARM cpu revision are integers
 			$temp = main::either_or($block->{'stepping'},$block->{'cpu revision'});
-			# can be 0
+			# can be 0, but can be 'unknown'
 			if (defined $temp){
-				$cpu{'stepping'} = uc(sprintf("%x",$temp));
+				if ($temp =~ /^\d+$/){
+					$cpu{'stepping'} = uc(sprintf("%x",$temp));
+				}
 			}
 			# PPC revision is a string
 			elsif (defined $block->{'revision'}){
@@ -8749,7 +8784,10 @@ sub cpuinfo_data {
 			}
 			# this is hex so uc for cpu arch id. raspi 4 has Model rather than Hardware
 			if (defined $block->{'model'}){
-				$cpu{'model-id'} = uc(sprintf("%x",$block->{'model'}));
+				# can be 0, but can be 'unknown'
+				if ($temp =~ /^\d+$/){
+					$cpu{'model-id'} = uc(sprintf("%x",$block->{'model'}));
+				}
 			}
 			if ($block->{'cpu variant'}){
 				$cpu{'model-id'} = uc($block->{'cpu variant'});
@@ -8870,6 +8908,7 @@ sub cpuinfo_data {
 }
 sub cpu_sys_data {
 	eval $start if $b_log;
+	my $sys_freq = $_[0];
 	my (%cpu_sys);
 	my $working = sys_data_grabber();
 	return \%cpu_sys if !%{$working};
@@ -8879,6 +8918,7 @@ sub cpu_sys_data {
 	foreach my $key (sort keys %{$working->{'cpus'}}){
 		($core_id,$phys_id) = (0,0);
 		my $cpu_id = $key + 0;
+		my $speed;
 		my $cpu = $working->{'cpus'}{$key};
 		if (defined $cpu->{'topology'}{'physical_package_id'}){
 			$phys_id = sprintf("%04d",$cpu->{'topology'}{'physical_package_id'});
@@ -8886,17 +8926,19 @@ sub cpu_sys_data {
 		if (defined $cpu->{'topology'}{'core_id'}){
 			# id is not consistent, seen 5 digit id
 			$core_id = sprintf("%08d",$cpu->{'topology'}{'core_id'});
-			# ARM etc do not always have cpufreq
-			if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'}){
-				# note: unassigned cpus don't have topology or core id data
-				if (defined $cpu->{'cpufreq'}{'affected_cpus'} && 
+			if ($fake{'cpu'}){
+				if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'} && 
+				 $cpu->{'cpufreq'}{'affected_cpus'} && 
 				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
-					$cpu->{'cpufreq'}{'scaling_cur_freq'} = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
-					push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},
-					 $cpu->{'cpufreq'}{'scaling_cur_freq'});
-					push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},
-					 $cpu->{'cpufreq'}{'scaling_cur_freq'});
+					$speed = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
 				}
+			}
+			elsif (defined $sys_freq && defined $sys_freq->{$key}){
+				$speed = $sys_freq->{$key};
+			}
+			if (defined $speed){
+				push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$core_id}},$speed);
+				push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},$speed);
 			}
 			else {
 				push(@{$cpu_sys{'data'}->{'speeds'}{'all'}},0);
@@ -9492,7 +9534,7 @@ sub cpu_properties {
 	);
 	my ($cache_check) = ('');
 	if (!$bsd_type && -d '/sys/devices' && !$force{'cpuinfo'}){
-		$cpu_sys = cpu_sys_data();
+		$cpu_sys = cpu_sys_data($cpu->{'sys-freq'});
 	}
 	cp_test_types($cpu,\%tests) if $cpu->{'type'};
 	undef $cpu_sys if $dbg[42];
@@ -10003,7 +10045,7 @@ sub cp_cpu_arch {
 		$stepping = 0
 	}
 	$family ||= '';
-	$model ||= '';
+	$model = '' if !defined $model; # model can be 0
 	my ($arch,$note) = ('','');
 	my $check = main::row_defaults('note-check');
 	# See: docs/inxi-resources.txt 
@@ -10375,7 +10417,11 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(3)$/){
 				$arch = 'Netburst Prescott'} # 6? Nocona
 			elsif ($model =~ /^(4)$/){
-				$arch = 'Netburst Smithfield'} # 6? Nocona
+				if ($stepping == 1){
+					$arch = 'Netburst Prescott'} 
+				else {
+					$arch = 'Netburst Smithfield'} # 6? Nocona
+			}
 			elsif ($model =~ /^(6)$/){
 				$arch = 'Netburst Presler'}
 			else {
