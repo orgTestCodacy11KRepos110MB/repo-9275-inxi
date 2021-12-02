@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-11-29';
-my $self_patch='22';
+my $self_date='2021-12-01';
+my $self_patch='23';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -100,8 +100,7 @@ if (eval {require Time::HiRes}){
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 
 ## Booleans [busybox_ps not used actively]
-my ($b_admin,$b_android,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,$b_root,
-$b_running_in_display);
+my ($b_admin,$b_android,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,$b_root);
 
 ## System
 my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
@@ -135,17 +134,17 @@ my %sep = (
 );
 #$show{'host'} = 1;
 my %size = (
-'console' => 115,
+'console' => 80, # orig: 115
 # Default indentation level. NOTE: actual indent is 1 greater to allow for 
 # spacing
 'indent' => 11,
 'wrap-max' => 90,
 'irc' => 100, # shorter because IRC clients have nick  lists etc
 'max' => 0,
-'no-display' => 130,
+'no-display' => 80, # orig: 130
 # these will be set dynamically in set_display_width()
 'term' => 80,
-'term-lines' => 100,
+'term-lines' => 100, # orig: 100
 );
 my %use = (
 'update' => 1, # switched off/on with maintainer config ALLOW_UPDATE
@@ -468,7 +467,7 @@ sub set_display_width {
 			}
 		}
 		# this lets you set different size for in or out of display server
-		if (!$b_running_in_display && $size{'no-display'}){
+		if (!$b_display && $size{'no-display'}){
 			$size{'console'} = $size{'no-display'};
 		}
 		# term_cols is set in top globals, using tput cols
@@ -5301,119 +5300,125 @@ sub show_options {
 	push(@data, 
 	['0', '', '', "$self_name supports the following options. For more detailed 
 	information, see man^$self_name. If you start $self_name with no arguments,
-	it will display a short system summary." ],
-	['0', '', '', '' ],
+	it will display a short system summary."],
+	['0', '', '', ''],
 	['0', '', '', "You can use these options alone or together, 
 	to show or add the item(s) you want to see: A, B, C, D, E, G, I, J, L, M, N, 
 	P, R, S, W, d, f, i, j, l, m, n, o, p, r, s, t, u, w, --slots. 
 	If you use them with -v [level], -b or -F, $self_name will add the requested
-	lines to the output." ],
+	lines to the output."],
 	['0', '', '', '' ],
 	['0', '', '', "Examples:^$self_name^-v4^-c6 OR $self_name^-bDc^6 OR
-	$self_name^-FzjJxy^80" ],
+	$self_name^-FzjJxy^80"],
 	['0', '', '', $line ],
-	['0', '', '', "Output Control Options (see Extra Data Options to extend output):" ],
-	['1', '-A', '--audio', "Audio/sound devices(s), driver, running sound servers." ],
-	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2." ],
+	['0', '', '', "Output Control Options (see Extra Data Options to extend 
+	output):"],
+	['1', '-A', '--audio', "Audio/sound devices(s), driver, running sound 
+	servers."],
+	['1', '-b', '--basic', "Basic output, short form. Same as $self_name^-v^2."],
 	['1', '-B', '--battery', "System battery info, including charge, condition
-	voltage (if critical), plus extra info (if battery present/detected)." ],
-	['1', '-c', '--color', "Set color scheme (0-42). For piped or redirected output,
-	you must use an explicit color selector. Example:^$self_name^-c^11" ],
+	voltage (if critical), plus extra info (if battery present/detected)."],
+	['1', '-c', '--color', "Set color scheme (0-42). For piped or redirected 
+	output, you must use an explicit color selector. Example:^$self_name^-c^11"],
 	['1', '', '', "Color selectors let you set the config file value for the 
-	selection (NOTE: IRC and global only show safe color set)" ],
-	['2', '94', '', "Console, out of X" ],
-	['2', '95', '', "Terminal, running in X - like xTerm" ],
-	['2', '96', '', "Gui IRC, running in X - like Xchat, Quassel, Konversation etc." ],
-	['2', '97', '', "Console IRC running in X - like irssi in xTerm" ],
-	['2', '98', '', "Console IRC not in  X" ],
+	selection (NOTE: IRC and global only show safe color set)"],
+	['2', '94', '', "Console, out of X"],
+	['2', '95', '', "Terminal, running in X - like xTerm"],
+	['2', '96', '', "Gui IRC, running in X - like Xchat, Quassel, Konversation 
+	etc."],
+	['2', '97', '', "Console IRC running in X - like irssi in xTerm"],
+	['2', '98', '', "Console IRC not in  X"],
 	['2', '99', '', "Global - Overrides/removes all settings. Setting specific 
-	removes global." ],
+	removes global."],
 	['1', '-C', '--cpu', "CPU output (if each item available): topology, model, 
-	type, cache, average CPU speed, min/max speeds, per core clock speeds." ],
+	type, cache, average CPU speed, min/max speeds, per core clock speeds."],
 	['1', '-d', '--disk-full, --optical', "Optical drive data (and floppy disks, 
-	if present). Triggers -D." ],
+	if present). Triggers -D."],
 	['1', '-D', '--disk', "Hard Disk info, including total storage and details 
 	for each disk. Disk total used percentage includes swap ${partition_string}
-	size(s)." ],
-	['1', '-E', '--bluetooth', "Show bluetooth device data and report, if available.
-	Shows state, address, IDs, version info." ],
+	size(s)."],
+	['1', '-E', '--bluetooth', "Show bluetooth device data and report, if 
+	available. Shows state, address, IDs, version info."],
 	['1', '-f', '--flags', "All CPU $flags. Triggers -C. Not shown with -F to 
-	avoid spamming." ],
+	avoid spamming."],
 	['1', '-F', '--full', "Full output. Includes all Upper Case line letters 
-	(except -J, -W) plus --swap, -s and -n. Does not show extra verbose options such 
-	as -d -f -i -J -l -m -o -p -r -t -u -x, unless specified." ],
-	['1', '-G', '--graphics', "Graphics info (devices(s), drivers, display protocol 
-	(if available), display server/Wayland compositor, resolution, renderer, 
-	OpenGL version)." ],
+	(except -J, -W) plus --swap, -s and -n. Does not show extra verbose options 
+	such as -d -f -i -J -l -m -o -p -r -t -u -x, unless specified."],
+	['1', '-G', '--graphics', "Graphics info (devices(s), drivers, display 
+	protocol (if available), display server/Wayland compositor, resolution, 
+	renderer, OpenGL version)."],
 	['1', '-i', '--ip', "WAN IP address and local interfaces (requires ifconfig 
 	or ip network tool). Triggers -n. Not shown with -F for user security reasons. 
-	You shouldn't paste your local/WAN IP." ],
+	You shouldn't paste your local/WAN IP."],
 	['1', '-I', '--info', "General info, including processes, uptime, memory, 
-	IRC client or shell type, $self_name version." ],
-	['1', '-j', '--swap', "Swap in use. Includes ${partition_string}s, zram, file." ],
-	['1', '-J', '--usb', "Show USB data: Hubs and Devices." ],
-	['1', '-l', '--label', "$partition_string_u labels. Use with -j, -o, -p, -P." ],
+	IRC client or shell type, $self_name version."],
+	['1', '-j', '--swap', "Swap in use. Includes ${partition_string}s, zram, 
+	file."],
+	['1', '-J', '--usb', "Show USB data: Hubs and Devices."],
+	['1', '-l', '--label', "$partition_string_u labels. Use with -j, -o, -p, -P."],
 	['1', '-L', '--logical', "Logical devices, LVM (VG, LV), 
-	LUKS, Crypto, bcache, etc. Shows components/devices, sizes, etc." ],
+	LUKS, Crypto, bcache, etc. Shows components/devices, sizes, etc."],
 	['1', '-m', '--memory', "Memory (RAM) data. Requires root. Numbers of 
 	devices (slots) supported and individual memory devices (sticks of memory etc). 
 	For devices, shows device locator, size, speed, type (e.g. DDR3). 
-	If neither -I nor -tm are selected, also shows RAM used/total." ],
-	['1', '', '--memory-modules', "Memory (RAM) data. Exclude empty module slots." ],
-	['1', '', '--memory-short', "Memory (RAM) data. Show only short Memory RAM report, 
-	number of arrays, slots, modules, and RAM type." ],
+	If neither -I nor -tm are selected, also shows RAM used/total."],
+	['1', '', '--memory-modules', "Memory (RAM) data. Exclude empty module slots."],
+	['1', '', '--memory-short', "Memory (RAM) data. Show only short Memory RAM 
+	report, number of arrays, slots, modules, and RAM type."],
 	['1', '-M', '--machine', "Machine data. Device type (desktop, server, laptop, 
 	VM etc.), motherboard, BIOS and, if    present, system builder (e.g. Lenovo). 
 	Shows UEFI/BIOS/UEFI [Legacy]. Older systems/kernels without the required /sys 
-	data can use dmidecode instead, run as root. Dmidecode can be forced with --dmidecode" ],
-	['1', '-n', '--network-advanced', "Advanced Network device info. Triggers -N. Shows 
-	interface, speed, MAC id, state, etc. " ],
-	['1', '-N', '--network', "Network device(s), driver." ],
+	data can use dmidecode instead, run as root. Dmidecode can be forced with 
+	--dmidecode"],
+	['1', '-n', '--network-advanced', "Advanced Network device info. Triggers -N. 
+	Shows interface, speed, MAC id, state, etc. "],
+	['1', '-N', '--network', "Network device(s), driver."],
 	['1', '-o', '--unmounted', "Unmounted $partition_string info (includes UUID 
 	and Label if available). Shows file system type if you have lsblk installed 
 	(Linux) or, for BSD/GNU Linux, if 'file' installed and you are root or if 
-	you have added to /etc/sudoers (sudo v. 1.7 or newer)(or try doas)." ],
-	['1', '', '', "Example: ^<username>^ALL^=^NOPASSWD:^/usr/bin/file^" ],
-	['1', '-p', '--partitions-full', "Full $partition_string information (-P plus all other 
-	detected ${partition_string}s)." ],
+	you have added to /etc/sudoers (sudo v. 1.7 or newer)(or try doas)."],
+	['1', '', '', "Example: ^<username>^ALL^=^NOPASSWD:^/usr/bin/file^"],
+	['1', '-p', '--partitions-full', "Full $partition_string information (-P plus 
+	all other detected ${partition_string}s)."],
 	['1', '-P', '--partitions', "Basic $partition_string info. Shows, if detected: 
 	/ /boot /home /opt /tmp /usr /usr/home /var /var/log /var/tmp. Swap 
 	${partition_string}s show if --swap is not used. Use -p to see all 
-	mounted ${partition_string}s." ],
+	mounted ${partition_string}s."],
 	['1', '-r', '--repos', "Distro repository data. Supported repo types: APK, 
 	APT, CARDS, EOPKG, NIX, PACMAN, PACMAN-G2, PISI, PKG (BSDs), PORTAGE, PORTS 
-	(BSDs), SCRATCHPKG, SLACKPKG, TCE, URPMQ, XBPS, YUM/ZYPP." ],
-	['1', '-R', '--raid', "RAID data. Shows RAID devices, states, levels, array sizes,
-	and components. md-raid: If device is resyncing, also shows resync progress line." ],
+	(BSDs), SCRATCHPKG, SLACKPKG, TCE, URPMQ, XBPS, YUM/ZYPP."],
+	['1', '-R', '--raid', "RAID data. Shows RAID devices, states, levels, array 
+	sizes, and components. md-raid: If device is resyncing, also shows resync
+	progress line."],
 	['1', '-s', '--sensors', "Sensors output (if sensors installed/configured): 
 	mobo/CPU/GPU temp; detected fan speeds. GPU temp only for Fglrx/Nvidia drivers. 
-	Nvidia shows screen number for > 1 screen. IPMI sensors if present." ],
-	['1', '', '--slots', "PCI slots: type, speed, status. Requires root." ],
+	Nvidia shows screen number for > 1 screen. IPMI sensors if present."],
+	['1', '', '--slots', "PCI slots: type, speed, status. Requires root."],
 	['1', '-S', '--system', "System info: host name, kernel, desktop environment 
-	(if in X/Wayland), distro." ],
+	(if in X/Wayland), distro."],
 	['1', '-t', '--processes', "Processes. Requires extra options: c (CPU), m 
 	(memory), cm (CPU+memory). If followed by numbers 1-x, shows that number 
-	of processes for each type (default: 5; if in IRC, max: 5). " ],
+	of processes for each type (default: 5; if in IRC, max: 5). "],
 	['1', '', '', "Make sure that there is no space between letters and 
-	numbers (e.g.^-t^cm10)." ],
-	['1', '-u', '--uuid', "$partition_string_u UUIDs.  Use with -j, -o, -p, -P." ],
+	numbers (e.g.^-t^cm10)."],
+	['1', '-u', '--uuid', "$partition_string_u UUIDs.  Use with -j, -o, -p, -P."],
 	['1', '-v', '--verbosity', "Set $self_name verbosity level (0-8). 
-	Should not be used with -b or -F. Example: $self_name^-v^4" ],
-	['2', '0', '', "Same as: $self_name" ],
-	['2', '1', '', "Basic verbose, -S + basic CPU + -G + basic Disk + -I." ],
+	Should not be used with -b or -F. Example: $self_name^-v^4"],
+	['2', '0', '', "Same as: $self_name"],
+	['2', '1', '', "Basic verbose, -S + basic CPU + -G + basic Disk + -I."],
 	['2', '2', '', "Networking device (-N), Machine (-M), Battery (-B; if present), 
 	and, if present, basic RAID (devices only; notes if inactive). 
-	Same as $self_name^-b" ],
+	Same as $self_name^-b"],
 	['2', '3', '', "Advanced CPU (-C), battery (-B), network (-n); 
-	triggers -x. " ],
+	triggers -x. "],
 	['2', '4', '', "$partition_string_u size/used data (-P) for 
-	(if present) /, /home, /var/, /boot. Shows full disk data (-D). " ],
+	(if present) /, /home, /var/, /boot. Shows full disk data (-D). "],
 	['2', '5', '', "Audio device (-A), sensors (-s), memory/RAM (-m), 
 	bluetooth (if present), $partition_string label^(-l), full swap (-j), 
-	UUID^(-u), short form of optical drives, RAID data (if present)." ],
+	UUID^(-u), short form of optical drives, RAID data (if present)."],
 	['2', '6', '', "Full $partition_string (-p), 
 	unmounted $partition_string (-o), optical drive (-d), USB (-J),
-	full RAID; triggers -xx." ], 
+	full RAID; triggers -xx."], 
 	['2', '7', '', "Network IP data (-i), bluetooth, logical (-L), 
 	RAID forced, full CPU $flags; triggers -xxx."],
 	['2', '8', '', "Everything available, including	repos (-r), 
@@ -5430,320 +5435,327 @@ sub show_options {
 		want the weather somewhere other than the machine running $self_name. Use 
 		only ASCII characters, replace spaces in city/state/country names with '+'. 
 		Example:^$self_name^-W^[new+york,ny^london,gb^madrid,es]"],
-		['1', '', '--weather-source', "[1-9] Change weather data source. 1-4 generally 
-		active, 5-9 check. See man."],
+		['1', '', '--weather-source', "[1-9] Change weather data source. 1-4 
+		generally active, 5-9 check. See man."],
 		['1', '', '--weather-unit', "Set weather units to metric (m), imperial (i), 
 		metric/imperial (mi), or imperial/metric (im)."],
 		);
 	}
 	push(@data, 
-	['1', '-y', '--width', "Output line width max (integer >= 80). Overrides IRC/Terminal 
-	settings or actual widths. If no integer give, defaults to 80. -1 removes line lengths.
-	1 switches output to 1 key/value pair per line. Example:^inxi^-y^130" ],
-	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial numbers, 
-	location (-w), user home directory name, host name. Default on for IRC clients." ],
+	['1', '-y', '--width', "Output line width max (integer >= 80). Overrides 
+	IRC/Terminal settings or actual widths. If no integer give, defaults to 80. 
+	-1 removes line lengths. 1 switches output to 1 key/value pair per line. 
+	Example:^inxi^-y^130"],
+	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial 
+	numbers, location (-w), user home directory name, host name. Default on for 
+	IRC clients."],
 	['1', '', '--zl,--filter-label', "Filters out ${partition_string} labels in -j, 
-	-o, -p, -P, -Sa." ],
+	-o, -p, -P, -Sa."],
 	['1', '', '--zu,--filter-uuid', "Filters out ${partition_string} UUIDs in -j, 
-	-o, -p, -P, -Sa." ],
+	-o, -p, -P, -Sa."],
 	['1', '', '--zv,--filter-vulnerabilities', "Filters out Vulnerabilities 
-	report in -Ca." ],
+	report in -Ca."],
 	['1', '-Z', '--no-filter', "Disable output filters. Useful for 	debugging 
-	networking issues in IRC, or you needed to use --tty, for example." ],
-	['0', '', '', "$line" ],
-	['0', '', '', "Extra Data Options:" ],
+	networking issues in IRC, or you needed to use --tty, for example."],
+	['0', '', '', "$line"],
+	['0', '', '', "Extra Data Options:"],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
 	verbose or line output, not short form); check man page for explanations!; 
-	also sets --extra=3:" ],
+	also sets --extra=3:"],
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
-	for device(s)." ],
+	for device(s)."],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
 	(dmidecode+root/sudo/doas required); CPU vulnerabilities (bugs); family, 
 	model-id, stepping - format: hex (decimal) if greater 	than 9, otherwise
-	hex; microcode - format: hex." ],
-	['2', '-d,-D', '', "If available: logical and physical block sizes; drive family;
-	maj:min, USB drive specifics; SMART report." ],
+	hex; microcode - format: hex; for MT CPUs, threads."],
+	['2', '-d,-D', '', "If available: logical and physical block sizes; drive 
+	family; maj:min, USB drive specifics; SMART report."],
 	['2', '-E', '', "If available: in Report:, adds Info: line: acl-mtu, 
-	sco-mtu, link-policy, link-mode, service-classes." ],
+	sco-mtu, link-policy, link-mode, service-classes."],
 	['2', '-G', '', "If available: Xorg Display ID, Screens total, default Screen,
 	current Screen; per X Screen: resolution, dpi, size, diagonal; per Monitor: 
 	resolution; hz; dpi; size; diagonal; list of alternate kernel modules/drivers
-	for device(s)." ],
+	for device(s)."],
 	['2', '-I', '', "As well as per package manager counts, also adds total
 	number of lib files found for each package manager if not -r; adds init
-	service tool." ],
+	service tool."],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
-	pressure, and if values are default or not." ],
+	pressure, and if values are default or not."],
 	['2', '-L', '', "LV, Crypto, devices, components: add maj:min; show
-	full device/components report (speed, mapped names)." ],
+	full device/components report (speed, mapped names)."],
 	['2', '-n,-N', '', "If available: list of alternate kernel modules/drivers 
-	for device(s)." ],
-	['2', '-o', '', "If available: maj:min of device." ],
+	for device(s)."],
+	['2', '-o', '', "If available: maj:min of device."],
 	['2', '-p,-P', '', "If available: raw size of ${partition_string}s, maj:min, 
-	percent available for user, block size of file system (root required)." ],
-	['2', '-r', '', "Packages, see -Ia." ],
-	['2', '-R', '', "mdraid: device maj:min; per component: size, maj:min, state." ],
-	['2', '-S', '', "If available: kernel boot parameters." ],
+	percent available for user, block size of file system (root required)."],
+	['2', '-r', '', "Packages, see -Ia."],
+	['2', '-R', '', "mdraid: device maj:min; per component: size, maj:min, state."],
+	['2', '-S', '', "If available: kernel boot parameters."],
 	['0', '', '', ''],
 	['1', '-x', '--extra', "Adds the following extra data (only works with 
-	verbose or line output, not short form):" ],
+	verbose or line output, not short form):"],
 	['2', '-A', '', "Specific vendor/product information (if relevant); 
 	PCI/USB ID of device; Version/port(s)/driver version (if available);
-	non-running sound servers." ],
+	non-running sound servers."],
 	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
-	attached devices (e.g. wireless mouse, keyboard, if present)." ],
+	attached devices (e.g. wireless mouse, keyboard, if present)."],
 	['2', '-C', '', "CPU $flags (short list, use -f to see full list); Highest
 	core speed (if > 1 core); CPU boost (turbo) enabled/disabled, if present; 
 	Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
-	unless --admin, then shows as 'stepping')." ],
+	unless --admin, then shows as 'stepping')."],
 	['2', '-d', '', "Extra optical drive features data; adds rev version to 
-	optical drive." ],
+	optical drive."],
 	['2', '-D', '', "HDD temp with disk data. Kernels >= 5.6: enable module
 	drivetemp if not enabled. Older systems require hddtemp, run as
 	as superuser, or as user if you have added hddtemp to /etc/sudoers
 	(sudo v. 1.7 or newer)(or try doas). 
-	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp" ],
+	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp"],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
-	LMP version." ],
+	LMP version."],
 	['2', '-G', '', "Specific vendor/product information (if relevant); 
 	PCI/USB ID of device; Direct rendering status (in X); Screen 
-	number GPU is running on (Nvidia only)." ],
+	number GPU is running on (Nvidia only)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
-	Temporary, Unknown. See --limit for large counts of IP addresses." ],
+	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
 	GCC versions. If running in shell, not in IRC client, shows shell version 
 	number, if detected. Init/RC type and runlevel (if available). Total
-	count of all packages discovered in system and not -r." ],
-	['2', '-j', '', "Add mapped: name if partition mapped." ],
-	['2', '-J', '', "For Device: driver." ],
-	['2', '-L', '', "For VG > LV, and other Devices, dm:" ],
-	['2', '-m,--memory-modules', '', "Max memory module size (if available), device type." ],
+	count of all packages discovered in system and not -r."],
+	['2', '-j', '', "Add mapped: name if partition mapped."],
+	['2', '-J', '', "For Device: driver."],
+	['2', '-L', '', "For VG > LV, and other Devices, dm:"],
+	['2', '-m,--memory-modules', '', "Max memory module size (if available), 
+	device type."],
 	['2', '-N', '', "Specific vendor/product information (if relevant); 
-	PCI/USB ID of device; Version/port(s)/driver version (if available)." ],
-	['2', '-o,-p,-P', '', "Add mapped: name if partition mapped." ],
-	['2', '-r', '', "Packages, see -Ix." ],
+	PCI/USB ID of device; Version/port(s)/driver version (if available)."],
+	['2', '-o,-p,-P', '', "Add mapped: name if partition mapped."],
+	['2', '-r', '', "Packages, see -Ix."],
 	['2', '-R', '', "md-raid: second RAID Info line with extra data: 
 	blocks, chunk size, bitmap (if present). Resync line, shows blocks 
-	synced/total blocks. Hardware RAID driver version, bus-ID." ],
-	['2', '-s', '', "Basic voltages (ipmi, lm-sensors if present): 12v, 5v, 3.3v, vbat." ],
+	synced/total blocks. Hardware RAID driver version, bus-ID."],
+	['2', '-s', '', "Basic voltages (ipmi, lm-sensors if present): 12v, 5v, 3.3v, 
+	vbat."],
 	['2', '-S', '', "Kernel gcc version; system base of distro (if relevant 
-	and detected)" ],
+	and detected)"],
 	['2', '-t', '', "Adds memory use output to CPU (-xt c), and CPU use to 
-	memory (-xt m)." ],
+	memory (-xt m)."],
 	);
 	if ($use{'weather'}){
 		push(@data, 
 		['2', '-w,-W', '', "Wind speed and direction, humidity, pressure, 
-		and time zone, if available." ]);
+		and time zone, if available."]);
 	}
 	push(@data, 
 	['0', '', '', ''],
 	['1', '-xx', '--extra 2', "Show extra, extra data (only works with verbose 
-	or line output, not short form):" ],
-	['2', '-A', '', "Chip vendor:product ID for each audio device." ],
-	['2', '-B', '', "Serial number." ],
+	or line output, not short form):"],
+	['2', '-A', '', "Chip vendor:product ID for each audio device."],
+	['2', '-B', '', "Serial number."],
 	['2', '-C', '', "L1/L3 cache (if most Linux, or if root and dmidecode 
-	installed)." ],
+	installed)."],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
-	volume group free space (if available); disk duid (some BSDs)." ],
-	['2', '-E', '', "Chip vendor:product ID, LMP subversion." ],
+	volume group free space (if available); disk duid (some BSDs)."],
+	['2', '-E', '', "Chip vendor:product ID, LMP subversion."],
 	['2', '-G', '', "Chip vendor:product ID for each video device; OpenGL 
 	compatibility version, if free drivers and available; Xorg compositor;
 	alternate Xorg drivers (if available). Alternate means driver is on automatic 
-	driver check list of Xorg for the device vendor, but is not installed on system;
-	Xorg dpi." ],
+	driver check list of Xorg for the device vendor, but is not installed on 
+	system; Xorg dpi."],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found). Adds per package manager
-	installed package counts if not -r." ],
-	['2', '-j,-p,-P', '', "Swap priority." ],
-	['2', '-J', '', "Vendor:chip-ID." ],
+	installed package counts if not -r."],
+	['2', '-j,-p,-P', '', "Swap priority."],
+	['2', '-J', '', "Vendor:chip-ID."],
 	['2', '-L', '', "Show internal LVM volumes, like raid image/meta volumes;
 	for LVM RAID, adds RAID report line (if not -R); show all components >
-	devices, number of 'c' or 'p' indicate depth of device." ],
-	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double bank (if found)." ],
-	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available." ],
-	['2', '-N', '', "Chip vendor:product ID." ],
-	['2', '-r', '', "Packages, see -Ixx." ],
+	devices, number of 'c' or 'p' indicate depth of device."],
+	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double 
+	bank (if found)."],
+	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available."],
+	['2', '-N', '', "Chip vendor:product ID."],
+	['2', '-r', '', "Packages, see -Ixx."],
 	['2', '-R', '', "md-raid: Superblock (if present), algorithm. If resync, 
-	shows progress bar. Hardware RAID Chip vendor:product ID." ],
-	['2', '-s', '', "DIMM/SOC voltages (ipmi only)." ],
+	shows progress bar. Hardware RAID Chip vendor:product ID."],
+	['2', '-s', '', "DIMM/SOC voltages (ipmi only)."],
 	['2', '-S', '', "Display manager (dm) in desktop output (e.g. kdm, 
 	gdm3, lightdm); active window manager if detected; desktop toolkit, 
-	if available (Xfce/KDE/Trinity only)." ],
-	['2', '--slots', '', "Slot length." ],
+	if available (Xfce/KDE/Trinity only)."],
+	['2', '--slots', '', "Slot length."],
 	);
 	if ($use{'weather'}){
 		push(@data,
 		['2', '-w,-W', '', "Snow, rain, precipitation, (last observed hour), 
-		cloud cover, wind chill, dew point, heat index, if available." ]
+		cloud cover, wind chill, dew point, heat index, if available."]
 		);
 	}
 	push(@data, 
 	['0', '', '', ''],
 	['1', '-xxx', '--extra 3', "Show extra, extra, extra data (only works 
-	with verbose or line output, not short form):" ],
-	['2', '-A', '', "Serial number, class ID." ],
-	['2', '-B', '', "Chemistry, cycles, location (if available)." ],
-	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode installed)." ],
-	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; disk 
-	type, rotation rpm (if available)." ],
-	['2', '-E', '', "Serial number, class ID, HCI version and revision." ],
-	['2', '-G', '', "Serial number, class ID." ],
-	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if present; 
-	adds default shell+version if different; for 'running in:' adds (SSH) if SSH session;
-	adds wakeups: (from suspend) to Uptime." ],
-	['2', '-J', '', "If present: Devices: serial number, interface count; USB speed; max power." ],
-	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if present and greater 
-	than data); Detail for Type, if present; module voltage, if available; serial 
-	number."],
+	with verbose or line output, not short form):"],
+	['2', '-A', '', "Serial number, class ID."],
+	['2', '-B', '', "Chemistry, cycles, location (if available)."],
+	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode
+	installed)."],
+	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; 
+	disk type, rotation rpm (if available)."],
+	['2', '-E', '', "Serial number, class ID, HCI version and revision."],
+	['2', '-G', '', "Serial number, class ID."],
+	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if 
+	present; adds default shell+version if different; for 'running in:' adds (SSH)
+	if SSH session; adds wakeups: (from suspend) to Uptime."],
+	['2', '-J', '', "If present: Devices: serial number, interface count; USB 
+	speed; max power."],
+	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if 
+	present and greater than data); Detail for Type, if present; module voltage,
+	if available; serial number."],
 	['2', '-N', '', "Serial number, class ID."],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
-	Hardware RAID rev, ports, specific vendor/product information." ],
-	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like lxpanel, 
-	xfce4-panel, mate-panel); (if available) dm version number, window manager
-	version number, virtual terminal number."],
+	Hardware RAID rev, ports, specific vendor/product information."],
+	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like 
+	lxpanel, xfce4-panel, mate-panel); (if available) dm version number, window 
+	manager version number, virtual terminal number."],
 	);
 	if ($use{'weather'}){
 		push(@data, 
 		['2', '-w,-W', '', "Location (uses -z/irc filter), weather observation 
-		time, altitude, sunrise/sunset, if available." ] 
+		time, altitude, sunrise/sunset, if available."] 
 		);
 	}
 	push(@data, 
-	[0, '', '', "$line" ],
-	[0, '', '', "Additional Options:" ],
-	['1', '-h', '--help', "This help menu." ],
+	[0, '', '', "$line"],
+	[0, '', '', "Additional Options:"],
+	['1', '-h', '--help', "This help menu."],
  	['1', '', '--recommends', "Checks $self_name application dependencies + recommends, 
  	and directories, then shows what package(s) you need to install to add support 
- 	for that feature." ],
+ 	for that feature."],
 	);
 	if ($use{'update'}){
 		push(@data, 
 		['1', '-U', '--update', "Auto-update $self_name. Will also install/update man 
 		page. Note: if you installed as root, you must be root to update, otherwise 
 		user is fine. Man page installs require root. No arguments downloads from 
-		main $self_name git repo." ],
-		['1', '', '', "Use alternate sources for updating $self_name" ],
-		['2', '1', '', "Get the git branch one version." ],
-		['2', '2', '', "Get the git branch two version." ],
-		['3', '3', '', "Get the dev server (smxi.org) version." ],
+		main $self_name git repo."],
+		['1', '', '', "Use alternate sources for updating $self_name"],
+		['2', '1', '', "Get the git branch one version."],
+		['2', '2', '', "Get the git branch two version."],
+		['3', '3', '', "Get the dev server (smxi.org) version."],
 		['2', '<http>', '', "Get a version of $self_name from your own server. 
-		Use the full download path, e.g.^$self_name^-U^https://myserver.com/inxi" ],
+		Use the full download path, e.g.^$self_name^-U^https://myserver.com/inxi"],
 		);
 	}
 	push(@data, 
-	['1', '-V', '--version', "Prints $self_name version info then exits." ],
-	['0', '', '', "$line" ],
-	['0', '', '', "Advanced Options:" ],
-	['1', '', '--alt', "Trigger for various advanced options:" ],
-	['2', '40', '', "Bypass Perl as a downloader option." ],
-	['2', '41', '', "Bypass Curl as a downloader option." ],
-	['2', '42', '', "Bypass Fetch as a downloader option." ],
-	['2', '43', '', "Bypass Wget as a downloader option." ],
+	['1', '-V', '--version', "Prints $self_name version info then exits."],
+	['0', '', '', "$line"],
+	['0', '', '', "Advanced Options:"],
+	['1', '', '--alt', "Trigger for various advanced options:"],
+	['2', '40', '', "Bypass Perl as a downloader option."],
+	['2', '41', '', "Bypass Curl as a downloader option."],
+	['2', '42', '', "Bypass Fetch as a downloader option."],
+	['2', '43', '', "Bypass Wget as a downloader option."],
 	['2', '44', '', "Bypass Curl, Fetch, and Wget as downloader options. Forces 
-	Perl if HTTP::Tiny present." ],
+	Perl if HTTP::Tiny present."],
 	['1', '', '--bt-tool', "[bt-adapter|hciconfig|rfkill] Force use of given tool for 
-	bluetooth report." ],
-	['1', '', '--dig', "Overrides configuration item NO_DIG (resets to default)." ],
-	['1', '', '--display', "[:[0-9]] Try to get display data out of X (default: display 0)." ],
+	bluetooth report."],
+	['1', '', '--dig', "Overrides configuration item NO_DIG (resets to default)."],
+	['1', '', '--display', "[:[0-9]] Try to get display data out of X (default: display 0)."],
 	['1', '', '--dmidecode', "Force use of dmidecode data instead of /sys where relevant 
-	(e.g. -M, -B)." ],
-	['1', '', '--downloader', "Force $self_name to use [curl|fetch|perl|wget] for downloads." ],
+	(e.g. -M, -B)."],
+	['1', '', '--downloader', "Force $self_name to use [curl|fetch|perl|wget] for downloads."],
 	['1', '', '--force', "[dmidecode|hddtemp|lsusb|meminfo|usb-sys|vmstat|wmctrl]. 1 or more
 	in comma separated list. Force use of item(s). 
-	See --hddtemp, --dmidecode, --wm, --usb-tool, --usb-sys." ],
-	['1', '', '--hddtemp', "Force use of hddtemp for disk temps." ],
-	['1', '', '--host', "Turn on hostname for -S." ],
-	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to default)." ],
+	See --hddtemp, --dmidecode, --wm, --usb-tool, --usb-sys."],
+	['1', '', '--hddtemp', "Force use of hddtemp for disk temps."],
+	['1', '', '--host', "Turn on hostname for -S."],
+	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to default)."],
 	['1', '', '--limit', "[-1; 1-x] Set max output limit of IP addresses for -i 
-	(default 10; -1 removes limit)." ],
+	(default 10; -1 removes limit)."],
 	);
 	if ($use{'update'}){
 		push(@data, 
-		['1', '', '--man', "Install correct man version for dev branch (-U 3) or pinxi using -U." ],
+		['1', '', '--man', "Install correct man version for dev branch (-U 3) or pinxi using -U."],
 		);
 	}
 	push(@data, 
-	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program." ],
+	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program."],
 	['1', '', '--no-doas', "Skip internal program use of doas features (not related 
-	to starting $self_name with doas)." ],
+	to starting $self_name with doas)."],
 	['1', '', '--no-host', "Turn off hostname for -S. Useful if showing output from servers etc. 
-	-z triggers --no-host." ],
+	-z triggers --no-host."],
 	['1', '', '--no-html-wan', "Skip HTML IP sources for WAN IP checks, use dig only, 
-	or nothing if --no-dig." ],
+	or nothing if --no-dig."],
 	);
 	if ($use{'update'}){
 		push(@data, 
-		['1', '', '--no-man', "Disable man install for all -U update actions." ],
+		['1', '', '--no-man', "Disable man install for all -U update actions."],
 		);
 	}
 	push(@data, 
 	['1', '', '--no-ssl', "Skip SSL certificate checks for all downloader actions 
-	(Wget/Fetch/Curl/Perl-HTTP::Tiny)." ],
+	(Wget/Fetch/Curl/Perl-HTTP::Tiny)."],
 	['1', '', '--no-sudo', "Skip internal program use of sudo features (not related 
-	to starting $self_name with sudo)." ],
+	to starting $self_name with sudo)."],
 	['1', '', '--output', "[json|screen|xml] Change data output type. Requires --output-file 
-	if not screen." ],
-	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output." ],
+	if not screen."],
+	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output."],
 	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
-	Change sort order of ${partition_string} output. See man page for specifics." ],
+	Change sort order of ${partition_string} output. See man page for specifics."],
 	['1', '', '--pkg', "Force use of disabled package manager counts for packages feature. 
-	RPM disabled by default due to possible massive rpm package query times." ],
+	RPM disabled by default due to possible massive rpm package query times."],
 	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and SENSORS_EXCLUDE.
-	Same as default behavior." ],
+	Same as default behavior."],
 	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude supplied sensor 
-	array[s] for -s output (lm-sensors, Linux only)." ],
+	array[s] for -s output (lm-sensors, Linux only)."],
 	['1', '', '--sensors-use', "[sensor[s] name, comma separated] Use only supplied sensor 
-	array[s] for -s output (lm-sensors, Linux only)." ],
+	array[s] for -s output (lm-sensors, Linux only)."],
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
-	use. Example:^$self_name^-Cxxx^--sleep^0.15" ],
+	use. Example:^$self_name^-Cxxx^--sleep^0.15"],
 	['1', '', '--tty', "Forces irc flag to false. Generally useful if $self_name is running
 	inside of another tool like Chef or MOTD and returns corrupted color codes. Please see
 	man page or file an issue if you need to use this flag. Must use -y [width] option if 
 	you want a specific output width. Always put this option first in an option list.
 	See -Z for disabling output filters as well."],
-	['1', '', '--usb-sys', "Force USB data to use only /sys as data source (Linux only)." ],
+	['1', '', '--usb-sys', "Force USB data to use only /sys as data source (Linux only)."],
 	['1', '', '--usb-tool', "Force USB data to use lsusb as data source [default]
-	(Linux only)." ],
+	(Linux only)."],
 	['1', '', '--wan-ip-url', "[URL] Skips dig, uses supplied URL for WAN IP (-i). 
 	URL output must end in the IP address. See man. 
-	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php" ],
-	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps." ],
+	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php"],
+	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps."],
 	['1', '', '--wrap-max', "Set maximum width where $self_name autowraps line starters 
-	(previously --indent-min). Current: $size{'wrap-max'}" ],
+	(previously --indent-min). Current: $size{'wrap-max'}"],
 	['0', '', '', $line ],
-	['0', '', '', "Debugging Options:" ],
-	['1', '', '--dbg', "Specific debuggers, change often. Only 1 is constant:" ],
-	['2', '1', '', "Show downloader output. Turns off quiet mode." ],
-	['1', '', '--debug', "Triggers debugging modes." ],
-	['2', '1-3', '', "On screen debugger output." ],
-	['2', '10', '', "Basic logging." ],
-	['2', '11', '', "Full file/system info logging." ],
+	['0', '', '', "Debugging Options:"],
+	['1', '', '--dbg', "Specific debuggers, change often. Only 1 is constant:"],
+	['2', '1', '', "Show downloader output. Turns off quiet mode."],
+	['1', '', '--debug', "Triggers debugging modes."],
+	['2', '1-3', '', "On screen debugger output."],
+	['2', '10', '', "Basic logging."],
+	['2', '11', '', "Full file/system info logging."],
 	['1', '', ,'', "The following create a tar.gz file of system data, plus $self_name 
 	output. To automatically upload debugger data tar.gz file 
-	to ftp.smxi.org: $self_name^--debug^21" ],
+	to ftp.smxi.org: $self_name^--debug^21"],
 	['2', '20', '', "Full system data collection: /sys; xorg conf and log data, xrandr, 
 	xprop, xdpyinfo, glxinfo etc.; data from dev, disks,  
-	${partition_string}s, etc." ],
+	${partition_string}s, etc."],
 	['2', '21', '', "Upload debugger dataset to $self_name debugger server 
-	automatically, removes debugger data directory, leaves tar.gz debugger file." ],
+	automatically, removes debugger data directory, leaves tar.gz debugger file."],
 	['2', '22', '', "Upload debugger dataset to $self_name debugger server 
-	automatically, removes debugger data directory and debugger tar.gz file." ],
-	# ['1', '', '--debug-filter', "Add -z flag to debugger $self_name optiions." ],
-	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/doas/root." ],
-	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on." ],
-	['1', '', '--debug-no-exit', "Skip exit on error to allow completion." ],
-	['1', '', '--debug-no-proc', "Skip /proc debugging in case of a hang." ],
-	['1', '', '--debug-no-sys', "Skip /sys debugging in case of a hang." ],
-	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/doas/root." ],
-	['1', '', '--debug-sys-print', "To locate file that /sys debugger hangs on." ],
+	automatically, removes debugger data directory and debugger tar.gz file."],
+	# ['1', '', '--debug-filter', "Add -z flag to debugger $self_name optiions."],
+	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/doas/root."],
+	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on."],
+	['1', '', '--debug-no-exit', "Skip exit on error to allow completion."],
+	['1', '', '--debug-no-proc', "Skip /proc debugging in case of a hang."],
+	['1', '', '--debug-no-sys', "Skip /sys debugging in case of a hang."],
+	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/doas/root."],
+	['1', '', '--debug-sys-print', "To locate file that /sys debugger hangs on."],
 	['1', '', '--ftp', "Use with --debugger 21 to trigger an alternate FTP server for upload. 
 	Format:^[ftp.xx.xx/yy]. Must include a remote directory to upload to. 
-	Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming" ],
-	['0', '', '', "$line" ],
+	Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming"],
+	['0', '', '', "$line"],
 	);
 	print_basic(\@data); 
 	exit 0; # shell true
@@ -6432,7 +6444,7 @@ sub row_defaults {
 	'cpu-bugs-null' => 'No CPU vulnerability/bugs data available.',
 	'cpu-model-null' => 'Model N/A',
 	'cpu-speeds' => 'No per core speed data found.',
-	'cpu-speeds-bsd' => 'No OS support for per core speeds.',
+	'cpu-speeds-bsd' => 'No OS support for core speeds.',
 	'darwin-feature' => 'Feature not supported iu Darwin/OSX.',
 	'disk-data' => 'No disk data found.',
 	'disk-data-bsd' => 'No disk data found.',
@@ -6512,7 +6524,7 @@ sub row_defaults {
 	'unmounted-data-bsd' => "Unmounted partition feature unsupported in $id.",
 	'unmounted-file' => 'No /proc/partitions file found.',
 	'usb-data' => 'No USB data found. Server?',
-	'unknown-cpu-layout' => 'ERR-103',
+	'unknown-cpu-topology' => 'ERR-103',
 	'unknown-desktop-version' => 'ERR-101',
 	'unknown-dev' => 'ERR-102',
 	'unknown-shell' => 'ERR-100',
@@ -8266,7 +8278,7 @@ sub full_output {
 	my $j = scalar @rows;
 	$cpu->{'model_name'} ||= 'N/A'; 
 	push(@rows, {
-	main::key($num++,1,1,'Info') => $properties->{'cpu-layout'},
+	main::key($num++,1,1,'Info') => $properties->{'cpu-topology'},
 	main::key($num++,0,2,'model') => $cpu->{'model_name'},
 	},);
 	if ($cpu->{'system-cpus'}){
@@ -8565,7 +8577,7 @@ sub prep_short_data {
  	$speed_key = $properties->{'speed-key'} if $properties->{'speed-key'};
  	$speed = $properties->{'speed'} if $properties->{'speed'};
  	my @result = (
- 	$properties->{'cpu-layout'},
+ 	$properties->{'cpu-topology'},
  	$cpu,
  	$type,
  	$speed_key,
@@ -8584,101 +8596,6 @@ sub prep_short_data {
 }
 
 ## PRIMARY DATA GENERATORS ##
-sub cpuinfo_grabber {
-	eval $start if $b_log;
-	my ($file) = @_;
-	$loaded{'cpuinfo'} = 1;
-	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
-	if ($fake{'cpu'}){
-		## CPU sys/cpuinfo pairs:
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
-		## ARM/MIPS
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
-		## x86
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-althlon-mjro.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-a10-5800k-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
-		## Elbrus
-		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/elbrus-2c3/cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
-	}
-	my @raw = main::reader($file);
-	@raw = map {$_ =~ s/^\s*$/~~~/;$_;} @raw;
-	push(@raw,'~~~') if @raw;
-	my ($b_processor,$key,$value);
-	my ($i) = (0);
-	my @key_tests = ('firmware','hardware','mmu','model','motherboard',
-	 'platform','system type','timebase');
-	foreach my $row (@raw){
-		($key,$value) = split(/\s*:\s*/,$row,2);
-		next if !defined $key;
-		# ARM: 'Hardware' can appear in processor block; system type (mips)
-		# ARM: CPU revision; machine: Revision/PPC: revision (CPU implied)
-		# orangepi3 has Hardware/Processor embedded in processor block
-		if (%risc && ((grep {lc($key) eq $_} @key_tests) || 
-		 (!$risc{'ppc'} && lc($key) eq 'revision'))){
-			$b_processor = 0;
-		}
-		else {
-			$b_processor = 1;
-		}
-		if ($b_processor){
-			if ($key eq '~~~'){
-				$i++;
-				next;
-			}
-			# A small handful of ARM devices use Processor instead of 'model name'
-			# Processor   : AArch64 Processor rev 4 (aarch64)
-			# Processor : Feroceon 88FR131 rev 1 (v5l)
-			$key = ($key eq 'Processor') ? 'model name' : lc($key);
-			$cpuinfo[$i]->{$key} = $value;
-		}
-		else {
-			next if $cpuinfo_machine{lc($key)}; 
-			$cpuinfo_machine{lc($key)} = $value;
-		}
-	}
-	if ($b_log){
-		main::log_data('dump','@cpuinfo',\@cpuinfo);
-		main::log_data('dump','%cpuinfo_machine',\%cpuinfo_machine);
-	}
-	if ($dbg[41]){
-		print Data::Dumper::Dumper \@cpuinfo;
-		print Data::Dumper::Dumper \%cpuinfo_machine;
-	}
-	eval $end if $b_log;
-}
 sub cpuinfo_data {
 	eval $start if $b_log;
 	my ($file)=  @_;
@@ -8719,7 +8636,7 @@ sub cpuinfo_data {
 			$cpu{'sys-freq'} = \%freq if %freq;
 		}
 	}
-	cpuinfo_grabber($file) if !$loaded{'cpuinfo'};
+	cpuinfo_data_grabber($file) if !$loaded{'cpuinfo'};
 	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
 	my ($core_count,$proc_count,$speed) = (0,0,0);
 	my ($b_block_1) = (1);
@@ -8818,15 +8735,14 @@ sub cpuinfo_data {
 					$cpu{'l3-cache'} = main::translate_size($1);
 				}
 				if ($cpu{'type'} eq 'elbrus'){
-					# note: cache0 is L1i and cache1 L1d, but add both for L1
-					if (!$cpu{'l1-cache'} && $block->{'cache0'} && 
+					# note: cache0 is L1i and cache1 L1d. cp_caches_fallback handles
+					if (!$cpu{'l1i-cache'} && $block->{'cache0'} && 
 					 $block->{'cache0'} =~ /size\s*=\s*(\d+)K\s/){
-						$cpu{'l0-cache'} = $1;
+						$cpu{'l1i-cache'} = $1;
 					}
-					if (!$cpu{'l1-cache'} && $block->{'cache1'} && 
+					if (!$cpu{'l1d-cache'} && $block->{'cache1'} && 
 					 $block->{'cache1'} =~ /size\s*=\s*(\d+)K\s/){
-						$cpu{'l1-cache'} = $1;
-						$cpu{'l1-cache'} += $cpu{'l0-cache'} if $cpu{'l0-cache'};
+						$cpu{'l1d-cache'} = $1;
 					}
 					if (!$cpu{'l2-cache'} && $block->{'cache2'} && 
 					 $block->{'cache2'} =~ /size\s*=\s*(\d+)(K|M)\s/){
@@ -8905,6 +8821,101 @@ sub cpuinfo_data {
 	print Data::Dumper::Dumper \%cpu if $dbg[8];
 	eval $end if $b_log;
 	return \%cpu;
+}
+sub cpuinfo_data_grabber {
+	eval $start if $b_log;
+	my ($file) = @_;
+	$loaded{'cpuinfo'} = 1;
+	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
+	if ($fake{'cpu'}){
+		## CPU sys/cpuinfo pairs:
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
+		## ARM/MIPS
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+		## x86
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-althlon-mjro.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-a10-5800k-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
+		## Elbrus
+		# $cpu{'type'} = 'elbrus'; # uncomment to test elbrus
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/elbrus-2c3/cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
+	}
+	my @raw = main::reader($file);
+	@raw = map {$_ =~ s/^\s*$/~~~/;$_;} @raw;
+	push(@raw,'~~~') if @raw;
+	my ($b_processor,$key,$value);
+	my ($i) = (0);
+	my @key_tests = ('firmware','hardware','mmu','model','motherboard',
+	 'platform','system type','timebase');
+	foreach my $row (@raw){
+		($key,$value) = split(/\s*:\s*/,$row,2);
+		next if !defined $key;
+		# ARM: 'Hardware' can appear in processor block; system type (mips)
+		# ARM: CPU revision; machine: Revision/PPC: revision (CPU implied)
+		# orangepi3 has Hardware/Processor embedded in processor block
+		if (%risc && ((grep {lc($key) eq $_} @key_tests) || 
+		 (!$risc{'ppc'} && lc($key) eq 'revision'))){
+			$b_processor = 0;
+		}
+		else {
+			$b_processor = 1;
+		}
+		if ($b_processor){
+			if ($key eq '~~~'){
+				$i++;
+				next;
+			}
+			# A small handful of ARM devices use Processor instead of 'model name'
+			# Processor   : AArch64 Processor rev 4 (aarch64)
+			# Processor : Feroceon 88FR131 rev 1 (v5l)
+			$key = ($key eq 'Processor') ? 'model name' : lc($key);
+			$cpuinfo[$i]->{$key} = $value;
+		}
+		else {
+			next if $cpuinfo_machine{lc($key)}; 
+			$cpuinfo_machine{lc($key)} = $value;
+		}
+	}
+	if ($b_log){
+		main::log_data('dump','@cpuinfo',\@cpuinfo);
+		main::log_data('dump','%cpuinfo_machine',\%cpuinfo_machine);
+	}
+	if ($dbg[41]){
+		print Data::Dumper::Dumper \@cpuinfo;
+		print Data::Dumper::Dumper \%cpuinfo_machine;
+	}
+	eval $end if $b_log;
 }
 sub cpu_sys_data {
 	eval $start if $b_log;
@@ -9182,8 +9193,11 @@ sub sysctl_data {
 			$cpu{'type'} = cpu_vendor($line[1]);
 		}
 		# NOTE: hw.l1icachesize: hw.l1dcachesize: ; in bytes, apparently
+		elsif ($line[0] eq 'hw.l1dcachesize'){
+			$cpu{'l1d-cache'} = $line[1]/1024;
+		}
 		elsif ($line[0] eq 'hw.l1icachesize'){
-			$cpu{'l1-cache'} = $line[1]/1024;
+			$cpu{'l1i-cache'} = $line[1]/1024;
 		}
 		elsif ($line[0] eq 'hw.l2cachesize'){
 			$cpu{'l2-cache'} = $line[1]/1024;
@@ -9225,6 +9239,7 @@ sub sysctl_data {
 		elsif ($line[0] eq 'machdep.cpu.features'){
 			$cpu{'flags'} = lc($line[1]);
 		}
+		# is this per phys or total?
 		elsif ($line[0] eq 'hw.ncpu'){
 			$cpu{'cores'} = $line[1];
 		}
@@ -9282,7 +9297,8 @@ sub sysctl_data {
 		$cpu{'cores'} = $dmesg_boot->{'cores'} if $dmesg_boot->{'cores'};
 		$cpu{'flags'} = $dmesg_boot->{'flags'} if !$cpu{'flags'};
 		$cpu{'family'} = $dmesg_boot->{'family'} if !$cpu{'family'};
-		$cpu{'l1-cache'} = $dmesg_boot->{'l1-cache'} if !$cpu{'l1-cache'};
+		$cpu{'l1d-cache'} = $dmesg_boot->{'l1d-cache'} if !$cpu{'l1d-cache'};
+		$cpu{'l1i-cache'} = $dmesg_boot->{'l1i-cache'} if !$cpu{'l1i-cache'};
 		$cpu{'l2-cache'} = $dmesg_boot->{'l2-cache'} if !$cpu{'l2-cache'};
 		$cpu{'l3-cache'} = $dmesg_boot->{'l3-cache'} if !$cpu{'l3-cache'};
 		$cpu{'microcode'} = $dmesg_boot->{'microcode'} if !$cpu{'microcode'};
@@ -9306,7 +9322,7 @@ sub dboot_data {
 	my ($max_freq,$min_freq,@scalings,%values);
 	my ($family,$flags,$microcode,$model,$sep,$stepping,$type) = ('','','','','','','');
 	my ($cores,$siblings) = (0,0);
-	my ($l1,$l2,$l3) = (0,0,0);
+	my ($l1d,$l1i,$l2,$l3) = (0,0,0,0);
 	# this will be null if it was not readable
 	my $file = $system_files{'dmesg-boot'};
 	if ($dboot{'cpu'}){
@@ -9343,11 +9359,11 @@ sub dboot_data {
 			elsif (/^cpu0:\s*[0-9\.]+[KMG]B\s/){
 				# cpu0: 32KB 64b/line 4-way L1 VIPT I-cache, 32KB 64b/line 4-way L1 D-cache
 				# cpu0:48KB 64b/line 3-way L1 PIPT I-cache, 32KB 64b/line 2-way L1 D-cache
-				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\s(L1 \S+\s)?I[\s-]?cache/){
-					$l1 = main::translate_size($1);
-				}
 				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sD[\s-]?cache/){
-					# do nothing, we aren't going to use the D cache
+					$l1d = main::translate_size($1);
+				}
+				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\s(L1 \S+\s)?I[\s-]?cache/){
+					$l1i = main::translate_size($1);
 				}
 				if (/\b([0-9\.]+[KMG])i?B\s\S+\s([0-9]+)-way\sL2[\s-]?cache/){
 					$l2 = main::translate_size($1);
@@ -9402,7 +9418,8 @@ sub dboot_data {
 	'cores' => $cores,
 	'family' => $family,
 	'flags' => $flags,
-	'l1-cache' => $l1,
+	'l1d-cache' => $l1d,
+	'l1i-cache' => $l1i,
 	'l2-cache' => $l2,
 	'l3-cache' => $l3,
 	'max-freq' => $max_freq,
@@ -9527,8 +9544,6 @@ sub cpu_properties {
 	'cpu-cores' => 0,
 	'cores' => 0,
 	'cores-multiplier' => 0,
-	'cores-mt' => 0,
-	'cores-st' => 0,
 	'physical' => 0,
 	'processors' => 0,
 	);
@@ -9605,19 +9620,13 @@ sub cpu_properties {
 	## END CACHE PROCESSING ##
 	
 	## START TYPE/LAYOUT/ARCH/BUGS ##
-	my ($cpu_layout,$cpu_type) = ('','');
+	my ($cpu_topology,$cpu_type) = ('','');
 	$cpu_type = cp_cpu_type(
 	\%counts,
 	$cpu,
 	\%tests
 	);
-	if ($counts{'physical'} > 1){
-		$cpu_layout = $counts{'physical'} . 'x ';
-	}
-	$cpu_layout .= cp_count_alpha($counts{'cpu-cores'});
-	if (!$bsd_type && $cpu->{'dies'} > 1){
-		$cpu_layout .= ' (' . $cpu->{'dies'}. '-Die)';
-	}
+	$cpu_topology = cp_cpu_topology(\%counts);
 	my $arch = cp_cpu_arch(
 	$cpu->{'type'},
 	$cpu->{'family'},
@@ -9650,7 +9659,7 @@ sub cpu_properties {
 	'bits-sys' => $bits_sys,
 	'cache' => $caches{'cache'},
 	'cache-check' => $cache_check,
-	'cpu-layout' => $cpu_layout,
+	'cpu-topology' => $cpu_topology,
 	'cpu-type' => $cpu_type,
 	'dmi-max-speed' => $dmi_data{'max-speed'},
 	'dmi-speed' => $dmi_data{'speed'},
@@ -9688,22 +9697,29 @@ sub cp_data_dmi {
 	# note: dmidecode has one entry per cpu per cache type
 	my $cpu_dmi = dmidecode_data();
 	# fix for bsds that do not show physical cpus, like openbsd
-	if (!$caches->{'l2'} && $counts->{'physical'} == 1 && $cpu_dmi->{'L2'} && 
-	 ($cpu_dmi->{'L2-total'} / $cpu_dmi->{'L2'} != 1)){
-		$counts->{'physical'} = sprintf("%.0f",$cpu_dmi->{'L2-total'} / $cpu_dmi->{'L2'}) + 0;
+	if (!$caches->{'l2'} && $counts->{'physical'} == 1 && $cpu_dmi->{'l2'} && 
+	 ($cpu_dmi->{'l2-total'} / $cpu_dmi->{'l2'} != 1)){
+		$counts->{'physical'} = sprintf("%.0f",$cpu_dmi->{'l2-total'} / $cpu_dmi->{'l2'}) + 0;
 	}
 	# These are the total per cpu, not per core when using dmidecode.
 	# /sys cache data preferred, more granular, unless dmidecode forced, which is
 	# preferred over manual fallback because it's per cpu already. 
+	# We have to undef all the sys stuff to get back to the true dmidecode results
 	if ($cpu_dmi->{'l1'} && (!$caches->{'l1'} || $force{'dmidecode'})){
+		undef $caches->{'l1d'};
+		undef $caches->{'l1d-desc'};
+		undef $caches->{'l1i'};
+		undef $caches->{'l1i-desc'};
 		$caches->{'l1'} = $cpu_dmi->{'l1'};
 	}
 	# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
 	# have these values so let's check just in case. 
 	if ($cpu_dmi->{'l2'} && (!$caches->{'l2'} || $force{'dmidecode'})){
+		undef $caches->{'l2-desc'};
 		$caches->{'l2'} = $cpu_dmi->{'l2'};
 	}
 	if ($cpu_dmi->{'l3'} && (!$caches->{'l3'} || $force{'dmidecode'})){
+		undef $caches->{'l3-desc'};
 		$caches->{'l3'} = $cpu_dmi->{'l3'}; 
 	}
 	$dmi_data->{'max-speed'} = $cpu_dmi->{'max-speed'};
@@ -9765,7 +9781,7 @@ sub cp_data_fallback {
 	# maybe applies to all risc, not sure, but dies is broken anyway for cpuinfo
 	if (!$cpu->{'dies'}){
 		if ($risc{'arm'} && $counts->{'dies'} <= 1 && $cpu->{'dies'} > 1){
-			$cpu->{'dies'} = $cpu->{'dies'};
+			$counts->{'dies'} = $cpu->{'dies'};
 		}
 		else {
 			$cpu->{'dies'} = $counts->{'dies'};
@@ -9809,11 +9825,12 @@ sub cp_data_fallback {
 		my $working = $counts->{'cpu-cores'} / 8;
 		my @temp = split('\.', $working);
 		$cpu->{'dies'} = ($temp[1] && $temp[1] > 0) ? $temp[0]++ : $temp[0];
+		$counts->{'dies'} = $cpu->{'dies'};
 	}
 	# these always have 4 dies
 	elsif ($tests->{'epyc'}){
 		$counts->{'cpu-cores'} = $cpu->{'cores'}; 
-		$cpu->{'dies'} = 4;
+		$counts->{'dies'} = $cpu->{'dies'} = 4;
 	}
 	# elsif ($tests->{'elbrus'}){
 	# 	$counts->{'cpu-cores'} = 
@@ -9883,79 +9900,74 @@ sub cp_data_fallback {
 sub cp_data_sys {
 	eval $start if $b_log;
 	my ($cpu,$cpu_sys,$caches,$counts) = @_;
-	my (@keys) = (keys %{$cpu_sys->{'cpus'}});
-	my (%cache_desc);
+	my (@keys) = (sort keys %{$cpu_sys->{'cpus'}});
 	return if !@keys;
 	$counts->{'physical'} = scalar @keys;
-	if ($type eq 'full'){
-		# Note: android has the cache files, but not defined? weird
-		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}){
-		# print Data::Dumper::Dumper $cpu_sys->{'cpus'};
-			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1d'}}){
-				if (defined $_){
-					$caches->{'l1d'} += $_;
-					$cache_desc{$_}++ if $b_admin;
-				}
-			}
-			$caches->{'l1'} += $caches->{'l1d'};
-			$caches->{'l1d-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
-		}
-		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}){
-			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l1i'}}){
-				if (defined $_){
-					$caches->{'l1i'} += $_ ;
-					$cache_desc{$_}++ if $b_admin;
-				}
-			}
-			$caches->{'l1'} += $caches->{'l1i'};
-			$caches->{'l1i-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
-		}
-		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}){
-			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l2'}}){
-				if (defined $_){
-					$caches->{'l2'} += $_ ;
-					$cache_desc{$_}++ if $b_admin;
-				}
-			}
-			$caches->{'l2-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
-		}
-		if ($cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}){
-			foreach (@{$cpu_sys->{'cpus'}{$keys[0]}{'caches'}{'l3'}}){
-				if (defined $_){
-					$caches->{'l3'} += $_ ;
-					$cache_desc{$_}++ if $b_admin;
-				}
-			}
-			$caches->{'l3-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
-		}
+	if ($type eq 'full' && $cpu_sys->{'cpus'}{$keys[0]}{'caches'}){
+		cp_sys_caches($cpu_sys->{'cpus'}{$keys[0]}{'caches'},$caches,'l1','l1d');
+		cp_sys_caches($cpu_sys->{'cpus'}{$keys[0]}{'caches'},$caches,'l1','l1i');
+		cp_sys_caches($cpu_sys->{'cpus'}{$keys[0]}{'caches'},$caches,'l2','');
+		cp_sys_caches($cpu_sys->{'cpus'}{$keys[0]}{'caches'},$caches,'l3','');
 	}
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'dies'}){
-		$counts->{'dies'} = scalar @{$cpu_sys->{'cpus'}{$keys[0]}{'dies'}};
-		$cpu->{'dies'} = $counts->{'dies'};
+	if ($cpu_sys->{'data'}{'speeds'}{'all'}){
+		$counts->{'processors'} = scalar @{$cpu_sys->{'data'}{'speeds'}{'all'}};
 	}
-	if ($cpu_sys->{'cpus'}{$keys[0]}{'cores'}){
-		my (@core_keys) = keys %{$cpu_sys->{'cpus'}{$keys[0]}{'cores'}};
-		$cpu->{'cores'} = $counts->{'cpu-cores'} = scalar @core_keys;
-		$cpu->{'siblings'} = 1;
-		if ($cpu_sys->{'data'}{'speeds'}{'all'}){
-			$counts->{'processors'} = scalar @{$cpu_sys->{'data'}{'speeds'}{'all'}};
-			if ($counts->{'processors'} > $counts->{'cpu-cores'}){
-				for my $key (@core_keys){
-					if ((my $threads = scalar @{$cpu_sys->{'cpus'}{$keys[0]}{'cores'}{$key}}) > 1){
-						$counts->{'cores-mt'}++;
-						$cpu->{'siblings'} = $threads;
-					}
-					else {
-						$counts->{'cores-st'}++;
+	my $i = 0;
+	foreach my $phys_id (@keys){
+		if ($cpu_sys->{'cpus'}{$phys_id}{'cores'}){
+			my ($mt,$st) = (0,0);
+			my (@core_keys) = keys %{$cpu_sys->{'cpus'}{$phys_id}{'cores'}};
+			$cpu->{'cores'} = $counts->{'cpu-cores'} = scalar @core_keys;
+			$counts->{'cpu-topo'}[$i]{'cores'} = $cpu->{'cores'};
+			if ($cpu_sys->{'cpus'}{$phys_id}{'dies'}){
+				$counts->{'cpu-topo'}[$i]{'dies'} = scalar @{$cpu_sys->{'cpus'}{$phys_id}{'dies'}};
+				$cpu->{'dies'} = $counts->{'cpu-topo'}[$i]{'dies'};
+			}
+			$cpu->{'siblings'} = 1;
+			if ($counts->{'processors'}){
+				if ($counts->{'processors'} > $counts->{'cpu-cores'}){
+					for my $key (@core_keys){
+						if ((my $threads = scalar @{$cpu_sys->{'cpus'}{$phys_id}{'cores'}{$key}}) > 1){
+							$counts->{'cpu-topo'}[$i]{'cores-mt'}++;
+							$counts->{'cpu-topo'}[$i]{'threads'} += $threads;
+							$counts->{'cores-mt'} = 1;
+							$cpu->{'siblings'} = $threads;
+						}
+						else {
+							$counts->{'cpu-topo'}[$i]{'cores-st'}++;
+							$counts->{'cpu-topo'}[$i]{'threads'}++;
+							$counts->{'cores-st'} = 1;
+						}
 					}
 				}
 			}
-			else {
-				$counts->{'cores-st'} = $counts->{'cpu-cores'};
-			}
+			$i++;
 		}
+	}
+	if ($b_log){
+		main::log_data('dump','%cpu_properties',$caches);
+		main::log_data('dump','%cpu_properties',$counts);
 	}
 	# print Data::Dumper::Dumper $caches;
+	# print Data::Dumper::Dumper $counts;
+	eval $end if $b_log;
+}
+sub cp_sys_caches {
+	eval $start if $b_log;
+	my ($sys_caches,$caches,$id,$id_di) = @_;
+	my $cache_id = ($id_di) ? $id_di: $id;
+	my %cache_desc;
+	if ($sys_caches->{$cache_id}){
+		# print Data::Dumper::Dumper $cpu_sys->{'cpus'};
+		foreach (@{$sys_caches->{$cache_id}}){
+			# android seen to have cache data without size item
+			next if !defined $_; 
+			$caches->{$cache_id} += $_;
+			$cache_desc{$_}++ if $b_admin;
+		}
+		$caches->{$id} += $caches->{$id_di} if $id_di;
+		$caches->{$cache_id . '-desc'} = cp_cache_desc(\%cache_desc) if $b_admin;
+	}
 	eval $end if $b_log;
 }
 
@@ -9990,6 +10002,19 @@ sub cp_caches_fallback {
 	# L1 Cache
 	if ($cpu->{'l1-cache'}){
 		$caches->{'l1'} = $cpu->{'l1-cache'} * $counts->{'cores-multiplier'};
+	}
+	else {
+		if ($cpu->{'l1d-cache'}){
+			$caches->{'l1d-desc'} = $counts->{'cores-multiplier'} . 'x';
+			$caches->{'l1d-desc'} .= main::get_size($cpu->{'l1d-cache'},'string');
+			$caches->{'l1'} += $cpu->{'l1d-cache'} * $counts->{'cores-multiplier'};
+			
+		}
+		if ($cpu->{'l1i-cache'}){
+			$caches->{'l1i-desc'} = $counts->{'cores-multiplier'} . 'x';
+			$caches->{'l1i-desc'} .= main::get_size($cpu->{'l1i-cache'},'string');
+			$caches->{'l1'} += $cpu->{'l1i-cache'} * $counts->{'cores-multiplier'};
+		}
 	}
 	# L2 Cache
 	# If summed by dmidecode or from cpu_sys don't use this
@@ -10027,20 +10052,6 @@ sub cp_caches_fallback {
 		$$cache_check = main::row_defaults('note-check');
 	}
 	eval $end if $b_log;
-}
-sub cp_count_alpha {
-	my ($count) = @_;
-	my @alpha = qw(Single Dual Triple Quad);
-	if ($count > 4){
-		$count .= '-Core';
-	}
-	elsif ($count == 0) {
-		$count = main::row_defaults('unknown-cpu-layout');
-	}
-	else {
-		$count = $alpha[$count-1] . ' Core';
-	}
-	return $count;
 }
 sub cp_cpu_arch {
 	eval $start if $b_log;
@@ -10451,6 +10462,62 @@ sub cp_cpu_arch {
 	eval $end if $b_log;
 	return [$arch,$note];
 }
+sub cp_cpu_topology {
+	my ($counts) = @_;
+	my @alpha = qw(Single Dual Triple Quad);
+	my ($sep,$topology) = ('','');
+	my %logic;
+	if ($counts->{'cpu-topo'}){
+		foreach my $cpu (@{$counts->{'cpu-topo'}}){
+			my $key = '';
+			# alder lake type cpu
+			if ($cpu->{'cores-st'} && $cpu->{'cores-mt'}){
+				$key .= ', ' if $key;
+				$key .= $cpu->{'cores-mt'} . '-mt/';
+				$key .= $cpu->{'cores-mt'} . '-st';
+				$key .= ' ,' . $cpu->{'threads'} . '-threads' if $b_admin;
+			}
+			elsif ($b_admin && $cpu->{'cores-mt'}){
+				$key .= ', ' if $key;
+				$key .= $cpu->{'threads'} . '-threads' if $b_admin;
+			}
+			if ($cpu->{'dies'} > 1){
+				$key .= ', ' if $key;
+				$key .= $cpu->{'dies'} . '-die';
+			}
+			$key = ' (' . $key . ')' if $key;
+			$key = $cpu->{'cores'} . '-Core' . $key;
+			$logic{$key}++;
+		}
+		# print Data::Dumper::Dumper \%logic;
+		foreach (sort keys %logic){
+			$topology .= $sep;
+			$topology .= $logic{$_} . 'x ' if $counts->{'physical'} > 1;
+			$topology .= $_;
+			$sep = ', ';
+		}
+	}
+	else {
+		if ($counts->{'physical'} > 1) {
+			$topology = $counts->{'physical'} . 'x ' . $counts->{'cpu-cores'} . '-Core';
+		}
+		else {
+			if ($counts->{'cpu-cores'} > 4){
+				$topology = $counts->{'cpu-cores'} . '-Core';
+			}
+			elsif ($counts->{'cpu-cores'} == 0){
+				$topology = main::row_defaults('unknown-cpu-topology');
+			}
+			else {
+				$topology = $alpha[$counts->{'cpu-cores'}-1] . ' Core';
+			}
+		}
+		if ($counts->{'cpu-dies'} && $counts->{'cpu-dies'} > 1){
+			$topology .= ' (' .  $counts->{'cpu-dies'} . '-die)';
+		}
+	}
+	return $topology;
+}
 # Logic:
 # if > 1 processor && processor id (physical id) == core id then Multi threaded (MT)
 # if siblings > 1 && siblings ==  2 * num_of_cores ($cpu->{'cores'}) then Multi threaded (MT)
@@ -10464,13 +10531,9 @@ sub cp_cpu_type {
 	if ($counts->{'processors'} > 1 || 
 	 (defined $tests->{'intel'} && $tests->{'intel'} && $cpu->{'siblings'} > 0)){
 		# cpu_sys detected MT
-		if ($counts->{'cores-mt'} > 0){
-			if ($counts->{'cores-mt'} > 0 && $counts->{'cores-st'} > 0){
+		if ($counts->{'cores-mt'}){
+			if ($counts->{'cores-mt'} && $counts->{'cores-st'}){
 				$cpu_type .= 'MST'; 
-				if ($b_admin){
-					$cpu_type .= ' (' . $counts->{'cores-mt'} . '-mt, ';
-					$cpu_type .= $counts->{'cores-st'} . '-st)'
-				}
 			}
 			else {
 				$cpu_type .= 'MT'; 
@@ -10492,7 +10555,7 @@ sub cp_cpu_type {
 		# non-MT multi-core or MT multi-core
 		if ($counts->{'processors'} == $counts->{'cpu-cores'} || 
 		 $counts->{'physical'} < $counts->{'cpu-cores'}){
-			if ($counts->{'cores-mt'} > 0 && $counts->{'cores-st'} > 0){
+			if ($counts->{'cores-mt'} && $counts->{'cores-st'}){
 				$cpu_type .= ' AMCP';
 			}
 			else {
