@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-02';
-my $self_patch='26';
+my $self_date='2021-12-03';
+my $self_patch='27';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5499,7 +5499,8 @@ sub show_options {
 	non-running sound servers."],
 	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
 	attached devices (e.g. wireless mouse, keyboard, if present)."],
-	['2', '-C', '', "CPU $flags (short list, use -f to see full list); Highest
+	['2', '-C', '', "L1/L3 cache (if most Linux, or if root and dmidecode 
+	installed); CPU $flags (short list, use -f to see full list); Highest
 	core speed (if > 1 core); CPU boost (turbo) enabled/disabled, if present; 
 	Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
 	unless --admin, then shows as 'stepping')."],
@@ -5551,8 +5552,6 @@ sub show_options {
 	or line output, not short form):"],
 	['2', '-A', '', "Chip vendor:product ID for each audio device."],
 	['2', '-B', '', "Serial number."],
-	['2', '-C', '', "L1/L3 cache (if most Linux, or if root and dmidecode 
-	installed); CPU die counts (if detectable)."],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available); disk duid (some BSDs)."],
 	['2', '-E', '', "Chip vendor:product ID, LMP subversion."],
@@ -8276,11 +8275,61 @@ sub full_output {
 	my $properties = cpu_properties($cpu);
 	my $type = ($properties->{'cpu-type'}) ? $properties->{'cpu-type'}: '';
 	my $j = scalar @rows;
+	# all tests already done to load this, admin, etc
+	if ($properties->{'topology-full'}){
+		push(@rows, {
+		main::key($num++,1,1,'Topology') => '',
+		},);
+		my ($id,$var) = (2,'');
+		if (scalar @{$properties->{'topology-full'}} > 1){
+			$var = 'variant';
+			$id = 3;
+		}
+		foreach my $topo (@{$properties->{'topology-full'}}){
+			if ($var){
+				$rows[$j]->{main::key($num++,1,2,'variant')} = '';
+			}
+			$rows[$j]->{main::key($num++,0,$id,'cpus')} = $topo->{'cpus'};
+			$rows[$j]->{main::key($num++,1,$id+1,'cores')} = $topo->{'cores'};
+			if ($topo->{'cores-mt'} && $topo->{'cores-st'}){
+				$rows[$j]->{main::key($num++,1,$id+2,'mt')} = $topo->{'cores-mt'};
+				$rows[$j]->{main::key($num++,0,$id+3,'t-core')} = $topo->{'t-core'};
+				$rows[$j]->{main::key($num++,0,$id+2,'st')} = $topo->{'cores-st'};
+			}
+			if ($topo->{'cores-mt'}){
+				$rows[$j]->{main::key($num++,0,$id+2,'t-core')} = $topo->{'t-core'};
+			}
+			if ($topo->{'max'} || $topo->{'min'}){
+				my ($freq,$key) = ('','');
+				if ($topo->{'max'} && $topo->{'min'}){
+					$key = 'min/max';
+					$freq = $topo->{'min'} . '/' . $topo->{'max'};
+				}
+				elsif ($topo->{'max'}){
+					$key = 'max';
+					$freq = $topo->{'max'};
+				}
+				else {
+					$key = 'min';
+					$freq = $topo->{'min'};
+				}
+				$rows[$j]->{main::key($num++,0,$id+1,$key)} = $freq;
+			}
+			if ($topo->{'threads'}){
+				$rows[$j]->{main::key($num++,0,$id+1,'threads')} = $topo->{'threads'};
+			}
+			if ($topo->{'dies'}){
+				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
+			}
+		}
+	}
+	$j = scalar @rows;
 	$cpu->{'model_name'} ||= 'N/A'; 
 	push(@rows, {
-	main::key($num++,1,1,'Info') => $properties->{'cpu-topology'},
+	main::key($num++,1,1,'Info') => $properties->{'topology-string'},
 	main::key($num++,0,2,'model') => $cpu->{'model_name'},
 	},);
+	
 	if ($cpu->{'system-cpus'}){
 		my %system_cpus = %{$cpu->{'system-cpus'}};
 		my $i = 1;
@@ -8340,7 +8389,7 @@ sub full_output {
 			$value = ($properties->{'cache'}) ? $properties->{'cache'} : 'N/A';
 		}
 		$rows[$j]->{main::key($num++,1,2,'cache')} = $value;
-		if ($extra > 1 && $properties->{'l1-cache'}){
+		if ($extra > 0 && $properties->{'l1-cache'}){
 			$rows[$j]->{main::key($num++,2,3,'L1')} = $properties->{'l1-cache'};
 			if ($b_admin && ($properties->{'l1d-desc'} || $properties->{'l1i-desc'})){
 				my $desc = '';
@@ -8357,15 +8406,15 @@ sub full_output {
 		if (!$value){
 			$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
 			$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
+			if ($b_admin && $properties->{'l2-desc'}){
+				$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l2-desc'};
+			}
 		}
-		if ($b_admin && $properties->{'l2-desc'}){
-			$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l2-desc'};
-		}
-		if ($extra > 1 && $properties->{'l3-cache'}){
+		if ($extra > 0 && $properties->{'l3-cache'}){
 			$rows[$j]->{main::key($num++,1,3,'L3')} = $properties->{'l3-cache'};
-		}
-		if ($b_admin && $properties->{'l3-desc'}){
-			$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l3-desc'};
+			if ($b_admin && $properties->{'l3-desc'}){
+				$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l3-desc'};
+			}
 		}
 		if ($properties->{'cache-check'}){
 			$rows[$j]->{main::key($num++,0,3,'note')} = $properties->{'cache-check'};
@@ -8577,7 +8626,7 @@ sub prep_short_data {
  	$speed_key = $properties->{'speed-key'} if $properties->{'speed-key'};
  	$speed = $properties->{'speed'} if $properties->{'speed'};
  	my @result = (
- 	$properties->{'cpu-topology'},
+ 	$properties->{'topology-string'},
  	$cpu,
  	$type,
  	$speed_key,
@@ -8831,10 +8880,10 @@ sub cpuinfo_data_grabber {
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
 		## CPU sys/cpuinfo pairs:
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-cpuinfo.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-cpuinfo.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-pine64-cpuinfo-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~cpuinfo.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~cpuinfo.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
@@ -9057,10 +9106,10 @@ sub sys_data_grabber {
 	if ($fake{'cpu'}){
 		 my $file;
 		## CPU sys/cpuinfo pairs:
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-sys.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-sys.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-pine64-sys-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~sys.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~sys.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~sys-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~sys-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-sys.txt";
@@ -9675,19 +9724,11 @@ sub cpu_properties {
 	'bits-sys' => $bits_sys,
 	'cache' => $caches{'cache'},
 	'cache-check' => $cache_check,
-	'cpu-topology' => $topology{'string'},
 	'cpu-type' => $cpu_type,
 	'dmi-max-speed' => $dmi_data{'max-speed'},
 	'dmi-speed' => $dmi_data{'speed'},
 	'ext-clock' => $dmi_data{'ext-clock'},
 	'high-speed-key' => $speed_info->{'high-speed-key'},
-	'min-max-key' => $speed_info->{'min-max-key'},
-	'min-max' => $speed_info->{'min-max'},
-	'socket' => $dmi_data{'socket'},
-	'speed-key' => $speed_info->{'speed-key'},
-	'speed' => $speed_info->{'speed'},
-	'upgrade' => $dmi_data{'upgrade'},
-	'volts' => $dmi_data{'volts'},
 	'l1-cache' => $caches{'l1'},
 	'l1d-desc' => $caches{'l1d-desc'},
 	'l1i-desc' => $caches{'l1i-desc'},
@@ -9695,10 +9736,25 @@ sub cpu_properties {
 	'l2-desc' => $caches{'l2-desc'},
 	'l3-cache' => $caches{'l3'},
 	'l3-desc' => $caches{'l3-desc'},
+	'min-max-key' => $speed_info->{'min-max-key'},
+	'min-max' => $speed_info->{'min-max'},
+	'socket' => $dmi_data{'socket'},
+	'speed-key' => $speed_info->{'speed-key'},
+	'speed' => $speed_info->{'speed'},
+	'topology-full' => $topology{'full'},
+	'topology-string' => $topology{'string'},
+	'upgrade' => $dmi_data{'upgrade'},
+	'volts' => $dmi_data{'volts'},
 	);
-	main::log_data('dump','%cpu_properties',\%cpu_properties) if $b_log;
+	if ($b_log){
+		main::log_data('dump','%cpu_properties',\%cpu_properties);
+		main::log_data('dump','%topology',\%topology);
+	}
 	# print Data::Dumper::Dumper $cpu;
-	print Data::Dumper::Dumper \%cpu_properties if $dbg[38];
+	if ($dbg[38]){
+		print Data::Dumper::Dumper \%cpu_properties;
+		print Data::Dumper::Dumper \%topology;
+	}
 	# my $dc = scalar @dies;
 	# print 'phys: ' . $pc . ' dies: ' . $dc, "\n";
 	eval $end if $b_log;
@@ -9879,7 +9935,7 @@ sub cp_data_fallback {
 			$cpu->{'processors'}[$_] = 0;
 		}
 	}
-	# so far only OpenBSD has a way to detect MT cpus
+	# so far only OpenBSD has a way to detect MT cpus, but Openbsd has disabled MT
 	if ($bsd_type){
 		if ($cpu->{'siblings'} && 
 		 $counts->{'cpu-cores'} && $counts->{'cpu-cores'} > 1){
@@ -9929,6 +9985,7 @@ sub cp_data_sys {
 		$counts->{'processors'} = scalar @{$cpu_sys->{'data'}{'speeds'}{'all'}};
 	}
 	my $i = 0;
+	my (@max,@min,@phys_cores);
 	foreach my $phys_id (@keys){
 		if ($cpu_sys->{'cpus'}{$phys_id}{'cores'}){
 			my ($mt,$st) = (0,0);
@@ -9939,22 +9996,35 @@ sub cp_data_sys {
 				$counts->{'cpu-topo'}[$i]{'dies'} = scalar @{$cpu_sys->{'cpus'}{$phys_id}{'dies'}};
 				$cpu->{'dies'} = $counts->{'cpu-topo'}[$i]{'dies'};
 			}
-			$cpu->{'siblings'} = 1;
+			# If we ever get > 1 min/max speed per phy cpu, we'll need to fix the [0]
+			if ($cpu_sys->{'cpus'}{$phys_id}{'max-freq'}[0]){
+				if (!grep {$cpu_sys->{'cpus'}{$phys_id}{'max-freq'}[0] eq $_} @max){
+					push(@max,$cpu_sys->{'cpus'}{$phys_id}{'max-freq'}[0]);
+				}
+				$counts->{'cpu-topo'}[$i]{'max'} = $cpu_sys->{'cpus'}{$phys_id}{'max-freq'}[0];
+			}
+			if ($cpu_sys->{'cpus'}{$phys_id}{'min-freq'}[0]){
+				if (!grep {$cpu_sys->{'cpus'}{$phys_id}{'min-freq'}[0] eq $_} @min){
+					push(@min,$cpu_sys->{'cpus'}{$phys_id}{'min-freq'}[0]);
+				}
+				$counts->{'cpu-topo'}[$i]{'min'} = $cpu_sys->{'cpus'}{$phys_id}{'min-freq'}[0];
+			}
+			if (!grep {$counts->{'cpu-cores'} eq $_} @phys_cores){
+				push(@phys_cores,$counts->{'cpu-cores'});
+			}
 			if ($counts->{'processors'}){
 				if ($counts->{'processors'} > $counts->{'cpu-cores'}){
 					for my $key (@core_keys){
 						if ((my $threads = scalar @{$cpu_sys->{'cpus'}{$phys_id}{'cores'}{$key}}) > 1){
 							$counts->{'cpu-topo'}[$i]{'cores-mt'}++;
 							$counts->{'cpu-topo'}[$i]{'threads'} += $threads;
-							$counts->{'cpu-topo'}[$i]{'mt'} = $threads;
-							$counts->{'cores-mt'} = 1;
-							$cpu->{'siblings'} = $threads;
+							$counts->{'cpu-topo'}[$i]{'t-core'} = $threads;
+							$counts->{'struct-mt'} = 1;
 						}
 						else {
 							$counts->{'cpu-topo'}[$i]{'cores-st'}++;
 							$counts->{'cpu-topo'}[$i]{'threads'}++;
-							$counts->{'cpu-topo'}[$i]{'st'} = 1;
-							$counts->{'cores-st'} = 1;
+							$counts->{'struct-st'} = 1;
 						}
 					}
 				}
@@ -9962,6 +10032,9 @@ sub cp_data_sys {
 			$i++;
 		}
 	}
+	$counts->{'struct-max'} = 1 if scalar @max > 1;
+	$counts->{'struct-min'} = 1 if scalar @min > 1;
+	$counts->{'struct-cores'} = 1 if scalar @phys_cores > 1;
 	if ($b_log){
 		main::log_data('dump','%cpu_properties',$caches);
 		main::log_data('dump','%cpu_properties',$counts);
@@ -10484,40 +10557,73 @@ sub cp_cpu_topology {
 	my ($counts,$topology) = @_;
 	my @alpha = qw(Single Dual Triple Quad);
 	my ($sep) = ('');
-	my %logic;
+	my (%keys,%done);
+	my @tests = ('x'); # prefill [0] because iterator runs before 'last' test.
 	if ($counts->{'cpu-topo'}){
-		$topology->{'cpu-topo'} = $counts->{'cpu-topo'};
-		foreach my $cpu (@{$counts->{'cpu-topo'}}){
-			my $key = '';
-			# alder lake type cpu
-			if ($cpu->{'cores-st'} && $cpu->{'cores-mt'}){
-				$key .= ', ' if $key;
-				$key .= $cpu->{'cores-mt'} . '-mt/';
-				$key .= $cpu->{'cores-st'} . '-st';
-			}
-			if ($type eq 'full' && $b_admin && $cpu->{'cores-mt'}){
-				$key .= ', ' if $key;
-				$key .= $cpu->{'threads'} . '-threads';
-			}
-			if ($type eq 'full' && $extra > 1 && $cpu->{'dies'} > 1){
-				$key .= ', ' if $key;
-				$key .= $cpu->{'dies'} . '-die';
-			}
-			$key = ' (' . $key . ')' if $key;
-			if ($counts->{'physical'} > 1) {
-				$key = $cpu->{'cores'} . '-core' . $key;
+		# first we want to find out how many of each physical variant there are
+		foreach my $topo (@{$counts->{'cpu-topo'}}){
+			# turn sorted hash into string
+			my $test = join('::', map{$_ . ':' . $topo->{$_}} sort keys %$topo);
+			if ($keys{$test}){
+				$keys{$test}++;
 			}
 			else {
-				$key = cp_cpu_alpha($cpu->{'cores'}) . $key;
+				$keys{$test} = 1;
 			}
-			$logic{$key}++;
+			push(@tests,$test);
 		}
-		# print Data::Dumper::Dumper \%logic;
-		foreach (sort keys %logic){
-			$topology->{'string'} .= $sep;
-			$topology->{'string'} .= $logic{$_} . 'x ' if $counts->{'physical'} > 1;
-			$topology->{'string'} .= $_;
-			$sep = '; ';
+		my ($i,$j) = (0,0);
+		# then we build up the topology data per variant
+		foreach my $topo (@{$counts->{'cpu-topo'}}){
+			my $key = '';
+			$i++;
+			next if $done{$tests[$i]};
+			$done{$tests[$i]} = 1;
+			if ($b_admin && $type eq 'full' && ($counts->{'struct-cores'} || 
+			 $counts->{'struct-max'} || $counts->{'struct-min'} || 
+			 $counts->{'struct-mt'})){
+				$topology->{'full'}[$j]{'cpus'} = $keys{$tests[$i]};
+				$topology->{'full'}[$j]{'cores'} = $topo->{'cores'};
+				if ($topo->{'cores'} != $topo->{'threads'}){
+					$topology->{'full'}[$j]{'threads'} = $topo->{'threads'};
+				}
+				if ($topo->{'dies'} && $topo->{'dies'} > 1){
+					$topology->{'full'}[$j]{'dies'} = $topo->{'dies'};
+				}
+				if ($counts->{'struct-mt'}){
+					$topology->{'full'}[$j]{'cores-mt'} = $topo->{'cores-mt'};
+				}
+				if ($counts->{'struct-st'}){
+					$topology->{'full'}[$j]{'cores-st'} = $topo->{'cores-st'};
+				}
+				if ($counts->{'struct-max'} || $counts->{'struct-min'}){
+					$topology->{'full'}[$j]{'max'} = $topo->{'max'};
+					$topology->{'full'}[$j]{'min'} = $topo->{'min'};
+				}
+				if ($topo->{'t-core'}){
+					$topology->{'full'}[$j]{'t-core'} = $topo->{'t-core'};
+				}
+				$j++;
+			}
+			else {
+				# start building string
+				$topology->{'string'} .= $sep;
+				$sep = ',';
+				if ($counts->{'physical'} > 1){
+					$topology->{'string'} .= $keys{$tests[$i]} . 'x ';
+				}
+				if ($counts->{'physical'} > 1) {
+					$topology->{'string'} .= $topo->{'cores'} . '-core';
+				}
+				else {
+					$topology->{'string'} .= cp_cpu_alpha($topo->{'cores'});
+				}
+				# alder lake type cpu
+				if ($topo->{'cores-st'} && $topo->{'cores-mt'}){
+					$topology->{'string'} .= ' (' . $topo->{'cores-mt'} . '-mt/';
+					$topology->{'string'} .= $topo->{'cores-st'} . '-st)';
+				}
+			}
 		}
 	}
 	else {
@@ -10527,10 +10633,6 @@ sub cp_cpu_topology {
 		}
 		else {
 			$topology->{'string'} = cp_cpu_alpha($counts->{'cpu-cores'});
-		}
-		if ($type eq 'full' && $extra > 1 && $counts->{'cpu-dies'} && 
-		 $counts->{'cpu-dies'} > 1){
-			$topology->{'string'} .= ' (' .  $counts->{'cpu-dies'} . '-die)';
 		}
 	}
 	$topology->{'string'} ||= '';
@@ -10563,8 +10665,8 @@ sub cp_cpu_type {
 	if ($counts->{'processors'} > 1 || 
 	 (defined $tests->{'intel'} && $tests->{'intel'} && $cpu->{'siblings'} > 0)){
 		# cpu_sys detected MT
-		if ($counts->{'cores-mt'}){
-			if ($counts->{'cores-mt'} && $counts->{'cores-st'}){
+		if ($counts->{'struct-mt'}){
+			if ($counts->{'struct-mt'} && $counts->{'struct-st'}){
 				$cpu_type .= 'MST'; 
 			}
 			else {
@@ -10585,9 +10687,8 @@ sub cp_cpu_type {
 			$cpu_type .= 'MT'; 
 		}
 		# non-MT multi-core or MT multi-core
-		if ($counts->{'processors'} == $counts->{'cpu-cores'} || 
-		 $counts->{'physical'} < $counts->{'cpu-cores'}){
-			if ($counts->{'cores-mt'} && $counts->{'cores-st'}){
+		if ($counts->{'cpu-cores'} > 1){
+			if ($counts->{'struct-mt'} && $counts->{'struct-st'}){
 				$cpu_type .= ' AMCP';
 			}
 			else {
@@ -10600,7 +10701,13 @@ sub cp_cpu_type {
 		}
 		# >1 cpu sockets active: Symetric Multi Processing
 		if ($counts->{'physical'} > 1){
-			$cpu_type .= ' SMP'; 
+			if ($counts->{'struct-cores'} || $counts->{'struct-max'} || 
+			 $counts->{'struct-min'}){
+				$cpu_type .= ' AMP'; 
+			}
+			else {
+				$cpu_type .= ' SMP'; 
+			}
 		}
 		$cpu_type =~ s/^\s+//;
 	}
