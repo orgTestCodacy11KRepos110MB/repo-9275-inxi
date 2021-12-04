@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-12-03';
-my $self_patch='27';
+my $self_patch='28';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -9012,31 +9012,34 @@ sub cpu_sys_data {
 				my $id = ($core_id != -1) ? $core_id: $fake_core_id++;
 				push(@{$cpu_sys{'cpus'}->{$phys_id}{'cores'}{$id}},0);
 			}
+			# Only use if topology core-id exists, some virtualized cpus can list 
+			# frequency data for the non available cores, but those do not show 
+			# topology data.
+			# For max / min, we want to prep for the day 1 pys cpu has > 1 min/max freq
+			if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
+				$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
+					push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
+				}
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}}){
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}},$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
+				}
+			}
+			if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
+				$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
+					push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+				}
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}}){
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}},$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+				}
+			}
 		}
 		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
 			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
 		}
 		if (defined $cpu->{'topology'}{'core_cpus_list'}){
 			$cpu->{'topology'}{'thread_siblings_list'} = $cpu->{'topology'}{'core_cpus_list'};
-		}
-		# for max / min, we want to prep for the day 1 pys cpu has > 1 min/max freq
-		if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
-			$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
-				push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
-			}
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}}){
-				push(@{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}},$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
-			}
-		}
-		if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
-			$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
-				push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
-			}
-			if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}}){
-				push(@{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}},$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
-			}
 		}
 		if (defined $cpu->{'cache'} && keys %{$cpu->{'cache'}} > 0){
 			foreach my $key2 (sort keys %{$cpu->{'cache'}}){
