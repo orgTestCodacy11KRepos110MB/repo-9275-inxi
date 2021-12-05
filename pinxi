@@ -8268,63 +8268,12 @@ sub full_output {
 	my $properties = cpu_properties($cpu);
 	my $type = ($properties->{'cpu-type'}) ? $properties->{'cpu-type'}: '';
 	my $j = scalar @rows;
-	# all tests already done to load this, admin, etc
-	if ($properties->{'topology-full'}){
-		push(@rows, {
-		main::key($num++,1,1,'Topology') => '',
-		},);
-		my ($id,$var) = (2,'');
-		if (scalar @{$properties->{'topology-full'}} > 1){
-			$var = 'variant';
-			$id = 3;
-		}
-		foreach my $topo (@{$properties->{'topology-full'}}){
-			if ($var){
-				$rows[$j]->{main::key($num++,1,2,'variant')} = '';
-			}
-			my $x = ($size{'max'} == 1) ? '' : 'x';
-			$rows[$j]->{main::key($num++,0,$id,'cpus')} = $topo->{'cpus'} . $x;
-			$rows[$j]->{main::key($num++,1,$id+1,'cores')} = $topo->{'cores'};
-			if ($topo->{'cores-mt'} && $topo->{'cores-st'}){
-				$rows[$j]->{main::key($num++,1,$id+2,'mt')} = $topo->{'cores-mt'};
-				$rows[$j]->{main::key($num++,0,$id+3,'tpc')} = $topo->{'tpc'};
-				$rows[$j]->{main::key($num++,0,$id+2,'st')} = $topo->{'cores-st'};
-			}
-			if ($topo->{'cores-mt'}){
-				$rows[$j]->{main::key($num++,0,$id+2,'tpc')} = $topo->{'tpc'};
-			}
-			if ($topo->{'max'} || $topo->{'min'}){
-				my ($freq,$key) = ('','');
-				if ($topo->{'max'} && $topo->{'min'}){
-					$key = 'min/max';
-					$freq = $topo->{'min'} . '/' . $topo->{'max'};
-				}
-				elsif ($topo->{'max'}){
-					$key = 'max';
-					$freq = $topo->{'max'};
-				}
-				else {
-					$key = 'min';
-					$freq = $topo->{'min'};
-				}
-				$rows[$j]->{main::key($num++,0,$id+1,$key)} = $freq;
-			}
-			if ($topo->{'threads'}){
-				$rows[$j]->{main::key($num++,0,$id+1,'threads')} = $topo->{'threads'};
-			}
-			if ($topo->{'dies'}){
-				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
-			}
-		}
-		full_output_caches($j,$properties,\$num,\@rows);
-	}
 	$j = scalar @rows;
 	$cpu->{'model_name'} ||= 'N/A'; 
 	push(@rows, {
 	main::key($num++,1,1,'Info') => $properties->{'topology-string'},
 	main::key($num++,0,2,'model') => $cpu->{'model_name'},
 	},);
-	
 	if ($cpu->{'system-cpus'}){
 		my %system_cpus = %{$cpu->{'system-cpus'}};
 		my $i = 1;
@@ -8406,6 +8355,57 @@ sub full_output {
 		main::key($num++,0,2,$flag_key) => $flag,
 		});
 		$b_flags = 1;
+	}
+	# all tests already done to load this, admin, etc
+	if ($properties->{'topology-full'}){
+		$j = scalar @rows;
+		push(@rows, {
+		main::key($num++,1,1,'Topology') => '',
+		},);
+		my ($id,$var) = (2,'');
+		if (scalar @{$properties->{'topology-full'}} > 1){
+			$var = 'variant';
+			$id = 3;
+		}
+		foreach my $topo (@{$properties->{'topology-full'}}){
+			if ($var){
+				$rows[$j]->{main::key($num++,1,2,'variant')} = '';
+			}
+			my $x = ($size{'max'} == 1) ? '' : 'x';
+			$rows[$j]->{main::key($num++,0,$id,'cpus')} = $topo->{'cpus'} . $x;
+			$rows[$j]->{main::key($num++,1,$id+1,'cores')} = $topo->{'cores'};
+			if ($topo->{'cores-mt'} && $topo->{'cores-st'}){
+				$rows[$j]->{main::key($num++,1,$id+2,'mt')} = $topo->{'cores-mt'};
+				$rows[$j]->{main::key($num++,0,$id+3,'tpc')} = $topo->{'tpc'};
+				$rows[$j]->{main::key($num++,0,$id+2,'st')} = $topo->{'cores-st'};
+			}
+			if ($topo->{'cores-mt'}){
+				$rows[$j]->{main::key($num++,0,$id+2,'tpc')} = $topo->{'tpc'};
+			}
+			if ($topo->{'max'} || $topo->{'min'}){
+				my ($freq,$key) = ('','');
+				if ($topo->{'max'} && $topo->{'min'}){
+					$key = 'min/max';
+					$freq = $topo->{'min'} . '/' . $topo->{'max'};
+				}
+				elsif ($topo->{'max'}){
+					$key = 'max';
+					$freq = $topo->{'max'};
+				}
+				else {
+					$key = 'min';
+					$freq = $topo->{'min'};
+				}
+				$rows[$j]->{main::key($num++,0,$id+1,$key)} = $freq;
+			}
+			if ($topo->{'threads'}){
+				$rows[$j]->{main::key($num++,0,$id+1,'threads')} = $topo->{'threads'};
+			}
+			if ($topo->{'dies'}){
+				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
+			}
+		}
+		full_output_caches($j,$properties,\$num,\@rows);
 	}
 	$j = scalar @rows;
 	my $speeds = $cpu->{'processors'};
