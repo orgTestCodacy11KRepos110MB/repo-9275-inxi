@@ -8247,13 +8247,6 @@ sub full_output {
 	my (@flags,@rows);
 	my $sleep = $cpu_sleep * 1000000;
 	if (my $file = $system_files{'proc-cpuinfo'}){
-		# bsd sleep is set before sysctl runs, same idea
-		if ($b_hires){
-			eval 'Time::HiRes::usleep($sleep)';
-		}
-		else {
-			select(undef, undef, undef, $cpu_sleep);
-		}
 		$cpu = cpuinfo_data($file);
 	}
 	elsif ($bsd_type){
@@ -8323,6 +8316,7 @@ sub full_output {
 				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
 			}
 		}
+		full_output_caches($j,$properties,\$num,\@rows);
 	}
 	$j = scalar @rows;
 	$cpu->{'model_name'} ||= 'N/A'; 
@@ -8382,44 +8376,15 @@ sub full_output {
 		}
 	}
 	# note, risc cpus are using l1, L2, L3 more often, but if risc and no L2, skip
-	if (($extra > 1 && ($properties->{'l1-cache'} || $properties->{'l3-cache'})) || 
-	 (!%risc || $properties->{'l2-cache'}) || $properties->{'cache'}){
-		my $value = '';
-		if (!$properties->{'l1-cache'} && !$properties->{'l2-cache'} && 
-		 !$properties->{'l3-cache'}){
-			$value = ($properties->{'cache'}) ? $properties->{'cache'} : 'N/A';
-		}
-		$rows[$j]->{main::key($num++,1,2,'cache')} = $value;
-		if ($extra > 0 && $properties->{'l1-cache'}){
-			$rows[$j]->{main::key($num++,2,3,'L1')} = $properties->{'l1-cache'};
-			if ($b_admin && ($properties->{'l1d-desc'} || $properties->{'l1i-desc'})){
-				my $desc = '';
-				if ($properties->{'l1d-desc'}){
-					$desc .= 'd-' . $properties->{'l1d-desc'};
-				}
-				if ($properties->{'l1i-desc'}){
-					$desc .= '; ' if $desc;
-					$desc .= 'i-' . $properties->{'l1i-desc'};
-				}
-				$rows[$j]->{main::key($num++,0,4,'desc')} = $desc;
-			}
-		}
-		if (!$value){
-			$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
-			$rows[$j]->{main::key($num++,1,3,'L2')} = $properties->{'l2-cache'};
-			if ($b_admin && $properties->{'l2-desc'}){
-				$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l2-desc'};
-			}
-		}
-		if ($extra > 0 && $properties->{'l3-cache'}){
-			$rows[$j]->{main::key($num++,1,3,'L3')} = $properties->{'l3-cache'};
-			if ($b_admin && $properties->{'l3-desc'}){
-				$rows[$j]->{main::key($num++,0,4,'desc')} = $properties->{'l3-desc'};
-			}
-		}
-		if ($properties->{'cache-check'}){
-			$rows[$j]->{main::key($num++,0,3,'note')} = $properties->{'cache-check'};
-		}
+	if ($properties->{'topology-string'} && (($extra > 1 && 
+	 ($properties->{'l1-cache'} || $properties->{'l3-cache'})) || 
+	 (!%risc || $properties->{'l2-cache'}) || $properties->{'cache'})){
+		full_output_caches($j,$properties,\$num,\@rows);
+	}
+	if ($extra > 0 && !$bsd_type){
+		my $bogomips = ($cpu->{'bogomips'} && 
+		 main::is_numeric($cpu->{'bogomips'})) ? int($cpu->{'bogomips'}) : 'N/A';
+		$rows[$j]->{main::key($num++,0,2,'bogomips')} = $bogomips;
 	}
 	if ($extra > 0 && !$show{'cpu-flag'}){
 		$j = scalar @rows;
@@ -8441,11 +8406,6 @@ sub full_output {
 		main::key($num++,0,2,$flag_key) => $flag,
 		});
 		$b_flags = 1;
-	}
-	if ($extra > 0 && !$bsd_type){
-		my $bogomips = ($cpu->{'bogomips'} && 
-		 main::is_numeric($cpu->{'bogomips'})) ? int($cpu->{'bogomips'}) : 'N/A';
-		$rows[$j]->{main::key($num++,0,2,'bogomips')} = $bogomips;
 	}
 	$j = scalar @rows;
 	my $speeds = $cpu->{'processors'};
@@ -8549,6 +8509,49 @@ sub full_output {
 	eval $end if $b_log;
 	return @rows;
 }
+# $num, $rows passed by reference
+sub full_output_caches {
+	eval $start if $b_log;
+	my ($j,$properties,$num,$rows) = @_;
+	my $value = '';
+	if (!$properties->{'l1-cache'} && !$properties->{'l2-cache'} && 
+		!$properties->{'l3-cache'}){
+		$value = ($properties->{'cache'}) ? $properties->{'cache'} : 'N/A';
+	}
+	$$rows[$j]->{main::key($$num++,1,2,'cache')} = $value;
+	if ($extra > 0 && $properties->{'l1-cache'}){
+		$$rows[$j]->{main::key($$num++,2,3,'L1')} = $properties->{'l1-cache'};
+		if ($b_admin && ($properties->{'l1d-desc'} || $properties->{'l1i-desc'})){
+			my $desc = '';
+			if ($properties->{'l1d-desc'}){
+				$desc .= 'd-' . $properties->{'l1d-desc'};
+			}
+			if ($properties->{'l1i-desc'}){
+				$desc .= '; ' if $desc;
+				$desc .= 'i-' . $properties->{'l1i-desc'};
+			}
+			$$rows[$j]->{main::key($$num++,0,4,'desc')} = $desc;
+		}
+	}
+	# $$rows[$j]->{main::key($$num++,1,$l,$key)} = $support;
+	if (!$value){
+		$properties->{'l2-cache'} = ($properties->{'l2-cache'}) ? $properties->{'l2-cache'} : 'N/A';
+		$$rows[$j]->{main::key($$num++,1,3,'L2')} = $properties->{'l2-cache'};
+		if ($b_admin && $properties->{'l2-desc'}){
+			$$rows[$j]->{main::key($$num++,0,4,'desc')} = $properties->{'l2-desc'};
+		}
+	}
+	if ($extra > 0 && $properties->{'l3-cache'}){
+		$$rows[$j]->{main::key($$num++,1,3,'L3')} = $properties->{'l3-cache'};
+		if ($b_admin && $properties->{'l3-desc'}){
+			$$rows[$j]->{main::key($$num++,0,4,'desc')} = $properties->{'l3-desc'};
+		}
+	}
+	if ($properties->{'cache-check'}){
+		$$rows[$j]->{main::key($$num++,0,3,'note')} = $properties->{'cache-check'};
+	}
+	eval $end if $b_log;
+}
 sub short_output {
 	eval $start if $b_log;
 	my ($cpu) = @_;
@@ -8587,13 +8590,6 @@ sub short_data {
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
 	if (my $file = $system_files{'proc-cpuinfo'}){
-		my $sleep = $cpu_sleep * 1000000;
-		if ($b_hires){
-			eval 'Time::HiRes::usleep($sleep)';
-		}
-		else {
-			select(undef, undef, undef, $cpu_sleep);
-		}
 		$cpu = cpuinfo_data($file);
 	}
 	elsif ($bsd_type){
@@ -8652,6 +8648,14 @@ sub cpuinfo_data {
 	my ($arch,$note,$temp);
 	# has to be set above fake cpu section
 	my %cpu =  set_cpu_data();
+	# sleep is also set in front of sysctl_data for BSDs, same idea
+	my $sleep = $cpu_sleep * 1000000;
+	if ($b_hires){
+		eval 'Time::HiRes::usleep($sleep)';
+	}
+	else {
+		select(undef, undef, undef, $cpu_sleep);
+	}
 	# Run this logic first to make sure we get the speeds as raw as possible. 
 	# Not in function to avoid unnecessary cpu use, we have slept right before.
 	# ARM and legacy systems etc do not always have cpufreq.
@@ -9119,10 +9123,27 @@ sub sys_data_grabber {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-sys.txt";
 		 @files = main::reader($file);
 	}
+	# There's a massive time hit reading full globbed set of files, so grab and 
+	# read only what we need.
 	else {
-		my $glob = '/sys/devices/system/cpu/';
-		$glob .= '{cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,';
-		$glob .= 'vulnerabilities}/*';
+		my $glob = '/sys/devices/system/cpu/{';
+		if ($dbg[42]){
+			$glob .= 'cpufreq,cpu*/topology,cpu*/cpufreq,cpu*/cache/index*,smt,vulnerabilities}/*';
+		}
+		else {
+			$glob .= 'cpu*/topology/{core_cpus_list,core_id,core_siblings_list,die_id,';
+			$glob .= 'physical_package_id,thread_siblings_list}';
+			$glob .= ',cpufreq/{boost,ondemand}';
+			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq}';
+			if ($type eq 'full'){
+				$glob .= ',cpu*/cache/index*/{level,shared_cpu_list,shared_cpu_map,size,type}';
+			}
+			$glob .= ',smt/{active,control}';
+			if ($b_admin){
+				$glob .= ',vulnerabilities/*';
+			}
+			$glob .= '}';
+		}
 		@files = main::globber($glob);
 	}
 	main::log_data('dump','@files',\@files) if $b_log;
@@ -9191,7 +9212,16 @@ sub sys_data_grabber {
 		}
 		if (!$fake{'cpu'}){
 			if (-r $_) {
-				$item = main::reader($_,'strip',0);
+				my $error;
+				# significantly faster to skip reader() and do it directly
+				# $fh always non null, even on error
+				open(my $fh, '<', $_) or $error = $!;
+				if (!$error){
+					chomp(my @value = <$fh>);
+					close $fh;
+					$item = $value[0];
+				}
+				 # $item = main::reader($_,'strip',0);
 			}
 			else {
 				$item = main::row_defaults('root-required');
@@ -9673,7 +9703,8 @@ sub cpu_properties {
 			$cache_check = '';
 		}
 		if ($caches{'cache'}){
-			$caches{'cache'} = cp_cache_processor($caches{'cache'},$counts{'physical'});
+			# we don't want any math done on this one, who knows what it is
+			$caches{'cache'} = cp_cache_processor($caches{'cache'},1);
 		}
 		if ($caches{'l1'}){
 			$caches{'l1'} = cp_cache_processor($caches{'l1'},$counts{'physical'});
@@ -10583,9 +10614,7 @@ sub cp_cpu_topology {
 			$i++;
 			next if $done{$tests[$i]};
 			$done{$tests[$i]} = 1;
-			if ($b_admin && $type eq 'full' && ($counts->{'struct-cores'} || 
-			 $counts->{'struct-max'} || $counts->{'struct-min'} || 
-			 $counts->{'struct-mt'})){
+			if ($b_admin && $type eq 'full'){
 				$topology->{'full'}[$j]{'cpus'} = $keys{$tests[$i]};
 				$topology->{'full'}[$j]{'cores'} = $topo->{'cores'};
 				if ($topo->{'cores'} != $topo->{'threads'}){
