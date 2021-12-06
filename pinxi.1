@@ -15,7 +15,7 @@
 .\"  with this program; if not, write to the Free Software Foundation, Inc.,
 .\"  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 .\"  
-.TH INXI 1 "2021\-12\-01" "inxi" "inxi manual"
+.TH INXI 1 "2021\-12\-05" "inxi" "inxi manual"
 
 .SH NAME
 inxi  \- Command line system information script for console and IRC
@@ -170,10 +170,10 @@ Setting a specific color type removes the global color selection.
 
 .TP
 .B \-C\fR,\fB \-\-cpu\fR
-Show full CPU output (if each item available): CPU topology, model, type, L2 
-cache, average speed of all cores (if > 1 core, otherwise speed of the core), 
+Show full CPU output (if each item available): basic CPU topology, model, type, 
+L2 cache, average speed of all cores (if > 1 core, otherwise speed of the core), 
 min/max speeds for CPU, and per CPU clock speed. More data available with 
-\fB\-x\fR, \fB\-xx\fR \fB\-xxx\fR, and \fB\-a\fR options. 
+\fB\-x\fR, \fB\-xxx\fR, and \fB\-a\fR options. 
 
 Explanation of CPU type (\fBtype: MT MCP\fR) abbreviations:
 
@@ -905,11 +905,11 @@ data on various options. They can be added to any long form option list,
 e.g.: \fB\-bxx\fR or \fB\-Sxxx\fR
 
 There are 3 extra data levels:
-
+.br
 \fB\-x\fR, \fB\-xx\fR, \fB\-xxx\fR
-
+.br
 OR
-
+.br
 \fB\-\-extra 1\fR, \fB\-\-extra 2\fR, \fB\-\-extra 3\fR
 
 The following details show which lines / items display extra information for
@@ -943,19 +943,23 @@ without \fB\-x\fR.
 
 \- Adds \fBL1:\fR and \fBL3:\fR cache types if either are present/available. For 
 BSD or legacy Linux, uses dmidecode + doas/sudo/root. Force use of dmidecode 
-cache values by adding \fB\-\-dmidecode\fR.
+cache values by adding \fB\-\-dmidecode\fR. This will override /sys based cache
+data, which tends to be better, so in general don't do that.
 
 \- Adds \fBboost: [enabled|disabled]\fR if detected, aka \fBturbo\fR. Not all 
 CPUs have this feature.
 
 \- Adds CPU Flags (short list). Use \fB\-f\fR to see full flag/feature list.
 
-\- Adds CPU microarchitecture + revision (e.g. Sandy Bridge, K8, ARMv8, P6,
-etc.). Only shows data if detected. Newer microarchitectures will have
-to be added as they appear, and require the CPU family ID, model ID,
-and stepping.
+\- Adds CPU microarchitecture + revision (e.g. Sandy Bridge, K8, ARMv8, P6, 
+etc.). Only shows data if detected. Newer microarchitectures will have to be 
+added as they appear, and require the CPU family ID, model ID, and stepping.
 
-Examples: \fBarch: Sandy Bridge rev: 2\fR, \fBarch: K8 rev.F+ rev: 2\fR
+Examples: 
+.br
+\fBarch: Sandy Bridge rev: 2\fR
+.br
+\fBarch: K8 rev.F+ rev: 2\fR
 
 If unable to non\-ambiguosly determine architecture, will show something like:
 \fBarch: Amber Lake note: check rev: 9\fR
@@ -1464,11 +1468,11 @@ Sample: \fBsocket: 775 (478) note: check\fR
 Sample: \fBsocket: AM4\fR
 .fi
 
-\- Adds DMI CPU base and boost/turbo speeds. Requires doas[BSDs]/sudo/root and 
+\- Adds DMI CPU base and boost/turbo speeds. Requires doas/sudo/root and 
 \fBdmidecode\fR. In some cases, like with overclocking or 'turbo' or 'boost' 
 modes, voltage and external clock speeds may be increased, or short term limits 
-raised on max CPU speeds. These are often not reflected in /sys based 
-CPU \fBmin/max:\fR speed results, but often are using this source.
+raised on max CPU speeds. These are often not reflected in /sys based CPU 
+\fBmin/max:\fR speed results, but often are using this source.
 
 Samples:
 .nf
@@ -1509,34 +1513,58 @@ boost/turbo mode speeds, and appear to be hard\-coded values, not dynamic real
 values. The \fBbase/boost:\fR values are sometimes real, and sometimes not. 
 \fBbase\fR appears in general to be real.
 
-\- Adds threads total per cpu type (multi threaded, single threaded). Linux 
-only. For asymetric architectures, shows threads per core type (st or mt) 
-Sample:
-.nf
-\fBInfo: 2x 16-core (32-threads, 4-die)\fR
-.fi
-
 \- Adds description of cache topology per cpu. Linux only.
+
+\- Creates new \fBTopology:\fR line after the \fBInfo:\fR line. Moves cache data 
+to this line from \fBInfo:\fR line. 
+
+Topology line contains, if available and/or relevant: physical CPU count 
+(\fBcpus:\fR); per physical cpu core count (cores:\fR); threads per core, if > 1 
+(\fBtpc:\fR); how many \fBthreads:\fR (if more threads than cores); \fBdies:\fR 
+(rarely detected, but if so, if > 1).
+
+If complex CPU type, like Alder lake, cores; will have a more granular breakdown 
+of how many mt (multi-threaded) and how many st (single-threaded) cores there in 
+the physical cpu ( \fBmt-cores:\fR, \fBst-cores:\fR);  For complex CPU types 
+like ARM SoC devices with 2 CPU types, with different core counts and/or 
+\fBmin/max:\fR) frequencies, \fBvariant:\fR per type found, with relevant 
+differences shown, like \fBcores:, \fBmin/max:\fR, etc. 
+
 .nf
 \fBCPU:
-  Info: 2x 8-core
-    model: Intel Xeon E5-2620 v4
+CPU:
+  Info:
+    model: AMD EPYC 7281
     bits: 64
-    type: MT MCP SMP
-    arch: Broadwell
-    family: 6
-    model-id: 4F (79)
-    stepping: 1
-    microcode: B00003E
+    type: MT MCP MCM SMP
+    arch: Zen
+    family: 17 (23)
+    model-id: 1
+    stepping: 2
+    microcode: 8001250
+    bogomips: 4191
+  Topology:
+    cpus: 2
+      cores: 16
+        tpc: 2
+      threads: 32
+      dies: 4
     cache:
-      L1: 2x 512 KiB (1024 KiB)
-        desc: d-8x32 KiB; i-8x32 KiB
-      L2: 2x 2 MiB (4 MiB)
-        desc: 8x256 KiB
-      L3: 2x 20 MiB (40 MiB)
-        desc: 1x20 MiB
-    flags: avx avx2 ht lm nx pae sse sse2 sse3 sse4_1 sse4_2 ssse3 vmx
-    bogomips: 4199\fR
+      L1: 2x 1.5 MiB (3 MiB)
+        desc: d-16x32 KiB; i-16x64 KiB
+      L2: 2x 8 MiB (16 MiB)
+        desc: 16x512 KiB
+      L3: 2x 32 MiB (64 MiB)
+        desc: 8x4 MiB
+  Speed (MHz):
+    avg: 1195
+    high: 1197
+    min/max: 1200/2100
+    boost: enabled
+    cores:
+      1: 1195
+      2: 1196
+      ....
 .fi
 
 \- Adds CPU Vulnerabilities (bugs) as known by your current kernel. Lists by

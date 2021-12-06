@@ -221,6 +221,8 @@ sub set {
 			# my $cmd = "$program $commands{$test} >/dev/null";
 			# print "$cmd\n";
 			$pci_tool = $test if $test =~ /pci/;
+			# this test is not ideal because other errors can make program fail, but
+			# we can't test for root since could be say, wheel permissions needed
 			if ($commands{$test}->[0] eq 'exec-sys'){
 				$action = 'permissions' if system("$program $commands{$test}->[2] >/dev/null 2>&1");
 			}
@@ -5330,8 +5332,9 @@ sub show_options {
 	['2', '98', '', "Console IRC not in  X"],
 	['2', '99', '', "Global - Overrides/removes all settings. Setting specific 
 	removes global."],
-	['1', '-C', '--cpu', "CPU output (if each item available): topology, model, 
-	type, cache, average CPU speed, min/max speeds, per core clock speeds."],
+	['1', '-C', '--cpu', "CPU output (if each item available): basic topology,
+	model, type (see man for types), cache, average CPU speed, min/max speeds, per 
+	core clock speeds."],
 	['1', '-d', '--disk-full, --optical', "Optical drive data (and floppy disks, 
 	if present). Triggers -D."],
 	['1', '-D', '--disk', "Hard Disk info, including total storage and details 
@@ -5465,9 +5468,10 @@ sub show_options {
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
 	for device(s)."],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
-	(dmidecode+root/sudo/doas required); CPU vulnerabilities (bugs); family, 
-	model-id, stepping - format: hex (decimal) if greater 	than 9, otherwise
-	hex; microcode - format: hex; for MT CPUs, threads."],
+	(dmidecode+root/sudo/doas required); Full topology line, with cores, threads,
+	threads per core, granular cache data; CPU vulnerabilities (bugs); family, 
+	model-id, stepping - format: hex (decimal) if greater	than 9; microcode 
+	format: hex."],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive 
 	family; maj:min, USB drive specifics; SMART report."],
 	['2', '-E', '', "If available: in Report:, adds Info: line: acl-mtu, 
@@ -5500,8 +5504,8 @@ sub show_options {
 	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
 	attached devices (e.g. wireless mouse, keyboard, if present)."],
 	['2', '-C', '', "L1/L3 cache (if most Linux, or if root and dmidecode 
-	installed); CPU $flags (short list, use -f to see full list); Highest
-	core speed (if > 1 core); CPU boost (turbo) enabled/disabled, if present; 
+	installed); CPU $flags (short list, use -f to see full list); Highest core 
+	speed (if > 1 core); CPU boost (turbo) enabled/disabled, if present; 
 	Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
 	unless --admin, then shows as 'stepping')."],
 	['2', '-d', '', "Extra optical drive features data; adds rev version to 
@@ -10653,7 +10657,8 @@ sub cp_cpu_topology {
 					$topology->{'string'} .= ' (' . $topo->{'cores-mt'} . '-mt/';
 					$topology->{'string'} .= $topo->{'cores-st'} . '-st)';
 				}
-				# we only want to show short form basic if cpus have different core counts
+				# we only want to show > 1 phys short form basic if cpus have different 
+				# core counts, not different min/max frequencies
 				last if !$topology->{'struct-cores'};
 			}
 		}
