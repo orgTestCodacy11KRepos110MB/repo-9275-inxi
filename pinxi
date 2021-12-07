@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-06';
-my $self_patch='32';
+my $self_date='2021-12-06-';
+my $self_patch='33';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6526,6 +6526,7 @@ sub row_defaults {
 	'unmounted-data' => 'No unmounted partitions found.',
 	'unmounted-data-bsd' => "Unmounted partition feature unsupported in $id.",
 	'unmounted-file' => 'No /proc/partitions file found.',
+	'unsupported' => '<unsupported>',
 	'usb-data' => 'No USB data found. Server?',
 	'unknown-cpu-topology' => 'ERR-103',
 	'unknown-desktop-version' => 'ERR-101',
@@ -9312,8 +9313,13 @@ sub sysctl_data {
 		elsif ($line[0] eq 'hw.l3cachesize'){
 			$cpu{'l3-cache'} = $line[1]/1024;
 		}
+		# hw.smt: openbsd
 		elsif ($line[0] eq 'hw.smt'){
 			$cpu{'smt'} = ($line[1]) ? 'enabled' : 'disabled';
+		}
+		# htl: maybe freebsd, never seen, 1 is disabled, sigh...
+		elsif ($line[0] eq 'machdep.hlt_logical_cpus'){
+			$cpu{'smt'} = ($line[1]) ? 'disabled' : 'enabled';
 		}
 		# this is in mghz in samples
 		elsif (!$cpu{'cur-freq'} && 
@@ -10059,7 +10065,16 @@ sub cp_data_sys {
 		$counts->{'processors'} = scalar @{$cpu_sys->{'data'}{'speeds'}{'all'}};
 	}
 	if (defined $cpu_sys->{'data'}{'smt-active'}){
-		$cpu->{'smt'} = ($cpu_sys->{'data'}{'smt-active'}) ? 'enabled' : 'disabled' ;
+		if ($cpu_sys->{'data'}{'smt-active'}){
+			$cpu->{'smt'} = 'enabled';
+		}
+		elsif (defined $cpu_sys->{'data'}{'smt-control'} &&
+		 $cpu_sys->{'data'}{'smt-control'} eq 'unsupported'){
+			$cpu->{'smt'} = main::row_defaults('unsupported');
+		}
+		else {
+			$cpu->{'smt'} = 'disabled';
+		}
 	}
 	my $i = 0;
 	my (@max,@min,@phys_cores);
@@ -26780,7 +26795,7 @@ sub set_sysctl_data {
 		# Must go AFTER sensor because sometimes freebsd puts sensors in dev.cpu
 		# hw.l1dcachesize hw.l2cachesize
 		elsif ($use{'bsd-cpu'} && (/^hw\.(busfreq|clock|n?cpu|l[123].?cach|model|smt)/ || 
-			/^dev\.cpu/ || /^machdep\.cpu/)){
+			/^dev\.cpu/ || /^machdep\.(cpu|hlt_logical_cpus)/)){
 			push(@{$sysctl{'cpu'}}, $_);
 		}
 		# only activate if using the diskname feature in dboot!!
