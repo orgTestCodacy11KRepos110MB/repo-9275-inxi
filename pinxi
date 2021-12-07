@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-05';
-my $self_patch='31';
+my $self_date='2021-12-06';
+my $self_patch='32';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5599,7 +5599,7 @@ sub show_options {
 	['2', '-A', '', "Serial number, class ID."],
 	['2', '-B', '', "Chemistry, cycles, location (if available)."],
 	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode
-	installed)."],
+	installed); smt: enabled if available."],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; 
 	disk type, rotation rpm (if available)."],
 	['2', '-E', '', "Serial number, class ID, HCI version and revision."],
@@ -8300,6 +8300,10 @@ sub full_output {
 	$rows[$j]->{main::key($num++,0,2,'bits')} = $properties->{'bits-sys'};
 	if ($type){
 		$rows[$j]->{main::key($num++,0,2,'type')} = $type;
+		if (!$properties->{'topology-full'} && $cpu->{'smt'} && ($extra > 2 || 
+		 $cpu->{'smt'} eq 'disabled')){
+			$rows[$j]->{main::key($num++,0,2,'smt')} = $cpu->{'smt'};
+		}
 	}
 	if ($extra > 0){
 		$cpu->{'arch'} ||= 'N/A';
@@ -8387,6 +8391,9 @@ sub full_output {
 			if ($topo->{'dies'}){
 				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
 			}
+		}
+		if ($cpu->{'smt'}){
+			$rows[$j]->{main::key($num++,0,$id,'smt')} = $cpu->{'smt'};
 		}
 		full_output_caches($j,$properties,\$num,\@rows);
 	}
@@ -9305,6 +9312,9 @@ sub sysctl_data {
 		elsif ($line[0] eq 'hw.l3cachesize'){
 			$cpu{'l3-cache'} = $line[1]/1024;
 		}
+		elsif ($line[0] eq 'hw.smt'){
+			$cpu{'smt'} = ($line[1]) ? 'enabled' : 'disabled';
+		}
 		# this is in mghz in samples
 		elsif (!$cpu{'cur-freq'} && 
 		 ($line[0] eq 'hw.clockrate' || $line[0] eq 'hw.cpuspeed')){
@@ -9538,47 +9548,57 @@ sub dboot_data {
 sub dmidecode_data {
 	eval $start if $b_log;
 	return if !@dmi;
-	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'ext-clock' => undef, 'socket' => undef, 
-	'speed' => undef, 'max-speed' => undef, 'upgrade' => undef, 'volts' => undef);
+	my %dmi_data = ('L1' => 0, 'L2' => 0,'L3' => 0, 'phys-cnt' => 0,
+	'ext-clock' => undef, 'socket' => undef, 'speed' => undef, 
+	'max-speed' => undef, 'upgrade' => undef, 'volts' => undef);
 	my ($id,$amount,$socket,$upgrade);
 	foreach my $item (@dmi){
 		next if ref $item ne 'ARRAY';
 		next if ($item->[0] < 4 || $item->[0] == 5 || $item->[0] == 6);
 		last if $item->[0] > 7;
+		ITEM:
 		if ($item->[0] == 7){
 			# skip first three rows, we don't need that data
+			# seen very bad data, L2 labeled L3, and random phantom type 7 caches
 			($id,$amount) = ('',0);
+			# Configuration: Disabled, Not Socketed, Level 2
+			next ITEM if $item->[4] =~ /^Configuration:.*Disabled/i;
 			foreach my $value (@$item[3 .. $#$item]){
-				next if $value =~ /~/;
+				next if $value =~ /^~/;
 				# variants: L3 - Cache; L3 Cache; L3-cache; L2 CACHE; CPU Internal L1
 				if ($value =~ /^Socket Designation:.*? (L[1-3])\b/){
 					$id = lc($1);
 				}
 				# some cpus only show Socket Designation: Internal cache
 				elsif (!$id && $value =~ /^Configuration:.* Level.*?([1-3])\b/){
-					$id = "l$1";
+					if ($value !~ /Disabled/i){
+						$id = "l$1";
+					}
 				}
 				# NOTE: cache is in KiB or MiB but they call it kB or MB
 				# so we send translate_size k or M which trips KiB/MiB mode
+				# if disabled can be 0.
 				elsif ($id && $value =~ /^Installed Size:\s+(.*?[kKM])i?B$/){
+					# Config..Disabled test should have gotten this, but just in case 0 size
+					next ITEM if !$1; 
 					$amount = main::translate_size($1);
-				}
+					}
 				if ($id && $amount){
 					$dmi_data{$id} = $amount;
-					$dmi_data{$id . '-total'} += $amount;
 					last;
 				}
 			}
 		}
 		# note: for multi cpu systems, we're hoping that these values are
 		# the same for each cpu, which in most pc situations they will be,
-		# and ARM etc won't be using dmi data here anyway.
+		# and most ARM etc won't be using dmi data here anyway.
 		# Older dmidecode appear to have unreliable Upgrade outputs
 		elsif ($item->[0] == 4){
 			# skip first three row,s we don't need that data
-			($socket,$upgrade) = (undef);
+			($socket,$upgrade) = (undef,undef);
+			$dmi_data{'phys-cnt'}++; # try to catch bsds without physical cpu count
 			foreach my $value (@$item[3 .. $#$item]){
-				next if $value =~ /~/;
+				next if $value =~ /^~/;
 				# note: on single cpu systems, Socket Designation shows socket type,
 				# but on multi, shows like, CPU1; CPU Socket #2; Socket 0; so check values a bit.
 				# Socket Designation: Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz
@@ -9682,7 +9702,8 @@ sub cpu_properties {
 		$cpu,
 		\%dmi_data,
 		\%caches,
-		\%counts # only to set BSD phys cpu counts if not found
+		\%counts, # only to set BSD phys cpu counts if not found
+		\$cache_check,
 		);
 	}
 	## END CPU DATA HANDLERS ##
@@ -9802,34 +9823,50 @@ sub cpu_properties {
 # everything is passed by reference so no need to return anything
 sub cp_data_dmi {
 	eval $start if $b_log;
-	my ($cpu,$dmi_data,$caches,$counts) = @_;
-	# note: dmidecode has one entry per cpu per cache type
+	my ($cpu,$dmi_data,$caches,$counts,$cache_check) = @_;
+	# note: newer hardware: dmidecode has one entry per cpu per cache type
+	# older hardware: dmidecode has 1 entry per cache type, which can belong to 1
+	# or more cores.
 	my $cpu_dmi = dmidecode_data();
 	# fix for bsds that do not show physical cpus, like openbsd
-	if (!$caches->{'l2'} && $counts->{'physical'} == 1 && $cpu_dmi->{'l2'} && 
-	 ($cpu_dmi->{'l2-total'} / $cpu_dmi->{'l2'} != 1)){
-		$counts->{'physical'} = sprintf("%.0f",$cpu_dmi->{'l2-total'} / $cpu_dmi->{'l2'}) + 0;
+	if ($cpu_dmi->{'phys-cnt'} && $counts->{'physical'} == 1 && 
+	 $cpu_dmi->{'phys-cnt'} > 1){
+		$counts->{'physical'} = $cpu_dmi->{'phys-cnt'};
 	}
-	# These are the total per cpu, not per core when using dmidecode.
-	# /sys cache data preferred, more granular, unless dmidecode forced, which is
-	# preferred over manual fallback because it's per cpu already. 
-	# We have to undef all the sys stuff to get back to the true dmidecode results
-	if ($cpu_dmi->{'l1'} && (!$caches->{'l1'} || $force{'dmidecode'})){
-		undef $caches->{'l1d'};
-		undef $caches->{'l1d-desc'};
-		undef $caches->{'l1i'};
-		undef $caches->{'l1i-desc'};
-		$caches->{'l1'} = $cpu_dmi->{'l1'};
-	}
-	# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
-	# have these values so let's check just in case. 
-	if ($cpu_dmi->{'l2'} && (!$caches->{'l2'} || $force{'dmidecode'})){
-		undef $caches->{'l2-desc'};
-		$caches->{'l2'} = $cpu_dmi->{'l2'};
-	}
-	if ($cpu_dmi->{'l3'} && (!$caches->{'l3'} || $force{'dmidecode'})){
-		undef $caches->{'l3-desc'};
-		$caches->{'l3'} = $cpu_dmi->{'l3'}; 
+	# we don't want to use L1/L2/L3 at all for non BSD systems unless forced
+	# because have seen totally gibberish dmidecode data for caches.
+	# Also, more legacy dmidecode cache data used the per cache value, NOT the per
+	# CPU total value like it does today. Which makes it impossible to know for 
+	# sure if the value is right (today, or if cache matched cpu) or wrong (legacy)
+	# Rule: Linux, don't use this if any cache data was found, or dmidecode force.
+	# BSD: use if not L1 or L2 or L3, we don't care about legacy errors for BSD.
+	if ((!$bsd_type && !$caches->{'l1'} && !$caches->{'l2'} && !$caches->{'l3'}) ||
+	($bsd_type && (!$caches->{'l1'} || !$caches->{'l2'} || !$caches->{'l3'})) ||
+	$force{'dmidecode'}){
+		# These are the total per cpu, not per core when using dmidecode.
+		# /sys cache data preferred, more granular, unless dmidecode forced, which is
+		# preferred over manual fallback because it's per cpu already. 
+		# We have to undef all the sys stuff to get back to the true dmidecode results
+		if ($cpu_dmi->{'l1'} && (!$caches->{'l1'} || $force{'dmidecode'})){
+			undef $caches->{'l1d'};
+			undef $caches->{'l1d-desc'};
+			undef $caches->{'l1i'};
+			undef $caches->{'l1i-desc'};
+			$caches->{'l1'} = $cpu_dmi->{'l1'};
+			$$cache_check = main::row_defaults('note-check');
+		}
+		# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
+		# have these values so let's check just in case. OpenBSD does have it often.
+		if ($cpu_dmi->{'l2'} && (!$caches->{'l2'} || $force{'dmidecode'})){
+			undef $caches->{'l2-desc'};
+			$caches->{'l2'} = $cpu_dmi->{'l2'};
+			$$cache_check = main::row_defaults('note-check');
+		}
+		if ($cpu_dmi->{'l3'} && (!$caches->{'l3'} || $force{'dmidecode'})){
+			undef $caches->{'l3-desc'};
+			$caches->{'l3'} = $cpu_dmi->{'l3'};
+			$$cache_check = main::row_defaults('note-check');
+		}
 	}
 	$dmi_data->{'max-speed'} = $cpu_dmi->{'max-speed'};
 	$dmi_data->{'socket'} = $cpu_dmi->{'socket'} if $cpu_dmi->{'socket'};
@@ -10020,6 +10057,9 @@ sub cp_data_sys {
 	}
 	if ($cpu_sys->{'data'}{'speeds'}{'all'}){
 		$counts->{'processors'} = scalar @{$cpu_sys->{'data'}{'speeds'}{'all'}};
+	}
+	if (defined $cpu_sys->{'data'}{'smt-active'}){
+		$cpu->{'smt'} = ($cpu_sys->{'data'}{'smt-active'}) ? 'enabled' : 'disabled' ;
 	}
 	my $i = 0;
 	my (@max,@min,@phys_cores);
@@ -10638,6 +10678,9 @@ sub cp_cpu_topology {
 				if ($topo->{'tpc'}){
 					$topology->{'full'}[$j]{'tpc'} = $topo->{'tpc'};
 				}
+				if ($topo->{'smt'}){
+					$topology->{'full'}[$j]{'smt'} = $topo->{'smt'};
+				}
 				$j++;
 			}
 			else {
@@ -10710,16 +10753,19 @@ sub cp_cpu_type {
 				$cpu_type .= 'MT'; 
 			}
 		}
-		# non-multicore MT
-		elsif ($counts->{'processors'} == ($counts->{'physical'} * $counts->{'cpu-cores'} * 2)){
+		# handle case of OpenBSD that has hw.smt but no other meaningful topology
+		elsif ($cpu->{'smt'}){
+			$cpu_type .= 'MT' if $cpu->{'smt'} eq 'enabled'; 
+		}
+		# non-multicore MT, with 2 or more threads per core
+		elsif ($counts->{'processors'} && $counts->{'physical'} && 
+		 $counts->{'cpu-cores'} && 
+		 $counts->{'processors'}/($counts->{'physical'} * $counts->{'cpu-cores'}) >= 2){
 			# print "mt:1\n";
 			$cpu_type .= 'MT'; 
 		}
-		# elsif (defined $tests->{'xeon'} && $tests->{'xeon'} && $cpu->{'siblings'} > 1){
-		# 	# print "mt:2\n";
-		# 	$cpu_type .= 'MT'; 
-		# }
-		elsif ($cpu->{'siblings'} > 1 && $cpu->{'siblings'} == 2 * $counts->{'cpu-cores'}){
+		# 2 or more siblings per cpu real core
+		elsif ($cpu->{'siblings'} > 1 && $cpu->{'siblings'}/$counts->{'cpu-cores'} >= 2){
 			# print "mt:3\n";
 			$cpu_type .= 'MT'; 
 		}
@@ -26733,7 +26779,7 @@ sub set_sysctl_data {
 		}
 		# Must go AFTER sensor because sometimes freebsd puts sensors in dev.cpu
 		# hw.l1dcachesize hw.l2cachesize
-		elsif ($use{'bsd-cpu'} && (/^hw\.(busfreq|clock|n?cpu|l[123].?cach|model)/ || 
+		elsif ($use{'bsd-cpu'} && (/^hw\.(busfreq|clock|n?cpu|l[123].?cach|model|smt)/ || 
 			/^dev\.cpu/ || /^machdep\.cpu/)){
 			push(@{$sysctl{'cpu'}}, $_);
 		}

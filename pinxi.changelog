@@ -47,6 +47,11 @@ were actually 2 core duo cpu dies, with one L2 cache per die.
 * Shows wrong core count for complex core complexes like those found in Intel 
 Alder Lake, now shows correct count of actual cores, regardless of the MT or ST 
 state of each core.
+* Showed invalid L3 cache values in some legacy cpus that had no L3 cache, that
+is due to a bug in the dmidecode data itself. Solution is to never use dmidecode
+cache data if any other valid L1, L2, or L3 cache data found for Linux, and to
+only use dmidecode data for bsds if no L1, or L2, or L3 data found. Or if forced
+with --dmidecode.
 
 2. An unfortunately long standing bug found and fixed, thanks slackware users!
 cp_cpu_arch was, and has been for a while, failing to convert hex stepping to
@@ -105,6 +110,18 @@ it goes.
 values if %risc cpu type. Legacy ancient cpus like 486 could and did have 
 bogomip counts below 50.
 https://tldp.org/HOWTO/BogoMips/bogo-list.html
+
+9. See Enhancement 12 as well. If OpenBSD, which has no per core data or 
+physical cpu data, is running on MT capable cpu, but for security OpenBSD has 
+disabled MT, will now force MT to be not shown via the hw.smt value. This 
+removes a small glitch that would have bothered OpenBSD users who know that 
+OpenBSD has disabled MT for security purposes.
+
+10. Changed BSD hack to use L2 cache totals to deduce > 1 physical cpus, that 
+was flat out dumb, since we can just use dmidecode type 4 to iterate physical 
+cpu counts and skip the pointless logic. Thus, if dmidecode, and if > 1 
+dmidecode type 4 found, and if physical cpu counts equal 1, then replace the 
+found counts with the dmidecode physical cpu counts.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -165,6 +182,11 @@ otherwise shows the same basic Info: 2x 6-core or Info: dual core as before, no
 point in wasting a line for something with no more data than the short string. 
 Complex types include MT CPUs since they will have different thread counts etc, 
 and will have 2 or more threads per core, which will also be listed. 
+
+12. If smt status is defined (0/1), shows smt: enabled|disabled in Topology 
+section, can be useful for systems with disabled MT, but supporting it. If no 
+topology data found (OpenBSD for example), for -C shows 'smt: disabled' after 
+'type:' section, and enabled if -Cxxx (since MT really already tells you that).
 
 --------------------------------------------------------------------------------
 CHANGES:
