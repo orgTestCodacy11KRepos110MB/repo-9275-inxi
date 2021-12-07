@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-06-';
-my $self_patch='33';
+my $self_date='2021-12-07';
+my $self_patch='34';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5469,9 +5469,9 @@ sub show_options {
 	for device(s)."],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
 	(dmidecode+root/sudo/doas required); Full topology line, with cores, threads,
-	threads per core, granular cache data; CPU vulnerabilities (bugs); family, 
-	model-id, stepping - format: hex (decimal) if greater	than 9; microcode 
-	format: hex."],
+	threads per core, granular cache data, smt status; CPU vulnerabilities (bugs);
+	family, model-id, stepping - format: hex (decimal) if greater	than 9;
+	microcode format: hex."],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive 
 	family; maj:min, USB drive specifics; SMART report."],
 	['2', '-E', '', "If available: in Report:, adds Info: line: acl-mtu, 
@@ -5504,9 +5504,9 @@ sub show_options {
 	['2', '-B', '', "Current/minimum voltage, vendor/model, status (if available); 
 	attached devices (e.g. wireless mouse, keyboard, if present)."],
 	['2', '-C', '', "L1/L3 cache (if most Linux, or if root and dmidecode 
-	installed); CPU $flags (short list, use -f to see full list); Highest core 
-	speed (if > 1 core); CPU boost (turbo) enabled/disabled, if present; 
-	Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
+	installed); smt if disabled, CPU $flags (short list, use -f to see full list);
+	Highest core speed (if > 1 core); CPU boost (turbo) enabled/disabled, if
+	present; Bogomips on CPU; CPU microarchitecture + 	revision (if found, or 
 	unless --admin, then shows as 'stepping')."],
 	['2', '-d', '', "Extra optical drive features data; adds rev version to 
 	optical drive."],
@@ -5599,7 +5599,7 @@ sub show_options {
 	['2', '-A', '', "Serial number, class ID."],
 	['2', '-B', '', "Chemistry, cycles, location (if available)."],
 	['2', '-C', '', "CPU voltage, external clock speed (if root and dmidecode
-	installed); smt: enabled if available."],
+	installed); smt status, if available."],
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; 
 	disk type, rotation rpm (if available)."],
 	['2', '-E', '', "Serial number, class ID, HCI version and revision."],
@@ -8302,7 +8302,7 @@ sub full_output {
 	if ($type){
 		$rows[$j]->{main::key($num++,0,2,'type')} = $type;
 		if (!$properties->{'topology-full'} && $cpu->{'smt'} && ($extra > 2 || 
-		 $cpu->{'smt'} eq 'disabled')){
+		 ($extra > 0 && $cpu->{'smt'} eq 'disabled'))){
 			$rows[$j]->{main::key($num++,0,2,'smt')} = $cpu->{'smt'};
 		}
 	}
@@ -9562,13 +9562,13 @@ sub dmidecode_data {
 		next if ref $item ne 'ARRAY';
 		next if ($item->[0] < 4 || $item->[0] == 5 || $item->[0] == 6);
 		last if $item->[0] > 7;
-		ITEM:
 		if ($item->[0] == 7){
 			# skip first three rows, we don't need that data
 			# seen very bad data, L2 labeled L3, and random phantom type 7 caches
 			($id,$amount) = ('',0);
 			# Configuration: Disabled, Not Socketed, Level 2
-			next ITEM if $item->[4] =~ /^Configuration:.*Disabled/i;
+			next if $item->[4] =~ /^Configuration:.*Disabled/i;
+			DMI:
 			foreach my $value (@$item[3 .. $#$item]){
 				next if $value =~ /^~/;
 				# variants: L3 - Cache; L3 Cache; L3-cache; L2 CACHE; CPU Internal L1
@@ -9586,7 +9586,7 @@ sub dmidecode_data {
 				# if disabled can be 0.
 				elsif ($id && $value =~ /^Installed Size:\s+(.*?[kKM])i?B$/){
 					# Config..Disabled test should have gotten this, but just in case 0 size
-					next ITEM if !$1; 
+					next DMI if !$1; 
 					$amount = main::translate_size($1);
 					}
 				if ($id && $amount){
@@ -10068,7 +10068,7 @@ sub cp_data_sys {
 		if ($cpu_sys->{'data'}{'smt-active'}){
 			$cpu->{'smt'} = 'enabled';
 		}
-		# notsupported/notimplemented
+		# values: on/notsupported/notimplemented
 		elsif (defined $cpu_sys->{'data'}{'smt-control'} &&
 		 $cpu_sys->{'data'}{'smt-control'} =~ /^not/){
 			$cpu->{'smt'} = main::row_defaults('unsupported');
