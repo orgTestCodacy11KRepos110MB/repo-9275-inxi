@@ -134,16 +134,15 @@ my %sep = (
 );
 #$show{'host'} = 1;
 my %size = (
-'console' => 80, # orig: 115
+'console' => 80, # In display, orig: 115
 # Default indentation level. NOTE: actual indent is 1 greater to allow for 
 # spacing
 'indent' => 11,
-'wrap-max' => 90,
+'wrap-max' => 115,
 'irc' => 100, # shorter because IRC clients have nick  lists etc
 'max' => 0,
-'no-display' => 80, # orig: 130
-# these will be set dynamically in set_display_width()
-'term' => 80,
+'no-display' => 115, # No Display, orig: 130
+# this will be set dynamically in set_display_width()
 'term-lines' => 100, # orig: 100
 );
 my %use = (
@@ -450,20 +449,21 @@ sub set_basics {
 sub set_display_width {
 	my ($width) = @_;
 	if ($width eq 'live'){
+		my $term_cols = 80;
 		## sometimes tput will trigger an error (mageia) if irc client
 		if (!$b_irc){
 			if (my $program = check_program('tput')){
 				# Arch urxvt: 'tput: unknown terminal "rxvt-unicode-256color"'
 				# trips error if use qx(); in FreeBSD, if you use 2>/dev/null 
 				# it makes default value 80x24, who knows why?
-				chomp($size{'term'} = qx{$program cols});
+				chomp($term_cols = qx{$program cols});
 				chomp($size{'term-lines'} = qx{$program lines});
-				$size{'term-cols'} = $size{'term'};
+				$size{'term-cols'} = $term_cols;
 			}
-			# print "tc: $size{'term'} cmc: $size{'console'}\n";
+			# print "tc: $term_cols cmc: $size{'console'}\n";
 			# double check, just in case it's missing functionality or whatever
-			if (!is_int($size{'term'} || $size{'term'} == 0)){ 
-				$size{'term'}=80;
+			if (!is_int($term_cols || $term_cols == 0)){ 
+				$term_cols = 80;
 				# we'll be using this for terminal dimensions later so don't set default.
 				# $size{'term-lines'}=100;
 			}
@@ -473,9 +473,9 @@ sub set_display_width {
 			$size{'console'} = $size{'no-display'};
 		}
 		# term_cols is set in top globals, using tput cols
-		# print "tc: $size{'term'} cmc: $size{'console'}\n";
-		if ($size{'term'} < $size{'console'}){
-			$size{'console'} = $size{'term'};
+		# print "tc: $term_cols cmc: $size{'console'}\n";
+		if ($term_cols < $size{'console'}){
+			$size{'console'} = $term_cols;
 		}
 		# adjust, some terminals will wrap if output cols == term cols
 		$size{'console'} = ($size{'console'} - 2);
@@ -491,7 +491,7 @@ sub set_display_width {
 	else {
 		$size{'max'} = $width;
 	}
-	# print "tc: $size{'term'} cmc: $size{'console'} cm: $size{'max'}\n";
+	# print "tc: $term_cols cmc: $size{'console'} cm: $size{'max'}\n";
 }
 
 sub set_os {
