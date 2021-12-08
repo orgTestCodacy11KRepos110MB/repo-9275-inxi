@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-07';
-my $self_patch='34';
+my $self_date='2021-12-08';
+my $self_patch='365';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8359,7 +8359,7 @@ sub full_output {
 			if ($var){
 				$rows[$j]->{main::key($num++,1,2,'variant')} = '';
 			}
-			my $x = ($size{'max'} == 1) ? '' : 'x';
+			my $x = ($size{'max'} == 1 || $output_type ne 'screen') ? '' : 'x';
 			$rows[$j]->{main::key($num++,0,$id,'cpus')} = $topo->{'cpus'} . $x;
 			$rows[$j]->{main::key($num++,1,$id+1,'cores')} = $topo->{'cores'};
 			if ($topo->{'cores-mt'} && $topo->{'cores-st'}){
@@ -9830,46 +9830,37 @@ sub cpu_properties {
 sub cp_data_dmi {
 	eval $start if $b_log;
 	my ($cpu,$dmi_data,$caches,$counts,$cache_check) = @_;
-	# note: newer hardware: dmidecode has one entry per cpu per cache type
-	# older hardware: dmidecode has 1 entry per cache type, which can belong to 1
-	# or more cores.
 	my $cpu_dmi = dmidecode_data();
 	# fix for bsds that do not show physical cpus, like openbsd
 	if ($cpu_dmi->{'phys-cnt'} && $counts->{'physical'} == 1 && 
 	 $cpu_dmi->{'phys-cnt'} > 1){
 		$counts->{'physical'} = $cpu_dmi->{'phys-cnt'};
 	}
-	# we don't want to use L1/L2/L3 at all for non BSD systems unless forced
-	# because have seen totally gibberish dmidecode data for caches.
-	# Also, more legacy dmidecode cache data used the per cache value, NOT the per
-	# CPU total value like it does today. Which makes it impossible to know for 
-	# sure if the value is right (today, or if cache matched cpu) or wrong (legacy)
-	# Rule: Linux, don't use this if any cache data was found, or dmidecode force.
-	# BSD: use if not L1 or L2 or L3, we don't care about legacy errors for BSD.
+	# We have to undef all the sys stuff to get back to the true dmidecode results
+	# Too many variants to treat one by one, just clear it out if forced.
+	undef %$caches if $force{'dmidecode'};
+	# We don't want to use dmi L1/L2/L3 at all for non BSD systems unless forced
+	# because have seen totally gibberish dmidecode data for caches. /sys cache 
+	# data preferred, more granular and basically consistently right.
+	# Only run for linux if no cache data found, but BSD use to fill in missing
+	# (we don't care about legacy errors for BSD since the data isn't adequate).
+	# legacy dmidecode cache data used the per cache value, NOT the per CPU total 
+	# value like it does today. Which makes it impossible to know for sure if the 
+	# given value is right (new, or if cache matched cpu total) or inadequate.
 	if ((!$bsd_type && !$caches->{'l1'} && !$caches->{'l2'} && !$caches->{'l3'}) ||
-	($bsd_type && (!$caches->{'l1'} || !$caches->{'l2'} || !$caches->{'l3'})) ||
-	$force{'dmidecode'}){
-		# These are the total per cpu, not per core when using dmidecode.
-		# /sys cache data preferred, more granular, unless dmidecode forced, which is
-		# preferred over manual fallback because it's per cpu already. 
-		# We have to undef all the sys stuff to get back to the true dmidecode results
-		if ($cpu_dmi->{'l1'} && (!$caches->{'l1'} || $force{'dmidecode'})){
-			undef $caches->{'l1d'};
-			undef $caches->{'l1d-desc'};
-			undef $caches->{'l1i'};
-			undef $caches->{'l1i-desc'};
+	($bsd_type && (!$caches->{'l1'} || !$caches->{'l2'} || !$caches->{'l3'}))){
+		# Newer dmi: cache type total per phys cpu; Legacy: raw cache size only
+		if ($cpu_dmi->{'l1'} && !$caches->{'l1'}){
 			$caches->{'l1'} = $cpu_dmi->{'l1'};
 			$$cache_check = main::row_defaults('note-check');
 		}
 		# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
 		# have these values so let's check just in case. OpenBSD does have it often.
-		if ($cpu_dmi->{'l2'} && (!$caches->{'l2'} || $force{'dmidecode'})){
-			undef $caches->{'l2-desc'};
+		if ($cpu_dmi->{'l2'} && !$caches->{'l2'}){
 			$caches->{'l2'} = $cpu_dmi->{'l2'};
 			$$cache_check = main::row_defaults('note-check');
 		}
-		if ($cpu_dmi->{'l3'} && (!$caches->{'l3'} || $force{'dmidecode'})){
-			undef $caches->{'l3-desc'};
+		if ($cpu_dmi->{'l3'} && !$caches->{'l3'}){
 			$caches->{'l3'} = $cpu_dmi->{'l3'};
 			$$cache_check = main::row_defaults('note-check');
 		}
@@ -12330,14 +12321,14 @@ sub set_vendors {
 	# H10 HBRPEKNX0202A NVMe INTEL 512GB
 	['(\bINTEL\b|^SSD(PAM|SA2))','\bINTEL\b','Intel',''], 
 	# note: S[AV][1-9][0-9] can trigger false positives
-	['(KINGSTON|DataTraveler|DT\s?(DUO|Microduo|101)|^RBU|^SMS|^SHS|^SS0|^SUV|^T52|^T[AB]29|^Ultimate CF|HyperX|^S[AV][1234]00|^SKYMEDI|13fe\b)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
+	['(K(ING)?STON|DataTraveler|DT\s?(DUO|Microduo|101)|^RBU|^SMS|^SHS|^SS0|^SUV|^T52|^T[AB]29|^Ultimate CF|HyperX|^S[AV][1234]00|^SKYMEDI|13fe\b)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
 	# HM320II HM320II
-	['(SAMSUNG|^MCG[0-9]+GC|^MCC|^MCBOE|\bEVO\b|^[GS]2 Portable|^DS20|^[DG]3 Station|^DUO\b|^P3|^[BC]GN|^[CD]JN|^BJ[NT]|^[BC]WB|^(HM|SP)[0-9]{2}|^MZMPC|^HD[0-9]{3}[A-Z]{2}$|^G[CD][1-9][QS]|^M[AB]G[0-9][FG]|SV[0-9]|[BE][A-Z][1-9]QT|YP\b)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
+	['(SAMSUNG|^MCG[0-9]+GC|^CKT|^DUT|^MCC|^MCBOE|\bEVO\b|^[GS]2 Portable|^DS20|^[DG]3 Station|^DUO\b|^P3|^[BC]GN|^[CD]JN|^BJ[NT]|^[BC]WB|^(HM|SP)[0-9]{2}|^MZMPC|^HD[0-9]{3}[A-Z]{2}$|^G[CD][1-9][QS]|^M[AB]G[0-9][FG]|SV[0-9]|[BE][A-Z][1-9]QT|YP\b)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
 	# Android UMS Composite?
-	['(SanDisk|^SDS[S]?[DQ]|^D[AB]4|^SL([0-9]+)G|^AFGCE|^ABLCD|^SDW[1-9]|^SEM[1-9]|^U3\b|^SU[0-9]|^DX[1-9]|^S[CD][0-9]{2}G|ULTRA\s(FIT|trek)|Clip Sport|Cruzer|^Extreme|iXpand|SSD (Plus|U100) [1-9])','SanDisk','SanDisk',''],
+	['(SanDisk|^SDS[S]?[DQ]|^D[AB]4|^SL([0-9]+)G|^AFGCE|^ABLCD|^SDW[1-9]|^SEM[1-9]|^U3\b|^SU[0-9]|^DX[1-9]|^S[CD][0-9]{2}G|ULTRA\s(FIT|trek)|Clip Sport|Cruzer|^Extreme|iXpand|SSD (Plus|U100) [1-9]|0781)','(SanDisk|0781)','SanDisk',''],
 	# these are HP/Sandisk cobranded. DX110064A5xnNMRI ids as HP and Sandisc
 	['(^DX[1-9])','^(HP\b|SANDDISK)','Sandisk/HP',''], # ssd drive, must come before seagate ST test
 	# real, SSEAGATE Backup+; XP1600HE30002 | 024 HN (spinpoint) ; possible usb: 24AS
@@ -12347,6 +12338,7 @@ sub set_vendors {
 	# rare cases WDC is in middle of string
 	['(\bWDC\b|1002FAEX)','','Western Digital',''],
 	## THEN BETTER KNOWN ONESs ##
+	['^Acer','^Acer','Acer',''],
 	# A-Data can be in middle of string
 	['^(.*\bA-?DATA|ASP[0-9]|AX[MN]|CH11|HV[1-9]|IM2|HD[1-9]|HDD\s?CH|IUM)','A-?DATA','A-Data',''],
 	['^(ASUS|ROG)','^ASUS','ASUS',''], # ROG ESD-S1C
@@ -12371,10 +12363,11 @@ sub set_vendors {
 	['^(PNY|Hook\s?Attache|SSD2SC|(SSD7?)?EP7)','^PNY\s','PNY','','^PNY'],
 	# note: get rid of: M[DGK] becasue mushkin starts with MK
 	# note: seen: KXG50ZNV512G NVMe TOSHIBA 512GB | THNSN51T02DUK NVMe TOSHIBA 1024GB 
-	['(^[S]?TOS|^THN|TOSHIBA|TransMemory|^M[GKQ][0-9]|KBG4|^HDW|^SA[0-9]{2}G$|^(008|016|032|064|128)G[379E][0-9A]$)','[S]?TOSHIBA','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
+	['(^[S]?TOS|^THN|TOSHIBA|TransMemory|^M[GKQ][0-9]|KBG4|^HDW|^SA[0-9]{2}G$|^(008|016|032|064|128)G[379E][0-9A]$|0930)','[S]?(TOSHIBA|0930)','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
 	## LAST: THEY ARE SHORT AND COULD LEAD TO FALSE ID, OR ARE UNLIKELY ##
 	# unknown: AL25744_12345678; ADP may be usb 2.5" adapter; udisk unknown: Z1E6FTKJ 00AAKS
 	# SSD2SC240G726A10 MRS020A128GTS25C EHSAJM0016GB
+	['^(Alcor(\s?Micro)?|058F)','^(Alcor(\s?Micro)?|058F)','Alcor Micro',''],
 	['^2[\s-]?Power','^2[\s-]?Power','2-Power',''], 
 	['^(3ware|9650SE)','^3ware','3ware (controller)',''], 
 	['^5ACE','^5ACE','5ACE',''], # could be seagate: ST316021 5ACE
@@ -12382,7 +12375,7 @@ sub set_vendors {
 	['^(AbonMax|ASU[0-9])','^AbonMax','AbonMax',''],
 	['^Acasis','^Acasis','Acasis (hub)',''],
 	['^Acclamator','^Acclamator','Acclamator',''],
-	['^(Actions|HS USB Flash)','^Actions','Actions',''],
+	['^(Actions|HS USB Flash|10d6)','^(Actions|10d6)','Actions',''],
 	['^Addlink','^Addlink','Addlink',''],
 	['^(ADplus|SuperVer\b)','^ADplus','ADplus',''],
 	['^ADTRON','^ADTRON','Adtron',''],
@@ -12415,6 +12408,7 @@ sub set_vendors {
 	['^BIOSTAR','^BIOSTAR','Biostar',''],
 	['^BIWIN','^BIWIN','BIWIN',''],
 	['^Blackpcs','^Blackpcs','Blackpcs',''],
+	['^(BlueRay|SDM[0-9])','^BlueRay','BlueRay',''],
 	['^Bory','^Bory','Bory',''],
 	['^Braveeagle','^Braveeagle','BraveEagle',''],
 	['^(BUFFALO|BSC)','^BUFFALO','Buffalo',''], # usb: BSCR05TU2
@@ -12439,6 +12433,7 @@ sub set_vendors {
 	['^DATABAR','^DATABAR','DataBar',''],
 	# Daplink vfs is an ARM software thing
 	['^Dataram','^Dataram','Dataram',''],
+	['^DELAIHE','^DELAIHE','DELAIHE',''],
 	# DataStation can be Trekstore or I/O gear
 	['^Dell\b','^Dell','Dell',''],
 	['^DeLOCK','^Delock(\s?products)?','Delock',''],
@@ -12454,7 +12449,7 @@ sub set_vendors {
 	['^(Dogfish|Shark)','^Dogfish(\s*Technology)?','Dogfish Technology',''],
 	['^DragonDiamond','^DragonDiamond','DragonDiamond',''],
 	['^DREVO\b','^DREVO','Drevo',''],
-	['^DREVO\b','^DREVO','Drevo',''],
+	['^DSS','^DSS DAHUA','DSS DAHUA',''],
 	['^(Dynabook|AE[1-3]00)','^Dynabook','Dynabook',''],
 	# DX1100 is probably sandisk, but could be HP, or it could be hp branded sandisk
 	['^(Eaget|V8$)','^Eaget','Eaget',''],
@@ -12471,8 +12466,10 @@ sub set_vendors {
 	['^EURS','^EURS','EURS',''],
 	# NOTE: ESA3... may be IBM PCIe SAD card/drives
 	['^(EXCELSTOR|r technology)','^EXCELSTOR( TECHNO(LOGY)?)?','ExcelStor',''],
+	['^EYOTA','^EYOTA','EYOTA',''],
 	['^EZLINK','^EZLINK','EZLINK',''],
 	['^Fantom','^Fantom( Drive[s]?)?','Fantom Drives',''],
+	['^Fanxiang','^Fanxiang','Fanxiang',''],
 	['^Faspeed','^Faspeed','Faspeed',''],
 	['^FASTDISK','^FASTDISK','FASTDISK',''],
 	['^Festtive','^Festtive','Festtive',''],
@@ -12488,12 +12485,14 @@ sub set_vendors {
 	['^Geil','^Geil','Geil',''],
 	['^GelL','^GelL','GelL',''], # typo for Geil? GelL ZENITH R3 120GB
 	['^(Generic|UY[67])','^Generic','Generic',''],
+	['^(Genesis(\s?Logic)?|05e3)','(Genesis(\s?Logic)?|05e3)','Genesis Logic',''],
 	['^Geonix','^Geonix','Geonix',''],
 	['^Getrich','^Getrich','Getrich',''],
 	['^Gigabyte','^Gigabyte','Gigabyte',''], # SSD
 	['^Gigastone','^Gigastone','Gigastone',''],
 	['^Gigaware','^Gigaware','Gigaware',''],
 	['^Gloway','^Gloway','Gloway',''],
+	['^GLOWY','^GLOWY','Glowy',''],
 	['^Goldendisk','^Goldendisk','Goldendisk',''],
 	['^Goldenfir','^Goldenfir','Goldenfir',''],
 	# Wilk Elektronik SA, poland
@@ -12525,7 +12524,7 @@ sub set_vendors {
 	['^(Initio)','^Initio','Initio',''], 
 	['^Inland','^Inland','Inland',''],
 	['^(InnoDisk|Innolite|SATA\s?Slim)','^InnoDisk( Corp.)?','InnoDisk',''],
-	['Innostor','Innostor','Innostor',''],
+	['(Innostor|1f75)','(Innostor|1f75)','Innostor',''],
 	['(^Innovation|Innovation\s?IT)','Innovation(\s*IT)?','Innovation IT',''],
 	['^Innovera','^Innovera','Innovera',''],
 	['^Intaiel','^Intaiel','Intaiel',''],
@@ -12567,12 +12566,13 @@ sub set_vendors {
 	# LENSE30512GMSP34MEAT3TA / UMIS RPITJ256PED2MWX
 	['^(LEN|UMIS)','^Lenovo','Lenovo',''],
 	['^RPFT','','Lenovo O.E.M.',''],
-	# JAJS300M120C JAJM600M256C JAJS600M1024C JAJS600M256C
-	['^(Leven|JAJ[MS][1-9])','^Leven','Leven',''],
+	# JAJS300M120C JAJM600M256C JAJS600M1024C JAJS600M256C JAJMS600M128G 
+	['^(Leven|JAJ[MS])','^Leven','Leven',''],
 	['^LG\b','^LG','LG',''],
 	['(LITE[-\s]?ON[\s-]?IT)','LITE[-]?ON[\s-]?IT','LITE-ON IT',''], # LITEONIT_LSS-24L6G
 	['(LITE[-\s]?ON|^PH[1-9])','LITE[-]?ON','LITE-ON',''], # PH6-CE240-L; CL1-3D256-Q11 NVMe LITEON 256GB
 	['^LONDISK','^LONDISK','LONDISK',''],
+	['^Longline','^Longline','Longline',''],
 	['^(LSI|MegaRAID)','^LSI\b','LSI',''],
 	['^(M-Systems|DiskOnKey)','^M-Systems','M-Systems',''],
 	['^(Mach\s*Xtreme|MXSSD|MXU|MX[\s-])','^Mach\s*Xtreme','Mach Xtreme',''],
@@ -12594,9 +12594,11 @@ sub set_vendors {
 	['^MGTEC','^MGTEC','MGTEC',''],
 	['^(Microsoft|S31)','^Microsoft','Microsoft',''],
 	['^MidasForce','^MidasForce','MidasForce',''],
+	['^Milan','^Milan','Milan',''],
 	['^(Mimoco|Mimobot)','^Mimoco','Mimoco',''],
 	['^MINIX','^MINIX','MINIX',''],
 	['^Miracle','^Miracle','Miracle',''],
+	['^MLLSE','^MLLSE','MLLSE',''],
 	['^Moba','^Moba','Moba',''],
 	# Monster MONSTER DIGITAL
 	['^(Monster\s)+(Digital)?|OD[\s-]?ADVANCE','^(Monster\s)+(Digital)?','Monster Digital',''],
@@ -12658,7 +12660,7 @@ sub set_vendors {
 	['^(Sea\s?Tech|Transformer)','^Sea\s?Tech','Sea Tech',''],
 	['^SigmaTel','^SigmaTel','SigmaTel',''],
 	# DIAMOND_040_GB
-	['^(SILICON\s?MOTION|SM[0-9])','^SILICON\s?MOTION','Silicon Motion',''],
+	['^(SILICON\s?MOTION|SM[0-9]|090c)','^(SILICON\s?MOTION|090c)','Silicon Motion',''],
 	['(Silicon[\s-]?Power|^SP[CP]C|^Silicon|^Diamond|^HasTopSunlightpeed)','Silicon[\s-]?Power','Silicon Power',''],
 	['^SINTECHI?','^SINTECHI?','SinTech (adapter)',''],
 	['^SiS\b','^SiS','SiS',''],
@@ -12703,11 +12705,13 @@ sub set_vendors {
 	['^TopSunligt','^TopSunligt','TopSunligt',''], # is this a typo? hard to know
 	['^TopSunlight','^TopSunlight','TopSunlight',''],
 	['^TOROSUS','^TOROSUS','Torosus',''],
-	['^([F]?TS|Transcend|JetDrive|JetFlash|USDU|EZEX)','^Transcend','Transcend',''], 
+	['^([F]?TS|Transcend|JetDrive|JetFlash|USDU|EZEX|1307)','^(Transcend|1307)','Transcend',''], 
 	['^(TrekStor|DS (maxi|pocket)|DataStation)','^TrekStor','TrekStor',''],
+	['^Turbox','^Turbox','Turbox',''],
 	['^(TwinMOS|TW[0-9])','^TwinMOS','TwinMOS',''],
 	# note: udisk means usb disk, it's not a vendor ID
 	['^UDinfo','^UDinfo','UDinfo',''],
+	['^UMAX','^UMAX','UMAX',''],
 	['^USBTech','^USBTech','USBTech',''],
 	['^(UNIC2)','^UNIC2','UNIC2',''],
 	['^(UG|Unigen)','^Unigen','Unigen',''],
