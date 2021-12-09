@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-12-08';
-my $self_patch='36';
+my $self_patch='37';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8392,9 +8392,12 @@ sub full_output {
 			if ($topo->{'dies'}){
 				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
 			}
+			if ($topo->{'governor'}){
+				$rows[$j]->{main::key($num++,0,$id+1,'governors')} = $topo->{'governor'};
+			}
 		}
 		$cpu->{'smt'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,0,$id,'smt')} = $cpu->{'smt'};
+		$rows[$j]->{main::key($num++,0,2,'smt')} = $cpu->{'smt'};
 		full_output_caches($j,$properties,\$num,\@rows);
 	}
 	$j = scalar @rows;
@@ -8661,27 +8664,28 @@ sub cpuinfo_data {
 	# Run this logic first to make sure we get the speeds as raw as possible. 
 	# Not in function to avoid unnecessary cpu use, we have slept right before.
 	# ARM and legacy systems etc do not always have cpufreq.
+	# note that there can be a definite cost to reading scaling_cur_freq, which 
+	# must be generated on the fly based on some time snippet sample.
 	if (-e '/sys/devices/system/cpu/'){
 		my $glob = '/sys/devices/system/cpu/cpu*/cpufreq/{affected_cpus,scaling_cur_freq}';
 		my ($error,$file,$key,%working,%freq,@value);
 		foreach (main::globber($glob)){
-			if (-r $_){
-				undef $error;
-				 # $fh always non null, even on error
-				open(my $fh, '<', $_) or $error = $!;
-				if (!$error){
-					m%/sys/devices/system/cpu/cpu(\d+)/cpufreq/(affected_cpus|scaling_cur_freq)%;
-					$key = $1;
-					$file = $2;
-					chomp(@value = <$fh>);
-					close $fh;
-					if ($file eq 'affected_cpus'){
-						# chomp seems to turn undefined into '', not sure why
-						$working{$key}->[0] = $value[0] if $value[0] ne '';
-					}
-					else {
-						$working{$key}->[1] = speed_cleaner($value[0],'khz');
-					}
+			next if ! -r $_;
+			undef $error;
+				# $fh always non null, even on error
+			open(my $fh, '<', $_) or $error = $!;
+			if (!$error){
+				m%/sys/devices/system/cpu/cpu(\d+)/cpufreq/(affected_cpus|scaling_cur_freq)%;
+				$key = $1;
+				$file = $2;
+				chomp(@value = <$fh>);
+				close $fh;
+				if ($file eq 'affected_cpus'){
+					# chomp seems to turn undefined into '', not sure why
+					$working{$key}->[0] = $value[0] if $value[0] ne '';
+				}
+				else {
+					$working{$key}->[1] = speed_cleaner($value[0],'khz');
 				}
 			}
 		}
@@ -9044,6 +9048,11 @@ sub cpu_sys_data {
 					push(@{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}},$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
 				}
 			}
+			if (defined $cpu->{'cpufreq'}{'scaling_governor'}){
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'scaling_governor'}} @{$cpu_sys{'cpus'}->{$phys_id}{'governor'}}){
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'governor'}},$cpu->{'cpufreq'}{'scaling_governor'});
+				}
+			}
 		}
 		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
 			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
@@ -9141,7 +9150,7 @@ sub sys_data_grabber {
 			$glob .= 'cpu*/topology/{core_cpus_list,core_id,core_siblings_list,die_id,';
 			$glob .= 'physical_package_id,thread_siblings_list}';
 			$glob .= ',cpufreq/{boost,ondemand}';
-			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq}';
+			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq,scaling_governor}';
 			if ($type eq 'full'){
 				$glob .= ',cpu*/cache/index*/{level,shared_cpu_list,shared_cpu_map,size,type}';
 			}
@@ -10093,6 +10102,11 @@ sub cp_data_sys {
 				}
 				$counts->{'cpu-topo'}[$i]{'min'} = $cpu_sys->{'cpus'}{$phys_id}{'min-freq'}[0];
 			}
+			# cheating, this is not a count, but we need the data for topology, must
+			# sort since governors can be in different order if > 1
+			if ($cpu_sys->{'cpus'}{$phys_id}{'governor'}){
+				$counts->{'cpu-topo'}[$i]{'governor'} = join(',',sort @{$cpu_sys->{'cpus'}{$phys_id}{'governor'}});
+			}
 			if (!grep {$counts->{'cpu-cores'} eq $_} @phys_cores){
 				push(@phys_cores,$counts->{'cpu-cores'});
 			}
@@ -10682,11 +10696,14 @@ sub cp_cpu_topology {
 					$topology->{'full'}[$j]{'max'} = $topo->{'max'};
 					$topology->{'full'}[$j]{'min'} = $topo->{'min'};
 				}
-				if ($topo->{'tpc'}){
-					$topology->{'full'}[$j]{'tpc'} = $topo->{'tpc'};
+				if ($topo->{'governor'}){
+					$topology->{'full'}[$j]{'governor'} = $topo->{'governor'};
 				}
 				if ($topo->{'smt'}){
 					$topology->{'full'}[$j]{'smt'} = $topo->{'smt'};
+				}
+				if ($topo->{'tpc'}){
+					$topology->{'full'}[$j]{'tpc'} = $topo->{'tpc'};
 				}
 				$j++;
 			}
