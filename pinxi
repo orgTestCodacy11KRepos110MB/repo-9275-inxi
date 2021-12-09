@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-08';
-my $self_patch='38';
+my $self_date='2021-12-09';
+my $self_patch='39';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6182,41 +6182,25 @@ sub set_konvi_data {
 ########################################################################
 
 #### -------------------------------------------------------------------
-#### FILTERS AND TOOLS
+#### CLEANERS, FILTERS, AND TOOLS
 #### -------------------------------------------------------------------
 
-sub apply_filter {
-	my ($string) = @_;
-	if ($string){
-		if ($use{'filter'} && $string ne row_defaults('root-required')){
-			$string = $filter_string;
-		}
-	}
-	else {
-		$string = 'N/A';
-	}
-	return $string;
+sub clean {
+	my ($item) = @_;
+	return $item if !$item;# handle cases where it was 0 or ''
+	# note: |nee trips engineering, but I don't know why nee was filtered
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/,|\*/ /g;
+	$item =~ s/^\s+|\s+$//g;
+	$item =~ s/\s\s+/ /g;
+	return $item;
 }
 
-# note, let the print logic handle N/A cases
-sub apply_partition_filter {
-	my ($source,$string,$type) = @_;
-	return $string if !$string || $string eq 'N/A';
-	if ($source eq 'system'){
-		my $test = ($type eq 'label') ? '=LABEL=': '=UUID=';
-		$string =~ s/$test[^\s]+/$test$filter_string/g;
-	}
-	else {
-		$string = $filter_string;
-	}
-	return $string;
-}
-
-sub arm_cleaner {
+sub clean_arm {
 	my ($item) = @_;
 	$item =~ s/(\([^\(]*Device Tree[^\)]*\))//gi;
-	$item =~ s/\s\s+/ /g;
 	$item =~ s/^\s+|\s+$//g;
+	$item =~ s/\s\s+/ /g;
 	return $item;
 }
 
@@ -6232,55 +6216,120 @@ sub clean_characters {
 	return $data;
 }
 
-sub cleaner {
-	my ($item) = @_;
-	return $item if !$item;# handle cases where it was 0 or ''
-	# note: |nee trips engineering, but I don't know why nee was filtered
-	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
-	$item =~ s/,|\*/ /g;
-	$item =~ s/\s\s+/ /g;
-	$item =~ s/^\s+|\s+$//g;
-	return $item;
-}
-
-sub disk_cleaner {
+sub clean_disk {
 	my ($item) = @_;
 	return $item if !$item;
 	# <?unknown>?|
 	$item =~ s/vendor.*|product.*|O\.?E\.?M\.?//gi;
-	$item =~ s/\s\s+/ /g;
 	$item =~ s/^\s+|\s+$//g;
+	$item =~ s/\s\s+/ /g;
 	return $item;
 }
 
-sub dmi_cleaner {
+sub clean_dmi {
 	my ($string) = @_;
-	my $cleaner = '^Base Board .*|^Chassis .*|empty|Undefined.*|.*O\.E\.M\..*|.*OEM.*|^Not .*';
-	$cleaner .= '|^System .*|.*unknow.*|.*N\/A.*|none|^To be filled.*|^0x[0]+$';
-	$cleaner .= '|\[Empty\]|<Bad Index>|<OUT OF SPEC>|Default string|^\.\.$|Manufacturer.*';
-	$cleaner .= '|AssetTagNum|Manufacturer| Or Motherboard|PartNum.*|\bOther\b.*|SerNum';
-	$string =~ s/$cleaner//i;
-	$string =~ s/^\s+|\bbios\b|\bacpi\b|\s+$//gi;
+	$string = clean_unset($string,'AssetTagNum|^Base Board .*|^Chassis .*|' .
+	'Manufacturer.*| Or Motherboard|\bOther\b.*|PartNum.*|SerNum|' .
+	'^System .*|^0x[0]+$');
+	$string =~ s/\bbios\b|\bacpi\b//gi;
 	$string =~ s/http:\/\/www.abit.com.tw\//Abit/i;
-	$string =~ s/\s\s+/ /g;
 	$string =~ s/^\s+|\s+$//g;
+	$string =~ s/\s\s+/ /g;
 	$string = remove_duplicates($string) if $string;
 	return $string;
 }
 
+sub clean_pci {
+	my ($string,$type) = @_;
+	# print "st1 $type:$string\n";
+	my $filter = 'and\ssubsidiaries|compatible\scontroller|';
+	$filter .= '\b(device|controller|connection|multimedia)\b|\([^)]+\)';
+	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
+	$filter = '\[[^\]]+\]$|' . $filter if $type eq 'pci';
+	$string =~ s/($filter)//ig;
+	$string =~ s/^\s+|\s+$//g;
+	$string =~ s/\s\s+/ /g;
+	# print "st2 $type:$string\n";
+	$string = remove_duplicates($string) if $string;
+	return $string;
+}
+
+sub clean_pci_subsystem {
+	my ($string) = @_;
+	# we only need filters for features that might use vendor, -AGN
+	my $filter = 'and\ssubsidiaries|adapter|(hd\s)?audio|definition|desktop|ethernet|';
+	$filter .= 'gigabit|graphics|hdmi(\/[\S]+)?|high|integrated|motherboard|network|onboard|';
+	$filter .= 'raid|pci\s?express';
+	$string =~ s/\b($filter)\b//ig;
+	$string =~ s/^\s+|\s+$//g;
+	$string =~ s/\s\s+/ /g;
+	return $string;
+}
+
+# Use sparingly, but when we need regex type stuff 
+# stripped out for reliable string compares, it's better.
+# sometimes the pattern comes from unknown strings 
+# which can contain regex characters, get rid of those
+sub clean_regex {
+	my ($string) = @_;
+	return if !$string;
+	$string =~ s/(\{|\}|\(|\)|\[|\]|\|)/ /g;
+	$string =~ s/^\s+|\s+$//g;
+	$string =~ s/\s\s+/ /g;
+	return $string;
+}
+
+# $extra optional, if you want to add custom filter to defaults
+sub clean_unset {
+	my ($string,$extra) = @_;
+	my $cleaner = '^(\.)+$|Bad Index|default string|\[?empty\]?|\bnone\b|N\/A|^not |';
+	$cleaner .= 'not set|OUT OF SPEC|To be filled|O\.?E\.?M|undefine|unknow|unspecif';
+	$cleaner .= '|' . $extra if $extra;
+	$string =~ s/.*($cleaner).*//i;
+	return $string;
+}
+
+sub filter {
+	my ($string) = @_;
+	if ($string){
+		if ($use{'filter'} && $string ne row_defaults('root-required')){
+			$string = $filter_string;
+		}
+	}
+	else {
+		$string = 'N/A';
+	}
+	return $string;
+}
+
+# note, let the print logic handle N/A cases
+sub filter_partition {
+	my ($source,$string,$type) = @_;
+	return $string if !$string || $string eq 'N/A';
+	if ($source eq 'system'){
+		my $test = ($type eq 'label') ? '=LABEL=': '=UUID=';
+		$string =~ s/$test[^\s]+/$test$filter_string/g;
+	}
+	else {
+		$string = $filter_string;
+	}
+	return $string;
+}
+
+sub filter_pci_long {
+	my ($string) = @_;
+	if ($string =~ /\[AMD(\/ATI)?\]/){
+		$string =~ s/Advanced\sMicro\sDevices\s\[AMD(\/ATI)?\]/AMD/;
+	}
+	return $string;
+}
+
 # args: list of values, return the first one that is defined
-sub either_or {
+sub get_defined {
 	for (@_){
 		return $_ if defined $_;
 	}
 	return; # don't return undef explicitly, only implicitly!
-}
-sub general_cleaner {
-	my ($string) = @_;
-	my $cleaner = '\b(defauult string|empty|none|not set|undefined.*|unknown|';
-	$cleaner .= 'unspecified)\b';
-	$string =~ s/$cleaner//i;
-	return $string;
 }
 
 # args: $1 - vendor id; $2 - product id
@@ -6356,54 +6405,6 @@ sub increment_starters {
 		$result = "$key-$indexes->{$key}";
 	}
 	return $result;
-}
-
-sub pci_cleaner {
-	my ($string,$type) = @_;
-	# print "st1 $type:$string\n";
-	my $filter = 'and\ssubsidiaries|compatible\scontroller|';
-	$filter .= '\b(device|controller|connection|multimedia)\b|\([^)]+\)';
-	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
-	$filter = '\[[^\]]+\]$|' . $filter if $type eq 'pci';
-	$string =~ s/($filter)//ig;
-	$string =~ s/\s\s+/ /g;
-	$string =~ s/^\s+|\s+$//g;
-	# print "st2 $type:$string\n";
-	$string = remove_duplicates($string) if $string;
-	return $string;
-}
-
-sub pci_cleaner_subsystem {
-	my ($string) = @_;
-	# we only need filters for features that might use vendor, -AGN
-	my $filter = 'and\ssubsidiaries|adapter|(hd\s)?audio|definition|desktop|ethernet|';
-	$filter .= 'gigabit|graphics|hdmi(\/[\S]+)?|high|integrated|motherboard|network|onboard|';
-	$filter .= 'raid|pci\s?express';
-	$string =~ s/\b($filter)\b//ig;
-	$string =~ s/\s\s+/ /g;
-	$string =~ s/^\s+|\s+$//g;
-	return $string;
-}
-
-sub pci_long_filter {
-	my ($string) = @_;
-	if ($string =~ /\[AMD(\/ATI)?\]/){
-		$string =~ s/Advanced\sMicro\sDevices\s\[AMD(\/ATI)?\]/AMD/;
-	}
-	return $string;
-}
-
-# Use sparingly, but when we need regex type stuff 
-# stripped out for reliable string compares, it's better.
-# sometimes the pattern comes from unknown strings 
-# which can contain regex characters, get rid of those
-sub regex_cleaner {
-	my ($string) = @_;
-	return if !$string;
-	$string =~ s/(\{|\}|\(|\)|\[|\]|\|)/ /g;
-	$string =~ s/\s\s+/ /g;
-	$string =~ s/^\s+|\s+$//g;
-	return $string;
 }
 
 # string of range types (2-5; 3 4; 3,4,2-12) to generate single regex string for
@@ -7051,10 +7052,10 @@ sub device_output {
 		my $driver = $row->[9];
 		$driver ||= 'N/A';
 		my $device = $row->[4];
-		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
+		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
 		if (length($device) > 85 || $size{'max'} < 110){
-			$device = main::pci_long_filter($device);
+			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
 		main::key($num++,1,1,'Device') => $device,
@@ -7137,7 +7138,7 @@ sub usb_output {
 		$num = 1;
 		# make sure to reset, or second device trips last flag
 		($path_id,$product) = ('','');
-		$product = main::cleaner($row->[13]) if $row->[13];
+		$product = main::clean($row->[13]) if $row->[13];
 		$path_id = $row->[2] if $row->[2];
 		$product ||= 'N/A';
 		$row->[15] ||= 'N/A';
@@ -7157,7 +7158,7 @@ sub usb_output {
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 		$j = scalar @rows;
 	}
@@ -7414,7 +7415,7 @@ sub battery_output {
 				$rows[$j]->{main::key($num++,0,2,'type')} = $chemistry;
 			}
 			if ($extra > 1){
-				$serial = main::apply_filter($battery->{$key}{'serial_number'});
+				$serial = main::filter($battery->{$key}{'serial_number'});
 				$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
 			}
 			$status = ($battery->{$key}{'status'}) ? $battery->{$key}{'status'}: 'N/A';
@@ -7471,7 +7472,7 @@ sub battery_output {
 			main::key($num++,0,2,'model') => $model,
 			},);
 			if ($extra > 1){
-				$serial = main::apply_filter($battery->{$key}{'serial_number'});
+				$serial = main::filter($battery->{$key}{'serial_number'});
 				$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
 			}
 			$rows[$j]->{main::key($num++,0,2,'charge')} = $charge;
@@ -7545,10 +7546,10 @@ sub battery_data_sys {
 					$b_ma = 1;
 				}
 				elsif ($file eq 'manufacturer'){
-					$value = main::dmi_cleaner($value);
+					$value = main::clean_dmi($value);
 				}
 				elsif ($file eq 'model_name'){
-					$value = main::dmi_cleaner($value);
+					$value = main::clean_dmi($value);
 				}
 			}
 			elsif ($b_root && -e $path && ! -r $path){
@@ -7645,11 +7646,19 @@ sub battery_data_sysctl {
 		elsif (/raw[^:]+:[0-9\.]+\s+\((battery) ([^\)]+)\)/){
 			$battery{$id}->{'status'} = $2;
 		}
-		elsif (/^acpi[\S]+:at [^:]+:\s*$id\s+model\s+(.*?)\s*serial\s+([\S]*?)\s*type\s+(.*?)\s*oem\s+(.*)/i){
-			$battery{$id}->{'model_name'} = main::dmi_cleaner($1);
-			$battery{$id}->{'serial_number'} = $2;
-			$battery{$id}->{'technology'} = $3;
-			$battery{$id}->{'manufacturer'} = main::dmi_cleaner($4);
+		elsif (/^acpi[\S]+:at [^:]+:\s*$id\s+/i){
+			if (/\s+model\s+(.*?)\s*/){
+				$battery{$id}->{'model_name'} = main::clean_dmi($1);
+			}
+			if (/\s*serial\s+([\S]*?)\s*/){
+				$battery{$id}->{'serial_number'} = main::clean_unset($1,'^(0x)0+$');
+			}
+			if (/\s*type\s+(.*?)\s*/){
+				$battery{$id}->{'technology'} = $1;
+			}
+			if (/\s*oem\s+(.*)/){
+				$battery{$id}->{'manufacturer'} = main::clean_dmi($1);
+			}
 		}
 	}
 	# then do the condition/charge percent math
@@ -7705,11 +7714,16 @@ sub battery_data_dmi {
 			foreach my $item (@$row[3 .. $#$row]){
 				my @value = split(/:\s+/, $item);
 				next if !$value[0];
-				if ($value[0] eq 'Location'){$battery{$id}->{'location'} = $value[1] }
-				elsif ($value[0] eq 'Manufacturer'){$battery{$id}->{'manufacturer'} = main::dmi_cleaner($value[1]) }
-				elsif ($value[0] =~ /Chemistry/){$battery{$id}->{'technology'} = $value[1] }
-				elsif ($value[0] =~ /Serial Number/){$battery{$id}->{'serial_number'} = $value[1] }
-				elsif ($value[0] =~ /^Name/){$battery{$id}->{'model_name'} = main::dmi_cleaner($value[1]) }
+				if ($value[0] eq 'Location'){
+					$battery{$id}->{'location'} = $value[1]}
+				elsif ($value[0] eq 'Manufacturer'){
+					$battery{$id}->{'manufacturer'} = main::clean_dmi($value[1])}
+				elsif ($value[0] =~ /Chemistry/){
+					$battery{$id}->{'technology'} = $value[1]}
+				elsif ($value[0] =~ /Serial Number/){
+					$battery{$id}->{'serial_number'} = $value[1]}
+				elsif ($value[0] =~ /^Name/){
+					$battery{$id}->{'model_name'} = main::clean_dmi($value[1])}
 				elsif ($value[0] eq 'Design Capacity'){
 					$value[1] =~ s/\s*mwh$//i;
 					$battery{$id}->{'energy_full_design'} = sprintf("%.1f", $value[1]/1000);
@@ -7820,10 +7834,10 @@ sub device_output {
 		$j = scalar @rows;
 		my $driver = ($row->[9]) ? $row->[9] : 'N/A';
 		my $device = $row->[4];
-		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
+		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
 		if (length($device) > 85 || $size{'max'} < 110){
-			$device = main::pci_long_filter($device);
+			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
 		main::key($num++,1,1,'Device') => $device,
@@ -7877,7 +7891,7 @@ sub usb_output {
 		$j = scalar @rows;
 		# makre sure to reset, or second device trips last flag
 		($path_id,$product) = ('','');
-		$product = main::cleaner($row->[13]) if $row->[13];
+		$product = main::clean($row->[13]) if $row->[13];
 		$product ||= 'N/A';
 		$row->[15] ||= 'N/A';
 		$path_id = $row->[2] if $row->[2];
@@ -7901,7 +7915,7 @@ sub usb_output {
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 		push(@rows,advanced_output('usb',$path_id)) if $path_id;
 	}
@@ -7988,7 +8002,7 @@ sub advanced_output {
 					$address = main::row_defaults('recommends');
 				}
 				else {
-					$address = main::apply_filter($hci{$item}->{'address'});
+					$address = main::filter($hci{$item}->{'address'});
 				}
 				$rows[$j]->{main::key($num++,0,$l,'address')} = $address;
 				# lmp/hci version only hciconfig sadly
@@ -8158,7 +8172,7 @@ sub hciconfig_data {
 			$hci{$id}->{'link-mode'} = lc($1);
 		}
 		elsif (/^Service Classes?:\s+(.+)/){
-			$hci{$id}->{'service-classes'} = main::general_cleaner(lc($1));
+			$hci{$id}->{'service-classes'} = main::clean_unset(lc($1));
 		}
 	}
 	print Data::Dumper::Dumper \%hci if $dbg[27];
@@ -8314,7 +8328,7 @@ sub full_output {
 		}
 		# ntoe: had if arch, but stepping can be defined where arch failed, stepping can be 0
 		if (!$b_admin && (defined $cpu->{'stepping'} || defined $cpu->{'revision'})){
-			my $rev = main::either_or($cpu->{'stepping'},$cpu->{'revision'});
+			my $rev = main::get_defined($cpu->{'stepping'},$cpu->{'revision'});
 			$rows[$j]->{main::key($num++,0,2,'rev')} = $rev;
 		}
 	}
@@ -8329,7 +8343,7 @@ sub full_output {
 		}
 		
 		if (!%risc && $cpu->{'type'} ne 'elbrus'){
-			$cpu->{'microcode'} ||= 'N/A';
+			$cpu->{'microcode'} = ($cpu->{'microcode'}) ? '0x' . $cpu->{'microcode'} :  'N/A';
 			$rows[$j]->{main::key($num++,0,2,'microcode')} = $cpu->{'microcode'};
 		}
 	}
@@ -8685,7 +8699,7 @@ sub cpuinfo_data {
 					$working{$key}->[0] = $value[0] if $value[0] ne '';
 				}
 				else {
-					$working{$key}->[1] = speed_cleaner($value[0],'khz');
+					$working{$key}->[1] = clean_speed($value[0],'khz');
 				}
 			}
 		}
@@ -8712,12 +8726,12 @@ sub cpuinfo_data {
 				$cpu{'type'} = cpu_vendor($block->{'vendor_id'});
 			}
 			# PPC can use 'cpu', MIPS 'cpu model'
-			$temp = main::either_or($block->{'model name'},$block->{'cpu'},
+			$temp = main::get_defined($block->{'model name'},$block->{'cpu'},
 			 $block->{'cpu model'});
 			if ($temp){
 				$cpu{'model_name'} = $temp;
-				$cpu{'model_name'} = main::cleaner($cpu{'model_name'});
-				$cpu{'model_name'} = cpu_cleaner($cpu{'model_name'});
+				$cpu{'model_name'} = main::clean($cpu{'model_name'});
+				$cpu{'model_name'} = clean_cpu($cpu{'model_name'});
 				if ($risc{'arm'} || $cpu{'model_name'} =~ /ARM|AArch/i){
 					$cpu{'type'} = 'arm';
 					if ($cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
@@ -8736,7 +8750,7 @@ sub cpuinfo_data {
 					$cpu{'type'} = 'mips';
 				}
 			}
-			$temp = main::either_or($block->{'architecture'},
+			$temp = main::get_defined($block->{'architecture'},
 			 $block->{'cpu family'},$block->{'cpu architecture'});
 			if ($temp){
 				if ($temp =~ /^\d+$/){
@@ -8748,7 +8762,7 @@ sub cpuinfo_data {
 				}
 			}
 			# note: stepping and ARM cpu revision are integers
-			$temp = main::either_or($block->{'stepping'},$block->{'cpu revision'});
+			$temp = main::get_defined($block->{'stepping'},$block->{'cpu revision'});
 			# can be 0, but can be 'unknown'
 			if (defined $temp){
 				if ($temp =~ /^\d+$/){
@@ -8813,7 +8827,7 @@ sub cpuinfo_data {
 						$cpu{'l3-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 					}
 				}
-				$temp = main::either_or($block->{'flags'} || $block->{'features'});
+				$temp = main::get_defined($block->{'flags'} || $block->{'features'});
 				if ($temp){
 					$cpu{'flags'} = $temp;
 				}
@@ -8842,9 +8856,9 @@ sub cpuinfo_data {
 			}
 		}
 		## Start incrementers
-		$temp = main::either_or($block->{'cpu mhz'},$block->{'clock'});
+		$temp = main::get_defined($block->{'cpu mhz'},$block->{'clock'});
 		if ($temp){
-			$speed = speed_cleaner($temp);
+			$speed = clean_speed($temp);
 			push(@{$cpu{'processors'}},$speed);
 		}
 		# just to get core counts for ARM/MIPS/PPC systems
@@ -9010,7 +9024,7 @@ sub cpu_sys_data {
 				if (defined $cpu->{'cpufreq'}{'scaling_cur_freq'} && 
 				 $cpu->{'cpufreq'}{'affected_cpus'} && 
 				 $cpu->{'cpufreq'}{'affected_cpus'} ne 'UNDEFINED'){
-					$speed = speed_cleaner($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
+					$speed = clean_speed($cpu->{'cpufreq'}{'scaling_cur_freq'},'khz');
 				}
 			}
 			elsif (defined $sys_freq && defined $sys_freq->{$key}){
@@ -9031,7 +9045,7 @@ sub cpu_sys_data {
 			# topology data.
 			# For max / min, we want to prep for the day 1 pys cpu has > 1 min/max freq
 			if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
-				$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
+				$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = clean_speed($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
 				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
 					push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
 				}
@@ -9040,7 +9054,7 @@ sub cpu_sys_data {
 				}
 			}
 			if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
-				$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = speed_cleaner($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
+				$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = clean_speed($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
 				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
 					push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
 				}
@@ -9284,8 +9298,8 @@ sub sysctl_data {
 			# openbsd 5.6: AMD Sempron(tm) Processor 3400+ ("AuthenticAMD" 686-class, 256KB L2 cache)
 			# openbsd 6.x has Lx cache data in dmesg.boot
 			# freebsd 10: hw.model: AMD Athlon(tm) II X2 245 Processor
-			$line[1] = main::cleaner($line[1]);
-			$line[1] = cpu_cleaner($line[1]);
+			$line[1] = main::clean($line[1]);
+			$line[1] = clean_cpu($line[1]);
 			if ($line[1] =~ /([0-9]+)[\s-]*([KM]B)\s+L2 cache/i){
 				my $multiplier = ($2 eq 'MB') ? 1024: 1;
 				$cpu{'l2-cache'} = $1 * $multiplier;
@@ -9294,12 +9308,12 @@ sub sysctl_data {
 				$cpu{'max-freq'} = $1;
 				if ($cpu{'max-freq'} =~ /MHz/i){
 					$cpu{'max-freq'} =~ s/[\s-]*MHz//;
-					$cpu{'max-freq'} = speed_cleaner($cpu{'max-freq'},'mhz');
+					$cpu{'max-freq'} = clean_speed($cpu{'max-freq'},'mhz');
 				}
 				elsif ($cpu{'max-freq'} =~ /GHz/){
 					$cpu{'max-freq'} =~ s/[\s-]*GHz//i;
 					$cpu{'max-freq'} = $cpu{'max-freq'} / 1000;
-					$cpu{'max-freq'} = speed_cleaner($cpu{'max-freq'},'mhz');
+					$cpu{'max-freq'} = clean_speed($cpu{'max-freq'},'mhz');
 				}
 			}
 			if ($line[1] =~ /\)$/){
@@ -9347,7 +9361,7 @@ sub sysctl_data {
 		# FB seems to call freq something other than clock speed, unreliable 
 		# eg: 1500 Mhz real shows as 2400 freq, which is wrong
 		# elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\.freq$/){
-		#	 $speed = speed_cleaner($line[1]);
+		#	 $speed = clean_speed($line[1]);
 		#	 $cpu{'processors'}->[$1] = $speed;
 		# }
 		# weird FB thing, freq can be wrong, so just count the cores and call it 
@@ -9619,27 +9633,27 @@ sub dmidecode_data {
 				# Socket Designation: Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz
 				# Sometimes shows as CPU Socket...
 				if ($value =~ /^Socket Designation:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
-					$upgrade = main::dmi_cleaner($2) if $2 !~ /(cpu|[mg]hz|onboard|socket|@|^#?[0-9]$)/i;
+					$upgrade = main::clean_dmi($2) if $2 !~ /(cpu|[mg]hz|onboard|socket|@|^#?[0-9]$)/i;
 					# print "$socket_temp\n";
 				}
 				# normally we prefer this value, but sometimes it's garbage
 				# older systems often show: Upgrade: ZIF Socket which is a generic term, legacy
 				elsif ($value =~ /^Upgrade:\s*(CPU\s*Socket|Socket)?[\s-]*(.*)$/i){
 					# print "$2\n";
-					$socket = main::dmi_cleaner($2) if $2 !~ /(ZIF|\bslot\b)/i;
+					$socket = main::clean_dmi($2) if $2 !~ /(ZIF|\bslot\b)/i;
 				}
 				# seen: Voltage: 5.0 V 2.9 V
 				elsif ($value =~ /^Voltage:\s*([0-9\.]+)\s*(V|Volts)?\b/i){
-					$dmi_data{'volts'} = main::dmi_cleaner($1);
+					$dmi_data{'volts'} = main::clean_dmi($1);
 				}
 				elsif ($value =~ /^Current Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
-					$dmi_data{'speed'} = main::dmi_cleaner($1);
+					$dmi_data{'speed'} = main::clean_dmi($1);
 				}
 				elsif ($value =~ /^Max Speed:\s*([0-9\.]+)\s*([MGK]Hz)?\b/i){
-					$dmi_data{'max-speed'} = main::dmi_cleaner($1);
+					$dmi_data{'max-speed'} = main::clean_dmi($1);
 				}
 				elsif ($value =~ /^External Clock:\s*([0-9\.]+\s*[MGK]Hz)\b/){
-					$dmi_data{'ext-clock'} = main::dmi_cleaner($1);
+					$dmi_data{'ext-clock'} = main::clean_dmi($1);
 				}
 			}
 		}
@@ -11038,7 +11052,7 @@ sub system_cpu_name {
 
 ## CLEANERS/OUTPUT HANDLERS ##
 # MHZ - cell cpus
-sub speed_cleaner {
+sub clean_speed {
 	my ($speed,$opt) = @_;
 	return if !$speed || $speed eq '0';
 	$speed =~ s/[GMK]HZ$//gi;
@@ -11046,7 +11060,7 @@ sub speed_cleaner {
 	$speed = sprintf("%.0f", $speed);
 	return $speed;
 }
-sub cpu_cleaner {
+sub clean_cpu {
 	my ($cpu) = @_;
 	return if !$cpu;
 	my $filters = '@|cpu |cpu deca|([0-9]+|single|dual|two|triple|three|tri|quad|four|';
@@ -11061,9 +11075,10 @@ sub hex_and_decimal {
 	my ($data) = @_; 
 	$data = '' if !defined $data;
 	if ($data =~ /\S/){
-		# only handle if a short hex number!!
-		if ($data =~ /^[0-9a-f]{1,3}$/i){
-			$data .= ' (' . hex($data) . ')' if hex($data) ne $data;
+		# only handle if a short hex number!! No need to prepend 0x to 0-9
+		if ($data =~ /^[0-9a-f]{1,3}$/i && hex($data) ne $data){
+			$data .= ' (' . hex($data) . ')';
+			$data = '0x' . $data;
 		}
 	}
 	else {
@@ -11246,11 +11261,11 @@ sub drive_output {
 				$row->{'serial'} = main::row_defaults('root-required');
 			}
 			else {
-				$row->{'serial'} = main::apply_filter($row->{'serial'});
+				$row->{'serial'} = main::filter($row->{'serial'});
 			}
 			$rows[$j]->{main::key($num++,0,2,'serial')} = $row->{'serial'};
 			if ($row->{'drive-serial'}){
-				$rows[$j]->{main::key($num++,0,2,'drive serial')} = main::apply_filter($row->{'drive-serial'});
+				$rows[$j]->{main::key($num++,0,2,'drive serial')} = main::filter($row->{'drive-serial'});
 			}
 			if ($row->{'firmware'}){
 				$rows[$j]->{main::key($num++,0,2,'rev')} = $row->{'firmware'};
@@ -11267,7 +11282,7 @@ sub drive_output {
 				$rows[$j]->{main::key($num++,0,2,'duid')} = main::row_defaults('root-required');
 			}
 			elsif ($row->{'duid'}){
-				$rows[$j]->{main::key($num++,0,2,'duid')} = main::apply_filter($row->{'duid'});
+				$rows[$j]->{main::key($num++,0,2,'duid')} = main::filter($row->{'duid'});
 			}
 		}
 		# extra level tests already done
@@ -11542,7 +11557,7 @@ sub proc_data_advanced {
 		}
 		# maybe rework logic if find good scsi data example, but for now use this
 		elsif ($drives->[$i]{'model'} && !$drives->[$i]{'vendor'}){
-			$drives->[$i]{'model'} = main::disk_cleaner($drives->[$i]{'model'});
+			$drives->[$i]{'model'} = main::clean_disk($drives->[$i]{'model'});
 			my @device_data = device_vendor($drives->[$i]{'model'},'');
 			$drives->[$i]{'model'} = $device_data[1] if $device_data[1];
 			$drives->[$i]{'vendor'} = $device_data[0] if $device_data[0];
@@ -12317,7 +12332,7 @@ sub disk_data_by_id {
 			$model = join(' ', @data);
 			# get rid of the ata-|nvme-|mmc- etc
 			$model =~ s/^\/dev\/disk\/by-id\/([^-]+-)?//;
-			$model = main::disk_cleaner($model);
+			$model = main::clean_disk($model);
 			@device_data = device_vendor($model,$serial);
 			$vendor = $device_data[0] if $device_data[0];
 			$model = $device_data[1] if $device_data[1];
@@ -13001,7 +13016,7 @@ sub device_speed {
 			else {
 				$working = "/sys/class/ata_link/link$id/sata_spd";
 				$speed = main::reader($working,'',0) if -r $working;
-				$speed = main::disk_cleaner($speed) if $speed;
+				$speed = main::clean_disk($speed) if $speed;
 				$speed =~ s/Gbps/Gb\/s/ if $speed;
 			}
 		}
@@ -13068,10 +13083,10 @@ sub device_output {
 		$driver = $row->[9];
 		$driver ||= 'N/A';
 		my $device = main::trimmer($row->[4]);
-		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
+		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
 		if (length($device) > 85 || $size{'max'} < 110){
-			$device = main::pci_long_filter($device);
+			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
 		main::key($num++,1,1,'Device') => $device,
@@ -13116,7 +13131,7 @@ sub usb_output {
 		$j = scalar @rows;
 		# make sure to reset, or second device trips last flag
 		($driver,$path_id,$product) = ('','','');
-		$product = main::cleaner($row->[13]) if $row->[13];
+		$product = main::clean($row->[13]) if $row->[13];
 		$driver = $row->[15] if $row->[15];
 		$path_id = $row->[2] if $row->[2];
 		$product ||= 'N/A';
@@ -13145,7 +13160,7 @@ sub usb_output {
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 	}
 	eval $end if $b_log;
@@ -13633,7 +13648,7 @@ sub gl_output(){
 				if (/^opengl renderer/i){
 					@working = split(/:\s*/, $_, 2);
 					if ($working[1]){
-						$working[1] = main::cleaner($working[1]);
+						$working[1] = main::clean($working[1]);
 						# Allow all mesas
 						# if ($working[1] =~ /mesa/i){
 						#	
@@ -14455,10 +14470,10 @@ sub machine_output {
 	},);
 	if (!$b_skip_system){
 		# this has already been tested for above so we know it's not null
-		$system_vendor = main::cleaner($data->{'sys_vendor'});
+		$system_vendor = main::clean($data->{'sys_vendor'});
 		$product_name = ($data->{'product_name'}) ? $data->{'product_name'}:'N/A';
 		$product_version = ($data->{'product_version'}) ? $data->{'product_version'}:'N/A';
-		$product_serial = main::apply_filter($data->{'product_serial'});
+		$product_serial = main::filter($data->{'product_serial'});
 		$rows[$j]->{main::key($num++,1,1,'System')} = $system_vendor;
 		$rows[$j]->{main::key($num++,0,2,'product')} = $product_name;
 		$rows[$j]->{main::key($num++,0,2,'v')} = $product_version;
@@ -14482,7 +14497,7 @@ sub machine_output {
 					$chassis_version = $data->{'chassis_version'};
 					$chassis_version =~ s/^v([0-9])/$1/i;
 				}
-				$chassis_serial = main::apply_filter($data->{'chassis_serial'});
+				$chassis_serial = main::filter($data->{'chassis_serial'});
 				$chassis_vendor ||= '';
 				$chassis_type ||= '';
 				$rows[$j]->{main::key($num++,1,1,'Chassis')} = $chassis_vendor;
@@ -14500,11 +14515,11 @@ sub machine_output {
 	if ($data->{'firmware'}){
 		$firmware = $data->{'firmware'};
 	}
-	$mobo_vendor = ($data->{'board_vendor'}) ? main::cleaner($data->{'board_vendor'}) : 'N/A';
+	$mobo_vendor = ($data->{'board_vendor'}) ? main::clean($data->{'board_vendor'}) : 'N/A';
 	$mobo_model = ($data->{'board_name'}) ? $data->{'board_name'}: 'N/A';
 	$mobo_version = ($data->{'board_version'})? $data->{'board_version'} : '';
-	$mobo_serial = main::apply_filter($data->{'board_serial'});
-	$bios_vendor = ($data->{'bios_vendor'}) ? main::cleaner($data->{'bios_vendor'}) : 'N/A';
+	$mobo_serial = main::filter($data->{'board_serial'});
+	$bios_vendor = ($data->{'bios_vendor'}) ? main::clean($data->{'bios_vendor'}) : 'N/A';
 	if ($data->{'bios_version'}){
 		$bios_version = $data->{'bios_version'};
 		$bios_version =~ s/^v([0-9])/$1/i;
@@ -14573,7 +14588,7 @@ sub machine_soc_output {
 	if (defined $soc_machine->{'serial'}){
 		# most samples I've seen are like: 0000
 		$soc_machine->{'serial'} =~ s/^[0]+$//;
-		$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($soc_machine->{'serial'});
+		$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($soc_machine->{'serial'});
 	}
 	eval $end if $b_log;
 	return @rows;
@@ -14611,7 +14626,7 @@ sub machine_data_sys {
 		$path = "$sys_dir$_";
 		if (-r $path){
 			$data{$_} = main::reader($path,'',0);
-			$data{$_} = ($data{$_}) ? main::dmi_cleaner($data{$_}) : '';
+			$data{$_} = ($data{$_}) ? main::clean_dmi($data{$_}) : '';
 		}
 		elsif (!$b_root && -e $path && !-r $path){
 			$data{$_} = main::row_defaults('root-required');
@@ -14629,10 +14644,10 @@ sub machine_data_sys {
 			$data{'device'} = get_device_sys($data{'chassis_type'});
 		}
 	}
-# 	print "sys:\n";
-# 	foreach (keys %data){
-# 		print "$_: $data{$_}\n";
-# 	}
+	#	print "sys:\n";
+	#	foreach (keys %data){
+	#		print "$_: $data{$_}\n";
+	#	}
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
@@ -14649,17 +14664,17 @@ sub machine_data_soc {
 		CpuItem::cpuinfo_data_grabber($file) if !$loaded{'cpuinfo'};
 		# grabber sets keys to lower case to avoid error here
 		if ($cpuinfo_machine{'hardware'} || $cpuinfo_machine{'machine'}){
-			$data{'device'} = main::either_or($cpuinfo_machine{'hardware'},
+			$data{'device'} = main::get_defined($cpuinfo_machine{'hardware'},
 			 $cpuinfo_machine{'machine'});
-			$data{'device'} = main::arm_cleaner($data{'device'});
-			$data{'device'} = main::dmi_cleaner($data{'device'});
-			$data{'device'} = main::cleaner($data{'device'});
+			$data{'device'} = main::clean_arm($data{'device'});
+			$data{'device'} = main::clean_dmi($data{'device'});
+			$data{'device'} = main::clean($data{'device'});
 		}
 		if (defined $cpuinfo_machine{'system type'} || $cpuinfo_machine{'model'}){
-			$data{'model'} = main::either_or($cpuinfo_machine{'system type'},
+			$data{'model'} = main::get_defined($cpuinfo_machine{'system type'},
 			 $cpuinfo_machine{'model'});
-			$data{'model'} = main::dmi_cleaner($data{'model'});
-			$data{'model'} = main::cleaner($data{'model'});
+			$data{'model'} = main::clean_dmi($data{'model'});
+			$data{'model'} = main::clean($data{'model'});
 		}
 		# seen with PowerMac PPC
 		if (defined $cpuinfo_machine{'motherboard'}){
@@ -14694,11 +14709,11 @@ sub machine_data_soc {
 		my $model  = main::reader('/proc/device-tree/model','',0);
 		main::log_data('data',"device-tree-model: $model") if $b_log;
 		if ($model){
-			$model = main::dmi_cleaner($model);
+			$model = main::clean_dmi($model);
 			$model = (split(/\x01|\x02|\x03|\x00/, $model))[0] if $model;
-			my $device_temp = main::regex_cleaner($data{'device'});
+			my $device_temp = main::clean_regex($data{'device'});
 			if (!$data{'device'} || ($model && $model !~ /\Q$device_temp\E/i)){
-				$model = main::arm_cleaner($model);
+				$model = main::clean_arm($model);
 				$data{'model'} = $model;
 			}
 		}
@@ -14751,15 +14766,15 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Release Date'){
-						$data{'bios_date'} = main::dmi_cleaner($value[1]) }
+						$data{'bios_date'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Vendor'){
-						$data{'bios_vendor'} = main::dmi_cleaner($value[1]) }
+						$data{'bios_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'bios_version'} = main::dmi_cleaner($value[1]) }
+						$data{'bios_version'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'ROM Size'){
-						$data{'bios_romsize'} = main::dmi_cleaner($value[1]) }
+						$data{'bios_romsize'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'BIOS Revision'){
-						$data{'bios_rev'} = main::dmi_cleaner($value[1]) }
+						$data{'bios_rev'} = main::clean_dmi($value[1]) }
 				}
 				else {
 					if ($item eq '~UEFI is supported'){
@@ -14775,15 +14790,15 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name'){
-						$data{'product_name'} = main::dmi_cleaner($value[1]) }
+						$data{'product_name'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'product_version'} = main::dmi_cleaner($value[1]) }
+						$data{'product_version'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Serial Number'){
-						$data{'product_serial'} = main::dmi_cleaner($value[1]) }
+						$data{'product_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'sys_vendor'} = main::dmi_cleaner($value[1]) }
+						$data{'sys_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'UUID'){
-						$data{'sys_uuid'} = main::dmi_cleaner($value[1]) }
+						$data{'sys_uuid'} = main::clean_dmi($value[1]) }
 				}
 			}
 			next;
@@ -14795,13 +14810,13 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name'){
-						$data{'board_name'} = main::dmi_cleaner($value[1]) }
+						$data{'board_name'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Serial Number'){
-						$data{'board_serial'} = main::dmi_cleaner($value[1]) }
+						$data{'board_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'board_vendor'} = main::dmi_cleaner($value[1]) }
+						$data{'board_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'board_version'} = main::dmi_cleaner($value[1]) }
+						$data{'board_version'} = main::clean_dmi($value[1]) }
 				}
 			}
 			next;
@@ -14813,13 +14828,13 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Serial Number'){
-						$data{'chassis_serial'} = main::dmi_cleaner($value[1]) }
+						$data{'chassis_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Type'){
-						$data{'chassis_type'} = main::dmi_cleaner($value[1]) }
+						$data{'chassis_type'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'chassis_vendor'} = main::dmi_cleaner($value[1]) }
+						$data{'chassis_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'chassis_version'} = main::dmi_cleaner($value[1]) }
+						$data{'chassis_version'} = main::clean_dmi($value[1]) }
 				}
 			}
 			if ($data{'chassis_type'} && $data{'chassis_type'} ne 'Other'){
@@ -14866,37 +14881,37 @@ sub machine_data_sysctl {
 		my @item = split(':', $_);
 		next if !$item[1];
 		if ($item[0] eq 'hw.vendor' || $item[0] eq 'machdep.dmi.board-vendor'){
-			$data{'board_vendor'} = main::dmi_cleaner($item[1]);
+			$data{'board_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.product' || $item[0] eq 'machdep.dmi.board-product'){
-			$data{'board_name'} = main::dmi_cleaner($item[1]);
+			$data{'board_name'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.version' || $item[0] eq 'machdep.dmi.board-version'){
-			$data{'board_version'} = main::dmi_cleaner($item[1]);
+			$data{'board_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.serialno' || $item[0] eq 'machdep.dmi.board-serial'){
-			$data{'board_serial'} = main::dmi_cleaner($item[1]);
+			$data{'board_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.serial'){
-			$data{'board_serial'} = main::dmi_cleaner($item[1]);
+			$data{'board_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.uuid'){
-			$data{'board_uuid'} = main::dmi_cleaner($item[1]);
+			$data{'board_uuid'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-vendor'){
-			$data{'sys_vendor'} = main::dmi_cleaner($item[1]);
+			$data{'sys_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-product'){
-			$data{'product_name'} = main::dmi_cleaner($item[1]);
+			$data{'product_name'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-version'){
-			$data{'product_version'} = main::dmi_cleaner($item[1]);
+			$data{'product_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-serial'){
-			$data{'product_serial'} = main::dmi_cleaner($item[1]);
+			$data{'product_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-uuid'){
-			$data{'sys_uuid'} = main::dmi_cleaner($item[1]);
+			$data{'sys_uuid'} = main::clean_dmi($item[1]);
 		}
 		# bios0:at mainbus0: AT/286+ BIOS, date 06/30/06, BIOS32 rev. 0 @ 0xf2030, SMBIOS rev. 2.4 @ 0xf0000 (47 entries)
 		# bios0:vendor Phoenix Technologies, LTD version "3.00" date 06/30/2006
@@ -14913,13 +14928,13 @@ sub machine_data_sysctl {
 			}
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-vendor'){
-			$data{'bios_vendor'} = main::dmi_cleaner($item[1]);
+			$data{'bios_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-version'){
-			$data{'bios_version'} = main::dmi_cleaner($item[1]);
+			$data{'bios_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-date'){
-			$data{'bios_date'} = main::dmi_cleaner($item[1]);
+			$data{'bios_date'} = main::clean_dmi($item[1]);
 		}
 	}
 	if ($data{'board_vendor'} || $data{'sys_vendor'} || $data{'board_name'} || $data{'product_name'}){
@@ -15155,7 +15170,7 @@ sub device_output {
 		# first check if it's a known wifi id'ed card, if so, no print of duplex/speed
 		$b_wifi = check_wifi($row->[4]);
 		my $device = $row->[4];
-		$device = ($device) ? main::pci_cleaner($device,'output') : 'N/A';
+		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		#$device ||= 'N/A';
 		$driver ||= 'N/A';
 		push(@rows, {
@@ -15231,7 +15246,7 @@ sub usb_output {
 	foreach my $row (@{$usb{'network'}}){
 		$num = 1;
 		($driver,$path,$path_id,$product,$type) = ('','','','','');
-		$product = main::cleaner($row->[13]) if $row->[13];
+		$product = main::clean($row->[13]) if $row->[13];
 		$driver = $row->[15] if $row->[15];
 		$path = $row->[3] if $row->[3];
 		$path_id = $row->[2] if $row->[2];
@@ -15254,7 +15269,7 @@ sub usb_output {
 			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::apply_filter($row->[16]);
+			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 		if ($show{'network-advanced'}){
 			my @data;
@@ -15339,7 +15354,7 @@ sub advanced_data_sys {
 			$duplex ||= 'N/A';
 			$path = "$_/address";
 			$mac = main::reader($path,'',0) if -r $path;
-			$mac = main::apply_filter($mac);
+			$mac = main::filter($mac);
 			$path = "$_/speed";
 			$speed = main::reader($path,'',0) if -r $path;
 			$speed ||= 'N/A';
@@ -15414,7 +15429,7 @@ sub advanced_data_bsd {
 				# ($state,$speed,$duplex,$mac)
 				$duplex = $data[2];
 				$duplex ||= 'N/A';
-				$mac = main::apply_filter($data[3]);
+				$mac = main::filter($data[3]);
 				$speed = $data[1];
 				$speed ||= 'N/A';
 				$state = $data[0];
@@ -15488,7 +15503,7 @@ sub if_ip {
 				# print "$data2->[0] $data2->[1]\n";
 				my ($ipv,$ip,$broadcast,$scope,$scope_id);
 				$ipv = ($data2->[0])? $data2->[0]: 'N/A';
-				$ip = main::apply_filter($data2->[1]);
+				$ip = main::filter($data2->[1]);
 				$scope = ($data2->[3])? $data2->[3]: 'N/A';
 				# note: where is this ever set to 'all'? Old test condition?
 				if ($if ne 'all'){
@@ -15526,7 +15541,7 @@ sub if_ip {
 					},);
 				}
 				if ($extra > 1 && $data2->[2]){
-					$broadcast = main::apply_filter($data2->[2]);
+					$broadcast = main::filter($data2->[2]);
 					$rows[$j]->{main::key($num++,0,$ind_ip,'broadcast')} = $broadcast;
 				}
 			}
@@ -15702,7 +15717,7 @@ sub drive_output {
 			$rows[$j]->{ main::key($num++,0,2,'rev')} = $rev;
 		}
 		if ($extra > 1 && $drives->{$key}{'serial'}){
-			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::apply_filter($drives->{$key}{'serial'});
+			$rows[$j]->{ main::key($num++,0,2,'serial')} = main::filter($drives->{$key}{'serial'});
 		}
 		my $links = (@{$drives->{$key}{'links'}}) ? join(',', sort @{$drives->{$key}{'links'}}) : 'N/A' ;
 		$rows[$j]->{ main::key($num++,0,2,'dev-links')} = $links;
@@ -15894,16 +15909,16 @@ sub drive_data_linux {
 		if (-d $device){
 			if (-r "$device/vendor"){
 				$drives{$key}->{'vendor'} = main::reader("$device/vendor",'',0);
-				$drives{$key}->{'vendor'} = main::cleaner($drives{$key}->{'vendor'});
+				$drives{$key}->{'vendor'} = main::clean($drives{$key}->{'vendor'});
 				$drives{$key}->{'state'} = main::reader("$device/state",'',0);
 				$drives{$key}->{'model'} = main::reader("$device/model",'',0);
-				$drives{$key}->{'model'} = main::cleaner($drives{$key}->{'model'});
+				$drives{$key}->{'model'} = main::clean($drives{$key}->{'model'});
 				$drives{$key}->{'rev'} = main::reader("$device/rev",'',0);
 			}
 		}
 		elsif (-r "/proc/ide/$key/model"){
 			$drives{$key}->{'vendor'} = main::reader("/proc/ide/$key/model",'',0);
-			$drives{$key}->{'vendor'} = main::cleaner($drives{$key}->{'vendor'});
+			$drives{$key}->{'vendor'} = main::clean($drives{$key}->{'vendor'});
 		}
 		if ($show{'optical'} && @info){
 			my $index = 0;
@@ -16050,14 +16065,14 @@ sub create_output {
 		 $fs !~ /^$fs_skip$/){
 			if ($show{'label'}){
 				if ($use{'filter-label'}){
-					$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '');
+					$row->{'label'} = main::filter_partition('part', $row->{'label'}, '');
 				}
 				$row->{'label'} ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
 			}
 			if ($show{'uuid'}){
 				if ($use{'filter-uuid'}){
-					$row->{'uuid'} = main::apply_partition_filter('part', $row->{'uuid'}, '');
+					$row->{'uuid'} = main::filter_partition('part', $row->{'uuid'}, '');
 				}
 				$row->{'uuid'} ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
@@ -18248,7 +18263,7 @@ sub ram_output {
 					$rows[$j]->{main::key($num++,0,3,'part-no')} = $mod->{'part-number'};
 				}
 				if ($source ne 'dboot' && $extra > 2){
-					$mod->{'serial'} = main::apply_filter($mod->{'serial'});
+					$mod->{'serial'} = main::filter($mod->{'serial'});
 					$rows[$j]->{main::key($num++,0,3,'serial')} = $mod->{'serial'};
 				}
 			}
@@ -18327,7 +18342,7 @@ sub dmidecode_data {
 					$type = lc($temp[1]);
 				}
 				elsif ($temp[0] eq 'Current Speed'){
-					$speed = main::dmi_cleaner($temp[1]);
+					$speed = main::clean_dmi($temp[1]);
 				}
 				elsif ($temp[0] eq 'Locator' || $temp[0] eq 'Socket Designation'){
 					$temp[1] =~ s/D?RAM slot #?/Slot/i; # can be with or without #
@@ -18452,16 +18467,14 @@ sub dmidecode_data {
 					($configured_speed,$configured_note) = process_speed($temp[1],$device_type,$check);
 				}
 				elsif ($temp[0] eq 'Manufacturer'){
-					$temp[1] = main::dmi_cleaner($temp[1]);
+					$temp[1] = main::clean_dmi($temp[1]);
 					$manufacturer = $temp[1];
 				}
 				elsif ($temp[0] eq 'Part Number'){
-					$temp[1] =~ s/(^[0]+$|.*Module.*|Undefined.*|PartNum.*|\[Empty\]|^To be filled.*)//ig;
-					$part_number = $temp[1];
+					$part_number = main::clean_unset($temp[1],'^[0]+$|.*Module.*|PartNum.*');
 				}
 				elsif ($temp[0] eq 'Serial Number'){
-					$temp[1] =~ s/(^[0]+$|Undefined.*|SerNum.*|\[Empty\]|^To be filled.*)//ig;
-					$serial = $temp[1];
+					$serial = main::clean_unset($temp[1],'^[0]+$|SerNum.*');
 				}
 			}
 			# because of the wide range of bank/slot type data, we will just use
@@ -18800,7 +18813,7 @@ sub process_data {
 sub process_speed {
 	my ($speed,$device_type,$check) = @_;
 	my $speed_note;
-	$speed = main::dmi_cleaner($speed) if $speed;
+	$speed = main::clean_dmi($speed) if $speed;
 	if ($device_type && $device_type =~ /ddr/i && $speed && $speed =~ /^([0-9]+)\s*MHz/){
 		$speed = ($1 * 2) . " MT/s ($speed)";
 	}
@@ -19163,7 +19176,7 @@ sub get_repos_linux {
 			}
 			if (@apt_urls){
 				$key = repo_data('active','apt');
-				url_cleaner(\@apt_urls);
+				clean_url(\@apt_urls);
 			}
 			else {
 				$key = repo_data('missing','apt');
@@ -19257,14 +19270,14 @@ sub get_repos_linux {
 				$key = repo_data('missing','slackpkg+');
 			}
 			else {
-				url_cleaner(\@content);
+				clean_url(\@content);
 				$key = repo_data('active','slackpkg+');
 			}
 			@data = (
 			{main::key($num++,1,1,$key) => $slackpkg_plus},
 			[@content],
 			);
-			url_cleaner(\@data);
+			clean_url(\@data);
 			push(@rows,@data);
 			@content = ();
 		}
@@ -19340,7 +19353,7 @@ sub get_repos_linux {
 					$key = repo_data('missing',$repo);
 				}
 				else {
-					url_cleaner(\@content);
+					clean_url(\@content);
 					$key = repo_data('active',$repo);
 				}
 				push(@rows, 
@@ -19403,7 +19416,7 @@ sub get_repos_linux {
 					$key = repo_data('missing','portage');
 				}
 				else {
-					url_cleaner(\@content);
+					clean_url(\@content);
 					$key = repo_data('active','portage');
 				}
 				push(@rows, 
@@ -19438,7 +19451,7 @@ sub get_repos_linux {
 			$key = repo_data('missing','cards');
 		}
 		else {
-			url_cleaner(\@content);
+			clean_url(\@content);
 			$key = repo_data('active','cards');
 		}
 		push(@rows, 
@@ -19489,7 +19502,7 @@ sub get_repos_linux {
 			if (/(.+)\s([\S]+:\/\/.+)/){
 				# pack the repo url
 				push(@content, $1);
-				url_cleaner(\@content);
+				clean_url(\@content);
 				# get the repo
 				$repo = $2;
 				push(@rows, 
@@ -19535,7 +19548,7 @@ sub get_repos_linux {
 				$repo = ($2 =~ /^activ/i) ? $repo : '';
 			}
 			if ($repo && @content){
-				url_cleaner(\@content);
+				clean_url(\@content);
 				$key = repo_data('active',$which);
 				push(@rows, 
 				{main::key($num++,1,1,$key) => $repo},
@@ -19547,7 +19560,7 @@ sub get_repos_linux {
 		}
 		# last one if present
 		if ($repo && @content){
-			url_cleaner(\@content);
+			clean_url(\@content);
 			$key = repo_data('active',$which);
 			push(@rows, 
 			{main::key($num++,1,1,$key) => $repo},
@@ -19562,7 +19575,7 @@ sub get_repos_linux {
 			$key = repo_data('missing','nix');
 		}
 		else {
-			url_cleaner(\@content);
+			clean_url(\@content);
 			$key = repo_data('active','nix');
 		}
 		my $user = ($ENV{'USER'}) ? $ENV{'USER'}: 'N/A';
@@ -19638,7 +19651,7 @@ sub get_repos_bsd {
 						$key = repo_data('missing','bsd-package');
 					}
 					else {
-						url_cleaner(\@data3);
+						clean_url(\@data3);
 						$key = repo_data('active','bsd-package');
 					}
 					push(@rows, 
@@ -19682,7 +19695,7 @@ sub get_repos_bsd {
 # 			$key = repo_data('missing','mports');
 # 		}
 # 		else {
-# 			url_cleaner(\@data3);
+# 			clean_url(\@data3);
 # 			$key = repo_data('active','mports');
 # 		}
 # 		push(@rows, 
@@ -19785,7 +19798,7 @@ sub repo_builder {
 	if (-r $file){
 		@content =  main::reader($file);
 		@content = grep {/$search/i && !/^\s*$/} @content if @content;
-		data_cleaner(\@content) if @content;
+		clean_data(\@content) if @content;
 	}
 	if ($split && @content){
 		@content = map { 
@@ -19798,7 +19811,7 @@ sub repo_builder {
 	}
 	else {
 		$key = repo_data('active',$type);
-		url_cleaner(\@content);
+		clean_url(\@content);
 	}
 	@data = (
 	{main::key($num++,1,1,$key) => $file},
@@ -19807,12 +19820,12 @@ sub repo_builder {
 	eval $end if $b_log;
 	return @data;
 }
-sub data_cleaner {
+sub clean_data {
 	# basics: trim white space, get rid of double spaces
 	@{$_[0]} = map {$_ =~ s/^\s+|\s+$//g; $_ =~ s/\s\s+/ /g; $_} @{$_[0]};
 }
 # clean if irc
-sub url_cleaner {
+sub clean_url {
 	@{$_[0]} = map {$_ =~ s/:\//: \//; $_} @{$_[0]} if $b_irc;
 }
 sub file_path {
@@ -21147,14 +21160,14 @@ sub create_output {
 		}
 		if ($show{'label'} && ($row->{'label'} || $row->{'swap-type'} eq 'partition')){
 			if ($use{'filter-label'}){
-				$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '');
+				$row->{'label'} = main::filter_partition('part', $row->{'label'}, '');
 			}
 			$row->{'label'} ||= 'N/A';
 			$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
 		}
 		if ($show{'uuid'} && ($row->{'uuid'} || $row->{'swap-type'} eq 'partition')){
 			if ($use{'filter-uuid'}){
-				$row->{'uuid'} = main::apply_partition_filter('part', $row->{'uuid'}, '');
+				$row->{'uuid'} = main::filter_partition('part', $row->{'uuid'}, '');
 			}
 			$row->{'uuid'} ||= 'N/A';
 			$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
@@ -21262,14 +21275,14 @@ sub create_output {
 		if (($show{'label'} || $show{'uuid'}) && $fs !~ /^$fs_skip$/){
 			if ($show{'label'}){
 				if ($use{'filter-label'}){
-					$row->{'label'} = main::apply_partition_filter('part', $row->{'label'}, '');
+					$row->{'label'} = main::filter_partition('part', $row->{'label'}, '');
 				}
 				$row->{'label'} ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
 			}
 			if ($show{'uuid'}){
 				if ($use{'filter-uuid'}){
-					$row->{'uuid'} = main::apply_partition_filter('part', $row->{'uuid'}, '');
+					$row->{'uuid'} = main::filter_partition('part', $row->{'uuid'}, '');
 				}
 				$row->{'uuid'} ||= 'N/A';
 				$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
@@ -21521,8 +21534,8 @@ sub usb_output {
 		($driver,$path_id,$ports,$product,
 		$serial,$speed,$type) = ('','','','','','','');
 		$speed  = (main::is_numeric($id->[8])) ? sprintf("%1.1f",$id->[8]) : $id->[8] if $id->[8];
-		$product = main::cleaner($id->[13]) if $id->[13];
-		$serial = main::apply_filter($id->[16]) if $id->[16];
+		$product = main::clean($id->[13]) if $id->[13];
+		$serial = main::filter($id->[16]) if $id->[16];
 		$product ||= 'N/A';
 		$speed ||= 'N/A';
 		$path_id = $id->[2] if $id->[2];
@@ -21580,7 +21593,7 @@ sub usb_output {
 		}
 		if (!$b_hub && $extra > 2){
 			if ($serial){
-				$rows[$j]->{main::key($num++,0,$ind_sc,'serial')} = main::apply_filter($serial);
+				$rows[$j]->{main::key($num++,0,$ind_sc,'serial')} = main::filter($serial);
 			}
 		}
 	}
@@ -21622,7 +21635,7 @@ sub weather_output {
 			}
 			$location_string = $string;
 		}
-		$location_string = main::apply_filter($location_string);
+		$location_string = main::filter($location_string);
 		@location = ($show{'weather-location'},$location_string,'');
 	}
 	else {
@@ -22215,7 +22228,7 @@ sub get_location {
 	$country = ($loc{'country3'}) ? $loc{'country3'} : $loc{'country'};
 	$city = ($loc{'city'}) ? $loc{'city'} : 'City N/A';
 	$state = ($loc{'region-id'}) ? $loc{'region-id'} : 'Region N/A';
-	$loc_string = main::apply_filter("$city, $state, $country");
+	$loc_string = main::filter("$city, $state, $country");
 	my @location = ($loc_arg,$loc_string,$loc{'tz'});
 	# print ($loc_arg,"\n", join("\n", @loc_data), "\n",scalar @loc_data, "\n");
 	eval $end if $b_log;
@@ -23326,9 +23339,9 @@ sub lspci_data {
 				$subsystem_id = $1;
 				$subsystem = (split(/^Subsystem:\s*/, $_))[1];
 				$subsystem =~ s/(\s?\[[^\]]+\])+$//g;
-				$subsystem = main::cleaner($subsystem);
-				$subsystem = main::pci_cleaner($subsystem,'pci');
-				$subsystem = main::pci_cleaner_subsystem($subsystem);
+				$subsystem = main::clean($subsystem);
+				$subsystem = main::clean_pci($subsystem,'pci');
+				$subsystem = main::clean_pci_subsystem($subsystem);
 				# print "ss:$subsystem\n";
 			}
 			elsif ($_ =~ /^I\/O\sports/){
@@ -23359,7 +23372,7 @@ sub lspci_data {
 				$type_id = $3;
 				$_ =~ s/^\Q$1\E//;
 				$type = lc($type);
-				$type = main::pci_cleaner($type,'pci');
+				$type = main::clean_pci($type,'pci');
 				$type =~ s/\s+$//;
 			}
 			# trim off end prog-if and rev items
@@ -23386,7 +23399,7 @@ sub lspci_data {
 			}
 			$device = $_;
 			# cases of corrupted string set to ''
-			$device = main::cleaner($device);
+			$device = main::clean($device);
 			# corrupted lspci truncation bug; and ancient lspci, 2.4 kernels
 			if (!$vendor_id){
 				my @temp = lspci_n_data($busid_full);
@@ -23449,13 +23462,13 @@ sub pciconf_data {
 	foreach (@data){
 		if ($driver){
 			if ($_ =~ /^~$/){
-				$vendor = main::cleaner($vendor);
-				$device = main::cleaner($device);
+				$vendor = main::clean($vendor);
+				$device = main::clean($device);
 				# handle possible regex in device name, like [ConnectX-3] 
 				# and which could make matches fail
-				my $device_temp = main::regex_cleaner($device);
+				my $device_temp = main::clean_regex($device);
 				if ($vendor && $device){
-					if (main::regex_cleaner($vendor) !~ /\Q$device_temp\E/i){
+					if (main::clean_regex($vendor) !~ /\Q$device_temp\E/i){
 						$device = "$vendor $device";
 					}
 				}
@@ -23533,7 +23546,7 @@ sub pcidump_data {
 			$busid = $1;
 			$busid_nu = $2;
 			($driver,$driver_nu) = pcidump_driver("$busid:$busid_nu") if $dboot{'pci'};
-			$device = main::cleaner($3);
+			$device = main::clean($3);
 		}
 		elsif ($_ =~ /^0x[\S]{4}:\s+Vendor ID:\s+([0-9a-f]{4}),?\s+Product ID:\s+([0-9a-f]{4})/){
 			$vendor_id = $1;
@@ -23591,7 +23604,7 @@ sub pcictl_data {
 		if ($_ =~ /^([0-9a-f:]+):([0-9]+):\s+([^.]+?)$/i){
 			$busid = $1;
 			$busid_nu = $2;
-			$device = main::cleaner($3);
+			$device = main::clean($3);
 			my $working = (grep {/^${busid}:${busid_nu}:\s/} @data2)[0];
 			if ($working && 
 			 $working =~ /^${busid}:${busid_nu}:\s+0x([0-9a-f]{4})([0-9a-f]{4})\s+\(0x([0-9a-f]{2})([0-9a-f]{2})[0-9a-f]+\)/){
@@ -24100,7 +24113,7 @@ sub set_dboot_disks {
 				$disks_bsd{$id}->{'speed'} = $1;
 				$disks_bsd{$id}->{'speed'} =~ s/\.[0-9]+// if $disks_bsd{$id}->{'speed'};
 			}
-			$disks_bsd{$id}->{'model'} = main::disk_cleaner($disks_bsd{$id}->{'model'});
+			$disks_bsd{$id}->{'model'} = main::clean_disk($disks_bsd{$id}->{'model'});
 			if (!$disks_bsd{$id}->{'serial'} && $show{'disk'} && $extra > 1 && 
 			 $alerts{'bioctl'}->{'action'} eq 'use'){
 				$disks_bsd{$id}->{'serial'} = bioctl_data($id);
@@ -26102,7 +26115,7 @@ sub get_pci_vendor {
 	my ($vendor,$sep,$temp) = ('','','');
 	# get rid of any [({ type characters that will make regex fail
 	# and similar matches show as non-match
-	$subsystem = regex_cleaner($subsystem);
+	$subsystem = clean_regex($subsystem);
 	my @data = split(/\s+/, $subsystem);
 	# when using strings in patterns for regex have to escape them
 	foreach (@data){
@@ -27131,17 +27144,17 @@ sub usbconfig_data {
 			$product_id = $1;
 		}
 		elsif (/^iManufacturer\s*=\s*0x([a-f0-9]{4})\s*(<([^>]+)>)?/){
-			$vendor = main::cleaner($3);
+			$vendor = main::clean($3);
 			$vendor =~ s/^0x.*//; # seen case where vendor string was ID
 			$working[11] = $vendor;
 		}
 		elsif (/^iProduct\s*=\s*0x([a-f0-9]{4})\s*(<([^>]+)>)?/){
-			$product = main::cleaner($3);
+			$product = main::clean($3);
 			$product =~ s/^0x.*//; # in case they put product ID in, sigh
 			$working[12] = $product;
 		}
 		elsif (/^iSerialNumber\s*=\s*0x([a-f0-9]{4})\s*(<([^>]+)>)?/){
-			$working[16] = main::cleaner($3);
+			$working[16] = main::clean($3);
 		}
 	}
 	main::log_data('dump','$usb{main}: usbconfig',$usb{'main'}) if $b_log;
@@ -27246,7 +27259,7 @@ sub usbdevs_data {
 		elsif (/^addr\s*([0-9a-f]+):\s+([a-f0-9]{4}:[a-f0-9]{4})\s*([^,]+)?(,\s[^,]+?)?,\s+([^,]+)$/){
 			$addr_id = $1;
 			$chip_id = $2;
-			$vendor = main::cleaner($3) if $3;
+			$vendor = main::clean($3) if $3;
 			$vendor ||= '';
 			$name = main::remove_duplicates("$vendor $5");
 			$type = check_type($name,'','');
@@ -27458,9 +27471,9 @@ sub sys_data {
 				# we don't want the device, it's probably a bad path in /sys/bus/usb/devices
 				next if !$vendor_id && !$chip_id;
 				$product = sys_item("$_/product");
-				$product = main::cleaner($product) if $product;
+				$product = main::clean($product) if $product;
 				$vendor = sys_item("$_/manufacturer");
-				$vendor = main::cleaner($vendor) if $vendor;
+				$vendor = main::clean($vendor) if $vendor;
 				if (!$b_hub && ($product || $vendor)){
 					if ($vendor && $product && $product !~ /$vendor/){
 						$name = "$vendor $product";
@@ -28235,10 +28248,10 @@ sub system_item {
 		$index = scalar(@{$data{$data_name}});
 		# print "$params\n";
 		if ($use{'filter-label'}){
-			$params = main::apply_partition_filter('system', $params, 'label');
+			$params = main::filter_partition('system', $params, 'label');
 		}
 		if ($use{'filter-uuid'}){
-			$params = main::apply_partition_filter('system', $params, 'uuid');
+			$params = main::filter_partition('system', $params, 'uuid');
 		}
 		$data{$data_name}->[$index]{main::key($num++,0,2,'parameters')} = $params;
 		$index = scalar(@{$data{$data_name}});
