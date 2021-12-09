@@ -8392,9 +8392,6 @@ sub full_output {
 			if ($topo->{'dies'}){
 				$rows[$j]->{main::key($num++,0,$id+1,'dies')} = $topo->{'dies'};
 			}
-			if ($topo->{'governor'}){
-				$rows[$j]->{main::key($num++,0,$id+1,'governors')} = $topo->{'governor'};
-			}
 		}
 		$cpu->{'smt'} ||= 'N/A';
 		$rows[$j]->{main::key($num++,0,2,'smt')} = $cpu->{'smt'};
@@ -8438,6 +8435,9 @@ sub full_output {
 	$rows[$j]->{main::key($num++,0,2,$min_max_key)} = $min_max;
 	if ($b_admin && $properties->{'dmi-speed'} && $properties->{'dmi-max-speed'}){
 		$rows[$j]->{main::key($num++,0,2,'base/boost')} = $properties->{'dmi-speed'} . '/' . $properties->{'dmi-max-speed'};
+	}
+	if ($b_admin && $cpu->{'governor'}){
+		$rows[$j]->{main::key($num++,0,2,'governor')} = $cpu->{'governor'};
 	}
 	if ($extra > 0 && defined $cpu->{'boost'}){
 		$rows[$j]->{main::key($num++,0,2,'boost')} = $cpu->{'boost'};
@@ -10078,7 +10078,7 @@ sub cp_data_sys {
 		}
 	}
 	my $i = 0;
-	my (@max,@min,@phys_cores);
+	my (@governor,@max,@min,@phys_cores);
 	foreach my $phys_id (@keys){
 		if ($cpu_sys->{'cpus'}{$phys_id}{'cores'}){
 			my ($mt,$st) = (0,0);
@@ -10105,7 +10105,10 @@ sub cp_data_sys {
 			# cheating, this is not a count, but we need the data for topology, must
 			# sort since governors can be in different order if > 1
 			if ($cpu_sys->{'cpus'}{$phys_id}{'governor'}){
-				$counts->{'cpu-topo'}[$i]{'governor'} = join(',',sort @{$cpu_sys->{'cpus'}{$phys_id}{'governor'}});
+				foreach my $gov (@{$cpu_sys->{'cpus'}{$phys_id}{'governor'}}){
+					push(@governor,$gov) if !grep {$_ eq $gov} @governor;
+				}
+				$cpu->{'governor'} = join(',',@governor);
 			}
 			if (!grep {$counts->{'cpu-cores'} eq $_} @phys_cores){
 				push(@phys_cores,$counts->{'cpu-cores'});
@@ -10695,9 +10698,6 @@ sub cp_cpu_topology {
 				if ($counts->{'struct-max'} || $counts->{'struct-min'}){
 					$topology->{'full'}[$j]{'max'} = $topo->{'max'};
 					$topology->{'full'}[$j]{'min'} = $topo->{'min'};
-				}
-				if ($topo->{'governor'}){
-					$topology->{'full'}[$j]{'governor'} = $topo->{'governor'};
 				}
 				if ($topo->{'smt'}){
 					$topology->{'full'}[$j]{'smt'} = $topo->{'smt'};
