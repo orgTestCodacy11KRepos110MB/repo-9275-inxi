@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-09';
-my $self_patch='40';
+my $self_date='2021-12-10';
+my $self_patch='41';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -209,7 +209,7 @@ sub set {
 	my ($action,$program,$message,@data);
 	foreach my $test (keys %commands){
 		($action,$program) = ('use','');
-		$message = main::row_defaults('tool-present');
+		$message = main::message('tool-present');
 		if ($commands{$test}->[1] && (
 			($commands{$test}->[1] eq 'linux' && $os ne 'linux') || 
 			($commands{$test}->[1] eq 'bsd' && $os eq 'linux'))){
@@ -243,13 +243,13 @@ sub set {
 		$alerts{$test}->{'action'} = $action;
 		$alerts{$test}->{'path'} = $program;
 		if ($action eq 'missing'){
-			$alerts{$test}->{'message'} = main::row_defaults('tool-missing-recommends',"$test");
+			$alerts{$test}->{'message'} = main::message('tool-missing-recommends',"$test");
 		}
 		elsif ($action eq 'permissions'){
-			$alerts{$test}->{'message'} = main::row_defaults('tool-permissions',"$test");
+			$alerts{$test}->{'message'} = main::message('tool-permissions',"$test");
 		}
 		elsif ($action eq 'platform'){
-			$alerts{$test}->{'message'} = main::row_defaults('tool-missing-os', $uname[0] . " $test");
+			$alerts{$test}->{'message'} = main::message('tool-missing-os', $uname[0] . " $test");
 		}
 	}
 	print Data::Dumper::Dumper \%alerts if $dbg[25];
@@ -290,13 +290,13 @@ sub set_dmidecode {
 	}
 	if ($action ne 'use' && $action ne 'permissions'){
 		if ($action eq 'smbios'){
-			$alerts{'dmidecode'}->{'message'} = main::row_defaults('dmidecode-smbios');
+			$alerts{'dmidecode'}->{'message'} = main::message('dmidecode-smbios');
 		}
 		elsif ($action eq 'no-data'){
-			$alerts{'dmidecode'}->{'message'} = main::row_defaults('dmidecode-dev-mem');
+			$alerts{'dmidecode'}->{'message'} = main::message('dmidecode-dev-mem');
 		}
 		elsif ($action eq 'unknown-error'){
-			$alerts{'dmidecode'}->{'message'} = main::row_defaults('tool-unknown-error','dmidecode');
+			$alerts{'dmidecode'}->{'message'} = main::message('tool-unknown-error','dmidecode');
 		}
 	}
 	return $action;
@@ -478,7 +478,7 @@ sub set_display_width {
 			$size{'console'} = $term_cols;
 		}
 		# adjust, some terminals will wrap if output cols == term cols
-		$size{'console'} = ($size{'console'} - 2);
+		$size{'console'} = ($size{'console'} - 1);
 		# echo cmc: $size{'console'}
 		# comes after source for user set stuff
 		if (!$b_irc){
@@ -2205,9 +2205,9 @@ sub get_glob {
 			$item = main::reader($_,'strip',0);
 		}
 		else {
-			$item = main::row_defaults('root-required');
+			$item = main::message('root-required');
 		}
-		$item = main::row_defaults('undefined') if ! defined $item;
+		$item = main::message('undefined') if ! defined $item;
 		push(@result,$_ . '::' . $item);
 	}
 	# print Data::Dumper::Dumper \@result;
@@ -6292,7 +6292,7 @@ sub clean_unset {
 sub filter {
 	my ($string) = @_;
 	if ($string){
-		if ($use{'filter'} && $string ne row_defaults('root-required')){
+		if ($use{'filter'} && $string ne message('root-required')){
 			$string = $filter_string;
 		}
 	}
@@ -6407,35 +6407,7 @@ sub increment_starters {
 	return $result;
 }
 
-# string of range types (2-5; 3 4; 3,4,2-12) to generate single regex string for
-sub regex_range {
-	return if ! defined $_[0];
-	my @processed;
-	foreach my $item (split(/[,\s]+/,$_[0])){
-		if ($item =~ /(\d+)-(\d+)/){
-			$item = join('|',($1..$2));
-		}
-		push(@processed,$item);
-	}
-	return join('|',@processed);
-}
-
-sub remove_duplicates {
-	my ($string) = @_;
-	return if !$string;
-	my $holder = '';
-	my (@temp);
-	foreach (split(/\s+/, $string)){
-		if ($holder ne $_){
-			push(@temp, $_);
-		}
-		$holder = $_;
-	}
-	$string = join(' ', @temp);
-	return $string;
-}
-
-sub row_defaults {
+sub message {
 	my ($type,$id) = @_;
 	$id ||= '';
 	my %unfound = (
@@ -6537,6 +6509,34 @@ sub row_defaults {
 	'weather-null' => "No $id found. Internet connection working?",
 	);
 	return $unfound{$type};
+}
+
+# string of range types (2-5; 3 4; 3,4,2-12) to generate single regex string for
+sub regex_range {
+	return if ! defined $_[0];
+	my @processed;
+	foreach my $item (split(/[,\s]+/,$_[0])){
+		if ($item =~ /(\d+)-(\d+)/){
+			$item = join('|',($1..$2));
+		}
+		push(@processed,$item);
+	}
+	return join('|',@processed);
+}
+
+sub remove_duplicates {
+	my ($string) = @_;
+	return if !$string;
+	my $holder = '';
+	my (@temp);
+	foreach (split(/\s+/, $string)){
+		if ($holder ne $_){
+			push(@temp, $_);
+		}
+		$holder = $_;
+	}
+	$string = join(' ', @temp);
+	return $string;
 }
 
 # convert string passed to KB, based on GB/MB/TB id
@@ -6770,23 +6770,23 @@ sub print_data {
 	my ($array,$counter,$length,$split_count) = (0,0,0,0);
 	my ($hash_id,$holder,$start,$start2,$start_holder) = ('','','','','');
 	my $indent = $size{'indent'};
-	my (@temp,@working,@values,%ids,%row);
-	my ($holder2,$key,$line,$val2,$val3);
+	my (@working,@values,%ids,%row);
+	my ($b_container,$holder2,$key,$line,$val2,$val3);
 	# these 2 sets are single logic items
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
-	my ($b_container,$indent_use,$indentx) = (0,0,0);
+	my ($b_row1,$indent_2,$indent_use,$indentx) = (1,0,0,0);
 	# $size{'max'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
 	if ($size{'max'} < $size{'wrap-max'} || $size{'indent'} < 11){
-		$indent = 2;
+		$indent = 1;
 	}
-	# foreach my $key1 (sort { (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$data){
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$data){
-	# foreach my $key1 (sort { $a cmp $b } keys %$data){
 		$key = (split('#', $key1))[3];
+		$b_row1 = 1;
 		if ($key ne 'SHORT'){
 			$start = sprintf("$colors{'c1'}%-${indent}s$colors{'cn'}","$key$sep{'s1'}");
 			$start_holder = $key;
+			$indent_2 = $indent + 1;
 			if ($indent < 10){
 				$line = "$start\n";
 				print_line($line);
@@ -6819,13 +6819,21 @@ sub print_data {
 		'variant' => 1, # arm > 1 cpu type
 		);
 		foreach my $val1 (@{$data->{$key1}}){
-			$indent_use = $length = $indent;
 			if (ref($val1) eq 'HASH'){
-				#%row = %$val1;
-				($counter,$split_count) = (0,0);
-				# foreach my $key2 (sor ({ (split('#', $a))[0] <=> (split('#', $b))[0] } keys %$val1){
+				if (!$b_single){
+					$indent_use = $length = ($b_row1) ? $indent : $indent_2;
+				}
+				($counter,$b_row1,$split_count) = (0,1,0);
 				foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
-				# foreach my $key2 (sort { $a cmp $b } keys %$val1){
+					if (!$b_single){
+						if ($b_row1 || $start_holder eq 'System' || $start_holder eq 'Info'){
+							$indent_use = $indent;
+						}
+						else {
+							$indent_use = $indent_2;
+						}
+					}
+					# print "m-1: r1: $b_row1 iu: $indent_use\n";
 					($hash_id,$b_container,$indentx,$key) = (split('#', $key2));
 					if ($start_holder eq 'Graphics' && $key eq 'Screen'){
 						$ids{'Monitor'} = 1;
@@ -6850,21 +6858,20 @@ sub print_data {
 					if (!$b_single && $val2 || $val2 eq '0'){
 						$val2 .= " ";
 					}
-					# see: Use of implicit split to @_ is deprecated. Only get this warning
-					# in Perl 5.08 oddly enough.
-					@temp = split(/\s+/, $val2);
-					$split_count = scalar @temp;
-					if (!$b_single && (length("$key$sep{'s2'} $val2") + $length) < $size{'max'}){
-						# print "one\n";
+					$split_count = scalar (split(/\s+/, $val2));
+					if (!$b_single && 
+					 (length("$key$sep{'s2'} $val2") + $length) < $size{'max'}){
+						# print "h-1: r1: $b_row1 iu: $indent_use\n";
 						$length += length("$key$sep{'s2'} $val2");
 						$holder .= "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
 					}
 					# handle case where the opening key/value pair is > max, and where 
 					# there are a lot of terms, like cpu flags, raid types supported. Raid
 					# can have the last row have a lot of devices, or many raid types
-					elsif (!$b_single && (length("$key$sep{'s2'} $val2") + $indent) > $size{'max'} && 
-								!defined $ids{$key} && $split_count > 2){
-						# print "two\n";
+					elsif (!$b_single && 
+					 (length("$key$sep{'s2'} $val2") + $indent_use) > $size{'max'} && 
+					 !defined $ids{$key} && $split_count > 2){
+						# print "m-2 r1: $b_row1 iu: $indent_use\n";
 						@values = split(/\s+/, $val2);
 						$val3 = shift @values;
 						# $length += length("$key$sep{'s2'} $val3 ") + $indent;
@@ -6875,14 +6882,13 @@ sub print_data {
 						foreach (@values){
 							# my $l =  (length("$_ ") + $length);
 							# print "$l\n";
+							$indent_use = ($b_row1) ? $indent : $indent_2;
 							if ((length("$_ ") + $length) < $size{'max'}){
-								# print "three.1\n";
+								# print "h-2: r1: $b_row1 iu: $indent_use\n";
 								# print "a\n";
 								if ($start2){
 									$holder2 .= "$start2$_ ";
 									$start2 = '';
-									#$length += $length2;
-									#$length2 = 0;
 								}
 								else {
 									$holder2 .= "$_ ";
@@ -6890,7 +6896,7 @@ sub print_data {
 								$length += length("$_ ");
 							}
 							else {
-								# print "three.2\n";
+								# print "p-1: r1: $b_row1 iu: $indent_use\n";
 								if ($start2){
 									$holder2 = "$start2$holder2";
 								}
@@ -6899,26 +6905,27 @@ sub print_data {
 								}
 								# print "xx:$holder";
 								$holder2 =~ s/\s+$//;
-								$line = sprintf("%-${indent}s%s$colors{'cn'}\n","$start","$holder$holder2");
+								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n","$start","$holder$holder2");
 								print_line($line);
+								$b_row1 = 0;
 								$holder = '';
 								$holder2 = "$_ ";
 								# print "h2: $holder2\n";
-								$length = length($holder2) + $indent;
+								$length = length($holder2) + $indent_use;
 								$start2 = '';
 								$start = '';
-								#$length2 = 0;
 							}
 						}
 						if ($holder2 !~ /^\s*$/){
-							# print "four\n";
+							# print "p-2: r1: $b_row1 iu: $indent_use\n";
 							$holder2 =~ s/\s+$//;
 							$holder2 = "$colors{'c2'}$holder2";
-							$line = sprintf("%-${indent}s%s$colors{'cn'}\n","$start","$holder$holder2");
+							$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n","$start","$holder$holder2");
 							print_line($line);
+							$b_row1 = 0;
 							$holder = '';
 							$holder2 = '';
-							$length = $indent;
+							$length = $indent_use;
 							$start2 = '';
 							$start = '';
 							#$length2 = 0;
@@ -6926,30 +6933,41 @@ sub print_data {
 					}
 					# NOTE: only these and the last fallback are used for b_single output
 					else {
-						# print "H: $counter " . scalar %$val1 . " $indent3 $indent2\n";
 						if ($holder){
-							# print "five\n";
+							# print "p-3: r1: $b_row1 iu: $indent_use\n";
 							$holder =~ s/\s+$//;
 							$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$holder");
 							$length = length("$key$sep{'s2'} $val2") + $indent_use;
 							print_line($line);
+							$b_row1 = 0;
 							$start = '';
 						}
 						else {
-							# print "six\n";
+							# print "h-3a: r1: $b_row1 iu: $indent_use\n";
 							$length = $indent_use;
-							#$holder = '';
 						}
 						$holder = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
+						if ($b_single){
+							$indent_use = ($indent * $indentx);
+						}
+						else {
+							if ($b_row1 || $start_holder eq 'System' || $start_holder eq 'Info'){
+								$indent_use = $indent;
+							}
+							else {
+								$indent_use = $indent_2;
+							}
+						}
+						# print "h-3b: r1: $b_row1 iu: $indent_use\n";
 					}
 					$counter++;
-					$indent_use = ($indent * $indentx) if $b_single;
 				}
 				if ($holder !~ /^\s*$/){
-					# print "seven\n";
+					# print "p-4:  r1: $b_row1 iu: $indent_use\n";
 					$holder =~ s/\s+$//;
 					$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n",$start,"$start2$holder");
 					print_line($line);
+					$b_row1 = 0;
 					$holder = '';
 					$length = 0;
 					$start = '';
@@ -6957,11 +6975,11 @@ sub print_data {
 			}
 			# only for repos currently
 			elsif (ref($val1) eq 'ARRAY'){
-				# print "eight\n";
+				# print "p-5: r1: $b_row1 iu: $indent_use\n";
 				$array=0;
 				foreach my $item (@$val1){
 					$array++;
-					$indent_use = ($b_single) ? $indent + 2: $indent;
+					$indent_use = $indent_2;
 					$line = "$colors{'c1'}$array$sep{'s2'} $colors{'c2'}$item$colors{'cn'}";
 					$line = sprintf("%-${indent_use}s%s\n","","$line");
 					print_line($line);
@@ -7015,7 +7033,7 @@ sub get {
 	if (%risc && !$use{'soc-audio'} && !$use{'pci-tool'}){
 		my $key = 'Message';
 		push(@rows,{
-		main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
+		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
 		},);
 	}
 	else {
@@ -7033,7 +7051,7 @@ sub get {
 			$type = 'pci-card-data-root';
 		}
 		push(@rows,{
-		main::key($num++,0,1,$key) => main::row_defaults($type,''),
+		main::key($num++,0,1,$key) => main::message($type,''),
 		},);
 	}
 	push(@rows,sound_server_output());
@@ -7119,7 +7137,7 @@ sub asound_output {
 				if ($extra > 0){
 					my $version = main::get_module_version($driver);
 					$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
-					$rows[$j]->{main::key($num++,0,2,'message')} = main::row_defaults('pci-advanced-data','');
+					$rows[$j]->{main::key($num++,0,2,'message')} = main::message('pci-advanced-data','');
 				}
 			}
 		}
@@ -7272,7 +7290,7 @@ sub get {
 			if (!%battery){
 				if ($show{'battery-forced'}){
 					$key1 = 'Message';
-					$val1 = main::row_defaults('battery-data','');
+					$val1 = main::message('battery-data','');
 					@rows = ({main::key($num++,0,1,$key1) => $val1,});
 				}
 			}
@@ -7286,7 +7304,7 @@ sub get {
 		if (!%battery){
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('battery-data-bsd','');
+				$val1 = main::message('battery-data-bsd','');
 				@rows = ({main::key($num++,0,1,$key1) => $val1,});
 			}
 		}
@@ -7299,7 +7317,7 @@ sub get {
 		if (!%battery){
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('battery-data','');
+				$val1 = main::message('battery-data','');
 				@rows = ({main::key($num++,0,1,$key1) => $val1,});
 			}
 		}
@@ -7310,7 +7328,7 @@ sub get {
 	else {
 		if ($show{'battery-forced'}){
 			$key1 = 'Message';
-			$val1 = (!$bsd_type) ? main::row_defaults('battery-data-sys'): main::row_defaults('battery-data-bsd');
+			$val1 = (!$bsd_type) ? main::message('battery-data-sys'): main::message('battery-data-bsd');
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 	}
@@ -7553,7 +7571,7 @@ sub battery_data_sys {
 				}
 			}
 			elsif ($b_root && -e $path && ! -r $path){
-				$value = main::row_defaults('root-required');
+				$value = main::message('root-required');
 			}
 			$battery{$id}->{$file} = $value;
 			# print "$battery{$id}->{$file}\n";
@@ -7800,7 +7818,7 @@ sub get {
 		# the non risc case to always run
 		# my $key = 'Message';
 		# push(@rows,{
-		# main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
+		# main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
 		# },);
 	}
 	else {
@@ -7811,7 +7829,7 @@ sub get {
 		if ($show{'bluetooth-forced'}){
 			my $key = 'Message';
 			push(@rows,{
-			main::key($num++,0,1,$key) => main::row_defaults('bluetooth-data'),
+			main::key($num++,0,1,$key) => main::message('bluetooth-data'),
 			},);
 		}
 	}
@@ -7999,7 +8017,7 @@ sub advanced_output {
 					}
 				}
 				if (!$hci{$item}->{'address'} && $tool eq 'rfkill'){
-					$address = main::row_defaults('recommends');
+					$address = main::message('recommends');
 				}
 				else {
 					$address = main::filter($hci{$item}->{'address'});
@@ -8065,10 +8083,10 @@ sub advanced_output {
 		my $value = '';
 		if ($alerts{'hciconfig'}->{'action'} eq 'platform' || 
 		 $alerts{'bt-adapter'}->{'action'} eq 'platform'){
-			$value = main::row_defaults('tool-missing-os','bluetooth');
+			$value = main::message('tool-missing-os','bluetooth');
 		}
 		else {
-			$value = main::row_defaults('tools-missing','hciconfig/bt-adapter');
+			$value = main::message('tools-missing','hciconfig/bt-adapter');
 		}
 		push(@rows,{
 		main::key($num++,0,1,$key) => $value,
@@ -8120,7 +8138,7 @@ sub bt_tool_data {
 		}
 	}
 	if (!@data && !$b_bluetooth){
-		$hci{'alert'} = main::row_defaults('bluetooth-down');
+		$hci{'alert'} = main::message('bluetooth-down');
 	}
 	print Data::Dumper::Dumper \%hci if $dbg[27];
 	main::log_data('dump','%hci', \%hci) if $b_log;
@@ -8273,7 +8291,7 @@ sub full_output {
 		if ($alerts{'sysctl'}){
 			if ($alerts{'sysctl'}->{'action'} eq 'use'){
 # 				$key1 = 'Status';
-# 				$val1 = main::row_defaults('dev');
+# 				$val1 = main::message('dev');
 				$cpu = sysctl_data();
 			}
 			else {
@@ -8305,7 +8323,7 @@ sub full_output {
 	if ($b_admin && $properties->{'socket'}){
 		if ($properties->{'upgrade'}){
 			$rows[$j]->{main::key($num++,1,2,'socket')} = $properties->{'socket'} . ' (' . $properties->{'upgrade'} . ')';
-			$rows[$j]->{main::key($num++,0,3,'note')} = main::row_defaults('note-check');
+			$rows[$j]->{main::key($num++,0,3,'note')} = main::message('note-check');
 		}
 		else {
 			$rows[$j]->{main::key($num++,0,2,'socket')} = $properties->{'socket'};
@@ -8425,11 +8443,11 @@ sub full_output {
 		}
 		else {
 			my $id = ($bsd_type) ? 'cpu-speeds-bsd' : 'cpu-speeds';
-			$core_speeds_value = main::row_defaults($id);
+			$core_speeds_value = main::message($id);
 		}
 	}
 	else {
-		$core_speeds_value = main::row_defaults('cpu-speeds');
+		$core_speeds_value = main::message('cpu-speeds');
 	}
 	$j = scalar @rows;
 	push(@rows, {
@@ -8485,7 +8503,7 @@ sub full_output {
 			}
 			# only ARM has Features, never seen them for MIPS/PPC/SPARC/RISCV, but check
 			if ($risc{'arm'} && $flag eq 'N/A'){
-				$flag = main::row_defaults('arm-cpu-f');
+				$flag = main::message('arm-cpu-f');
 			}
 		}
 		if (@flags){
@@ -8505,7 +8523,7 @@ sub full_output {
 				$value = join(' ', @proc_bugs);
 			}
 			else {
-				$value = main::row_defaults('cpu-bugs-null');
+				$value = main::message('cpu-bugs-null');
 			}
 		}
 		if ($use{'filter-vulnerabilities'} && 
@@ -8576,7 +8594,7 @@ sub short_output {
 	my ($cpu) = @_;
 	my @data;
 	my $num = 0;
-	$cpu->[1] ||= main::row_defaults('cpu-model-null');
+	$cpu->[1] ||= main::message('cpu-model-null');
 	$cpu->[2] ||= 'N/A';
 	@data = ({
 	main::key($num++,1,1,'Info') => $cpu->[0] . ' ' . $cpu->[1] . ' [' . $cpu->[2] . ']',
@@ -8616,7 +8634,7 @@ sub short_data {
 		if ($alerts{'sysctl'}){
 			if ($alerts{'sysctl'}->{'action'} eq 'use'){
 # 				$key1 = 'Status';
-# 				$val1 = main::row_defaults('dev');
+# 				$val1 = main::message('dev');
 				$cpu = sysctl_data($type);
 			}
 			else {
@@ -9255,9 +9273,9 @@ sub sys_data_grabber {
 				 # $item = main::reader($_,'strip',0);
 			}
 			else {
-				$item = main::row_defaults('root-required');
+				$item = main::message('root-required');
 			}
-			$item = main::row_defaults('undefined') if !defined $item;
+			$item = main::message('undefined') if !defined $item;
 		}
 		# print "$key_1 :: $key_2 :: $item\n";
 		if ($b_main){
@@ -9549,7 +9567,7 @@ sub dboot_data {
 	}
 	else {
 		if ($file && ! -r $file){
-			$flags = main::row_defaults('dmesg-boot-permissions');
+			$flags = main::message('dmesg-boot-permissions');
 		}
 	}
 	%values = (
@@ -9875,17 +9893,17 @@ sub cp_data_dmi {
 		# Newer dmi: cache type total per phys cpu; Legacy: raw cache size only
 		if ($cpu_dmi->{'l1'} && !$caches->{'l1'}){
 			$caches->{'l1'} = $cpu_dmi->{'l1'};
-			$$cache_check = main::row_defaults('note-check');
+			$$cache_check = main::message('note-check');
 		}
 		# note: bsds often won't have L2 catch data found yet, but bsd sysctl can 
 		# have these values so let's check just in case. OpenBSD does have it often.
 		if ($cpu_dmi->{'l2'} && !$caches->{'l2'}){
 			$caches->{'l2'} = $cpu_dmi->{'l2'};
-			$$cache_check = main::row_defaults('note-check');
+			$$cache_check = main::message('note-check');
 		}
 		if ($cpu_dmi->{'l3'} && !$caches->{'l3'}){
 			$caches->{'l3'} = $cpu_dmi->{'l3'};
-			$$cache_check = main::row_defaults('note-check');
+			$$cache_check = main::message('note-check');
 		}
 	}
 	$dmi_data->{'max-speed'} = $cpu_dmi->{'max-speed'};
@@ -10037,7 +10055,7 @@ sub cp_data_fallback {
 		}
 		# if no siblings we couldn't get MT status of cpu so can't trust cache
 		else {
-			$$cache_check = main::row_defaults('note-check');
+			$$cache_check = main::message('note-check');
 		}
 	}
 	# only elbrus shows L1 / L3 cache data in cpuinfo, cpu_sys data should show 
@@ -10085,7 +10103,7 @@ sub cp_data_sys {
 		# values: on/off/notsupported/notimplemented
 		elsif (defined $cpu_sys->{'data'}{'smt-control'} &&
 		 $cpu_sys->{'data'}{'smt-control'} =~ /^not/){
-			$cpu->{'smt'} = main::row_defaults('unsupported');
+			$cpu->{'smt'} = main::message('unsupported');
 		}
 		else {
 			$cpu->{'smt'} = 'disabled';
@@ -10255,7 +10273,7 @@ sub cp_caches_fallback {
 	if ($cpu->{'cache'} && !$caches->{'l1'} && !$caches->{'l2'} && 
 	 !$caches->{'l3'}){
 		$caches->{'cache'} = $cpu->{'cache'};
-		$$cache_check = main::row_defaults('note-check');
+		$$cache_check = main::message('note-check');
 	}
 	eval $end if $b_log;
 }
@@ -10274,7 +10292,7 @@ sub cp_cpu_arch {
 	$family ||= '';
 	$model = '' if !defined $model; # model can be 0
 	my ($arch,$note) = ('','');
-	my $check = main::row_defaults('note-check');
+	my $check = main::message('note-check');
 	# See: docs/inxi-resources.txt 
 	# print "type:$type fam:$family model:$model step:$stepping\n";
 	if ($type eq 'amd'){
@@ -10762,7 +10780,7 @@ sub cp_cpu_alpha {
 		$string = $cores . '-core';
 	}
 	elsif ($cores == 0){
-		$string = main::row_defaults('unknown-cpu-topology');
+		$string = main::message('unknown-cpu-topology');
 	}
 	else {
 		my @alpha = qw(single dual triple quad);
@@ -11112,13 +11130,13 @@ sub get {
 				$key1 = 'Drive Report';
 				my $file = $system_files{'dmesg-boot'};
 				if ($file && ! -r $file){
-					$val1 = main::row_defaults('dmesg-boot-permissions');
+					$val1 = main::message('dmesg-boot-permissions');
 				}
 				elsif (!$file){
-					$val1 = main::row_defaults('dmesg-boot-missing');
+					$val1 = main::message('dmesg-boot-missing');
 				}
 				else {
-					$val1 = main::row_defaults('disk-data-bsd');
+					$val1 = main::message('disk-data-bsd');
 				}
 				push(@rows,{main::key($num++,0,1,$key1) => $val1,});
 			}
@@ -11131,12 +11149,12 @@ sub get {
 	}
 	else {
 		$key1 = 'Message';
-		$val1 = main::row_defaults('disk-data');
+		$val1 = main::message('disk-data');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	if (!@rows){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('disk-data');
+		$val1 = main::message('disk-data');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	# push(@rows,@data);
@@ -11258,7 +11276,7 @@ sub drive_output {
 		if ($extra > 1){
 			if (!$row->{'serial'} && $alerts{'bioctl'} && 
 			 $alerts{'bioctl'}->{'action'} eq 'permissions'){
-				$row->{'serial'} = main::row_defaults('root-required');
+				$row->{'serial'} = main::message('root-required');
 			}
 			else {
 				$row->{'serial'} = main::filter($row->{'serial'});
@@ -11279,7 +11297,7 @@ sub drive_output {
 		}
 		if ($extra > 1 && $alerts{'bioctl'}){
 			if (!$row->{'duid'} && $alerts{'bioctl'}->{'action'} eq 'permissions'){
-				$rows[$j]->{main::key($num++,0,2,'duid')} = main::row_defaults('root-required');
+				$rows[$j]->{main::key($num++,0,2,'duid')} = main::message('root-required');
 			}
 			elsif ($row->{'duid'}){
 				$rows[$j]->{main::key($num++,0,2,'duid')} = main::filter($row->{'duid'});
@@ -11632,10 +11650,10 @@ sub bsd_data {
 	DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
 	# we don't want non dboot disk data from gpart or disklabel
 	if ($file && ! -r $file){
-		$size = main::row_defaults('dmesg-boot-permissions');
+		$size = main::message('dmesg-boot-permissions');
 	}
 	elsif (!$file){
-		$size = main::row_defaults('dmesg-boot-missing');
+		$size = main::message('dmesg-boot-missing');
 	}
 	elsif (%disks_bsd){
 		if ($sysctl{'softraid'}){
@@ -11683,7 +11701,7 @@ sub bsd_data {
 			$logical_size = ($size - $raw_logical[1] + $raw_logical[0]);
 		}
 		if (!$size){
-			$size = main::row_defaults('data-bsd');
+			$size = main::message('data-bsd');
 		}
 	}
 	@data = ({
@@ -11815,20 +11833,20 @@ sub smartctl_data {
 		print 'Drive:/dev/' . $id . ":\n", Data::Dumper::Dumper\@result if $dbg[12];
 		if (scalar @result < 5){
 			if (grep {/failed: permission denied/i} @result){
-				$data->[$i]{'smart-permissions'} = main::row_defaults('tool-permissions','smartctl');
+				$data->[$i]{'smart-permissions'} = main::message('tool-permissions','smartctl');
 			}
 			elsif (grep {/unknown usb bridge/i} @result){
-				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-usb');
+				$data->[$i]{'smart-error'} = main::message('smartctl-usb');
 			}
 			# can come later in output too
 			elsif (grep {/A mandatory SMART command failed/i} @result){
-				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command');
+				$data->[$i]{'smart-error'} = main::message('smartctl-command');
 			}
 			elsif (grep {/open device.*Operation not supported by device/i} @result){
-				$data->[$i]{'smart-error'} = main::row_defaults('smartctl-open');
+				$data->[$i]{'smart-error'} = main::message('smartctl-open');
 			}
 			else {
-				$data->[$i]{'smart-error'} = main::row_defaults('tool-unknown-error','smartctl');
+				$data->[$i]{'smart-error'} = main::message('tool-unknown-error','smartctl');
 			}
 			next;
 		}
@@ -11852,7 +11870,7 @@ sub smartctl_data {
 				}
 				# can occur later in output so retest it here
 				if ($split[$a] =~ /A mandatory SMART command failed/i){
-					$data->[$i]{'smart-error'} = main::row_defaults('smartctl-command');
+					$data->[$i]{'smart-error'} = main::message('smartctl-command');
 				}
 				## DEVICE INFO ##
 				if ($split[$a] eq 'Device Model'){
@@ -12068,7 +12086,7 @@ sub smartctl_data {
 				elsif ($split[$a] eq 'UDMA_CRC_Error_Count'){
 					if (main::is_numeric($split[$r]) && $split[$r] > 50){
 						$data->[$i]{'smart-udma-crc-errors-ar'} = $split[$r];
-						$data->[$i]{'smart-udma-crc-errors-f'} = main::row_defaults('smartctl-udma-crc') if $split[$r] > 500;
+						$data->[$i]{'smart-udma-crc-errors-f'} = main::message('smartctl-udma-crc') if $split[$r] > 500;
 					}
 				}
 				
@@ -13040,7 +13058,7 @@ sub get {
 	if (%risc && !$use{'soc-gfx'} && !$use{'pci-tool'}){
 		my $key = 'Message';
 		push(@rows, {
-		main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
+		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
 		},);
 	}
 	else {
@@ -13052,7 +13070,7 @@ sub get {
 				$type = 'pci-card-data-root';
 			}
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults($type,''),
+			main::key($num++,0,1,$key) => main::message($type,''),
 			},);
 		}
 	}
@@ -13213,7 +13231,7 @@ sub display_output(){
 		}
 		my @drivers = x_drivers();
 		if (!$protocol && !$server_string && !$graphics{'x-vendor'} && !@drivers){
-			$server_string = main::row_defaults('display-server');
+			$server_string = main::message('display-server');
 			@row = ({
 			main::key($num++,1,1,'Display') => '',
 			main::key($num++,0,2,'server') => $server_string,
@@ -13241,14 +13259,14 @@ sub display_output(){
 				# $driver comes from the Device lines, and is just last fallback.
 				if ($driver && $driver ne 'N/A'){
 					if (-e '/var/lib/gdm' && !$b_root){
-						$driver_missing = main::row_defaults('display-driver-na') . ' - ' . main::row_defaults('root-suggested');
+						$driver_missing = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
 					}
 					else {
-						$driver_missing = main::row_defaults('display-driver-na');
+						$driver_missing = main::message('display-driver-na');
 					}
 				}
 				else {
-					$driver_missing = main::row_defaults('root-suggested') if -e '/var/lib/gdm' && !$b_root;
+					$driver_missing = main::message('root-suggested') if -e '/var/lib/gdm' && !$b_root;
 				}
 			}
 			else {
@@ -13553,7 +13571,7 @@ sub display_data_x {
 		}
 	}
 	else {
-		$graphics{'no-xdpyinfo'} = main::row_defaults('tool-missing-basic','xdpyinfo');
+		$graphics{'no-xdpyinfo'} = main::message('tool-missing-basic','xdpyinfo');
 	}
 	print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
@@ -13635,7 +13653,7 @@ sub gl_output(){
 					$type = 'display-null';
 				}
 				@row = ({
-				main::key($num++,0,1,'Message') => main::row_defaults($type),
+				main::key($num++,0,1,'Message') => main::message($type),
 				});
 				return @row;
 			}
@@ -13658,7 +13676,7 @@ sub gl_output(){
 					# field value occurs.
 					else {
 						$b_nogl = 1;
-						$working[1] = main::row_defaults('gl-empty');
+						$working[1] = main::message('gl-empty');
 					}
 					push(@renderer, $working[1]);
 				}
@@ -13680,7 +13698,7 @@ sub gl_output(){
 						$compat_version = $working[0];
 					}
 					elsif (!$b_nogl){
-						push(@opengl_version, main::row_defaults('gl-empty'));
+						push(@opengl_version, main::message('gl-empty'));
 					}
 				}
 				elsif (/^opengl core profile version/i){
@@ -13731,7 +13749,7 @@ sub gl_output(){
 		}
 		else {
 			@row = ({
-			main::key($num++,0,1,'Message') => main::row_defaults('glxinfo-missing'),
+			main::key($num++,0,1,'Message') => main::message('glxinfo-missing'),
 			});
 		}
 	}
@@ -13749,7 +13767,7 @@ sub gl_output(){
 			}
 		}
 		@row = ({
-		main::key($num++,0,1,'Message') => main::row_defaults($type),
+		main::key($num++,0,1,'Message') => main::message($type),
 		});
 	}
 	eval $end if $b_log;
@@ -14001,7 +14019,7 @@ sub get {
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('logical-data-bsd',$uname[0]);
+		$val1 = main::message('logical-data-bsd',$uname[0]);
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
  	else {
@@ -14011,7 +14029,7 @@ sub get {
 			if (!@lvm){
 				my $key = 'Message';
 				# note: arch linux has a bug where lvs returns 0 if non root start
-				my $message = ($use{'logical-lvm'}) ? main::row_defaults('tool-permissions','lvs') : main::row_defaults('logical-data','');
+				my $message = ($use{'logical-lvm'}) ? main::message('tool-permissions','lvs') : main::message('logical-data','');
 				push(@rows, {
 				main::key($num++,0,1,$key) => $message,
 				},);
@@ -14031,7 +14049,7 @@ sub get {
 		       $alerts{'lvs'}->{'action'} eq 'missing')){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults('logical-data',''),
+			main::key($num++,0,1,$key) => main::message('logical-data',''),
 			},);
 		}
 		elsif ($alerts{'lvs'}->{'action'} ne 'use'){
@@ -14368,7 +14386,7 @@ sub get {
 		}
 		elsif (!$key1){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('machine-data-force-dmidecode','');
+			$val1 = main::message('machine-data-force-dmidecode','');
 		}
 	}
 	elsif ($bsd_type || $force{'dmidecode'}){
@@ -14384,7 +14402,7 @@ sub get {
 			}
 			elsif (!$key1){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('machine-data');
+				$val1 = main::message('machine-data');
 			}
 		}
 	}
@@ -14396,10 +14414,10 @@ sub get {
 		else {
 			$key1 = 'Message';
 			if ($alerts{'dmidecode'}->{'action'} eq 'missing'){
-				$val1 = main::row_defaults('machine-data-dmidecode');
+				$val1 = main::message('machine-data-dmidecode');
 			}
 			else {
-				$val1 = main::row_defaults('machine-data');
+				$val1 = main::message('machine-data');
 			}
 		}
 	}
@@ -14411,7 +14429,7 @@ sub get {
 		}
 		if (!%data){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('machine-data-force-dmidecode','');
+			$val1 = main::message('machine-data-force-dmidecode','');
 		}
 	}
 	# if error case, null data, whatever
@@ -14475,9 +14493,9 @@ sub machine_output {
 		$product_version = ($data->{'product_version'}) ? $data->{'product_version'}:'N/A';
 		$product_serial = main::filter($data->{'product_serial'});
 		$rows[$j]->{main::key($num++,1,1,'System')} = $system_vendor;
-		$rows[$j]->{main::key($num++,0,2,'product')} = $product_name;
-		$rows[$j]->{main::key($num++,0,2,'v')} = $product_version;
-		$rows[$j]->{main::key($num++,0,2,'serial')} = $product_serial;
+		$rows[$j]->{main::key($num++,1,2,'product')} = $product_name;
+		$rows[$j]->{main::key($num++,0,3,'v')} = $product_version;
+		$rows[$j]->{main::key($num++,0,3,'serial')} = $product_serial;
 		# no point in showing chassis if system isn't there, it's very unlikely that 
 		# would be correct
 		if ($extra > 1){
@@ -14536,13 +14554,13 @@ sub machine_output {
 		$bios_romsize = $data->{'bios_romsize'};
 	}
 	$rows[$j]->{main::key($num++,1,1,'Mobo')} = $mobo_vendor;
-	$rows[$j]->{main::key($num++,0,2,'model')} = $mobo_model;
+	$rows[$j]->{main::key($num++,1,2,'model')} = $mobo_model;
 	if ($mobo_version){
-		$rows[$j]->{main::key($num++,0,2,'v')} = $mobo_version;
+		$rows[$j]->{main::key($num++,0,3,'v')} = $mobo_version;
 	}
-	$rows[$j]->{main::key($num++,0,2,'serial')} = $mobo_serial;
+	$rows[$j]->{main::key($num++,0,3,'serial')} = $mobo_serial;
 	if ($extra > 2 && $data->{'board_uuid'}){
-		$rows[$j]->{main::key($num++,0,2,'uuid')} = $data->{'board_uuid'};
+		$rows[$j]->{main::key($num++,0,3,'uuid')} = $data->{'board_uuid'};
 	}
 	$rows[$j]->{main::key($num++,1,1,$firmware)} = $bios_vendor;
 	$rows[$j]->{main::key($num++,0,2,'v')} = $bios_version;
@@ -14629,7 +14647,7 @@ sub machine_data_sys {
 			$data{$_} = ($data{$_}) ? main::clean_dmi($data{$_}) : '';
 		}
 		elsif (!$b_root && -e $path && !-r $path){
-			$data{$_} = main::row_defaults('root-required');
+			$data{$_} = main::message('root-required');
 		}
 		else {
 			$data{$_} = '';
@@ -15116,7 +15134,7 @@ sub get {
 		if (%risc){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults('risc-pci',$risc{'id'}),
+			main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
 			},);
 		}
 		else {
@@ -15126,7 +15144,7 @@ sub get {
 				$type = 'pci-card-data-root';
 			}
 			push(@rows,{
-			main::key($num++,0,1,$key) => main::row_defaults($type,''),
+			main::key($num++,0,1,$key) => main::message($type,''),
 			},);
 		}
 	}
@@ -15232,7 +15250,7 @@ sub device_output {
 			$type = 'pci-card-data-root';
 		}
 		push(@rows, {
-		main::key($num++,0,1,$key) => main::row_defaults($type,''),
+		main::key($num++,0,1,$key) => main::message($type,''),
 		},);
 	}
 	eval $end if $b_log;
@@ -15496,7 +15514,7 @@ sub if_ip {
 				$num = 1;
 				if ($limit > 0 && $j >= $limit){
 					push(@rows, {
-					main::key($num++,0,$cont_ip,'Message') => main::row_defaults('output-limit',scalar @data),
+					main::key($num++,0,$cont_ip,'Message') => main::message('output-limit',scalar @data),
 					},);
 					last OUTER;
 				}
@@ -15604,13 +15622,13 @@ sub wan_ip {
 	if (!$ip){
 		# true case trips
 		if (!$b_dig){
-			$ip = main::row_defaults('IP-no-dig', 'WAN IP'); 
+			$ip = main::message('IP-no-dig', 'WAN IP'); 
 		}
 		elsif ($b_dig && !$b_html){
-			$ip = main::row_defaults('IP-dig', 'WAN IP');
+			$ip = main::message('IP-dig', 'WAN IP');
 		}
 		else {
-			$ip = main::row_defaults('IP', 'WAN IP');
+			$ip = main::message('IP', 'WAN IP');
 		}
 	}
 	@data = ({
@@ -15651,7 +15669,7 @@ sub get {
 	my $num = 0;
 	if ($bsd_type){
 		$key1 = 'Optical Report';
-		$val1 = main::row_defaults('optical-data-bsd');
+		$val1 = main::message('optical-data-bsd');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		if ($dboot{'optical'}){
 			%data = drive_data_bsd();
@@ -15660,13 +15678,13 @@ sub get {
 		else{
 			my $file = $system_files{'dmesg-boot'};
 			if ($file && ! -r $file){
-				$val1 = main::row_defaults('dmesg-boot-permissions');
+				$val1 = main::message('dmesg-boot-permissions');
 			}
 			elsif (!$file){
-				$val1 = main::row_defaults('dmesg-boot-missing');
+				$val1 = main::message('dmesg-boot-missing');
 			}
 			else {
-				$val1 = main::row_defaults('optical-data-bsd');
+				$val1 = main::message('optical-data-bsd');
 			}
 			$key1 = 'Optical Report';
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
@@ -15678,7 +15696,7 @@ sub get {
 	}
 	if (!@rows){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('optical-data');
+		$val1 = main::message('optical-data');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	eval $end if $b_log;
@@ -15982,8 +16000,8 @@ sub get {
  	if (!@partitions){
 		$key1 = 'Message';
 		#$val1 = ($bsd_type && $bsd_type eq 'darwin') ? 
-		# main::row_defaults('darwin-feature') : main::row_defaults('partition-data');
-		$val1 = main::row_defaults('partition-data');
+		# main::message('darwin-feature') : main::message('partition-data');
+		$val1 = main::message('partition-data');
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
  	}
  	else {
@@ -16017,7 +16035,7 @@ sub create_output {
 		}
 		else {
 			$percent = '';
-			$used = $size = (!$b_root) ? main::row_defaults('root-required') : main::row_defaults('partition-hidden');
+			$used = $size = (!$b_root) ? main::message('root-required') : main::message('partition-hidden');
 		}
 		$fs = ($row->{'fs'}) ? lc($row->{'fs'}): 'N/A';
 		$dev_type = ($row->{'dev-type'}) ? $row->{'dev-type'} : 'dev';
@@ -16296,7 +16314,7 @@ sub set_partitions {
 				# an error has occurred almost for sure
 				elsif (!$dev_base){
 					$dev_type = 'source';
-					$dev_base = main::row_defaults('unknown-dev');
+					$dev_base = main::message('unknown-dev');
 				}
 				else {
 					$dev_type = 'dev';
@@ -16720,7 +16738,7 @@ sub get {
 	else {
 		my $key = 'Message';
 		push(@rows, ({
-		main::key($num++,0,1,$key) => main::row_defaults('ps-data-null',''),
+		main::key($num++,0,1,$key) => main::message('ps-data-null',''),
 		},));
 	}
 	eval $end if $b_log;
@@ -16894,7 +16912,7 @@ sub get {
 	 !@hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('raid-data');
+			$val1 = main::message('raid-data');
 		}
 	}
 	else {
@@ -17074,7 +17092,7 @@ sub md_output {
 			$size = main::get_size($row->{'size'},'string');
 		}
 		else {
-			$size = (!$b_root && !@lsblk) ? main::row_defaults('root-required'): 'N/A';
+			$size = (!$b_root && !@lsblk) ? main::message('root-required'): 'N/A';
 		}
 		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
 		$report = ($row->{'report'}) ? $row->{'report'}: '';
@@ -17166,7 +17184,7 @@ sub soft_output {
 	my ($j,$num) = (0,0);
 	if (@soft_raid && $alerts{'bioctl'}->{'action'} eq 'permissions'){
 		push(@rows,{
-		main::key($num++,1,1,'Message') => main::row_defaults('root-item-incomplete','softraid'),
+		main::key($num++,1,1,'Message') => main::message('root-item-incomplete','softraid'),
 		});
 	}
 	# print Data::Dumper::Dumper \@soft_raid;
@@ -18118,7 +18136,7 @@ sub get {
 		}
 		else {
 			$key1 = 'message';
-			$val1 = main::row_defaults('ram-data-dmidecode');
+			$val1 = main::message('ram-data-dmidecode');
 			@data = ({
 			main::key($num++,1,1,'RAM Report') => '',
 			main::key($num++,0,2,$key1) => $val1,
@@ -18132,7 +18150,7 @@ sub get {
 		}
 		else {
 			$key1 = 'message';
-			$val1 = main::row_defaults('ram-data');
+			$val1 = main::message('ram-data');
 			@data = ({
 			main::key($num++,1,1,'RAM Report') => '',
 			main::key($num++,0,2,$key1) => $val1,
@@ -18162,7 +18180,7 @@ sub ram_output {
 	my ($arrays,$modules,$slots,$type_holder) = (0,0,0,'');
 	if ($source eq 'dboot'){
 		push(@rows, {
-		main::key($num++,0,1,'Message') => main::row_defaults('ram-data-complete'),
+		main::key($num++,0,1,'Message') => main::message('ram-data-complete'),
 		});
 	}
 	foreach my $item (@$ram){
@@ -18289,7 +18307,7 @@ sub dmidecode_data {
 	my ($b_5,$handle,@ram,@temp);
 	my ($derived_module_size,$max_cap_5,$max_cap_16,$max_module_size) = (0,0,0,0);
 	my ($i,$j,$k) = (0,0,0);
-	my $check = main::row_defaults('note-check');
+	my $check = main::message('note-check');
 	# print Data::Dumper::Dumper \@dmi;
 	foreach my $entry (@dmi){
 		## NOTE: do NOT reset these values, that causes failures
@@ -18554,7 +18572,7 @@ sub dmidecode_data {
 sub dboot_data {
 	eval $start if $b_log;
 	my (@ram);
-	my $est = main::row_defaults('note-est');
+	my $est = main::message('note-est');
 	my ($arr,$derived_module_size,$subtract) = (0,0,0);
 	my ($holder);
 	foreach (@{$dboot{'ram'}}){
@@ -18640,8 +18658,8 @@ sub process_data {
 	my ($ram) = @_;
 	my $b_debug = 0;
 	my (@return);
-	my $check = main::row_defaults('note-check');
-	my $est = main::row_defaults('note-est');
+	my $check = main::message('note-check');
+	my $est = main::message('note-est');
 	foreach my $item (@$ram){
 		# because we use the actual array handle as the index, 
 		# there will be many undefined keys
@@ -19045,10 +19063,10 @@ sub get {
 		if (!@rows_r){
 			my $pm_missing;
 			if ($bsd_type){
-				$pm_missing = main::row_defaults('repo-data-bsd',$uname[0]);
+				$pm_missing = main::message('repo-data-bsd',$uname[0]);
 			}
 			else {
-				$pm_missing = main::row_defaults('repo-data');
+				$pm_missing = main::message('repo-data');
 			}
 			@data = ({main::key($num++,0,1,'Alert') => $pm_missing});
 		}
@@ -19857,8 +19875,8 @@ sub get {
 			@data = sensors_output('ipmi',\%sensors);
 			if (!@data){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('sensors-data-ipmi');
-				# $val1 = main::row_defaults('dev');
+				$val1 = main::message('sensors-data-ipmi');
+				# $val1 = main::message('dev');
 				@data = ({main::key($num++,0,1,$key1) => $val1,});
 			}
 			push(@rows,@data);
@@ -19866,7 +19884,7 @@ sub get {
 		}
 		else {
 			$key1 = 'Permissions';
-			$val1 = main::row_defaults('sensors-ipmi-root');
+			$val1 = main::message('sensors-ipmi-root');
 			@data = ({main::key($num++,0,1,$key1) => $val1,});
 			push(@rows,@data);
 		}
@@ -19876,7 +19894,7 @@ sub get {
 		@data = sensors_output('sysctl-sensors',\%sensors);
 		if (!@data){
 			$key1 = 'Message';
-			$val1 = main::row_defaults('sensors-data-bsd',$uname[0]);
+			$val1 = main::message('sensors-data-bsd',$uname[0]);
 			@data = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 		push(@rows,@data);
@@ -19886,7 +19904,7 @@ sub get {
 			# print "here 1\n";
 			if ($bsd_type && $bsd_type =~ /^(free|open)bsd/){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('sensors-data-bsd-ok');
+				$val1 = main::message('sensors-data-bsd-ok');
 			}
 			else {
 				$key1 = $alerts{'sensors'}->{'action'};
@@ -19902,7 +19920,7 @@ sub get {
 			# print "here 2\n";
 			if (!@data){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('sensors-data-linux');
+				$val1 = main::message('sensors-data-linux');
 				@data = ({main::key($num++,0,1,$key1) => $val1,});
 			}
 			push(@rows,@data);
@@ -21003,7 +21021,7 @@ sub get {
 	}
 	elsif (%risc && !$use{'slot-tool'}){
 		$key1 = 'Message';
-		$val1 = main::row_defaults('risc-pci',$risc{'id'});
+		$val1 = main::message('risc-pci',$risc{'id'});
 		@rows = ({main::key($num++,0,1,$key1) => $val1,});
 	}
 	elsif ($alerts{'dmidecode'}->{'action'} ne 'use'){
@@ -21068,7 +21086,7 @@ sub slot_output {
 	if (!@rows){
 		my $key = 'Message';
 		push(@rows, {
-		main::key($num++,0,1,$key) => main::row_defaults('pci-slot-data',''),
+		main::key($num++,0,1,$key) => main::message('pci-slot-data',''),
 		},);
 	}
 	eval $end if $b_log;
@@ -21087,7 +21105,7 @@ sub get {
 	@rows = create_output();
 	if (!@rows){
 		push(@rows, 
-		{main::key($num++,0,1,'Alert') => main::row_defaults('swap-data')},
+		{main::key($num++,0,1,'Alert') => main::message('swap-data')},
 		);
 	}
 	eval $end if $b_log;
@@ -21121,7 +21139,7 @@ sub create_output {
 				}
 			}
 			else {
-				$rows[$j]->{main::key($num++,0,1,'Message')} = main::row_defaults('swap-admin');
+				$rows[$j]->{main::key($num++,0,1,'Message')} = main::message('swap-admin');
 			}
 		}
 		$j = scalar @rows;
@@ -21194,7 +21212,7 @@ sub get {
 			@data = bsd_data();
 			if (!@data){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('unmounted-data');
+				$val1 = main::message('unmounted-data');
 			}
 			else {
 				@rows = create_output(\@data);
@@ -21207,7 +21225,7 @@ sub get {
 			}
 			else {
 				$key1 = 'Message';
-				$val1 = main::row_defaults('unmounted-data-bsd',$uname[0]);
+				$val1 = main::message('unmounted-data-bsd',$uname[0]);
 			}
 		}
 	}
@@ -21216,7 +21234,7 @@ sub get {
 			@data = proc_data();
 			if (!@data){
 				$key1 = 'Message';
-				$val1 = main::row_defaults('unmounted-data');
+				$val1 = main::message('unmounted-data');
 			}
 			else {
 				@rows = create_output(\@data);
@@ -21224,7 +21242,7 @@ sub get {
 		}
 		else {
 			$key1 = 'Message';
-			$val1 = main::row_defaults('unmounted-file');
+			$val1 = main::message('unmounted-file');
 		}
  	}
  	if (!@rows && $key1){
@@ -21251,10 +21269,10 @@ sub create_output {
 				$fs = 'N/A';
 			}
 			elsif (main::check_program('file')){
-				$fs = ($b_root) ? 'N/A' : main::row_defaults('root-required');
+				$fs = ($b_root) ? 'N/A' : main::message('root-required');
 			}
 			else {
-				$fs = main::row_defaults('tool-missing-basic','file');
+				$fs = main::message('tool-missing-basic','file');
 			}
 		}
 		$j = scalar @rows;
@@ -21493,7 +21511,7 @@ sub get {
 			if ($alerts{'usbdevs'}->{'action'} eq 'missing' && 
 			 $alerts{'usbconfig'}->{'action'} eq 'missing'){
 				$key1 = $alerts{'usbdevs'}->{'action'};
-				$val1 = main::row_defaults('tools-missing-bsd','usbdevs/usbconfig');
+				$val1 = main::message('tools-missing-bsd','usbdevs/usbconfig');
 			}
 			elsif ($alerts{'usbconfig'}->{'action'} eq 'permissions'){
 				$key1 = $alerts{'usbconfig'}->{'action'};
@@ -21512,7 +21530,7 @@ sub get {
 		if (!@rows){
 			my $key = 'Message';
 			push(@rows, {
-			main::key($num++,0,1,$key) => main::row_defaults('usb-data',''),
+			main::key($num++,0,1,$key) => main::message('usb-data',''),
 			},);
 		}
 	}
@@ -21642,19 +21660,19 @@ sub weather_output {
 		@location = get_location();
 		if (!$location[0]){
 			return @rows = ({
-			main::key($num++,0,1,'Message') => main::row_defaults('weather-null','current location'),
+			main::key($num++,0,1,'Message') => main::message('weather-null','current location'),
 			});
 		}
 	}
 	%weather = get_weather(\@location);
 	if ($weather{'error'}){
 		return @rows = ({
-		main::key($num++,0,1,'Message') => main::row_defaults('weather-error',$weather{'error'}),
+		main::key($num++,0,1,'Message') => main::message('weather-error',$weather{'error'}),
 		});
 	}
 	if (!$weather{'weather'}){
 		return @rows = ({
-		main::key($num++,0,1,'Message') => main::row_defaults('weather-null','weather data'),
+		main::key($num++,0,1,'Message') => main::message('weather-null','weather data'),
 		});
 	}
 	$conditions = "$weather{'weather'}";
@@ -22689,7 +22707,7 @@ sub get_kde_trinity_data {
 			$desktop[0] = 'KDE Plasma';
 		}
 		if (!$desktop[1]){
-			$desktop[1] = ($kde_session_version) ? $kde_session_version: main::row_defaults('unknown-desktop-version');
+			$desktop[1] = ($kde_session_version) ? $kde_session_version: main::message('unknown-desktop-version');
 		}
 		# print Data::Dumper::Dumper \@version_data;
 		if ($extra > 1){
@@ -24154,7 +24172,7 @@ sub set_disklabel_data {
 		main::log_data('dump','disklabel @data', \@data) if $b_log;
 		if (scalar @data < 4 && (grep {/permission/i} @data)){
 			$alerts{'disklabel'}->{'action'} = 'permissions';
-			$alerts{'disklabel'}->{'message'} = main::row_defaults('root-feature');
+			$alerts{'disklabel'}->{'message'} = main::message('root-feature');
 			last;
 		}
 		else {
@@ -25910,7 +25928,7 @@ sub create_output {
 			$total = 'N/A';
 		}
 		else {
-			$total = main::row_defaults('package-data');
+			$total = main::message('package-data');
 		}
 	}
 	if ($counts{'total'} && $extra > 1){
@@ -26016,7 +26034,7 @@ sub package_counts {
 			}
 			else {
 				@list = undef;
-				$error = main::row_defaults('pm-disabled');
+				$error = main::message('pm-disabled');
 			}
 			$libs = undef;
 			# print Data::Dumper::Dumper \@list;
@@ -26570,7 +26588,7 @@ sub set {
 				}
 			}
 			else {
-				$client{'version'} = main::row_defaults('unknown-shell');
+				$client{'version'} = main::message('unknown-shell');
 			}
 			print "6: shell not app version: $client{'version'}\n" if $b_debug;
 		}
@@ -27994,7 +28012,7 @@ sub short_output {
 			$speed_key = $cpu[3];
 			$speed = "$cpu[4] MHz";
 		}
-		$cpu[1] ||= main::row_defaults('cpu-model-null');
+		$cpu[1] ||= main::message('cpu-model-null');
 		$cpu_string = $cpu[0] . ' ' . $cpu[1] . $type;
 	}
 	elsif ($bsd_type){
@@ -28033,7 +28051,7 @@ sub short_output {
 			$disk_string = "$size$percent";
 		}
 		else {
-			$size ||= main::row_defaults('disk-size-0');
+			$size ||= main::message('disk-size-0');
 			$disk_string = "$used/$size";
 		}
 	}
