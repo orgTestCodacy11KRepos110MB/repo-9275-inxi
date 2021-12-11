@@ -6767,10 +6767,10 @@ sub print_basic {
 # hash key to force sorts. 
 sub print_data {
 	my ($data) = @_;
-	my ($array,$counter,$length,$split_count) = (0,0,0,0);
+	my ($counter,$length,$split_count) = (0,0,0);
 	my ($hash_id,$holder,$start,$start2,$start_holder) = ('','','','','');
 	my $indent = $size{'indent'};
-	my (@working,@values,%ids,%row);
+	my (%ids);
 	my ($b_container,$b_ni2,$holder2,$key,$line,$val2,$val3);
 	# these 2 sets are single logic items
 	my $b_single = ($size{'max'} == 1) ? 1: 0;
@@ -6799,7 +6799,6 @@ sub print_data {
 			$indent = 0;
 		}
 		next if ref($data->{$key1}) ne 'ARRAY';
-		# @working = @{$data->{$key1}};
 		# Line starters that will be -x incremented always
 		# It's a tiny bit faster manually resetting rather than using for loop
 		%ids = (
@@ -6825,7 +6824,7 @@ sub print_data {
 					$indent_use = $length = ($b_row1) ? $indent : $indent_2;
 				}
 				($counter,$b_row1,$split_count) = (0,1,0);
-				foreach my $key2 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$val1){
+				foreach my $key2 (sort {substr($a,0,3) <=> substr($b,0,3)} keys %$val1){
 					if (!$b_single){
 						$indent_use = ($b_row1 || $b_ni2) ? $indent: $indent_2;
 					}
@@ -6854,7 +6853,10 @@ sub print_data {
 					if (!$b_single && $val2 || $val2 eq '0'){
 						$val2 .= " ";
 					}
-					$split_count = scalar (split(/\s+/, $val2));
+					# see: Use of implicit split to @_ is deprecated. Only get this
+					# warning in Perl 5.08 oddly enough. ie, no: scalar (split(...));
+					my @temp = split(/\s+/, $val2);
+					$split_count = scalar @temp;
 					if (!$b_single && 
 					 (length("$key$sep{'s2'} $val2") + $length) < $size{'max'}){
 						# print "h-1: r1: $b_row1 iu: $indent_use\n";
@@ -6868,9 +6870,8 @@ sub print_data {
 					 (length("$key$sep{'s2'} $val2") + $indent_use) > $size{'max'} && 
 					 !defined $ids{$key} && $split_count > 2){
 						# print "m-2 r1: $b_row1 iu: $indent_use\n";
-						@values = split(/\s+/, $val2);
+						my @values = split(/\s+/, $val2);
 						$val3 = shift @values;
-						# $length += length("$key$sep{'s2'} $val3 ") + $indent;
 						$start2 = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val3 ";
 						$holder2 = '';
 						$length += length("$key$sep{'s2'} $val3 ");
@@ -6924,7 +6925,6 @@ sub print_data {
 							$length = $indent_use;
 							$start2 = '';
 							$start = '';
-							#$length2 = 0;
 						}
 					}
 					# NOTE: only these and the last fallback are used for b_single output
@@ -6967,10 +6967,10 @@ sub print_data {
 			# only for repos currently
 			elsif (ref($val1) eq 'ARRAY'){
 				# print "p-5: r1: $b_row1 iu: $indent_use\n";
-				$array=0;
+				my $array=0;
+				$indent_use = $indent_2;
 				foreach my $item (@$val1){
 					$array++;
-					$indent_use = $indent_2;
 					$line = "$colors{'c1'}$array$sep{'s2'} $colors{'c2'}$item$colors{'cn'}";
 					$line = sprintf("%-${indent_use}s%s\n","","$line");
 					print_line($line);
