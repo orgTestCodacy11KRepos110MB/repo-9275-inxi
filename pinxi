@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-10';
-my $self_patch='41';
+my $self_date='2021-12-11';
+my $self_patch='42';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -140,10 +140,13 @@ my %size = (
 'indent' => 11,
 'wrap-max' => 110,
 'irc' => 100, # shorter because IRC clients have nick  lists etc
-'max' => 0,
+'lines' => 1, # for active output line counter for -Y
+'max-cols' => 0,
+'max-lines' => 0,
 'no-display' => 100, # No Display, orig: 130
 # this will be set dynamically in set_display_width()
-'term-lines' => 100, # orig: 100
+'term-cols' => 80, # orig: 80
+'term-lines' => 40, # orig: 100
 );
 my %use = (
 'update' => 1, # switched off/on with maintainer config ALLOW_UPDATE
@@ -196,7 +199,7 @@ sub initialize {
 	set_system_files();
 	Configs::set();
 	# set_downloader();
-	set_display_width('live');
+	set_display_width();
 }
 
 ## CheckTools
@@ -444,54 +447,45 @@ sub set_basics {
 	$ppid = getppid();
 }
 
-# args: $1 - default OR override default cols max integer count. $_[0]
-# is the display width override.
 sub set_display_width {
-	my ($width) = @_;
-	if ($width eq 'live'){
-		my $term_cols = 80;
-		## sometimes tput will trigger an error (mageia) if irc client
-		if (!$b_irc){
-			if (my $program = check_program('tput')){
-				# Arch urxvt: 'tput: unknown terminal "rxvt-unicode-256color"'
-				# trips error if use qx(); in FreeBSD, if you use 2>/dev/null 
-				# it makes default value 80x24, who knows why?
-				chomp($term_cols = qx{$program cols});
-				chomp($size{'term-lines'} = qx{$program lines});
-				$size{'term-cols'} = $term_cols;
-			}
-			# print "tc: $term_cols cmc: $size{'console'}\n";
-			# double check, just in case it's missing functionality or whatever
-			if (!is_int($term_cols || $term_cols == 0)){ 
-				$term_cols = 80;
-				# we'll be using this for terminal dimensions later so don't set default.
-				# $size{'term-lines'}=100;
-			}
+	## sometimes tput will trigger an error (mageia) if irc client
+	if (!$b_irc){
+		if (my $program = check_program('tput')){
+			# Arch urxvt: 'tput: unknown terminal "rxvt-unicode-256color"'
+			# trips error if use qx(); in FreeBSD, if you use 2>/dev/null 
+			# it makes default value 80x24, who knows why?
+			chomp($size{'term-cols'} = qx{$program cols});
+			chomp($size{'term-lines'} = qx{$program lines});
 		}
-		# this lets you set different size for in or out of display server
-		if (!$b_display && $size{'no-display'}){
-			$size{'console'} = $size{'no-display'};
+		# print "tc: $size{'term-cols'} cmc: $size{'console'}\n";
+		# double check, just in case it's missing functionality or whatever
+		if (!is_int($size{'term-cols'} || $size{'term-cols'} == 0)){ 
+			$size{'term-cols'} = 80;
 		}
-		# term_cols is set in top globals, using tput cols
-		# print "tc: $term_cols cmc: $size{'console'}\n";
-		if ($term_cols < $size{'console'}){
-			$size{'console'} = $term_cols;
+		if (!is_int($size{'term-lines'} || $size{'term-lines'} == 0)){ 
+			$size{'term-lines'} = 40;
 		}
-		# adjust, some terminals will wrap if output cols == term cols
-		$size{'console'} = ($size{'console'} - 1);
-		# echo cmc: $size{'console'}
-		# comes after source for user set stuff
-		if (!$b_irc){
-			$size{'max'} = $size{'console'};
-		}
-		else {
-			$size{'max'} = $size{'irc'};
-		}
+	}
+	# this lets you set different size for in or out of display server
+	if (!$b_display && $size{'no-display'}){
+		$size{'console'} = $size{'no-display'};
+	}
+	# term_cols is set in top globals, using tput cols
+	# print "tc: $size{'term-cols'} cmc: $size{'console'}\n";
+	if ($size{'term-cols'} < $size{'console'}){
+		$size{'console'} = $size{'term-cols'};
+	}
+	# adjust, some terminals will wrap if output cols == term cols
+	$size{'console'} = ($size{'console'} - 1);
+	# echo cmc: $size{'console'}
+	# comes after source for user set stuff
+	if (!$b_irc){
+		$size{'max-cols'} = $size{'console'};
 	}
 	else {
-		$size{'max'} = $width;
+		$size{'max-cols'} = $size{'irc'};
 	}
-	# print "tc: $term_cols cmc: $size{'console'} cm: $size{'max'}\n";
+	# print "tc: $size{'term-cols'} cmc: $size{'console'} cm: $size{'max-cols'}\n";
 }
 
 sub set_os {
@@ -1005,8 +999,7 @@ sub get_selection {
 	);
 	main::print_basic(\@data); 
 	@data = ();
-	my $response = <STDIN>;
-	chomp($response);
+	chomp(my $response = <STDIN>);
 	if (!main::is_int($response) || $response > ($count + 3)){
 		@data = (
 		[0, '', '', "Error - Invalid Selection. You entered this: $response. Hit <ENTER> to continue."],
@@ -1201,6 +1194,15 @@ sub process_item {
 		$language = $val if $val =~ /^(en)$/}
 	elsif ($key eq 'LIMIT'){
 		$limit = $val if main::is_int($val)}
+	elsif ($key eq 'LINES_MAX'){
+		if ($val =~ /^-?\d+$/ && $val >= -1){
+			if ($val == 0){
+				$size{'max-lines'} = $size{'term-lines'};}
+			elsif ($val == -1){
+				$size{'output-block'} = 1;}
+			else {
+				$size{'max-lines'} = $val;}
+		}}
 	elsif ($key eq 'OUTPUT_TYPE'){
 		$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'NO_DIG'){
@@ -1847,8 +1849,9 @@ sub display_data {
 	'clutter-backend' => $ENV{'CLUTTER_BACKEND'},
 	'sdl-videodriver' => $ENV{'SDL_VIDEODRIVER'},
 	# program display values
-	'size-cols-max' => $size{'max'},
+	'size-cols-max' => $size{'max-cols'},
 	'size-indent' => $size{'indent'},
+	'size-lines-max' => $size{'max-lines'},
 	'size-wrap-width' => $size{'wrap-max'},
 	);
 	write_data(\%data,'display');
@@ -3528,7 +3531,7 @@ sub get_pm {
 sub make_row {
 	my ($start,$middle,$end) = @_;
 	my ($dots,$line,$sep) = ('','',': ');
-	foreach (0 .. ($size{'max'} - 16 - length("$start$middle"))){
+	foreach (0 .. ($size{'max-cols'} - 16 - length("$start$middle"))){
 		$dots .= '.';
 	}
 	$line = "$start$sep$middle$dots $end";
@@ -3536,7 +3539,7 @@ sub make_row {
 }
 sub make_line {
 	my $line = '';
-	foreach (0 .. $size{'max'} - 2){
+	foreach (0 .. $size{'max-cols'} - 2){
 		$line .= '-';
 	}
 	return $line;
@@ -3691,13 +3694,14 @@ sub is_hex {
 ## NOTE: for perl pre 5.012 length(undef) returns warning
 # receives string, returns boolean 1 if integer
 sub is_int {
-	return 1 if (defined $_[0] && length($_[0]) && length($_[0]) == ($_[0] =~ tr/0123456789//));
+	return 1 if (defined $_[0] && length($_[0]) && 
+	 length($_[0]) == ($_[0] =~ tr/0123456789//));
 }
 
-# receives string, returns boolean 1 if numeric. tr/// is 4x faster than regex
+# receives string, returns true/1 if >= 0 numeric. tr/// 4x faster than regex
 sub is_numeric {
 	return 1 if (defined $_[0] && ($_[0] =~ tr/0123456789//) >= 1 && 
-	length($_[0]) == ($_[0] =~ tr/0123456789.//) && ($_[0] =~ tr/.//) <= 1);
+	 length($_[0]) == ($_[0] =~ tr/0123456789.//) && ($_[0] =~ tr/.//) <= 1);
 }
 
 # gets array ref, which may be undefined, plus join string
@@ -4799,11 +4803,28 @@ sub get {
 			$arg = 80;
 		}
 		if ($arg =~ /\d/ && ($arg == 1 || $arg >= 80)){
-			main::set_display_width($arg);
+			$size{'max-cols'} = $arg;
 		}
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
-		} },
+		}},
+	'Y|height|less:i' => sub {
+		my ($opt, $arg) = @_;
+		if ($arg >= -2){
+			if ($arg >= 0){
+				$size{'max-lines'} = ($arg) ? $arg: $size{'term-lines'};
+			}
+			elsif ($arg == -1) {
+				$use{'output-block'} = 1;
+			}
+			# unset conifiguration set max height
+			else {
+				$size{'max-lines'} = 0;
+			}
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
 	'z|filter' => sub {
 		$use{'filter'} = 1;},
 	'filter-label|zl' => sub {
@@ -5296,7 +5317,7 @@ sub show_options {
 		$partition_string_u='Slice';
 	}
 	# fit the line to the screen!
-	for my $i (0 .. (($size{'max'} / 2) - 2)){
+	for my $i (0 .. (($size{'max-cols'} / 2) - 2)){
 		$line = $line . '- ';
 	}
 	push(@data, 
@@ -5449,6 +5470,11 @@ sub show_options {
 	IRC/Terminal settings or actual widths. If no integer give, defaults to 80. 
 	-1 removes line lengths. 1 switches output to 1 key/value pair per line. 
 	Example:^inxi^-y^130"],
+	['1', '-Y', '--height', "Output lines max before break (integer > -2). Similar 
+	to 'less' command except colors preserved, defaults to console/terminal 
+	height. -1 shows 1 primary Item: at a time. -2 removes configuration value. 
+	0 or -Y sets to detected terminal height. Greater than 0 shows x lines at a 
+	time."],
 	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial 
 	numbers, location (-w), user home directory name, host name. Default on for 
 	IRC clients."],
@@ -6688,11 +6714,10 @@ sub print_basic {
 	my $indent2 = 8;
 	my $length =  @$data;
 	my ($start,$i,$j,$line);
-	
-	if ($size{'max'} > 110){
+	if ($size{'max-cols'} > 110){
 		$indent_static = 22;
 	}
-	elsif ($size{'max'} < 90){
+	elsif ($size{'max-cols'} < 90){
 		$indent_static = 15;
 	}
 	# print $length . "\n";
@@ -6725,7 +6750,7 @@ sub print_basic {
 			$start = '';
 			# print "1-print.\n";
 		}
-		if (($indent + length($data->[$i][3])) < $size{'max'}){
+		if (($indent + length($data->[$i][3])) < $size{'max-cols'}){
 			$data->[$i][3] =~ s/\^/ /g;
 			$line = sprintf("%-${indent}s%s\n", "$start", $data->[$i][3]);
 			print_line($line);
@@ -6738,12 +6763,12 @@ sub print_basic {
 			# then splits like awk, on one or more white spaces.
 			foreach my $word (split(' ', $data->[$i][3])){
 				# print "$word\n";
-				if (($indent + length($holder) + length($word)) < $size{'max'}){
+				if (($indent + length($holder) + length($word)) < $size{'max-cols'}){
 					$word =~ s/\^/ /g;
 					$holder .= $word . $sep;
 					# print "3-hold.\n";
 				}
-				# elsif (($indent + length($holder) + length($word)) >= $size{'max'}){
+				# elsif (($indent + length($holder) + length($word)) >= $size{'max-cols'}){
 				else {
 					$line = sprintf("%-${indent}s%s\n", "$start", $holder);
 					print_line($line);
@@ -6773,20 +6798,24 @@ sub print_data {
 	my (%ids);
 	my ($b_container,$b_ni2,$holder2,$key,$line,$val2,$val3);
 	# these 2 sets are single logic items
-	my $b_single = ($size{'max'} == 1) ? 1: 0;
+	my $b_single = ($size{'max-cols'} == 1) ? 1: 0;
 	my ($b_row1,$indent_2,$indent_use,$indentx) = (1,0,0,0);
-	# $size{'max'} = 88;
+	# $size{'max-cols'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
-	if ($size{'max'} < $size{'wrap-max'} || $size{'indent'} < 11){
-		$indent = 1;
+	if ($size{'max-cols'} < $size{'wrap-max'} || $size{'indent'} < 11){
+		$indent = 2;
 	}
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$data){
 		$key = (split('#', $key1))[3];
 		$b_row1 = 1;
 		if ($key ne 'SHORT'){
 			$start = sprintf("$colors{'c1'}%-${indent}s$colors{'cn'}","$key$sep{'s1'}");
+			if ($use{'output-block'}){
+				output_control() if $use{'output-block'} > 1;
+				$use{'output-block'}++;
+			}
 			$start_holder = $key;
-			$indent_2 = $indent + 1;
+			$indent_2 = $indent + 2;
 			$b_ni2 = ($start_holder eq 'System' || $start_holder eq 'Info') ? 1 : 0;
 			if ($indent < 10){
 				$line = "$start\n";
@@ -6858,7 +6887,7 @@ sub print_data {
 					my @temp = split(/\s+/, $val2);
 					$split_count = scalar @temp;
 					if (!$b_single && 
-					 (length("$key$sep{'s2'} $val2") + $length) < $size{'max'}){
+					 (length("$key$sep{'s2'} $val2") + $length) < $size{'max-cols'}){
 						# print "h-1: r1: $b_row1 iu: $indent_use\n";
 						$length += length("$key$sep{'s2'} $val2");
 						$holder .= "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val2";
@@ -6867,7 +6896,7 @@ sub print_data {
 					# there are a lot of terms, like cpu flags, raid types supported. Raid
 					# can have the last row have a lot of devices, or many raid types
 					elsif (!$b_single && 
-					 (length("$key$sep{'s2'} $val2") + $indent_use) > $size{'max'} && 
+					 (length("$key$sep{'s2'} $val2") + $indent_use) > $size{'max-cols'} && 
 					 !defined $ids{$key} && $split_count > 2){
 						# print "m-2 r1: $b_row1 iu: $indent_use\n";
 						my @values = split(/\s+/, $val2);
@@ -6880,7 +6909,7 @@ sub print_data {
 							# my $l =  (length("$_ ") + $length);
 							# print "$l\n";
 							$indent_use = ($b_row1) ? $indent : $indent_2;
-							if ((length("$_ ") + $length) < $size{'max'}){
+							if ((length("$_ ") + $length) < $size{'max-cols'}){
 								# print "h-2: r1: $b_row1 iu: $indent_use\n";
 								# print "a\n";
 								if ($start2){
@@ -7001,7 +7030,26 @@ sub print_line {
 		system('qdbus', 'org.kde.konversation', '/irc', 'say', $client{'dserver'}, $client{'dtarget'}, $line);
 	}
 	else {
+		# print "tl: $size{'term-lines'} ml: $size{'max-lines'} l:$size{'lines'}\n";
+		if ($size{'max-lines'}){
+			if ((($size{'max-lines'} >= $size{'term-lines'}) && $size{'max-lines'} == $size{'lines'}) ||
+			 ($size{'max-lines'} < $size{'term-lines'} && $size{'max-lines'} + 1 == $size{'lines'})){
+				output_control();
+			}
+		}
 		print $line;
+		$size{'lines'}++ if $size{'max-lines'};
+	}
+}
+sub output_control {
+	print "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:";
+	chomp(my $response = <STDIN>);
+	if (!$response){
+		$size{'lines'} = 1;
+	}
+	else {
+		print "Exiting now. Have a nice day.\n";
+		exit 0;
 	}
 }
 
@@ -7063,7 +7111,7 @@ sub device_output {
 		my $device = $row->[4];
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($device) > 85 || $size{'max'} < 110){
+		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
@@ -7850,7 +7898,7 @@ sub device_output {
 		my $device = $row->[4];
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($device) > 85 || $size{'max'} < 110){
+		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
@@ -8382,7 +8430,7 @@ sub full_output {
 			if ($var){
 				$rows[$j]->{main::key($num++,1,2,'variant')} = '';
 			}
-			my $x = ($size{'max'} == 1 || $output_type ne 'screen') ? '' : 'x';
+			my $x = ($size{'max-cols'} == 1 || $output_type ne 'screen') ? '' : 'x';
 			$rows[$j]->{main::key($num++,0,$id,'cpus')} = $topo->{'cpus'} . $x;
 			$rows[$j]->{main::key($num++,1,$id+1,'cores')} = $topo->{'cores'};
 			if ($topo->{'cores-mt'} && $topo->{'cores-st'}){
@@ -13099,7 +13147,7 @@ sub device_output {
 		my $device = main::trimmer($row->[4]);
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
-		if (length($device) > 85 || $size{'max'} < 110){
+		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
 		push(@rows, {
