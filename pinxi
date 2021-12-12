@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.09';
 my $self_date='2021-12-11';
-my $self_patch='42';
+my $self_patch='43';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6479,6 +6479,8 @@ sub message {
 	'note-est' => 'est.',
 	'optical-data' => 'No optical or floppy data found.',
 	'optical-data-bsd' => 'No optical or floppy data found.',
+	'output-control' => "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:",
+	'output-control-exit' => 'Exiting output. Have a nice day.',
 	'output-limit' => "Output throttled. IPs: $id; Limit: $limit; Override: --limit [1-x;-1 all]",
 	'package-data' => 'No packages detected. Unsupported package manager?',
 	'partition-data' => 'No partition data found.',
@@ -6705,6 +6707,18 @@ sub key {
 	return sprintf("%03d#%s#%s#%s", $_[0],$_[1],$_[2],$_[3]);
 }
 
+sub output_control {
+	print message('output-control');
+	chomp(my $response = <STDIN>);
+	if (!$response){
+		$size{'lines'} = 1;
+	}
+	else {
+		print message('output-control-exit'), "\n";
+		exit 0;
+	}
+}
+
 sub print_basic {
 	my ($data) = @_;
 	my $indent = 18;
@@ -6817,7 +6831,7 @@ sub print_data {
 			}
 			$start_holder = $key;
 			$indent_2 = $indent + 2;
-			$b_ni2 = ($start_holder eq 'System' || $start_holder eq 'Info') ? 1 : 0;
+			$b_ni2 = ($start_holder eq 'Info') ? 1 : 0;
 			if ($indent < 10){
 				$line = "$start\n";
 				print_line($line);
@@ -7033,24 +7047,19 @@ sub print_line {
 	else {
 		# print "tl: $size{'term-lines'} ml: $size{'max-lines'} l:$size{'lines'}\n";
 		if ($size{'max-lines'}){
-			if ((($size{'max-lines'} >= $size{'term-lines'}) && $size{'max-lines'} == $size{'lines'}) ||
-			 ($size{'max-lines'} < $size{'term-lines'} && $size{'max-lines'} + 1 == $size{'lines'})){
+		# Note that to handle long -y1 lines wrapping in terminal and taking up 
+		# display lines, best idea is to not use -y1 and -Y together.
+		# ($size{'max-cols'} == 1 && ($size{'max-lines'} + 4 >= $size{'term-lines'}) && 
+		# ($size{'lines'} + 4 >= $size{'max-lines'})) ||
+			if ((($size{'max-lines'} >= $size{'term-lines'}) && 
+			 $size{'max-lines'} == $size{'lines'} + 2) ||
+			 ($size{'max-lines'} < $size{'term-lines'} && 
+			 $size{'max-lines'} + 1 == $size{'lines'})){
 				output_control();
 			}
 		}
 		print $line;
 		$size{'lines'}++ if $size{'max-lines'};
-	}
-}
-sub output_control {
-	print "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:";
-	chomp(my $response = <STDIN>);
-	if (!$response){
-		$size{'lines'} = 1;
-	}
-	else {
-		print "Exiting now. Have a nice day.\n";
-		exit 0;
 	}
 }
 
@@ -28307,7 +28316,7 @@ sub system_item {
 		}
 	}
 	if ($b_admin && (my $params = KernelParameters::get())){
-		$index = scalar(@{$data{$data_name}});
+		# $index = scalar(@{$data{$data_name}}); # not on own line for now
 		# print "$params\n";
 		if ($use{'filter-label'}){
 			$params = main::filter_partition('system', $params, 'label');
