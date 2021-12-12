@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.09';
-my $self_date='2021-12-11';
-my $self_patch='45';
+my $self_date='2021-12-12';
+my $self_patch='46';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -138,11 +138,12 @@ my %size = (
 # Default indentation level. NOTE: actual indent is 1 greater to allow for 
 # spacing
 'indent' => 11,
-'wrap-max' => 110,
+'indents' => 2,
 'irc' => 100, # shorter because IRC clients have nick  lists etc
 'lines' => 1, # for active output line counter for -Y
 'max-cols' => 0,
 'max-lines' => 0,
+'max-wrap' => 110,
 'no-display' => 100, # No Display, orig: 130
 # this will be set dynamically in set_display_size()
 'term-cols' => 80, # orig: 80
@@ -852,7 +853,7 @@ sub set_colors {
 		}
 	}
 	# force 0 for | or > output, all others prints to irc or screen
-	if (!$b_irc && ! -t STDOUT){
+	if (!$b_irc && !$force{'colors'} && ! -t STDOUT){
 		$color_scheme = 0;
 	}
 	set_color_scheme($color_scheme);
@@ -1173,6 +1174,7 @@ sub set {
 # args: 0: key; 1: value
 sub process_item {
 	my ($key,$val) = @_;
+	## UTILITIES ##
 	if ($key eq 'ALLOW_UPDATE' || $key eq 'B_ALLOW_UPDATE'){
 		$use{'update'} = $val if main::is_int($val)}
 	elsif ($key eq 'ALLOW_WEATHER' || $key eq 'B_ALLOW_WEATHER'){
@@ -1194,15 +1196,6 @@ sub process_item {
 		$language = $val if $val =~ /^(en)$/}
 	elsif ($key eq 'LIMIT'){
 		$limit = $val if main::is_int($val)}
-	elsif ($key eq 'LINES_MAX'){
-		if ($val =~ /^-?\d+$/ && $val >= -1){
-			if ($val == 0){
-				$size{'max-lines'} = $size{'term-lines'};}
-			elsif ($val == -1){
-				$size{'output-block'} = 1;}
-			else {
-				$size{'max-lines'} = $val;}
-		}}
 	elsif ($key eq 'OUTPUT_TYPE'){
 		$output_type = $val if $val =~ /^(json|screen|xml)$/}
 	elsif ($key eq 'NO_DIG'){
@@ -1249,7 +1242,7 @@ sub process_item {
 			$weather_unit = $val;
 		}
 	}
-	# layout
+	## COLORS/SEP ##
 	elsif ($key eq 'CONSOLE_COLOR_SCHEME'){
 		$colors{'console'} = $val if main::is_int($val)}
 	elsif ($key eq 'GLOBAL_COLOR_SCHEME'){
@@ -1271,7 +1264,7 @@ sub process_item {
 		$sep{'s2-irc'} = $val}
 	elsif ($key eq 'SEP2_CONSOLE'){
 		$sep{'s2-console'} = $val}
-	# size
+	## SIZES ##
 	elsif ($key eq 'COLS_MAX_CONSOLE'){
 		$size{'console'} = $val if main::is_int($val)}
 	elsif ($key eq 'COLS_MAX_IRC'){
@@ -1280,8 +1273,19 @@ sub process_item {
 		$size{'no-display'} = $val if main::is_int($val)}
 	elsif ($key eq 'INDENT'){
 		$size{'indent'} = $val if main::is_int($val)}
-	elsif ($key eq 'WRAP_MAX' || $key eq 'INDENT_MIN'){
-		$size{'wrap-max'} = $val if main::is_int($val)}
+	elsif ($key eq 'INDENTS'){
+		$filter_string = $val if main::is_int($val)}
+	elsif ($key eq 'LINES_MAX'){
+		if ($val =~ /^-?\d+$/ && $val >= -1){
+			if ($val == 0){
+				$size{'max-lines'} = $size{'term-lines'};}
+			elsif ($val == -1){
+				$size{'output-block'} = 1;}
+			else {
+				$size{'max-lines'} = $val;}
+		}}
+	elsif ($key eq 'MAX_WRAP' || $key eq 'WRAP_MAX' || $key eq 'INDENT_MIN'){
+		$size{'max-wrap'} = $val if main::is_int($val)}
 	#  print "mc: key: $key val: $val\n";
 	# print Dumper (keys %size) . "\n";
 }
@@ -1852,7 +1856,7 @@ sub display_data {
 	'size-cols-max' => $size{'max-cols'},
 	'size-indent' => $size{'indent'},
 	'size-lines-max' => $size{'max-lines'},
-	'size-wrap-width' => $size{'wrap-max'},
+	'size-wrap-width' => $size{'max-wrap'},
 	);
 	write_data(\%data,'display');
 	my @cmds = (
@@ -4811,12 +4815,15 @@ sub get {
 	'Y|height|less:i' => sub {
 		my ($opt, $arg) = @_;
 		main::error_handler('not-in-irc', '-Y/--height') if $b_irc;
-		if ($arg >= -2){
+		if ($arg >= -3){
 			if ($arg >= 0){
 				$size{'max-lines'} = ($arg) ? $arg: $size{'term-lines'};
 			}
 			elsif ($arg == -1) {
 				$use{'output-block'} = 1;
+			}
+			elsif ($arg == -2) {
+				$force{'colors'} = 1;
 			}
 			# unset conifiguration set max height
 			else {
@@ -4997,8 +5004,8 @@ sub get {
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|no-dig|';
-			$wl .= 'no-doas|no-html-wan|no-sudo|pkg|usb-sys|vmstat|wmctrl';
+			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|usb-sys|vmstat|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$force{lc($1)} = 1;
@@ -5027,10 +5034,34 @@ sub get {
 		$show{'no-host'} = 0},
 	'html-wan' => sub {
 		$force{'no-html-wan'} = 0;},
+	'indent:i' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg >= 11){
+			$size{'indent'} = $arg;
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
+	'indents:i' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg >= 0 && $arg < 11){
+			$size{'indents'} = $arg;
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
 	'irc' => sub {
 		$b_irc = 1;},
 	'man' => sub {
 		$use{'yes-man'} = 1;},
+	'max-wrap|wrap-max|indent-min:i' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg >= 0){
+			$size{'max-wrap'} = $arg;
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
 	'mips' => sub {
 		undef %risc;
 		$risc{'id'} = 'mips';
@@ -5127,14 +5158,6 @@ sub get {
 		}},
 	'wm' => sub { 
 		$force{'wmctrl'} = 1 },
-	'wrap-max|indent-min:i' => sub {
-		my ($opt,$arg) = @_;
-		if ($arg =~ /^\d+$/){
-			$size{'wrap-max'} = $arg;
-		}
-		else {
-			main::error_handler('bad-arg', $opt, $arg);
-		}},
 	'<>' => sub {
 		my ($opt) = @_;
 		main::error_handler('unknown-option', "$opt", "");}
@@ -5355,8 +5378,8 @@ sub show_options {
 	['2', '99', '', "Global - Overrides/removes all settings. Setting specific 
 	removes global."],
 	['1', '-C', '--cpu', "CPU output (if each item available): basic topology,
-	model, type (see man for types), cache, average CPU speed, min/max speeds, per 
-	core clock speeds."],
+	model, type (see man for types), cache, average CPU speed, min/max speeds, 
+	per core clock speeds."],
 	['1', '-d', '--disk-full, --optical', "Optical drive data (and floppy disks, 
 	if present). Triggers -D."],
 	['1', '-D', '--disk', "Hard Disk info, including total storage and details 
@@ -5431,9 +5454,9 @@ sub show_options {
 	Should not be used with -b or -F. Example: $self_name^-v^4"],
 	['2', '0', '', "Same as: $self_name"],
 	['2', '1', '', "Basic verbose, -S + basic CPU + -G + basic Disk + -I."],
-	['2', '2', '', "Networking device (-N), Machine (-M), Battery (-B; if present), 
-	and, if present, basic RAID (devices only; notes if inactive). 
-	Same as $self_name^-b"],
+	['2', '2', '', "Networking device (-N), Machine (-M), Battery (-B; if 
+	present), and, if present, basic RAID (devices only; notes if inactive). Same 
+	as $self_name^-b"],
 	['2', '3', '', "Advanced CPU (-C), battery (-B), network (-n); 
 	triggers -x. "],
 	['2', '4', '', "$partition_string_u size/used data (-P) for 
@@ -5467,26 +5490,43 @@ sub show_options {
 		);
 	}
 	push(@data, 
-	['1', '-y', '--width', "Output line width max (integer >= 80). Overrides 
-	IRC/Terminal settings or actual widths. If no integer give, defaults to 80. 
-	-1 removes line lengths. 1 switches output to 1 key/value pair per line. 
-	Example:^inxi^-y^130"],
-	['1', '-Y', '--height', "Output lines max before break (integer > -2). Similar 
-	to 'less' command except colors preserved, defaults to console/terminal 
-	height. -1 shows 1 primary Item: at a time. -2 removes configuration value. 
-	0 or -Y sets to detected terminal height. Greater than 0 shows x lines at a 
-	time."],
+	[0, '', '', "$line"],
+	['0', '', '', "Filter Options:"],
+	['1', '', '--host', "Turn on hostname for -S. Overrides -z."],
+	['1', '', '--no-host', "Turn off hostname for -S. Useful if showing output 
+	from servers etc. Activated by -z as well."],
 	['1', '-z', '--filter', "Adds security filters for IP/MAC addresses, serial 
 	numbers, location (-w), user home directory name, host name. Default on for 
 	IRC clients."],
-	['1', '', '--zl,--filter-label', "Filters out ${partition_string} labels in -j, 
-	-o, -p, -P, -Sa."],
+	['1', '', '--zl,--filter-label', "Filters out ${partition_string} labels in 
+	-j, -o, -p, -P, -Sa."],
 	['1', '', '--zu,--filter-uuid', "Filters out ${partition_string} UUIDs in -j, 
 	-o, -p, -P, -Sa."],
 	['1', '', '--zv,--filter-vulnerabilities', "Filters out Vulnerabilities 
 	report in -Ca."],
 	['1', '-Z', '--no-filter', "Disable output filters. Useful for 	debugging 
 	networking issues in IRC, or you needed to use --tty, for example."],
+	[0, '', '', "$line"],
+	['0', '', '', "Output Control Options:"],
+	['1', '', '--limit', "[-1; 1-x] Set max output limit of IP addresses for -i 
+	(default 10; -1 removes limit)."],
+	['1', '', '--max-wrap,--wrap-max', "[70-xxx] Set maximum width where 
+	$self_name autowraps line starters. Current: $size{'max-wrap'}"],
+	['1', '', '--output', "[json|screen|xml] Change data output type. Requires 
+	--output-file if not screen."],
+	['1', '', '--output-file', "[Full filepath|print] Output file to be used for 
+	--output."],
+	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
+	Change sort order of ${partition_string} output. See man page for specifics."],
+	['1', '-y', '--width', "[empty|-1|1|80-xxx] Output line width max. Overrides 
+	IRC/Terminal settings or actual widths. If no integer give, defaults to 80. 
+	-1 removes line lengths. 1 switches output to 1 key/value pair per line. 
+	Example:^inxi^-y^130"],
+	['1', '-Y', '--height', "[empty|-3-xxx] Output height control. Similar to 
+	'less' command except colors preserved, defaults to console/terminal height. 
+	-1 shows 1 primary Item: at a time; -2 retains color on redirect/piping (to 
+	less); -3 removes configuration value; 0 or -Y sets to detected terminal 
+	height. Greater than 0 shows x lines at a time."],
 	['0', '', '', "$line"],
 	['0', '', '', "Extra Data Options:"],
 	['1', '-a', '--admin', "Adds advanced sys admin data (only works with 
@@ -5641,8 +5681,8 @@ sub show_options {
 	if available; serial number."],
 	['2', '-N', '', "Serial number, class ID."],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
-	md-raid: system md-raid support types (kernel support, read ahead, RAID events).
-	Hardware RAID rev, ports, specific vendor/product information."],
+	md-raid: system md-raid support types (kernel support, read ahead, RAID 
+	events). Hardware RAID rev, ports, specific vendor/product information."],
 	['2', '-S', '', "Panel/tray/bar/dock info in desktop output, if in X (like 
 	lxpanel, xfce4-panel, mate-panel); (if available) dm version number, window 
 	manager version number, virtual terminal number."],
@@ -5657,16 +5697,16 @@ sub show_options {
 	[0, '', '', "$line"],
 	[0, '', '', "Additional Options:"],
 	['1', '-h', '--help', "This help menu."],
- 	['1', '', '--recommends', "Checks $self_name application dependencies + recommends, 
- 	and directories, then shows what package(s) you need to install to add support 
- 	for that feature."],
+ 	['1', '', '--recommends', "Checks $self_name application dependencies + 
+ 	recommends, and directories, then shows what package(s) you need to install 
+ 	to add support for that feature."],
 	);
 	if ($use{'update'}){
 		push(@data, 
-		['1', '-U', '--update', "Auto-update $self_name. Will also install/update man 
-		page. Note: if you installed as root, you must be root to update, otherwise 
-		user is fine. Man page installs require root. No arguments downloads from 
-		main $self_name git repo."],
+		['1', '-U', '--update', "Auto-update $self_name. Will also install/update
+		man page. Note: if you installed as root, you must be root to update, 
+		otherwise user is fine. Man page installs require root. No arguments 
+		downloads from main $self_name git repo."],
 		['1', '', '', "Use alternate sources for updating $self_name"],
 		['2', '1', '', "Get the git branch one version."],
 		['2', '2', '', "Get the git branch two version."],
@@ -5686,35 +5726,35 @@ sub show_options {
 	['2', '43', '', "Bypass Wget as a downloader option."],
 	['2', '44', '', "Bypass Curl, Fetch, and Wget as downloader options. Forces 
 	Perl if HTTP::Tiny present."],
-	['1', '', '--bt-tool', "[bt-adapter|hciconfig|rfkill] Force use of given tool for 
-	bluetooth report."],
+	['1', '', '--bt-tool', "[bt-adapter|hciconfig|rfkill] Force use of given tool 
+	for bluetooth report."],
 	['1', '', '--dig', "Overrides configuration item NO_DIG (resets to default)."],
-	['1', '', '--display', "[:[0-9]] Try to get display data out of X (default: display 0)."],
-	['1', '', '--dmidecode', "Force use of dmidecode data instead of /sys where relevant 
+	['1', '', '--display', "[:[0-9]] Try to get display data out of X (default: 
+	display 0)."],
+	['1', '', '--dmidecode', "Force use of dmidecode data instead of /sys where 
+	relevant 
 	(e.g. -M, -B)."],
-	['1', '', '--downloader', "Force $self_name to use [curl|fetch|perl|wget] for downloads."],
-	['1', '', '--force', "[dmidecode|hddtemp|lsusb|meminfo|usb-sys|vmstat|wmctrl]. 1 or more
-	in comma separated list. Force use of item(s). 
+	['1', '', '--downloader', "Force $self_name to use [curl|fetch|perl|wget] for 
+	downloads."],
+	['1', '', '--force', "[dmidecode|hddtemp|lsusb|meminfo|usb-sys|vmstat|wmctrl].
+	1 or more in comma separated list. Force use of item(s). 
 	See --hddtemp, --dmidecode, --wm, --usb-tool, --usb-sys."],
 	['1', '', '--hddtemp', "Force use of hddtemp for disk temps."],
-	['1', '', '--host', "Turn on hostname for -S."],
-	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to default)."],
-	['1', '', '--limit', "[-1; 1-x] Set max output limit of IP addresses for -i 
-	(default 10; -1 removes limit)."],
+	['1', '', '--html-wan', "Overrides configuration item NO_HTML_WAN (resets to 
+	default)."],
 	);
 	if ($use{'update'}){
 		push(@data, 
-		['1', '', '--man', "Install correct man version for dev branch (-U 3) or pinxi using -U."],
+		['1', '', '--man', "Install correct man version for dev branch (-U 3) or 
+		pinxi using -U."],
 		);
 	}
 	push(@data, 
 	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program."],
-	['1', '', '--no-doas', "Skip internal program use of doas features (not related 
-	to starting $self_name with doas)."],
-	['1', '', '--no-host', "Turn off hostname for -S. Useful if showing output from servers etc. 
-	-z triggers --no-host."],
-	['1', '', '--no-html-wan', "Skip HTML IP sources for WAN IP checks, use dig only, 
-	or nothing if --no-dig."],
+	['1', '', '--no-doas', "Skip internal program use of doas features (not 
+	related to starting $self_name with doas)."],
+	['1', '', '--no-html-wan', "Skip HTML IP sources for WAN IP checks, use dig 
+	only, or nothing if --no-dig."],
 	);
 	if ($use{'update'}){
 		push(@data, 
@@ -5724,67 +5764,66 @@ sub show_options {
 	push(@data, 
 	['1', '', '--no-ssl', "Skip SSL certificate checks for all downloader actions 
 	(Wget/Fetch/Curl/Perl-HTTP::Tiny)."],
-	['1', '', '--no-sudo', "Skip internal program use of sudo features (not related 
-	to starting $self_name with sudo)."],
-	['1', '', '--output', "[json|screen|xml] Change data output type. Requires --output-file 
-	if not screen."],
-	['1', '', '--output-file', "[Full filepath|print] Output file to be used for --output."],
-	['1', '', '--partition-sort', "[dev-base|fs|id|label|percent-used|size|uuid|used] 
-	Change sort order of ${partition_string} output. See man page for specifics."],
-	['1', '', '--pkg', "Force use of disabled package manager counts for packages feature. 
-	RPM disabled by default due to possible massive rpm package query times."],
-	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and SENSORS_EXCLUDE.
-	Same as default behavior."],
-	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude supplied sensor 
-	array[s] for -s output (lm-sensors, Linux only)."],
-	['1', '', '--sensors-use', "[sensor[s] name, comma separated] Use only supplied sensor 
-	array[s] for -s output (lm-sensors, Linux only)."],
+	['1', '', '--no-sudo', "Skip internal program use of sudo features (not 
+	related to starting $self_name with sudo)."],
+	['1', '', '--pkg', "Force use of disabled package manager counts for packages 
+	feature. RPM disabled by default due to possible massive rpm package query 
+	times."],
+	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and 
+	SENSORS_EXCLUDE. Same as default behavior."],
+	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude 
+	supplied sensor array[s] for -s output (lm-sensors, Linux only)."],
+	['1', '', '--sensors-use', "[sensor[s] name, comma separated] Use only 
+	supplied sensor array[s] for -s output (lm-sensors, Linux only)."],
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15"],
-	['1', '', '--tty', "Forces irc flag to false. Generally useful if $self_name is running
-	inside of another tool like Chef or MOTD and returns corrupted color codes. Please see
-	man page or file an issue if you need to use this flag. Must use -y [width] option if 
-	you want a specific output width. Always put this option first in an option list.
-	See -Z for disabling output filters as well."],
-	['1', '', '--usb-sys', "Force USB data to use only /sys as data source (Linux only)."],
+	['1', '', '--tty', "Forces irc flag to false. Generally useful if $self_name 
+	is running inside of another tool like Chef or MOTD and returns corrupted 
+	color codes. Please see man page or file an issue if you need to use this 
+	flag. Must use -y [width] option if you want a specific output width. Always 
+	put this option first in an option list. See -Z for disabling output filters 
+	as well."],
+	['1', '', '--usb-sys', "Force USB data to use only /sys as data source (Linux 
+	only)."],
 	['1', '', '--usb-tool', "Force USB data to use lsusb as data source [default]
 	(Linux only)."],
 	['1', '', '--wan-ip-url', "[URL] Skips dig, uses supplied URL for WAN IP (-i). 
 	URL output must end in the IP address. See man. 
 	Example:^$self_name^-i^--wan-ip-url^https://yoursite.com/ip.php"],
 	['1', '', '--wm', "Force wm: to use wmctrl as data source. Default uses ps."],
-	['1', '', '--wrap-max', "Set maximum width where $self_name autowraps line starters 
-	(previously --indent-min). Current: $size{'wrap-max'}"],
 	['0', '', '', $line ],
 	['0', '', '', "Debugging Options:"],
-	['1', '', '--dbg', "Specific debuggers, change often. Only 1 is constant:"],
+	['1', '', '--dbg', "[1-xx] Specific debuggers, change often. See man page."],
 	['2', '1', '', "Show downloader output. Turns off quiet mode."],
-	['1', '', '--debug', "Triggers debugging modes."],
+	['1', '', '--debug', "[1-3|10|11|20-22] Triggers debugging modes."],
 	['2', '1-3', '', "On screen debugger output."],
 	['2', '10', '', "Basic logging."],
 	['2', '11', '', "Full file/system info logging."],
-	['1', '', ,'', "The following create a tar.gz file of system data, plus $self_name 
-	output. To automatically upload debugger data tar.gz file 
-	to ftp.smxi.org: $self_name^--debug^21"],
-	['2', '20', '', "Full system data collection: /sys; xorg conf and log data, xrandr, 
-	xprop, xdpyinfo, glxinfo etc.; data from dev, disks,  
+	['1', '', ,'', "The following create a tar.gz file of system data, plus 
+	$self_name output. To automatically upload debugger data tar.gz file to 
+	ftp.smxi.org: $self_name^--debug^21"],
+	['2', '20', '', "Full system data collection: /sys; xorg conf and log data, 
+	xrandr, xprop, xdpyinfo, glxinfo etc.; data from dev, disks,  
 	${partition_string}s, etc."],
 	['2', '21', '', "Upload debugger dataset to $self_name debugger server 
 	automatically, removes debugger data directory, leaves tar.gz debugger file."],
 	['2', '22', '', "Upload debugger dataset to $self_name debugger server 
 	automatically, removes debugger data directory and debugger tar.gz file."],
 	# ['1', '', '--debug-filter', "Add -z flag to debugger $self_name optiions."],
+	['1', '', '--debug-id', "[short-string] Add given string to debugger file 
+	name. Helps identify source of debugger dataset. Use with --debug 20-22."],
 	['1', '', '--debug-proc', "Force debugger parsing of /proc as sudo/doas/root."],
 	['1', '', '--debug-proc-print', "To locate file that /proc debugger hangs on."],
 	['1', '', '--debug-no-exit', "Skip exit on error to allow completion."],
 	['1', '', '--debug-no-proc', "Skip /proc debugging in case of a hang."],
 	['1', '', '--debug-no-sys', "Skip /sys debugging in case of a hang."],
-	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as sudo/doas/root."],
+	['1', '', '--debug-sys', "Force PowerPC debugger parsing of /sys as 
+	sudo/doas/root."],
 	['1', '', '--debug-sys-print', "To locate file that /sys debugger hangs on."],
-	['1', '', '--ftp', "Use with --debugger 21 to trigger an alternate FTP server for upload. 
-	Format:^[ftp.xx.xx/yy]. Must include a remote directory to upload to. 
-	Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming"],
+	['1', '', '--ftp', "Use with --debugger 21 to trigger an alternate FTP server
+	for upload. Format:^[ftp.xx.xx/yy]. Must include a remote directory to upload 
+	to. Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming"],
 	['0', '', '', "$line"],
 	);
 	print_basic(\@data); 
@@ -6817,8 +6856,8 @@ sub print_data {
 	my ($b_row1,$indent_2,$indent_use,$indentx) = (1,0,0,0);
 	# $size{'max-cols'} = 88;
 	# NOTE: indent < 11 would break the output badly in some cases
-	if ($size{'max-cols'} < $size{'wrap-max'} || $size{'indent'} < 11){
-		$indent = 2;
+	if ($size{'max-cols'} < $size{'max-wrap'} || $size{'indent'} < 11){
+		$indent = $size{'indents'};
 	}
 	foreach my $key1 (sort { substr($a,0,3) <=> substr($b,0,3) } keys %$data){
 		$key = (split('#', $key1))[3];
@@ -6830,7 +6869,7 @@ sub print_data {
 				$use{'output-block'}++;
 			}
 			$start_holder = $key;
-			$indent_2 = $indent + 2;
+			$indent_2 = $indent + $size{'indents'};
 			$b_ni2 = ($start_holder eq 'Info') ? 1 : 0;
 			if ($indent < 10){
 				$line = "$start\n";
