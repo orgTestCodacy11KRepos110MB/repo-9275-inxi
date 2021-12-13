@@ -8585,8 +8585,12 @@ sub full_output {
 	if ($b_admin && $properties->{'dmi-speed'} && $properties->{'dmi-max-speed'}){
 		$rows[$j]->{main::key($num++,0,2,'base/boost')} = $properties->{'dmi-speed'} . '/' . $properties->{'dmi-max-speed'};
 	}
-	if ($b_admin && $cpu->{'governor'}){
-		$rows[$j]->{main::key($num++,0,2,'governor')} = $cpu->{'governor'};
+	if ($b_admin && ($cpu->{'governor'} || $cpu->{'scaling-driver'})){
+		$rows[$j]->{main::key($num++,1,2,'scaling')} = '';
+		$cpu->{'driver'} ||= 'N/A';
+		$rows[$j]->{main::key($num++,0,3,'driver')} = $cpu->{'scaling-driver'};
+		$cpu->{'governor'} ||= 'N/A';
+		$rows[$j]->{main::key($num++,0,3,'governor')} = $cpu->{'governor'};
 	}
 	if ($extra > 2){
 		if ($properties->{'volts'}){
@@ -9211,6 +9215,9 @@ sub cpu_sys_data {
 					push(@{$cpu_sys{'cpus'}->{$phys_id}{'governor'}},$cpu->{'cpufreq'}{'scaling_governor'});
 				}
 			}
+			if (defined $cpu->{'cpufreq'}{'scaling_driver'}){
+				$cpu_sys{'cpus'}->{$phys_id}{'scaling-driver'} = $cpu->{'cpufreq'}{'scaling_driver'};
+			}
 		}
 		if (!defined $cpu_sys{'data'}->{'cpufreq-boost'} && defined $cpu->{'cpufreq'}{'cpb'}){
 			$cpu_sys{'data'}->{'cpufreq-boost'} = $cpu->{'cpufreq'}{'cpb'};
@@ -9308,7 +9315,8 @@ sub sys_data_grabber {
 			$glob .= 'cpu*/topology/{core_cpus_list,core_id,core_siblings_list,die_id,';
 			$glob .= 'physical_package_id,thread_siblings_list}';
 			$glob .= ',cpufreq/{boost,ondemand}';
-			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq,scaling_governor}';
+			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq';
+			$glob .= ($type eq 'full' && $b_admin) ? ',scaling_driver,scaling_governor}':'}';
 			if ($type eq 'full'){
 				$glob .= ',cpu*/cache/index*/{level,shared_cpu_list,shared_cpu_map,size,type}';
 			}
@@ -10267,6 +10275,12 @@ sub cp_data_sys {
 					push(@governor,$gov) if !grep {$_ eq $gov} @governor;
 				}
 				$cpu->{'governor'} = join(',',@governor);
+			}
+			if ($cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'}){
+				$cpu->{'scaling-driver'} = $cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'};
+			}
+			if ($cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'}){
+				$cpu->{'scaling-driver'} = $cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'};
 			}
 			if (!grep {$counts->{'cpu-cores'} eq $_} @phys_cores){
 				push(@phys_cores,$counts->{'cpu-cores'});
