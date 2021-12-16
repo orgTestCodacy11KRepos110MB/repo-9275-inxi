@@ -8591,6 +8591,10 @@ sub full_output {
 		$rows[$j]->{main::key($num++,0,3,'driver')} = $cpu->{'scaling-driver'};
 		$cpu->{'governor'} ||= 'N/A';
 		$rows[$j]->{main::key($num++,0,3,'governor')} = $cpu->{'governor'};
+		# only set if different from cpu min/max
+		if ($cpu->{'scaling-min-max'} && $cpu->{'scaling-min-max-key'}){
+			$rows[$j]->{main::key($num++,0,3,$cpu->{'scaling-min-max-key'})} = $cpu->{'scaling-min-max'};
+		}
 	}
 	if ($extra > 2){
 		if ($properties->{'volts'}){
@@ -9159,7 +9163,7 @@ sub cpu_sys_data {
 	return \%cpu_sys if !%{$working};
 	$cpu_sys{'data'} = $working->{'data'} if $working->{'data'};
 	my ($core_id,$fake_core_id,$phys_id,) = (0,0,-1);
-	my (%cache_ids,@freq_max,@freq_min);
+	my (%cache_ids,@ci_freq_max,@ci_freq_min,@sc_freq_max,@sc_freq_min);
 	foreach my $key (sort keys %{$working->{'cpus'}}){
 		($core_id,$phys_id) = (0,0);
 		my $cpu_id = $key + 0;
@@ -9197,8 +9201,8 @@ sub cpu_sys_data {
 			# For max / min, we want to prep for the day 1 pys cpu has > 1 min/max freq
 			if (defined $cpu->{'cpufreq'}{'cpuinfo_max_freq'}){
 				$cpu->{'cpufreq'}{'cpuinfo_max_freq'} = clean_speed($cpu->{'cpufreq'}{'cpuinfo_max_freq'},'khz');
-				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @freq_max){
-					push(@freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @ci_freq_max){
+					push(@ci_freq_max,$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
 				}
 				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_max_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}}){
 					push(@{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}},$cpu->{'cpufreq'}{'cpuinfo_max_freq'});
@@ -9206,11 +9210,29 @@ sub cpu_sys_data {
 			}
 			if (defined $cpu->{'cpufreq'}{'cpuinfo_min_freq'}){
 				$cpu->{'cpufreq'}{'cpuinfo_min_freq'} = clean_speed($cpu->{'cpufreq'}{'cpuinfo_min_freq'},'khz');
-				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @freq_min){
-					push(@freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @ci_freq_min){
+					push(@ci_freq_min,$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
 				}
 				if (!grep {$_ eq $cpu->{'cpufreq'}{'cpuinfo_min_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}}){
 					push(@{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}},$cpu->{'cpufreq'}{'cpuinfo_min_freq'});
+				}
+			}
+			if (defined $cpu->{'cpufreq'}{'scaling_max_freq'}){
+				$cpu->{'cpufreq'}{'scaling_max_freq'} = clean_speed($cpu->{'cpufreq'}{'scaling_max_freq'},'khz');
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'scaling_max_freq'}} @sc_freq_max){
+					push(@sc_freq_max,$cpu->{'cpufreq'}{'scaling_max_freq'});
+				}
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'scaling_max_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}}){
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'max-freq'}},$cpu->{'cpufreq'}{'scaling_max_freq'});
+				}
+			}
+			if (defined $cpu->{'cpufreq'}{'scaling_min_freq'}){
+				$cpu->{'cpufreq'}{'scaling_min_freq'} = clean_speed($cpu->{'cpufreq'}{'scaling_min_freq'},'khz');
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'scaling_min_freq'}} @sc_freq_min){
+					push(@sc_freq_min,$cpu->{'cpufreq'}{'scaling_min_freq'});
+				}
+				if (!grep {$_ eq $cpu->{'cpufreq'}{'scaling_min_freq'}} @{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}}){
+					push(@{$cpu_sys{'cpus'}->{$phys_id}{'min-freq'}},$cpu->{'cpufreq'}{'scaling_min_freq'});
 				}
 			}
 			if (defined $cpu->{'cpufreq'}{'scaling_governor'}){
@@ -9271,13 +9293,20 @@ sub cpu_sys_data {
 	}
 	# cpuinfo_max_freq:["2000000"] cpuinfo_max_freq:["1500000"] 
 	# cpuinfo_min_freq:["200000"]
-	if (@freq_max){
-		$cpu_sys{'data'}->{'speeds'}{'max-freq'} = join(':',@freq_max);
+	if (@ci_freq_max){
+		$cpu_sys{'data'}->{'speeds'}{'max-freq'} = join(':',@ci_freq_max);
 	}
-	if (@freq_min){
-		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@freq_min);
+	if (@ci_freq_min){
+		$cpu_sys{'data'}->{'speeds'}{'min-freq'} = join(':',@ci_freq_min);
 	}
-	if ((scalar @freq_max < 2 && scalar @freq_min < 2) && 
+	if (@sc_freq_max){
+		$cpu_sys{'data'}->{'speeds'}{'scaling-max-freq'} = join(':',@sc_freq_max);
+	}
+	if (@sc_freq_min){
+		$cpu_sys{'data'}->{'speeds'}{'scaling-min-freq'} = join(':',@sc_freq_min);
+	}
+	# this corrects a bug we see sometimes in min/max frequencies
+	if ((scalar @ci_freq_max < 2 && scalar @ci_freq_min < 2) && 
 		(defined $cpu_sys{'data'}->{'speeds'}{'min-freq'} && 
 		defined $cpu_sys{'data'}->{'speeds'}{'max-freq'}) &&
 		($cpu_sys{'data'}->{'speeds'}{'min-freq'} > $cpu_sys{'data'}->{'speeds'}{'max-freq'} || 
@@ -9319,7 +9348,12 @@ sub sys_data_grabber {
 			$glob .= 'physical_package_id,thread_siblings_list}';
 			$glob .= ',cpufreq/{boost,ondemand}';
 			$glob .= ',cpu*/cpufreq/{cpb,cpuinfo_max_freq,cpuinfo_min_freq';
-			$glob .= ($type eq 'full' && $b_admin) ? ',scaling_driver,scaling_governor}':'}';
+			if ($type eq 'full' && $b_admin){
+				$glob .= ',scaling_driver,scaling_governor,scaling_max_freq,scaling_min_freq}';
+			}
+			else {
+				$glob .= '}';
+			}
 			if ($type eq 'full'){
 				$glob .= ',cpu*/cache/index*/{level,shared_cpu_list,shared_cpu_map,size,type}';
 			}
@@ -9981,6 +10015,8 @@ sub cpu_properties {
 	'min-max-key' => $speed_info->{'min-max-key'},
 	'min-max' => $speed_info->{'min-max'},
 	'socket' => $dmi_data{'socket'},
+	'scaling-min-max-key' => $speed_info->{'scaling-min-max-key'},
+	'scaling-min-max' => $speed_info->{'scaling-min-max'},
 	'speed-key' => $speed_info->{'speed-key'},
 	'speed' => $speed_info->{'speed'},
 	'topology-full' => $topology{'full'},
@@ -10282,6 +10318,12 @@ sub cp_data_sys {
 			}
 			if ($cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'}){
 				$cpu->{'scaling-driver'} = $cpu_sys->{'cpus'}{$phys_id}{'scaling-driver'};
+			}
+			if ($cpu_sys->{'cpus'}{$phys_id}{'scaling-max-freq'}){
+				$cpu->{'scaling-max-freq'} = $cpu_sys->{'cpus'}{$phys_id}{'scaling-max-freq'};
+			}
+			if ($cpu_sys->{'cpus'}{$phys_id}{'scaling-min-freq'}){
+				$cpu->{'scaling-min-freq'} = $cpu_sys->{'cpus'}{$phys_id}{'scaling-min-freq'};
 			}
 			if (!grep {$counts->{'cpu-cores'} eq $_} @phys_cores){
 				push(@phys_cores,$counts->{'cpu-cores'});
@@ -11039,6 +11081,20 @@ sub cp_speed_data {
 		if (defined $cpu_sys->{'data'}{'speeds'}{'max-freq'}){
 			$cpu->{'max-freq'} = $cpu_sys->{'data'}{'speeds'}{'max-freq'};
 		}
+		if (defined $cpu_sys->{'data'}{'speeds'}{'scaling-min-freq'}){
+			$cpu->{'scaling-min-freq'} = $cpu_sys->{'data'}{'speeds'}{'scaling-min-freq'};
+		}
+		if (defined $cpu_sys->{'data'}{'speeds'}{'scaling-max-freq'}){
+			$cpu->{'scaling-max-freq'} = $cpu_sys->{'data'}{'speeds'}{'scaling-max-freq'};
+		}
+		# we don't need to see these if they are the same
+		if ($cpu->{'min-freq'} && $cpu->{'max-freq'} && 
+		 $cpu->{'scaling-min-freq'} && $cpu->{'scaling-max-freq'} && 
+		 $cpu->{'min-freq'} eq $cpu->{'scaling-min-freq'} &&
+		 $cpu->{'max-freq'} eq $cpu->{'scaling-max-freq'}){
+			undef $cpu->{'scaling-min-freq'};
+			undef $cpu->{'scaling-max-freq'};
+		}
 		if (defined $cpu_sys->{'data'}{'speeds'}{'all'}){
 			# only replace if we got actual speed values from cpufreq, or if no legacy
 			# sourced processors data. Handles fake syz core speeds for counts.
@@ -11079,19 +11135,16 @@ sub cp_speed_data {
 	if ($cpu->{'cur-freq'} && !$info{'speed'}){
 		$info{'speed'} = $cpu->{'cur-freq'};
 	}
-	# BSDs generally will have processors count, but not per core speeds
-	if ($cpu->{'min-freq'} && $cpu->{'max-freq'}){
-		$info{'min-max'} = "$cpu->{'min-freq'}/$cpu->{'max-freq'}";
-		$info{'min-max-key'} = "min/max";
- 	}
- 	elsif ($cpu->{'max-freq'}){
-		$info{'min-max'} = $cpu->{'max-freq'};
-		$info{'min-max-key'} = "max";
- 	}
- 	elsif ($cpu->{'min-freq'}){
-		$info{'min-max'} = $cpu->{'min-freq'};
-		$info{'min-max-key'} = "min";
- 	}
+	if ($cpu->{'min-freq'} || $cpu->{'max-freq'}){
+		($info{'min-max'},$info{'min-max-key'}) = cp_speed_min_max(
+		$cpu->{'min-freq'},
+		$cpu->{'max-freq'});
+	}
+	if ($cpu->{'scaling-min-freq'} || $cpu->{'scaling-max-freq'}){
+		($info{'scaling-min-max'},$info{'scaling-min-max-key'}) = cp_speed_min_max(
+		$cpu->{'scaling-min-freq'},
+		$cpu->{'scaling-max-freq'});
+	}
  	if ($cpu->{'cur-freq'}){
 		if ($show{'short'}){
 			$info{'speed-key'} = 'speed';
@@ -11105,6 +11158,23 @@ sub cp_speed_data {
  	}
  	eval $end if $b_log;
  	return \%info;
+}
+sub cp_speed_min_max {
+	my ($min,$max) = @_;
+	my ($min_max,$key);
+	if ($min && $max){
+		$min_max = "$min/$max";
+		$key = "min/max";
+ 	}
+ 	elsif ($max){
+		$min_max = $max;
+		$key = "max";
+ 	}
+ 	elsif ($min){
+		$min_max = $min;
+		$key = "min";
+ 	}
+ 	return ($min_max,$key);
 }
 # update $tests by reference
 sub cp_test_types {
