@@ -2,8 +2,8 @@
 INXI RESOURCES
 ================================================================================
 FILE:    inxi-resources.txt
-VERSION: 2.4
-DATE:    2021-07-16
+VERSION: 2.5
+DATE:    2021-12-17
 
 ----------------------------------------
 Docs:
@@ -317,6 +317,72 @@ There seems to be no standardisation of the /proc/cpuinfo content, see https://m
 https://manpages.debian.org/unstable/manpages/proc.5.en.html ,
 https://bugzilla.kernel.org/show_bug.cgi?id=197009 
 
+cpuinfo_cur_freq vs scaling_cur_freq
+https://github.com/prometheus/procfs/issues/122
+
+ Instantaneous vs. cummulative cpufreq stats #428 
+https://github.com/prometheus/procfs/issues/428
+
+https://www.google.com/search?domains=lkml.org&q=scaling_cur_freq&sa=Google+Search&sitesearch=lkml.org&client=pub-3128732077138691&forid=1&ie=UTF-8&oe=UTF-8&flav=0000&sig=IZwGi0IG8Xeqz31p&cof=GALT%3A%23008000%3BGL%3A1%3BDIV%3A%23336699%3BVLC%3A663399%3BAH%3Acenter%3BBGC%3AFFFFFF%3BLBGC%3Adde8e8%3BALC%3A0000FF%3BLC%3A0000FF%3BT%3A000000%3BGFNT%3A0000FF%3BGIMP%3A0000FF%3BFORID%3A1&hl=en
+
+# lkml cpuinfo 
+CPU: Always show current CPU frequency in /proc/cpuinfo
+https://lkml.org/lkml/2018/1/8/360
+
+To that end, modify the /proc/cpuinfo implementation on x86 to use
+aperfmperf_snapshot_khz() to snapshot the APERF and MPERF feedback
+registers, if available, and use their values to compute the CPU
+frequency to be reported as "cpu MHz".
+
+However, do that carefully enough to avoid accumulating delays that
+lead to unacceptable access times for /proc/cpuinfo on systems with
+many CPUs.  Run aperfmperf_snapshot_khz() once on all CPUs
+asynchronously at the /proc/cpuinfo open time, add a single delay
+upfront (if necessary) at that point and simply compute the current
+frequency while running show_cpuinfo() for each individual CPU.
+
+Also, to avoid slowing down /proc/cpuinfo accesses too much, reduce
+the default delay between consecutive APERF and MPERF reads to 10 ms,
+which should be sufficient to get large enough numbers for the
+frequency computation in all cases.
+
+----------------------------------------------------
+Calculate MHz using APERF/MPERF for cpuinfo and scaling_cur_freq
+https://lkml.org/lkml/2016/4/1/7
+
+From: Len Brown <len.brown@intel.com>
+
+For x86 processors with APERF/MPERF and TSC,
+return meaningful and consistent MHz in
+/proc/cpuinfo and
+/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+
+MHz is computed like so:
+
+MHz = base_MHz * delta_APERF / delta_MPERF
+
+MHz is the average frequency of the busy processor
+over a measurement interval.  The interval is
+defined to be the time between successive reads
+of the frequency on that processor, whether from
+/proc/cpuinfo or from sysfs cpufreq/scaling_cur_freq.
+As with previous methods of calculating MHz,
+idle time is excluded.
+
+base_MHz above is from TSC calibration global "cpu_khz".
+
+This x86 native method to calculate MHz returns a meaningful result
+no matter if P-states are controlled by hardware or firmware
+and/or the Linux cpufreq sub-system is/is-not installed.
+
+Note that frequent or concurrent reads of /proc/cpuinfo
+or sysfs cpufreq/scaling_cur_freq will shorten the
+measurement interval seen by each reader.  The code
+mitigates that issue by caching results for 100ms.
+
+Discerning users are encouraged to take advantage of
+the turbostat(8) utility, which can gracefully handle
+concurrent measurement intervals of arbitrary length.
 ========================================
 DEBUGGER
 ----------------------------------------
