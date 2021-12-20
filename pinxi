@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.11';
-my $self_date='2021-12-18';
-my $self_patch='03';
+my $self_date='2021-12-19';
+my $self_patch='04';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -499,15 +499,15 @@ sub set_os {
 	elsif ($cpu_arch =~ /riscv/){$risc{'riscv'} = 1;$risc{'id'} = 'riscv';}
 	elsif ($cpu_arch =~ /sparc/){$risc{'sparc'} = 1;$risc{'id'} = 'sparc';}
 	# aarch32 mips32 intel/amd handled in cpu, i386
-	if ($cpu_arch =~ /(armv[1-7]|32|sparc_v9|[23456]86)/){
+	if ($cpu_arch =~ /(armv[1-7]|32|[23456]86)/){
 		$bits_sys = 32;
 	}
-	elsif ($cpu_arch =~ /(alpha|64|e2k)/){
+	elsif ($cpu_arch =~ /(alpha|64|e2k|sparc_v9|ultrasparc)/){
 		$bits_sys = 64;
 	}
 	$b_cygwin = 1 if $os =~ /cygwin/;
 	$b_android = 1 if -e '/system/build.prop';
-	if ($os =~ /(aix|bsd|cosix|dragonfly|darwin|hp-?ux|indiana|irix|sunos|solaris|ultrix|unix)/){
+	if ($os =~ /(aix|bsd|cosix|dragonfly|darwin|hp-?ux|indiana|illumos|irix|sunos|solaris|ultrix|unix)/){
 		if ($os =~ /openbsd/){
 			$os = 'openbsd';
 		}
@@ -16361,7 +16361,7 @@ sub set_partitions {
 			# turns out freebsd uses this junk too
 			$b_fake_map = 1;
 		}
-		# busybox only supports -k and -P, openbsd, darwin
+		# busybox only supports -k and -P, openbsd, darwin, solaris
 		if (!@partitions_working){
 			@partitions_working = main::grabber("df -k 2>/dev/null");
 			$b_fs = 0;
@@ -16771,12 +16771,12 @@ sub check_partition_data {
 sub partition_filters {
 	# snap mounts with squashfs; appimage/flatpak mount?
 	# swap is set in swap_data(); cgmfs is in ram, like devfs, sysfs; 
-	# union fs types: aufs, overlayfs, unionfs, mergerfs
+	# union fs types: aufs, lofs, overlayfs, unionfs, mergerfs
 	my $filters = 'aufs|cgroup.*|cgmfs|configfs|debugfs|\/dev|dev|\/dev\/loop[0-9]*|';
 	$filters .= 'devfs|devtmpfs|efivarfs|fdescfs|hugetlbfs|iso9660|kernfs|';
-	$filters .= 'linprocfs|linsysfs|none|overla(id|y)(fs)?|procfs|ptyfs|';
-	$filters .= '/run(\/.*)?|run|securityfs|shm|squashfs|swap|sys|\/sys\/.*|sysfs|';
-	$filters .= 'tmpfs|tracefs|type|udev|unionfs|vartmp';
+	$filters .= 'linprocfs|linsysfs|lofs|mergerfs|none|overla(id|y)(fs)?|procfs|';
+	$filters .= 'ptyfs|/run(\/.*)?|run|securityfs|shm|squashfs|swap|';
+	$filters .= 'sys|\/sys\/.*|sysfs|tmpfs|tracefs|type|udev|unionfs|vartmp';
 	return $filters
 }
 # used to exclude disk used, partition/unmounted/swap label/uuid, unmounted label/uuid
@@ -16785,13 +16785,13 @@ sub fs_excludes {
 	my ($source) = @_;
 	# panfs is parallel NAS volume manager, need more data
 	# null is hammer fs slice; nfs/nfs3/nfs4; some can be fuse mounts: fuse.sshfs
-	# afs aufs avfs cifs ffs gfs\d{0,2} hdfs ipfs k(osmos)?fs .*lafs mhddfs
+	# afs aufs avfs cifs ffs gfs\d{0,2} hdfs ipfs k(osmos)?fs .*lafs lofs mhddfs
 	# mergerfs nfs\d{0,2} null ocfs\d{0,2} openafs orangefs overla(id|y)(fs)?
 	# panfs pvfs\d{0,2} s3fs squashfs sshfs smbfs unionfs vmfs
 	my $excludes = '(fuse(blk)?[\._-]?)?(';
 	$excludes .= 'f|' if $source eq 'label-uuid'; # ffs not remote, but no u/l
 	$excludes .= 'a|archivemount|au|av|ceph|ci|g|gluster|gmail|hd|ip|';
-	$excludes .= 'iso9660|k(osmos)?|.*la|mhdd|merger|moose|n|null|oc|opena|';
+	$excludes .= 'iso9660|k(osmos)?|lo|.*la|mhdd|merger|moose|n|null|oc|opena|';
 	$excludes .= 'orange|overla(id|y)|pan|pv|s3|rclone|sheepdog|squash|ssh|';
 	$excludes .= 'smb|union|vm';
 	$excludes .= ')(fs)?(\d{0,2})?';
