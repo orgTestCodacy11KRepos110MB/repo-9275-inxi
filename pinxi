@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.11';
 my $self_date='2021-12-22';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -16229,6 +16229,7 @@ sub get {
 	my (@rows,$key1,$val1);
 	my $num = 0;
 	set_partitions() if !$loaded{'set-partitions'};
+	# fails in corner case with zram but no other mounted filesystems
  	if (!@partitions){
 		$key1 = 'Message';
 		#$val1 = ($bsd_type && $bsd_type eq 'darwin') ? 
@@ -16329,6 +16330,10 @@ sub create_output {
 			}
 		}
 	}
+	# corner case, no partitions, but zram swap
+	if (!@rows){
+		@rows = ({main::key($num++,0,1,'Message') => main::message('partition-data')});
+	}
 	eval $end if $b_log;
 	return @rows;
 }
@@ -16382,16 +16387,18 @@ sub set_partitions {
 	}
 	else {
 		 my $file;
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kTP-cygwin-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kT-wrapped-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kTP-cygwin-1.txt";
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kT-wrapped-1.txt";
 		 @partitions_working = main::reader($file);
 	}
 	# print Data::Dumper::Dumper \@partitions_working;
 	# determine positions
-	my $row1 = shift @partitions_working;
-	$row1 =~ s/Mounted on/Mounted-on/i;
-	my @temp = split(/\s+/,$row1);
-	$cols = $#temp;
+	if (@partitions_working){
+		my $row1 = shift @partitions_working;
+		$row1 =~ s/Mounted on/Mounted-on/i;
+		my @temp = split(/\s+/,$row1);
+		$cols = $#temp;
+	}
 	# NOTE: using -P fixes line wraps, otherwise look for hangs and reconnect
 	if (!$b_ptk){ 
 		my $holder = '';
