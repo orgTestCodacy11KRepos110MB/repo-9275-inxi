@@ -16361,9 +16361,14 @@ sub set_partitions {
 		elsif (@partitions_working = main::grabber("df -T -k 2>/dev/null")){
 			# fine, it worked, could be bsd or linux
 		}
-		# busybox only supports -k and -P, openbsd, darwin, solaris
+		# busybox supports -k and -P, older openbsd, darwin, solaris don't have -P
 		else {
-			@partitions_working = main::grabber("df -k 2>/dev/null");
+			if (@partitions_working = main::grabber("df -k -P 2>/dev/null")){
+				$b_ptk = 1;
+			}
+			else {
+				@partitions_working = main::grabber("df -k 2>/dev/null");
+			}
 			$b_fs = 0;
 			if (my $path = main::check_program('mount')){
 				@mount = main::grabber("$path 2>/dev/null");
@@ -16413,7 +16418,7 @@ sub set_partitions {
 	else {
 		# turns out freebsd uses this junk too
 		$b_fake_map = 1;
-		# darwin: Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
+		# darwin k: Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on
 		# linux kT: Filesystem Type 1K-blocks Used Available Use% Mounted on
 		# freebsd kT: Filesystem Type 1024-blocks Used Avail Capacity Mounted on
 		if ($bsd_type eq 'darwin'){
