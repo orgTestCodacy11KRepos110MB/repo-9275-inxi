@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.11';
 my $self_date='2021-12-22';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -16382,20 +16382,41 @@ sub set_partitions {
 		}
 	}
 	else {
-		# my $file;
+		 my $file;
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kTP-cygwin-1.txt";
-		# @partitions_working = main::reader($file);
+		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kT-wrapped-1.txt";
+		 @partitions_working = main::reader($file);
 	}
 	# print Data::Dumper::Dumper \@partitions_working;
 	# determine positions
 	my $row1 = shift @partitions_working;
-	# new kernels/df have rootfs and / repeated, creating two entries for the same partition
-	# so check for two string endings of / then slice out the rootfs one, I could check for it
-	# before slicing it out, but doing that would require the same action twice re code execution
-	foreach (@partitions_working){
-		$roots++ if /\s\/$/;
+	my @part_temp;
+	# NOTE: using -P for linux fixes line wraps, re-attach hanging for BSDs, sigh...
+	if ($bsd_type){ 
+		my $holder = '';
+		foreach (@partitions_working){
+			my @columns= split(/\s+/,$_);
+			if ($#columns < $cols){
+				$holder = join('^^',@columns[0..$#columns]);
+				next;
+			}
+			if ($holder){ # reconnect hanging lines
+				$_ = $holder . ' ' . $_;
+				$holder = '';
+			}
+			push(@part_temp,$_);
+		}
+		@partitions_working = @part_temp;
 	}
-	@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
+	else {
+		# new kernels/df have rootfs and / repeated, creating two entries for the same partition
+		# so check for two string endings of / then slice out the rootfs one, I could check for it
+		# before slicing it out, but doing that would require the same action twice re code execution
+		foreach (@partitions_working){
+			$roots++ if /\s\/$/;
+		}
+		@partitions_working = grep {!/^rootfs/} @partitions_working if $roots > 1;
+	}
 	my $filters = partition_filters();
 	# push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
 	# push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
@@ -16426,7 +16447,6 @@ sub set_partitions {
 		 ($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|devtmpfs|iso9660|tmpfs)$/))){
 			next;
 		}
-		# NOTE: using -P for linux fixes line wraps, and for bsds, assuming they don't use such long file names
 		# cygwin C:\cygwin passes this test so has to be handled later
 		if ($row[0] =~ /^\/dev\/|:\/|\/\//){
 			# this could point to by-label or by-uuid so get that first. In theory, abs_path should 
