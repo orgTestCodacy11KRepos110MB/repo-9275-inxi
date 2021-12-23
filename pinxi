@@ -1703,6 +1703,7 @@ sub disk_data {
 	['df', '-h -T'], # no need for version, and bsd doesn't have its
 	['df', '-h'],
 	['df', '-k'],
+	['df', '-k -P'],
 	['df', '-k -T'],
 	['df', '-k -T -P'],
 	['df', '-k -T -P -a'],
@@ -2033,6 +2034,7 @@ sub system_data {
 	['dmesg',''],
 	['gcc','--version'],
 	['getconf','-a'],
+	['getconf','-l'], # openbsd
 	['initctl','list'],
 	['ipmi-sensors','-V'], # version
 	['ipmi-sensors',''],
@@ -16343,7 +16345,7 @@ sub set_partitions {
 	#return if $bsd_type && $bsd_type eq 'darwin'; # darwin has muated output, of course
 	my (@data,@rows,@mount,@partitions_working,%part,@working);
 	my ($back_size,$back_used,$b_fs,$cols) = (4,3,1,6);
-	my ($b_fake_map,$b_load,$b_logical,$b_ptk,$b_space,);
+	my ($b_dfp,$b_fake_map,$b_load,$b_logical,$b_space,);
 	my ($block_size,$blockdev,$dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
 	$maj_min,$percent_used,$raw_size,$replace,$size_available,$size,$test,
 	$type,$uuid,$used);
@@ -16366,7 +16368,7 @@ sub set_partitions {
 	if (!$fake{'partitions'}){
 		if (@partitions_working = main::grabber("df -P -T -k 2>/dev/null")){
 			main::set_mapper() if !$loaded{'mapper'} && !$bsd_type;
-			$b_ptk = 1;
+			$b_dfp = 1;
 		}
 		elsif (@partitions_working = main::grabber("df -T -k 2>/dev/null")){
 			# fine, it worked, could be bsd or linux
@@ -16374,7 +16376,7 @@ sub set_partitions {
 		# busybox supports -k and -P, older openbsd, darwin, solaris don't have -P
 		else {
 			if (@partitions_working = main::grabber("df -k -P 2>/dev/null")){
-				$b_ptk = 1;
+				$b_dfp = 1;
 			}
 			else {
 				@partitions_working = main::grabber("df -k 2>/dev/null");
@@ -16400,7 +16402,7 @@ sub set_partitions {
 		$cols = $#temp;
 	}
 	# NOTE: using -P fixes line wraps, otherwise look for hangs and reconnect
-	if (!$b_ptk){ 
+	if (!$b_dfp){ 
 		my $holder = '';
 		my @part_temp;
 		foreach (@partitions_working){
