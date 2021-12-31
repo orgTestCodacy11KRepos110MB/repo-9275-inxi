@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.11';
-my $self_date='2021-12-22';
-my $self_patch='09';
+my $self_date='2021-12-30';
+my $self_patch='10';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5236,8 +5236,8 @@ sub post_process {
 	    $show{'unmounted'}){
 		$use{'block-tool'} = 1;
 	}
-	if ($show{'raid'} || $show{'disk'} || $show{'disk-total'} || $show{'disk-basic'} 
-	 || $show{'unmounted'}){
+	if ($show{'short'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || 
+	 $show{'disk-basic'} || $show{'unmounted'}){
 		$use{'btrfs'} = 1;
 		$use{'mdadm'} = 1;
 	}
@@ -6280,7 +6280,7 @@ sub set_konvi_data {
 
 sub clean {
 	my ($item) = @_;
-	return $item if !$item;# handle cases where it was 0 or ''
+	return $item if !$item;# handle cases where it was 0 or '' or undefined
 	# note: |nee trips engineering, but I don't know why nee was filtered
 	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
@@ -6335,7 +6335,7 @@ sub clean_dmi {
 sub clean_pci {
 	my ($string,$type) = @_;
 	# print "st1 $type:$string\n";
-	my $filter = 'and\ssubsidiaries|compatible\scontroller|';
+	my $filter = 'and\ssubsidiaries|compatible\scontroller|licensed\sby|';
 	$filter .= '\b(device|controller|connection|multimedia)\b|\([^)]+\)';
 	# \[[^\]]+\]$| not trimming off ending [...] initial type filters removes end
 	$filter = '\[[^\]]+\]$|' . $filter if $type eq 'pci';
@@ -6351,8 +6351,8 @@ sub clean_pci_subsystem {
 	my ($string) = @_;
 	# we only need filters for features that might use vendor, -AGN
 	my $filter = 'and\ssubsidiaries|adapter|(hd\s)?audio|definition|desktop|ethernet|';
-	$filter .= 'gigabit|graphics|hdmi(\/[\S]+)?|high|integrated|motherboard|network|onboard|';
-	$filter .= 'raid|pci\s?express';
+	$filter .= 'gigabit|graphics|hdmi(\/[\S]+)?|high|integrated|licensed\sby|';
+	$filter .= 'motherboard|network|onboard|raid|pci\s?express';
 	$string =~ s/\b($filter)\b//ig;
 	$string =~ s/^[\s'"]+|[\s'"]+$//g;
 	$string =~ s/\s\s+/ /g;
