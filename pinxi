@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.11';
-my $self_date='2021-12-30';
-my $self_patch='10';
+my $self_date='2022-01-12';
+my $self_patch='11';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -24735,16 +24735,19 @@ sub get_linux_distro {
 	# order matters!
 	my @derived = qw(antix-version aptosid-version bodhibuilder.conf kanotix-version 
 	knoppix-version pclinuxos-release mandrake-release manjaro-release mx-version 
-	pardus-release porteus-version q4os_version sabayon-release siduction-version sidux-version 
-	slitaz-release solusos-release turbolinux-release zenwalk-version);
+	pardus-release porteus-version q4os_version sabayon-release siduction-version 
+	sidux-version slint-version slitaz-release solusos-release turbolinux-release 
+	zenwalk-version);#
 	my $derived_s = join('|', @derived);
-	my @primary = qw(altlinux-release arch-release gentoo-release redhat-release slackware-version 
-	SuSE-release);
+	my @primary = qw(altlinux-release arch-release gentoo-release redhat-release 
+	slackware-version SuSE-release);
 	my $primary_s = join('|', @primary);
 	my $exclude_s = 'debian_version|devuan_version|ubuntu_version';
 	# note, pclinuxos has all these mandrake/mandriva files, careful!
-	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|manjaro-release';
-	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|rpi-issue|SuSE-release';
+	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|';
+	$lsb_good_s .= 'manjaro-release';
+	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|';
+	$os_release_good_s .= 'rpi-issue|SuSE-release';
  	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
 	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
 	$b_issue = 1 if -f $issue;
@@ -24783,7 +24786,7 @@ sub get_linux_distro {
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
-	if (@osr && (grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|zorin)/i} @osr)){
+	if (@osr && (grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|slint|zorin)/i} @osr)){
 		$distro_file = $os_release;
 	}
 	if (grep {/armbian/} @distro_files){
@@ -24950,9 +24953,9 @@ sub get_linux_distro {
 			if ($extra == 0){$distro =~ s/Debian\s*GNU\/Linux/Raspberry Pi OS/;}
 			else {$distro = 'Raspberry Pi OS';}
 		}
-		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
-			$distro =~ s/Slackware/Salix/;
-		}
+# 		elsif (-d '/etc/salixtools/' && $distro =~ /Slackware/i){
+# 			$distro =~ s/Slackware/Salix/;
+# 		}
 	}
 	else {
 		# android fallback, sometimes requires root, sometimes doesn't
@@ -25023,6 +25026,10 @@ sub system_base {
 	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
 	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
 	my $base_upstream_osr = '/etc/upstream-release/os-release';
+	my %base_version = (
+	'salix' => 'slackware-version',
+	'slint' => 'slackware-version',
+	);
 	# first: try, some distros have upstream-release, elementary, new mint
 	# and anyone else who uses this method for fallback ID
 	if (-r $base_upstream_osr){
@@ -25079,6 +25086,15 @@ sub system_base {
 	}
 	if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
 		$system_base = 'Arch Linux';
+	}
+	if (!$system_base && $distro){
+		foreach my $key (keys %base_version){
+			if (-r "/etc/$base_version{$key}" && $distro =~ /$key/i){
+				$system_base = main::reader("/etc/$base_version{$key}",'strip',0);
+				$system_base = main::clean_characters($system_base) if $system_base;
+				last;
+			}
+		}
 	}
 	if ($distro && -d '/etc/salixtools/' && $distro =~ /Slackware/i){
 		$system_base = $distro;
