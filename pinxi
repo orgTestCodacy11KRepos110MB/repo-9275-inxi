@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.11';
-my $self_date='2022-01-13';
-my $self_patch='12';
+my $self_date='2022-01-15';
+my $self_patch='13';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -8533,7 +8533,7 @@ sub full_output {
 				$rows[$j]->{main::key($num++,0,$id+3,'tpc')} = $topo->{'tpc'};
 				$rows[$j]->{main::key($num++,0,$id+2,'st')} = $topo->{'cores-st'};
 			}
-			if ($topo->{'cores-mt'}){
+			elsif ($topo->{'cores-mt'}){
 				$rows[$j]->{main::key($num++,0,$id+2,'tpc')} = $topo->{'tpc'};
 			}
 			if ($topo->{'max'} || $topo->{'min'}){
@@ -10356,6 +10356,7 @@ sub cp_data_sys {
 						if ((my $threads = scalar @{$cpu_sys->{'cpus'}{$phys_id}{'cores'}{$key}}) > 1){
 							$counts->{'cpu-topo'}[$i]{'cores-mt'}++;
 							$counts->{'cpu-topo'}[$i]{'threads'} += $threads;
+							# note: for mt+st type cpus, we need to handle tpc on output per type
 							$counts->{'cpu-topo'}[$i]{'tpc'} = $threads;
 							$counts->{'struct-mt'} = 1;
 						}
@@ -24748,6 +24749,10 @@ sub get_linux_distro {
 	$lsb_good_s .= 'manjaro-release';
 	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|';
 	$os_release_good_s .= 'rpi-issue|SuSE-release';
+	# we need these empirically verified one by one as they appear, but always remember
+	# that stuff changes, legacy, deprecated, but these ideally are going to be right
+	my $osr_good = 'manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|slint|';
+	$osr_good .= 'zorin';
  	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
 	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
 	$b_issue = 1 if -f $issue;
@@ -24786,7 +24791,7 @@ sub get_linux_distro {
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
-	if (@osr && (grep {/(manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|slint|zorin)/i} @osr)){
+	if (@osr && (grep {/($osr_good)/i} @osr)){
 		$distro_file = $os_release;
 	}
 	if (grep {/armbian/} @distro_files){
