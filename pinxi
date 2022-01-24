@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-01-18';
-my $self_patch='01';
+my $self_date='2022-01-24';
+my $self_patch='02';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13605,7 +13605,7 @@ sub display_output(){
 							next;
 						}
 						$row_key++;
-						$row[$row_key]->{main::key($num++,0,3,'Monitor')} = $monitor->{'monitor'};
+						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
 							$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
 						}
@@ -13627,6 +13627,9 @@ sub display_output(){
 						}
 						$diag ||= '';
 						$row[$row_key]->{main::key($num++,0,4,'diag')} = $diag if $diag;
+						if ($monitor->{'type'}){
+							$row[$row_key]->{main::key($num++,0,4,'type')} = $monitor->{'type'};
+						}
 					}
 				}
 			}
@@ -13649,7 +13652,7 @@ sub display_data_x {
 	# A failover mechanism is in place: if $version empty, release number parsed instead
 	if (my $program = main::check_program('xdpyinfo')){
 		my ($diagonal,$diagonal_m,$dpi) = ('','','');
-		my ($screen_id,$screen,@working);
+		my ($b_primary,$screen_id,$screen,@working);
 		my ($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i);
 		my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
 		# @xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
@@ -13732,7 +13735,7 @@ sub display_data_x {
 			($diagonal,$diagonal_m,$dpi) = (undef);
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
-			my (@monitors,$monitor_id,$screen,$screen_id,@xrandr_screens);
+			my (@monitors,$monitor_id,$screen,$screen_id,$type,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -13740,11 +13743,14 @@ sub display_data_x {
 			foreach (@xrandr){
 				if (/^Screen ([0-9]+):/){
 					$screen_id = $1;
-					push(@xrandr_screens, \@monitors) if @monitors;
-					@monitors = ();
+					if (@monitors){
+						push(@xrandr_screens, \@monitors);
+						@monitors = ();
+					}
 				}
 				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+[0-9+]+(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
 					$monitor_id = $1;
+					$type = $2;
 					$res_x = $3;
 					$res_y = $4;
 					$size_x = $7;
@@ -13757,6 +13763,10 @@ sub display_data_x {
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+					if ($type){
+						$b_primary = 1;
+						$type =~ s/\s$//;
+					}
 					push(@monitors, {
 					'screen' => $screen_id,
 					'monitor' => $monitor_id,
@@ -13771,10 +13781,10 @@ sub display_data_x {
 					'dpi' => $dpi,
 					'diagonal' => $diagonal,
 					'diagonal-m' => $diagonal_m,
+					'type' => $type,
 					});
 					# print "x:$size_x y:$size_y rx:$res_x ry:$res_y dpi:$dpi\n";
-					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (0,0,0,0,0,0,0,0);
-					
+					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i,$type) = (0,0,0,0,0,0,0,0,undef);
 				}
 				my @working = split(/\s+/,$_);
 				if ($working[1] =~ /\*/){
@@ -13787,15 +13797,28 @@ sub display_data_x {
 			}
 			push(@xrandr_screens, \@monitors) if @monitors;
 			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
-			my ($i) = (0);
+			my ($i,$j) = (0,0);
 			foreach my $main (@{$graphics{'screens'}}){
 				# print "h: " . Data::Dumper::Dumper $main;
 				# print $main->{'screen'}, "\n";
 				foreach my $screens (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
-					if ($screens->[0]{'screen'} eq $main->{'screen'}){
+					if ($b_admin){
+						for ($j = 0; $j < scalar @$screens; $j++){
+							if ($b_primary){
+								$screens->[$j]{'type'} = 'secondary' if !$screens->[$j]{'type'};
+							}
+							# this is largely useless for 1 monitor since obviously it's primary
+							# elsif (scalar @$screens == 1){
+							#	$screens->[$j]{'type'} = 'primary'
+							# }
+							# note: not possible to determine what type of monitor if > 1 
+							# monitors with one virtual display but not set with xrandr
+						}
+					}
+					if ($screens->[0]{'screen'} eq $main->{'screen'} && 
+					 !defined $graphics{'screens'}->[$i]{'monitors'}){
 						$graphics{'screens'}->[$i]{'monitors'} = $screens;
-						last;
 					}
 				}
 				$i++;
@@ -13812,6 +13835,7 @@ sub display_data_x {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
+
 sub display_data_wayland {
 	eval $start if $b_log;
 	if ($ENV{'WAYLAND_DISPLAY'}){
@@ -25010,10 +25034,10 @@ sub system_base_bsd {
 
 sub system_base {
 	eval $start if $b_log;
-	my $base_arch_distro = 'anarchy|antergos|archbang|archlabs|archman|archstrike|arco|artix';
+	my $base_arch_distro = 'anarchy|antergos|arch(bang|craft|labs|man|strike)|arco|artix';
 	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
 	$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
-	$base_arch_distro .= '|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
+	$base_arch_distro .= '|mabox|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
 	$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
 	my $base_debian_version_distro = 'sidux';
 	my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
