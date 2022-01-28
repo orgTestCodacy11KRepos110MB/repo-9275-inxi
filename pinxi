@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-01-26';
-my $self_patch='03';
+my $self_date='2022-01-28';
+my $self_patch='04';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13606,7 +13606,7 @@ sub display_output(){
 						}
 						$row_key++;
 						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
-						if ($monitor->{'type'}){
+						if ($monitor->{'set-as'}){
 							$row[$row_key]->{main::key($num++,0,4,'as')} = $monitor->{'set-as'};
 						}
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
@@ -13735,7 +13735,7 @@ sub display_data_x {
 			($diagonal,$diagonal_m,$dpi) = (undef);
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
-			my (@monitors,$monitor_id,$screen,$screen_id,$set_as,@xrandr_screens);
+			my (@monitors,$monitor_id,$pos_x,$pos_y,$screen,$screen_id,$set_as,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -13748,17 +13748,19 @@ sub display_data_x {
 						@monitors = ();
 					}
 				}
-				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+[0-9+]+(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)([+-][0-9]+)([+-][0-9]+)(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
 					$monitor_id = $1;
 					$set_as = $2;
 					$res_x = $3;
 					$res_y = $4;
-					$size_x = $7;
-					$size_y = $8;
+					$pos_x = $5;
+					$pos_y = $6;
+					$size_x = $9;
+					$size_y = $10;
 					$res_x_i = ($3) ? sprintf("%.1f", ($3/25.4)) : 0;
 					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
-					$size_x_i = ($7) ? sprintf("%.1f", ($7/25.4)) : 0;
-					$size_y_i = ($8) ? sprintf("%.1f", ($8/25.4)) : 0;
+					$size_x_i = ($9) ? sprintf("%.1f", ($9 /25.4)) : 0;
+					$size_y_i = ($10) ? sprintf("%.1f", ($10/25.4)) : 0;
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
@@ -13770,6 +13772,8 @@ sub display_data_x {
 					push(@monitors, {
 					'screen' => $screen_id,
 					'monitor' => $monitor_id,
+					'pos-x' => $pos_x,
+					'pos-y' => $pos_y,
 					'res-x' => $res_x,
 					'res-x-i' => $res_x_i,
 					'res-y' => $res_y,
@@ -13803,21 +13807,15 @@ sub display_data_x {
 				# print $main->{'screen'}, "\n";
 				foreach my $screens (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
-					## NOTE: not using this block, but retain in case we want non primary 
-					## monitor info in output.
-					# if ($b_admin){
-					#	for ($j = 0; $j < scalar @$screens; $j++){
-					#		if ($b_primary){
-					#			$screens->[$j]{'set-as'} = 'secondary' if !$screens->[$j]{'set-as'};
-					#		}
-							# this is largely useless for 1 monitor since obviously it's primary
-							# elsif (scalar @$screens == 1){
-							#	$screens->[$j]{'set-as'} = 'primary'
-							# }
-							# note: not possible to determine what monitor set as if > 1 
-							# monitors with one virtual display but not set with xrandr
-					#	}
-					# }
+					## NOTE: perl changes +0 type string to integer fine, no issues.
+					if ($b_admin){
+						for ($j = 0; $j < scalar @$screens; $j++){
+							if (!$b_primary && 
+							 $screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
+								$screens->[$j]{'set-as'} = 'primary';
+							}
+						}
+					}
 					if ($screens->[0]{'screen'} eq $main->{'screen'} && 
 					 !defined $graphics{'screens'}->[$i]{'monitors'}){
 						$graphics{'screens'}->[$i]{'monitors'} = $screens;
