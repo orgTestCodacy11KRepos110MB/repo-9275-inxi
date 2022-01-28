@@ -13735,7 +13735,8 @@ sub display_data_x {
 			($diagonal,$diagonal_m,$dpi) = (undef);
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
-			my (@monitors,$monitor_id,$pos_x,$pos_y,$screen,$screen_id,$set_as,@xrandr_screens);
+			my ($monitor_id,$pos_x,$pos_y,$screen,$screen_id,$set_as);
+			my (@monitors,@pos_screen,@positions,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -13744,8 +13745,10 @@ sub display_data_x {
 				if (/^Screen ([0-9]+):/){
 					$screen_id = $1;
 					if (@monitors){
-						push(@xrandr_screens, \@monitors);
+						push(@xrandr_screens,\@monitors);
+						push(@pos_screen,\@positions);
 						@monitors = ();
+						@positions = ();
 					}
 				}
 				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)([+-][0-9]+)([+-][0-9]+)(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
@@ -13761,6 +13764,7 @@ sub display_data_x {
 					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$size_x_i = ($9) ? sprintf("%.1f", ($9 /25.4)) : 0;
 					$size_y_i = ($10) ? sprintf("%.1f", ($10/25.4)) : 0;
+					push(@positions,[$pos_x,$pos_y]);
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
@@ -13799,34 +13803,18 @@ sub display_data_x {
 					# print Data::Dumper::Dumper \@monitors;
 				}
 			}
-			push(@xrandr_screens, \@monitors) if @monitors;
+			if (@monitors){
+				push(@xrandr_screens, \@monitors);
+				push(@pos_screen,\@positions);
+			}
 			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
-			my ($i,$j) = (0,0);
+			my $i = 0;
 			foreach my $main (@{$graphics{'screens'}}){
 				# print "h: " . Data::Dumper::Dumper $main;
 				# print $main->{'screen'}, "\n";
 				foreach my $screens (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
-					## NOTE: perl changes +0 type string to integer fine, no issues.
-					if ($b_admin){
-						for ($j = 0; $j < scalar @$screens; $j++){
-							if (!$b_primary){
-								if (($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0) ||
-								 scalar @$screens == 1){
-									$screens->[$j]{'set-as'} = 'primary';
-								}
-							}
-							if (scalar @$screens > 1 && !$screens->[$j]{'set-as'}){
-								if ($screens->[$j]{'pos-x'} > 0){
-									$screens->[$j]{'set-as'} = 'right';
-								}
-								elsif ($screens->[$j]{'pos-x'} < 0){
-									$screens->[$j]{'set-as'} = 'left';
-								}
-								# not handling position top/middle/bottom yet
-							}
-						}
-					}
+					set_monitor_position($b_primary,$screens,\@pos_screen) if $b_admin;
 					if ($screens->[0]{'screen'} eq $main->{'screen'} && 
 					 !defined $graphics{'screens'}->[$i]{'monitors'}){
 						$graphics{'screens'}->[$i]{'monitors'} = $screens;
@@ -13856,6 +13844,41 @@ sub display_data_wayland {
 	}
 	# print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	# main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
+	eval $end if $b_log;
+}
+sub set_monitor_position {
+	eval $start if $b_log;
+	my ($b_primary,$screens,$pos_screens) = @_;
+	for (my $j = 0; $j < scalar @$screens; $j++){
+		if (!$b_primary){
+			if (scalar @$screens == 1){
+				$screens->[$j]{'set-as'} = 'primary';
+			}
+			elsif ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
+				$screens->[$j]{'set-as'} = 'primary,left';
+			}
+		}
+		# stacked monitors will have position x == 0
+		if (scalar @$screens > 1){
+			if ($screens->[$j]{'set-as'} && $screens->[$j]{'set-as'} eq 'primary'){
+				if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
+					$screens->[$j]{'set-as'} .= ',left';
+				}
+				elsif ($screens->[$j]{'pos-x'} < 0){
+					$screens->[$j]{'set-as'} .= ',right';
+				}
+			}
+			elsif (!$screens->[$j]{'set-as'}){
+				if ($screens->[$j]{'pos-x'} > 0){
+					$screens->[$j]{'set-as'} = 'right';
+				}
+				elsif ($screens->[$j]{'pos-x'} < 0){
+					$screens->[$j]{'set-as'} = 'left';
+				}
+				# not handling position top/middle/bottom yet
+			}
+		}
+	}
 	eval $end if $b_log;
 }
 sub set_compositor {
