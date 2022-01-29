@@ -13764,7 +13764,7 @@ sub display_data_x {
 					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$size_x_i = ($9) ? sprintf("%.1f", ($9 /25.4)) : 0;
 					$size_y_i = ($10) ? sprintf("%.1f", ($10/25.4)) : 0;
-					push(@positions,[$pos_x,$pos_y]);
+					push(@positions,[$pos_x,$pos_y,$set_as]);
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
@@ -13849,34 +13849,35 @@ sub display_data_wayland {
 sub set_monitor_position {
 	eval $start if $b_log;
 	my ($b_primary,$screens,$pos_screens) = @_;
+	# not printing out primary if 1 screen/1 monitor display
+	if (scalar @$screens == 1){
+		$screens->[0]{'set-as'} = undef if $screens->[0]{'set-as'};
+		return;
+	}
 	for (my $j = 0; $j < scalar @$screens; $j++){
 		if (!$b_primary){
-			if (scalar @$screens == 1){
-				$screens->[$j]{'set-as'} = 'primary';
-			}
-			elsif ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
+			# this is the only scenario we can safely guess at if no primary detected
+			if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
 				$screens->[$j]{'set-as'} = 'primary,left';
 			}
 		}
 		# stacked monitors will have position x == 0
-		if (scalar @$screens > 1){
-			if ($screens->[$j]{'set-as'} && $screens->[$j]{'set-as'} eq 'primary'){
-				if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
-					$screens->[$j]{'set-as'} .= ',left';
-				}
-				elsif ($screens->[$j]{'pos-x'} < 0){
-					$screens->[$j]{'set-as'} .= ',right';
-				}
+		if ($screens->[$j]{'set-as'} && $screens->[$j]{'set-as'} eq 'primary'){
+			if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
+				$screens->[$j]{'set-as'} .= ',left';
 			}
-			elsif (!$screens->[$j]{'set-as'}){
-				if ($screens->[$j]{'pos-x'} > 0){
-					$screens->[$j]{'set-as'} = 'right';
-				}
-				elsif ($screens->[$j]{'pos-x'} < 0){
-					$screens->[$j]{'set-as'} = 'left';
-				}
-				# not handling position top/middle/bottom yet
+			elsif ($screens->[$j]{'pos-x'} < 0){
+				$screens->[$j]{'set-as'} .= ',right';
 			}
+		}
+		elsif (!$screens->[$j]{'set-as'}){
+			if ($screens->[$j]{'pos-x'} > 0){
+				$screens->[$j]{'set-as'} = 'right';
+			}
+			elsif ($screens->[$j]{'pos-x'} < 0){
+				$screens->[$j]{'set-as'} = 'left';
+			}
+			# not handling position top/middle/bottom yet
 		}
 	}
 	eval $end if $b_log;
