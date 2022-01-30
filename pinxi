@@ -13738,6 +13738,7 @@ sub display_data_x {
 			my ($monitor_id,$pos_x,$pos_y,$primary,$screen,$screen_id,$set_as);
 			my (@monitors,@positions,@screen_positions,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
+			# my @xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/svn/branches/inxi-perl/xrandr.txt",'strip');
 			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
 			# multiple screens from different video cards
@@ -13858,7 +13859,7 @@ sub set_monitor_position {
 	my ($monitors,$screen) = @_;
 	my @horiz = (0);
 	my @vert = (0);
-	my ($line,$stack) = ('','');
+	my ($position) = ('');
 	# not printing out primary if Screen has only 1 Monitor
 	if (scalar @$screen == 1){
 		$screen->[0]{'set-as'} = undef;
@@ -13888,74 +13889,30 @@ sub set_monitor_position {
 	# print Data::Dumper::Dumper \@horiz;
 	for (my $j = 0; $j < scalar @$screen; $j++){
 		$screen->[$j]{'set-as'} ||= '';
-		($line,$stack) = ('','');
-		if (scalar @vert > 1){
-			$stack = check_position('vert',
-			$monitors->{'primary'},
-			$screen->[$j],
-			\@vert);
-		}
-		if (scalar @horiz > 1){
-			$line = check_position('horiz',
-			$monitors->{'primary'},
-			$screen->[$j],
-			\@horiz);
-		}
+		($position) = ('');
+		$position = check_position($screen->[$j],\@horiz,\@vert);
 		$screen->[$j]{'set-as'} .= ',' if $screen->[$j]{'set-as'};
-		$stack .= ',' if $stack && $line;
-		$screen->[$j]{'set-as'} .= $stack . $line
+		$screen->[$j]{'set-as'} .= $position
 	}
 	eval $end if $b_log;
 }
 sub check_position {
-	my ($type,$primary,$screen,$pos) = @_;
-	my ($position,$c_minus,$c_plus,$i_minus,$i_plus) = ('',0,0,0,0);
-	my (@minuses,@pluses);
-	my ($pos_xy,$pri_in,$plus,$minus) = ('pos-x',1,'left','right');
-	if ($type eq 'vert'){
-		($pos_xy,$pri_in,$plus,$minus) = ('pos-y',2,'over','under');
+	my ($screen,$horiz,$vert) = @_;
+	my ($i,$position) = (1,'');
+	foreach (@$vert){
+		if ($_ == $screen->{'pos-y'}){
+			$position = $i . '-';
+			last;
+		}
+		$i++;
 	}
-	# print "$type:\n";
-	foreach my $loc (@$pos){
-		if ($loc < $primary->[$pri_in] && $screen->{$pos_xy} < $primary->[$pri_in]){
-			$c_plus++;
+	$i = 1;
+	foreach (@$horiz){
+		if ($_ == $screen->{'pos-x'}){
+			$position .= $i;
+			last;
 		}
-		elsif ($loc > $primary->[$pri_in] && $screen->{$pos_xy} > $primary->[$pri_in]){
-			$c_minus++;
-		}
-		if ($loc > $screen->{$pos_xy} && $screen->{$pos_xy} < $primary->[$pri_in]){
-			if (!grep {$_ == $screen->{$pos_xy}} @pluses){
-				$i_plus++;
-				push(@pluses,$screen->{$pos_xy});
-			}
-		}
-		elsif ($loc < $screen->{$pos_xy} && $screen->{$pos_xy} > $primary->[$pri_in]){
-			if (!grep {$_ == $screen->{$pos_xy}} @minuses){
-				$i_minus++;
-				push(@minuses,$screen->{$pos_xy});
-			}
-		}
-		elsif ($loc == $screen->{$pos_xy}){
-			if ($screen->{$pos_xy} < $primary->[$pri_in] || $screen->{$pos_xy} == 0){
-				if (!grep {$_ == $screen->{$pos_xy}} @pluses){
-					$i_plus++;
-					push(@pluses,$screen->{$pos_xy});
-				}
-			}
-			elsif ($screen->{$pos_xy} > $primary->[$pri_in] || $screen->{$pos_xy} == $pos->[-1]){
-				if (!grep {$_ == $screen->{$pos_xy}} @minuses){
-					$i_minus++;
-					push(@minuses,$screen->{$pos_xy});
-				}
-			}
-		}
-		# print "$loc :: $primary->[$pri_in] :: $screen->{$pos_xy} :: i+$i_plus i-$i_minus c+$c_plus c-$c_minus\n";
-	}
-	if ($i_plus){
-		$position = ($c_plus > 1) ? $plus . '-' . ($c_plus - $i_plus + 1) : $plus;
-	}
-	elsif ($i_minus){
-		$position = ($c_minus > 1) ? $minus . '-' . ($c_minus - $i_minus + 1) : $minus;
+		$i++;
 	}
 	return $position;
 }
