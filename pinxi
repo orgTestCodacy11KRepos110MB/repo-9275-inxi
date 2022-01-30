@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-01-28';
-my $self_patch='04';
+my $self_date='2022-01-29';
+my $self_patch='05';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13652,7 +13652,7 @@ sub display_data_x {
 	# A failover mechanism is in place: if $version empty, release number parsed instead
 	if (my $program = main::check_program('xdpyinfo')){
 		my ($diagonal,$diagonal_m,$dpi) = ('','','');
-		my ($b_primary,$screen_id,$screen,@working);
+		my ($screen_id,$screen,@working);
 		my ($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i);
 		my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
 		# @xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
@@ -13735,8 +13735,8 @@ sub display_data_x {
 			($diagonal,$diagonal_m,$dpi) = (undef);
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
-			my ($monitor_id,$pos_x,$pos_y,$screen,$screen_id,$set_as);
-			my (@monitors,@pos_screen,@positions,@xrandr_screens);
+			my ($monitor_id,$pos_x,$pos_y,$primary,$screen,$screen_id,$set_as);
+			my (@monitors,@positions,@screen_positions,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			# $graphics{'dimensions'} = (\@dimensions);
 			# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -13746,12 +13746,16 @@ sub display_data_x {
 					$screen_id = $1;
 					if (@monitors){
 						push(@xrandr_screens,\@monitors);
-						push(@pos_screen,\@positions);
+						push(@screen_positions,{
+						'positions' => \@positions,
+						'primary' => $primary,
+						});
 						@monitors = ();
 						@positions = ();
+						$primary = undef;
 					}
 				}
-				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)([+-][0-9]+)([+-][0-9]+)(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+([0-9]+)\+([0-9]+)(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
 					$monitor_id = $1;
 					$set_as = $2;
 					$res_x = $3;
@@ -13764,13 +13768,13 @@ sub display_data_x {
 					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$size_x_i = ($9) ? sprintf("%.1f", ($9 /25.4)) : 0;
 					$size_y_i = ($10) ? sprintf("%.1f", ($10/25.4)) : 0;
-					push(@positions,[$pos_x,$pos_y,$set_as]);
+					push(@positions,[$monitor_id,$pos_x,$pos_y]);
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 					if ($set_as){
-						$b_primary = 1;
+						$primary = [$monitor_id,$pos_x,$pos_y];
 						$set_as =~ s/\s$//;
 					}
 					push(@monitors, {
@@ -13804,20 +13808,23 @@ sub display_data_x {
 				}
 			}
 			if (@monitors){
-				push(@xrandr_screens, \@monitors);
-				push(@pos_screen,\@positions);
+				push(@xrandr_screens,\@monitors);
+				push(@screen_positions,{
+				'positions' => \@positions,
+				'primary' => $primary,
+				});
 			}
 			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
 			my $i = 0;
 			foreach my $main (@{$graphics{'screens'}}){
 				# print "h: " . Data::Dumper::Dumper $main;
 				# print $main->{'screen'}, "\n";
-				foreach my $screens (@xrandr_screens){
+				foreach my $screen (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
-					set_monitor_position($b_primary,$screens,\@pos_screen) if $b_admin;
-					if ($screens->[0]{'screen'} eq $main->{'screen'} && 
+					set_monitor_position($screen_positions[$i],$screen) if $b_admin;
+					if ($screen->[0]{'screen'} eq $main->{'screen'} && 
 					 !defined $graphics{'screens'}->[$i]{'monitors'}){
-						$graphics{'screens'}->[$i]{'monitors'} = $screens;
+						$graphics{'screens'}->[$i]{'monitors'} = $screen;
 					}
 				}
 				$i++;
@@ -13848,39 +13855,109 @@ sub display_data_wayland {
 }
 sub set_monitor_position {
 	eval $start if $b_log;
-	my ($b_primary,$screens,$pos_screens) = @_;
-	# not printing out primary if 1 screen/1 monitor display
-	if (scalar @$screens == 1){
-		$screens->[0]{'set-as'} = undef if $screens->[0]{'set-as'};
+	my ($monitors,$screen) = @_;
+	my @horiz = (0);
+	my @vert = (0);
+	my ($line,$stack) = ('','');
+	# not printing out primary if Screen has only 1 Monitor
+	if (scalar @$screen == 1){
+		$screen->[0]{'set-as'} = undef;
 		return;
 	}
-	for (my $j = 0; $j < scalar @$screens; $j++){
-		if (!$b_primary){
-			# this is the only scenario we can safely guess at if no primary detected
-			if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
-				$screens->[$j]{'set-as'} = 'primary,left';
-			}
+	# then see if we can locate a default position primary monitor
+	for (my $j = 0; $j < scalar @$screen; $j++){
+		# this is the only scenario we can guess at if no primary detected
+		if (!$monitors->{'primary'} &&
+		 $screen->[$j]{'pos-x'} == 0 && $screen->[$j]{'pos-y'} == 0){
+			$screen->[$j]{'set-as'} = 'primary';
+			$monitors->{'primary'} = [
+			$screen->[$j]{'monitor'},
+			$screen->[$j]{'pos-x'},
+			$screen->[$j]{'pos-y'}];
 		}
-		# stacked monitors will have position x == 0
-		if ($screens->[$j]{'set-as'} && $screens->[$j]{'set-as'} eq 'primary'){
-			if ($screens->[$j]{'pos-x'} == 0 && $screens->[$j]{'pos-y'} == 0){
-				$screens->[$j]{'set-as'} .= ',left';
-			}
-			elsif ($screens->[$j]{'pos-x'} < 0){
-				$screens->[$j]{'set-as'} .= ',right';
-			}
+		if ($screen->[$j]{'pos-x'} > 0 && !(grep {$screen->[$j]{'pos-x'} == $_} @horiz)){
+			push(@horiz,$screen->[$j]{'pos-x'});
 		}
-		elsif (!$screens->[$j]{'set-as'}){
-			if ($screens->[$j]{'pos-x'} > 0){
-				$screens->[$j]{'set-as'} = 'right';
-			}
-			elsif ($screens->[$j]{'pos-x'} < 0){
-				$screens->[$j]{'set-as'} = 'left';
-			}
-			# not handling position top/middle/bottom yet
+		if ($screen->[$j]{'pos-y'} > 0 && !(grep {$screen->[$j]{'pos-y'} == $_} @vert)){
+			push(@vert,$screen->[$j]{'pos-y'});
 		}
 	}
+	@horiz = sort(@horiz);
+	@vert = sort(@vert);
+	# print Data::Dumper::Dumper $monitors;
+	# print Data::Dumper::Dumper \@horiz;
+	for (my $j = 0; $j < scalar @$screen; $j++){
+		$screen->[$j]{'set-as'} ||= '';
+		($line,$stack) = ('','');
+		if (scalar @vert > 1){
+			$stack = check_position('vert',
+			$monitors->{'primary'},
+			$screen->[$j],
+			\@vert);
+		}
+		if (scalar @horiz > 1){
+			$line = check_position('horiz',
+			$monitors->{'primary'},
+			$screen->[$j],
+			\@horiz);
+		}
+		$screen->[$j]{'set-as'} .= ',' if $screen->[$j]{'set-as'};
+		$stack .= ',' if $stack && $line;
+		$screen->[$j]{'set-as'} .= $stack . $line
+	}
 	eval $end if $b_log;
+}
+sub check_position {
+	my ($type,$primary,$screen,$pos) = @_;
+	my ($position,$c_minus,$c_plus,$i_minus,$i_plus) = ('',0,0,0,0);
+	my (@minuses,@pluses);
+	my ($pos_xy,$pri_in,$plus,$minus) = ('pos-x',1,'left','right');
+	if ($type eq 'vert'){
+		($pos_xy,$pri_in,$plus,$minus) = ('pos-y',2,'over','under');
+	}
+	# print "$type:\n";
+	foreach my $loc (@$pos){
+		if ($loc < $primary->[$pri_in] && $screen->{$pos_xy} < $primary->[$pri_in]){
+			$c_plus++;
+		}
+		elsif ($loc > $primary->[$pri_in] && $screen->{$pos_xy} > $primary->[$pri_in]){
+			$c_minus++;
+		}
+		if ($loc > $screen->{$pos_xy} && $screen->{$pos_xy} < $primary->[$pri_in]){
+			if (!grep {$_ == $screen->{$pos_xy}} @pluses){
+				$i_plus++;
+				push(@pluses,$screen->{$pos_xy});
+			}
+		}
+		elsif ($loc < $screen->{$pos_xy} && $screen->{$pos_xy} > $primary->[$pri_in]){
+			if (!grep {$_ == $screen->{$pos_xy}} @minuses){
+				$i_minus++;
+				push(@minuses,$screen->{$pos_xy});
+			}
+		}
+		elsif ($loc == $screen->{$pos_xy}){
+			if ($screen->{$pos_xy} < $primary->[$pri_in] || $screen->{$pos_xy} == 0){
+				if (!grep {$_ == $screen->{$pos_xy}} @pluses){
+					$i_plus++;
+					push(@pluses,$screen->{$pos_xy});
+				}
+			}
+			elsif ($screen->{$pos_xy} > $primary->[$pri_in] || $screen->{$pos_xy} == $pos->[-1]){
+				if (!grep {$_ == $screen->{$pos_xy}} @minuses){
+					$i_minus++;
+					push(@minuses,$screen->{$pos_xy});
+				}
+			}
+		}
+		# print "$loc :: $primary->[$pri_in] :: $screen->{$pos_xy} :: i+$i_plus i-$i_minus c+$c_plus c-$c_minus\n";
+	}
+	if ($i_plus){
+		$position = ($c_plus > 1) ? $plus . '-' . ($c_plus - $i_plus + 1) : $plus;
+	}
+	elsif ($i_minus){
+		$position = ($c_minus > 1) ? $minus . '-' . ($c_minus - $i_minus + 1) : $minus;
+	}
+	return $position;
 }
 sub set_compositor {
 	eval $start if $b_log;
