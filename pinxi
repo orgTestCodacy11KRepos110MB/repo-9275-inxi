@@ -13606,8 +13606,8 @@ sub display_output(){
 						}
 						$row_key++;
 						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
-						if ($monitor->{'set-as'}){
-							$row[$row_key]->{main::key($num++,0,4,'as')} = $monitor->{'set-as'};
+						if ($monitor->{'position'}){
+							$row[$row_key]->{main::key($num++,0,4,'pos')} = $monitor->{'position'};
 						}
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
 							$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
@@ -13736,7 +13736,7 @@ sub display_data_x {
 			($screen_id,$screen,@working) = (undef);
 			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
 			my ($monitor_id,$pos_x,$pos_y,$primary,$screen,$screen_id,$set_as);
-			my (@monitors,@positions,@screen_positions,@xrandr_screens);
+			my (@monitors,@primaries,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 			# my @xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/svn/branches/inxi-perl/xrandr.txt",'strip');
 			# $graphics{'dimensions'} = (\@dimensions);
@@ -13747,12 +13747,8 @@ sub display_data_x {
 					$screen_id = $1;
 					if (@monitors){
 						push(@xrandr_screens,\@monitors);
-						push(@screen_positions,{
-						'positions' => \@positions,
-						'primary' => $primary,
-						});
+						push(@primaries,{'primary' => $primary});
 						@monitors = ();
-						@positions = ();
 						$primary = undef;
 					}
 				}
@@ -13769,13 +13765,12 @@ sub display_data_x {
 					$res_y_i = ($4) ? sprintf("%.1f", ($4/25.4)) : 0;
 					$size_x_i = ($9) ? sprintf("%.1f", ($9 /25.4)) : 0;
 					$size_y_i = ($10) ? sprintf("%.1f", ($10/25.4)) : 0;
-					push(@positions,[$monitor_id,$pos_x,$pos_y]);
 					$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
 					$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 					$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 					$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 					if ($set_as){
-						$primary = [$monitor_id,$pos_x,$pos_y];
+						$primary = $monitor_id;
 						$set_as =~ s/\s$//;
 					}
 					push(@monitors, {
@@ -13794,7 +13789,7 @@ sub display_data_x {
 					'dpi' => $dpi,
 					'diagonal' => $diagonal,
 					'diagonal-m' => $diagonal_m,
-					'set-as' => $set_as,
+					'position' => $set_as,
 					});
 					# print "x:$size_x y:$size_y rx:$res_x ry:$res_y dpi:$dpi\n";
 					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i,$set_as) = (0,0,0,0,0,0,0,0,undef);
@@ -13810,10 +13805,7 @@ sub display_data_x {
 			}
 			if (@monitors){
 				push(@xrandr_screens,\@monitors);
-				push(@screen_positions,{
-				'positions' => \@positions,
-				'primary' => $primary,
-				});
+				push(@primaries,{'primary' => $primary});
 			}
 			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
 			my $i = 0;
@@ -13822,7 +13814,7 @@ sub display_data_x {
 				# print $main->{'screen'}, "\n";
 				foreach my $screen (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
-					set_monitor_position($screen_positions[$i],$screen) if $b_admin;
+					set_monitor_position($primaries[$i],$screen) if $b_admin;
 					if ($screen->[0]{'screen'} eq $main->{'screen'} && 
 					 !defined $graphics{'screens'}->[$i]{'monitors'}){
 						$graphics{'screens'}->[$i]{'monitors'} = $screen;
@@ -13857,12 +13849,11 @@ sub display_data_wayland {
 sub set_monitor_position {
 	eval $start if $b_log;
 	my ($monitors,$screen) = @_;
-	my @horiz = (0);
-	my @vert = (0);
-	my ($position) = ('');
+	my (@horiz,@vert);
+	my $position = '';
 	# not printing out primary if Screen has only 1 Monitor
 	if (scalar @$screen == 1){
-		$screen->[0]{'set-as'} = undef;
+		$screen->[0]{'position'} = undef;
 		return;
 	}
 	# then see if we can locate a default position primary monitor
@@ -13870,29 +13861,24 @@ sub set_monitor_position {
 		# this is the only scenario we can guess at if no primary detected
 		if (!$monitors->{'primary'} &&
 		 $screen->[$j]{'pos-x'} == 0 && $screen->[$j]{'pos-y'} == 0){
-			$screen->[$j]{'set-as'} = 'primary';
-			$monitors->{'primary'} = [
-			$screen->[$j]{'monitor'},
-			$screen->[$j]{'pos-x'},
-			$screen->[$j]{'pos-y'}];
+			$screen->[$j]{'position'} = 'primary';
+			$monitors->{'primary'} = $screen->[$j]{'monitor'};
 		}
-		if ($screen->[$j]{'pos-x'} > 0 && !(grep {$screen->[$j]{'pos-x'} == $_} @horiz)){
+		if (!grep {$screen->[$j]{'pos-x'} == $_} @horiz){
 			push(@horiz,$screen->[$j]{'pos-x'});
 		}
-		if ($screen->[$j]{'pos-y'} > 0 && !(grep {$screen->[$j]{'pos-y'} == $_} @vert)){
+		if (!grep {$screen->[$j]{'pos-y'} == $_} @vert){
 			push(@vert,$screen->[$j]{'pos-y'});
 		}
 	}
 	@horiz = sort(@horiz);
 	@vert = sort(@vert);
-	# print Data::Dumper::Dumper $monitors;
-	# print Data::Dumper::Dumper \@horiz;
 	for (my $j = 0; $j < scalar @$screen; $j++){
-		$screen->[$j]{'set-as'} ||= '';
+		$screen->[$j]{'position'} ||= '';
 		($position) = ('');
 		$position = check_position($screen->[$j],\@horiz,\@vert);
-		$screen->[$j]{'set-as'} .= ',' if $screen->[$j]{'set-as'};
-		$screen->[$j]{'set-as'} .= $position
+		$screen->[$j]{'position'} .= ',' if $screen->[$j]{'position'};
+		$screen->[$j]{'position'} .= $position
 	}
 	eval $end if $b_log;
 }
