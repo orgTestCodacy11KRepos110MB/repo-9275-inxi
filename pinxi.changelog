@@ -26,14 +26,14 @@ oversight.
 ENHANCEMENTS:
 
 1. Show primary monitor with pos: primary,right. Uses either xrandr 'primary' 
-value, or if no 'primary' found in an Xorg Screen, uses +0+0 monitor. Position 
-is based on the row and column number in the rectangular grid of monitors when 
-monitors per Screen are > 1. 
+value, or if no 'primary' found in an Xorg Screen, uses +0+0 positioned monitor. 
+Position is based on the row and column number in the rectangular grid of 
+monitors when monitors per Xorg Screen are > 1. 
 
 For most common multi-monitor layouts, text positions are used, which are in 
 general more clear and easy to understand than their internal numeric 
 counterparts, that is, unless the layout is too complicated, it will show left, 
-or top-left, instead of 1-1.
+or top-left, instead of 1-1, and so on.
 
 Text mode positions are available for the following grid styles currently: 1x2; 
 1x3; 1x4; 2x1; 2x2; 2x3; 3x3. top means the top row if > 1 row, bottom means the 
@@ -43,7 +43,8 @@ center columns if 4 columns. bottom-l, bottom-c, bottom-r, and middle-l,
 middle-c, middle-r complete the possible values. 
 
 If the grid of monitors is greater than the supported rows or columns, it will 
-switch to numeric row-column mode.
+switch to numeric row-column mode, with column-row numbering starting at 1-1, 
+top left.
 
 --------------------------------------------------------------------------------
 CHANGES:
@@ -52,10 +53,37 @@ CHANGES:
 --------------------------------------------------------------------------------
 DOCUMENTATION:
 
+1. Help and man page updates for -Ga monitor layout position feature.
 
 --------------------------------------------------------------------------------
 CODE:
 
+1. Slightly optimized use of array loads on disk_vendor() based on how it's now 
+done for monitor layouts, which is more efficient, use a scalar to hold a 
+reference to the array, that avoids having the array ever exist in more than 1 
+place. Part of the ongoing process of avoiding extra hash and array copies 
+globally.
+
+2. Moved to consistent undef behaviors. 
+ * For lists of variables use () to undefine, changed all of the the following: 
+    1. (@a,$b,$c,%d) = (undef,undef,undef,undef);
+    2. (@a,$b,$c,%d) = (undef);
+    3. (@a,$b,$c,%d) = undef;
+   to use: (@a,$b,$c,%d) = (); This undefines all the variables in the list.
+   Note that assigning undef to @a in the first example creates an array of 1 
+   key, with the value undef, and (@a,@b) = (undef,undef) creates arrays of 2
+   indexes, or something like that. Not what was wanted.
+   Examples 2 and 3 assign undef to @a: an array of 1 index, value undef, and 
+   undefine the others variables in the list. This was not the desired behavior!
+ * For most scalars, arrays, and hashes, use: undef @a; undef $s; undef %h.
+ * For some hash and array index values, use $h{a} = undef. These cases may want
+   the key itself to exist, with the value of undef, though I believe: 
+    undef $h{a};
+   is synonymous, but still have to verify that. 
+
+I did some testing, and realized that some of the undef I had used in the 
+various previous ways of using undef were not actually resulting in the expected 
+behaviors.
 
 --------------------------------------------------------------------------------
 -- Harald Hope - Tue, 18 Jan 2022 23:16:24 -0800

@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.12';
 my $self_date='2022-01-31';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2229,7 +2229,7 @@ sub get_glob {
 		else {
 			$item = main::message('root-required');
 		}
-		$item = main::message('undefined') if ! defined $item;
+		$item = main::message('undefined') if !defined $item;
 		push(@result,$_ . '::' . $item);
 	}
 	# print Data::Dumper::Dumper \@result;
@@ -7466,7 +7466,7 @@ sub get {
 			@rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 	}
-	(@upower_items,$b_upower,$upower) = undef;
+	(@upower_items,$b_upower,$upower) = ();
 	eval $end if $b_log;
 	return @rows;
 }
@@ -9835,7 +9835,7 @@ sub dmidecode_data {
 		# Older dmidecode appear to have unreliable Upgrade outputs
 		elsif ($item->[0] == 4){
 			# skip first three row,s we don't need that data
-			($socket,$upgrade) = (undef,undef);
+			($socket,$upgrade) = ();
 			$dmi_data{'phys-cnt'}++; # try to catch bsds without physical cpu count
 			foreach my $value (@$item[3 .. $#$item]){
 				next if $value =~ /^~/;
@@ -9872,11 +9872,11 @@ sub dmidecode_data {
 	# Seen older cases where Upgrade: Other value exists
 	if ($socket || $upgrade){
 		if ($socket && $upgrade){
-			$upgrade = undef if $socket eq $upgrade;
+			undef $upgrade if $socket eq $upgrade;
 		}
 		elsif ($upgrade){
 			$socket = $upgrade;
-			$upgrade = undef;
+			undef $upgrade;
 		}
 		$dmi_data{'socket'} = $socket;
 		$dmi_data{'upgrade'} = $upgrade;
@@ -10074,7 +10074,7 @@ sub cp_data_dmi {
 	}
 	# We have to undef all the sys stuff to get back to the true dmidecode results
 	# Too many variants to treat one by one, just clear it out if forced.
-	undef %$caches if $force{'dmidecode'};
+	undef $caches if $force{'dmidecode'};
 	# We don't want to use dmi L1/L2/L3 at all for non BSD systems unless forced
 	# because have seen totally gibberish dmidecode data for caches. /sys cache 
 	# data preferred, more granular and basically consistently right.
@@ -10409,7 +10409,7 @@ sub cp_cache_desc {
 		$desc .= $sep . $cache_desc->{$_} . 'x' . main::get_size($_,'string');
 		$sep = ', ';
 	}
-	undef %{$cache_desc};
+	undef $cache_desc;
 	return $desc;
 }
 # $caches passed by reference
@@ -11344,9 +11344,9 @@ sub hex_and_decimal {
 ## DriveItem
 {
 package DriveItem;
-my ($b_hddtemp,$b_nvme,$smartctl_missing);
+my ($b_hddtemp,$b_nvme,$smartctl_missing,$vendors);
 my ($hddtemp,$nvme) = ('','');
-my (@by_id,@by_path,@vendors);
+my (@by_id,@by_path);
 my ($debugger_dir);
 # main::writer("$debugger_dir/system-repo-data-urpmq.txt",\@data2) if $debugger_dir;
 sub get {
@@ -11396,8 +11396,8 @@ sub get {
 	if ($show{'optical'} || $show{'optical-basic'}){
 		push(@rows,OpticalItem::get());
 	}
-	($b_hddtemp,$b_nvme,$hddtemp,$nvme) = (undef,undef,undef,undef);
-	(@by_id,@by_path) = (undef,undef);
+	($b_hddtemp,$b_nvme,$hddtemp,$nvme,$vendors) = ();
+	(@by_id,@by_path) = ();
 	eval $end if $b_log;
 	return @rows;
 }
@@ -12600,7 +12600,8 @@ sub disk_data_by_id {
 # 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 sub set_vendors {
 	eval $start if $b_log;
-	@vendors = (
+	my $vendors = $_[0];
+	@$vendors = (
 	## MOST LIKELY/COMMON MATCHES ##
 	['(Crucial|^(FC)?CT|-CT|^M4\b|Gizmo!|^((C300-)?CTF[\s-]?)?DDAC)','Crucial','Crucial',''],
 	# H10 HBRPEKNX0202A NVMe INTEL 512GB
@@ -13048,12 +13049,15 @@ sub device_vendor {
 	my ($vendor) = ('');
 	my (@data);
 	return if !$model;
-	set_vendors() if !@vendors;
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 	# Data URLs: inxi-resources.txt Section: DriveItem device_vendor()
 	# $model = 'H10 HBRPEKNX0202A NVMe INTEL 512GB';
 	# $model = 'Patriot Memory';
-	foreach my $row (@vendors){
+	if (!$vendors){
+		$vendors = [];
+		set_vendors($vendors);
+	}
+	foreach my $row (@$vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
 			# Usually we want to assign N/A at output phase, maybe do this logic there?
@@ -13545,7 +13549,7 @@ sub display_output(){
 			foreach my $main (@{$graphics{'screens'}}){
 				$m_count = scalar @{$main->{'monitors'}} if $main->{'monitors'};
 				$screen_count++;
-				($diag,$dpi,$hz,$resolution,$size) = (undef);
+				($diag,$dpi,$hz,$resolution,$size) = ();
 				$row_key++ if !$show{'graphic-basic'};
 				if (!$show{'graphic-basic'} || $m_count == 0){
 					if (!$show{'graphic-basic'} && defined $main->{'screen'}){
@@ -13582,7 +13586,7 @@ sub display_output(){
 				if ($main->{'monitors'}){
 					# print $basic_count . '::' . $m_count, "\n";
 					foreach my $monitor (@{$main->{'monitors'}}){
-						($diag,$dpi,$hz,$resolution,$size) = (undef);
+						($diag,$dpi,$hz,$resolution,$size) = ();
 						if ($show{'graphic-basic'}){
 							$basic_count++;
 							if ($monitor->{'res-x'} && $monitor->{'res-y'}){
@@ -13698,7 +13702,7 @@ sub display_data_x {
 				$graphics{'s-dpi'} = $working[1];
 			}
 			elsif ($working[0] eq 'dimensions'){
-				($dpi,$res_x,$res_y,$size_x,$size_y) = (undef,undef,undef,undef,undef);
+				($dpi,$res_x,$res_y,$size_x,$size_y) = ();
 				if ($working[1] =~ /([0-9]+)\s*x\s*([0-9]+)\s+pixels\s+\(([0-9]+)\s*x\s*([0-9]+)\s*millimeters\)/){
 					$res_x = $1;
 					$res_y = $2;
@@ -13732,9 +13736,9 @@ sub display_data_x {
 		}
 		# print Data::Dumper::Dumper $graphics{'screens'};
 		if (my $program = main::check_program('xrandr')){
-			($diagonal,$diagonal_m,$dpi) = (undef);
-			($screen_id,$screen,@working) = (undef);
-			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = (undef);
+			($diagonal,$diagonal_m,$dpi) = ();
+			($screen_id,$screen,@working) = ();
+			($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i) = ();
 			my ($monitor_id,$pos_x,$pos_y,$primary,$screen,$screen_id,$set_as);
 			my (@monitors,@primaries,@xrandr_screens);
 			my @xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
@@ -13749,10 +13753,13 @@ sub display_data_x {
 						push(@xrandr_screens,\@monitors);
 						push(@primaries,$primary);
 						@monitors = ();
-						$primary = undef;
+						undef $primary;
 					}
 				}
-				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+([0-9]+)\+([0-9]+)(\s\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+				# HDMI-2 connected 1920x1200+1080+0 (normal left inverted right x axis y axis) 519mm x 324mm
+				# DP-1 connected primary 2560x1440+1080+1200 (normal left inverted right x axis y axis) 598mm x 336mm
+				# HDMI-1 connected 1080x1920+0+0 left (normal left inverted right x axis y axis) 160mm x 90mm
+				if (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+([0-9]+)\+([0-9]+)(\s[^(]*\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
 					$monitor_id = $1;
 					$set_as = $2;
 					$res_x = $3;
@@ -13792,7 +13799,8 @@ sub display_data_x {
 					'position' => $set_as,
 					});
 					# print "x:$size_x y:$size_y rx:$res_x ry:$res_y dpi:$dpi\n";
-					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i,$set_as) = (0,0,0,0,0,0,0,0,undef);
+					($res_x,$res_x_i,$res_y,$res_y_i,$size_x,$size_x_i,$size_y,$size_y_i,
+					$set_as) = (0,0,0,0,0,0,0,0,undef);
 				}
 				my @working = split(/\s+/,$_);
 				if ($working[1] =~ /\*/){
@@ -13809,14 +13817,17 @@ sub display_data_x {
 			}
 			# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
 			my $i = 0;
-			my $layouts = [];
+			my $layouts;
 			foreach my $main (@{$graphics{'screens'}}){
 				# print "h: " . Data::Dumper::Dumper $main;
 				# print $main->{'screen'}, "\n";
 				foreach my $screen (@xrandr_screens){
 					# print "d: " . Data::Dumper::Dumper $screens;
 					if ($b_admin){
-						set_layouts($layouts) if !@$layouts;
+						if (!$layouts){
+							$layouts = [];
+							set_layouts($layouts);
+						}
 						set_monitor_position($primaries[$i],$screen,$layouts);
 					}
 					if ($screen->[0]{'screen'} eq $main->{'screen'} && 
@@ -13826,8 +13837,7 @@ sub display_data_x {
 				}
 				$i++;
 			}
-			# print Data::Dumper::Dumper $layouts;
-			$layouts = undef;
+			undef $layouts;
 			if (!$graphics{'screens'}){
 				$graphics{'tty'} = tty_data();
 			}
@@ -13840,7 +13850,6 @@ sub display_data_x {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-
 sub display_data_wayland {
 	eval $start if $b_log;
 	if ($ENV{'WAYLAND_DISPLAY'}){
@@ -16860,7 +16869,7 @@ sub swap_data {
 }
 sub swap_advanced_data {
 	eval $start if $b_log;
-	my ($swappiness,$cache_pressure) = (undef,undef);
+	my ($swappiness,$cache_pressure) = ();
 	if (-r '/proc/sys/vm/swappiness'){
 		$swappiness = main::reader('/proc/sys/vm/swappiness','',0);
 		if (defined $swappiness){
@@ -18505,7 +18514,7 @@ sub check_zfs_status {
 ## RamItem
 {
 package RamItem;
-my (@vendors,%vendor_ids);
+my ($vendors,$vendor_ids);
 sub get {
 	my (@data,@rows,$key1,@ram,$val1);
 	my $num = 0;
@@ -18547,6 +18556,7 @@ sub get {
 		});
 	}
 	push(@rows,@data);
+	($vendors,$vendor_ids) = ();
 	eval $end if $b_log;
 	return @rows;
 }
@@ -18912,9 +18922,9 @@ sub dmidecode_data {
 				$part_number = $result[1] if $result[1];
 			}
 			if ($vendor_id && !$manufacturer){
-				set_vendor_ids() if !%vendor_ids;
-				if ($vendor_ids{$vendor_id}){
-					$manufacturer = $vendor_ids{$vendor_id};
+				set_vendor_ids() if !$vendor_ids;
+				if ($vendor_ids->{$vendor_id}){
+					$manufacturer = $vendor_ids->{$vendor_id};
 				}
 			}
 			$ram[$handle]->{'derived-module-size'} = $derived_module_size;
@@ -19303,7 +19313,7 @@ sub speed_mapper {
 	return ($speeds{$type}) ?  $speeds{$type} . ' MT/s' : $type;
 }
 sub set_vendors {
-	@vendors = (
+	$vendors = [
 	# A-Data xpg: AX4U; AX\d{4} for axiom
 	['^(A[DX]\dU|AVD|A[\s-]?Data)','A[\s-]?Data','A-Data',''],
 	['^(A[\s-]?Tech)','A[\s-]?Tech','A-Tech',''], # don't know part nu
@@ -19346,11 +19356,11 @@ sub set_vendors {
 	['^(TR\d|JM\d|Transcend)','Transcend','Transcend',''],
 	['^(VK\d|Vaseky)','Vaseky','Vaseky',''],
 	['^(Yangtze|Zhitai)','Yangtze(\s*Memory)?','Yangtze Memory',''],
-	);
+	];
 }
 # note: many of these are pci ids, not confirmed valid for ram
 sub set_vendor_ids {
-	%vendor_ids = {
+	$vendor_ids = {
 	'01f4' => 'Transcend',# confirmed
 	'02fe' => 'Elpida',# confirmed
 	'0314' => 'Mushkin',# confirmed
@@ -19385,9 +19395,9 @@ sub set_vendor_ids {
 sub ram_vendor {
 	eval $end if $b_log;
 	my ($id) = $_[0];
-	set_vendors() if !@vendors;
+	set_vendors() if !$vendors;
 	my ($vendor,@data);
-	foreach my $row (@vendors){
+	foreach my $row (@$vendors){
 		if ($id =~ /$row->[0]/i){
 			$vendor = $row->[2];
 			# Usually we want to assign N/A at output phase, maybe do this logic there?
@@ -20426,7 +20436,7 @@ sub sensors_output {
 		my $gpu_unit = (defined $gpu[0]->{'temp-unit'}) ? " $gpu[0]->{'temp-unit'}" : ' C';
 		foreach my $info (@gpu){
 			# speed unit is either '' or %
-			my $gpu_fan = (defined $info->{'fan-speed'}) ? $info->{'fan-speed'} . $info->{'speed-unit'}: undef ;
+			my $gpu_fan = (defined $info->{'fan-speed'}) ? $info->{'fan-speed'} . $info->{'speed-unit'}: undef;
 			my $gpu_type = $info->{'type'};
 			my $gpu_temp = (defined $info->{'temp'}) ? $info->{'temp'} . $gpu_unit: 'N/A';
 			$rows[$j]->{main::key($num++,1,2,'device')} = $gpu_type;
@@ -23008,7 +23018,7 @@ sub get {
 	set_gtk_data() if $b_gtk && $extra > 1;
 	set_qt_data() if $b_qt && $extra > 1;
 	main::log_data('dump','@desktop', \@desktop) if $b_log;
-	# ($b_xprop,$kde_session_version,$xdg_desktop,@data,@xprop) = undef;
+	# ($b_xprop,$kde_session_version,$xdg_desktop,@data,@xprop) = ();
 	eval $end if $b_log;
 	return @desktop;
 }
@@ -23722,7 +23732,7 @@ sub set {
 			main::log_data('dump','$devices{timer}',$devices{'timer'});
 		}
 	}
-	@devices = undef;
+	undef @devices;
 	eval $end if $b_log;
 }
 
@@ -23945,7 +23955,7 @@ sub pcidump_data {
 			$rev,$port,$driver,$modules,$driver_nu,'','','',$serial);
 			assign_data('pci',\@temp);
 			($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
-			$rev,$port,$driver,$modules,$driver_nu,$serial) = undef;
+			$rev,$port,$driver,$modules,$driver_nu,$serial) = ();
 			next;
 		}
 		if ($_ =~ /^([0-9a-f:]+):([0-9]+):\s([^:]+)$/i){
@@ -23994,7 +24004,7 @@ sub pcictl_data {
 			$rev,$port,$driver,$modules,$driver_nu);
 			assign_data('pci',\@temp);
 			($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
-			$rev,$port,$driver,$modules,$driver_nu) = undef;
+			$rev,$port,$driver,$modules,$driver_nu) = ();
 			next;
 		}
 		# it's too fragile to get these in one matching so match, trim, next match
@@ -24144,7 +24154,7 @@ sub soc_devices_files {
 	push(@files,@temp2) if @temp2;
 	@temp2 = main::globber('/sys/devices/*/*/uevent'); # see case 10
 	push(@files,@temp2) if @temp2;
-	@temp2 = undef;
+	undef @temp2;
 	# not sure why, but even as root/sudo, /subsystem|driver/uevent are unreadable with -r test true
 	@files = grep {!/\/(subsystem|driver)\//} @files if @files;
 	main::uniq(\@files);
@@ -24165,7 +24175,7 @@ sub soc_devices {
 		$chip_id = $5;
 		$temp = $7;
 		@working = main::reader($file, 'strip') if -r $file;
-		($device,$driver,$handle,$type,$vendor_id) = (undef,undef,undef,undef,undef);
+		($device,$driver,$handle,$type,$vendor_id) = ();
 		foreach my $data (@working){
 			@temp2 = split('=', $data);
 			if ($temp2[0] eq 'DRIVER'){
@@ -24564,7 +24574,7 @@ sub set_disklabel_data {
 			last;
 		}
 		else {
-			my ($b_part,$duid,$part_id,$bytes_sector) = undef;
+			my ($b_part,$duid,$part_id,$bytes_sector) = ();
 			if ($extra > 2 && $show{'disk'} && $alerts{'fdisk'}->{'action'} eq 'use'){
 				$disks_bsd{$id}->{'partition-table'} = fdisk_data($id);
 			}
@@ -25156,7 +25166,7 @@ sub system_base {
 			@osr = @osr_working;
 			$system_base = get_os_release();
 			@osr = @osr_temp if !$system_base;
-			(@osr_temp,@osr_working) = (undef,undef);
+			(@osr_temp,@osr_working) = ();
 		}
 	}
 	elsif (-r $base_upstream_lsb){
@@ -26453,10 +26463,10 @@ sub package_counts {
 				@list = main::globber($_->[3]);
 			}
 			else {
-				@list = undef;
+				undef @list;
 				$error = main::message('pm-disabled');
 			}
-			$libs = undef;
+			undef $libs;
 			# print Data::Dumper::Dumper \@list;
 			if (!$error){
 				$count = scalar @list;
@@ -27527,7 +27537,7 @@ sub usbconfig_data {
 			undef @working;
 		}
 		elsif (/^([a-z_-]+)([0-9]+)\.([0-9]+):\s+<[^>]+>\s+at usbus([0-9]+)\b/){
-			($class_id,$cfg,$power,$speed,$subclass_id,$type) = undef;
+			($class_id,$cfg,$power,$speed,$subclass_id,$type) = ();
 			($product,$product_id,$vendor,$vendor_id) = ('','','','');
 			$hub_id = $2;
 			$addr_id = $3;
