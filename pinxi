@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-01';
-my $self_patch='09';
+my $self_date='2022-02-02';
+my $self_patch='10';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5572,8 +5572,8 @@ sub show_options {
 	sco-mtu, link-policy, link-mode, service-classes."],
 	['2', '-G', '', "If available: Xorg Display ID, Screens total, default Screen,
 	current Screen; per X Screen: resolution, dpi, size, diagonal; per Monitor: 
-	ID, position, resolution, hz, dpi, size, diagonal; list of alternate kernel 
-	modules/drivers for device(s)."],
+	ID, position, model, resolution, hz, dpi, size, diagonal; list of alternate
+	kernel modules/drivers for device(s)."],
 	['2', '-I', '', "As well as per package manager counts, also adds total
 	number of lib files found for each package manager if not -r; adds init
 	service tool."],
@@ -5653,11 +5653,11 @@ sub show_options {
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available); disk duid (some BSDs)."],
 	['2', '-E', '', "Chip vendor:product ID, LMP subversion."],
-	['2', '-G', '', "Chip vendor:product ID for each video device; OpenGL 
-	compatibility version, if free drivers and available; Xorg compositor;
-	alternate Xorg drivers (if available). Alternate means driver is on automatic 
-	driver check list of Xorg for the device vendor, but is not installed on 
-	system; Xorg dpi."],
+	['2', '-G', '', "Chip vendor:product ID for each video device; Output ports, 
+	used and empty; OpenGL compatibility version, if free drivers and available; 
+	Xorg compositor; alternate Xorg drivers (if available). Alternate means driver 
+	is on automatic driver check list of Xorg for the device vendor, but is not 
+	installed on system; Xorg dpi."],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found). Adds per package manager
@@ -13297,7 +13297,7 @@ sub device_speed {
 {
 package GraphicItem;
 my $driver = ''; # we need this as a fallback in case no xorg log found
-my %graphics;
+my (%graphics,$monitor_ids);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13334,6 +13334,7 @@ sub device_output {
 	return if !$devices{'graphics'};
 	my (@rows);
 	my ($j,$num) = (0,1);
+	set_monitors() if $extra > 1 && !$monitor_ids && -e '/sys/class/drm';
 	foreach my $row (@{$devices{'graphics'}}){
 		$num = 1;
 		# print "$row->[0] $row->[3]\n";
@@ -13374,6 +13375,9 @@ sub device_output {
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
 				main::get_pcie_data($bus_id,$j,\@rows,\$num,'gpu');
+			}
+			if ($extra > 1 && $monitor_ids){
+				port_output($bus_id,$j,\@rows,\$num);
 			}
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
@@ -13419,7 +13423,11 @@ sub usb_output {
 		main::key($num++,0,2,'driver') => $driver,
 		},);
 		if ($extra > 0){
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
+			my $bus_id = "$path_id:$row->[1]";
+			if ($extra > 1 && $monitor_ids){
+				port_output($bus_id,$j,\@rows,\$num);
+			}
+			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
 			$row->[7] ||= 'N/A';
@@ -13434,6 +13442,30 @@ sub usb_output {
 	}
 	eval $end if $b_log;
 	return @rows;
+}
+# $rows, $num by ref
+sub port_output {
+	my ($bus_id,$j,$rows,$num) = @_;
+	my (@connected,@empty);
+	foreach my $id (keys %$monitor_ids){
+		next if !$monitor_ids->{$id}{'status'};
+		if ($monitor_ids->{$id}{'path'} =~ m|$bus_id/drm/|){
+			if ($monitor_ids->{$id}{'status'} eq 'connected'){
+				push(@connected,$id);
+			}
+			else {
+				push(@empty,$id);
+			}
+		}
+	}
+	if (@connected || @empty){
+		my ($used,$unused);
+		$$rows[$j]->{main::key($$num++,1,2,'ports')} = '';
+		$used = (@connected) ? join(',',@connected) : 'none';
+		$$rows[$j]->{main::key($$num++,0,3,'used')} = $used;
+		$unused = (@empty) ? join(',',@empty) : 'none';
+		$$rows[$j]->{main::key($$num++,0,3,'empty')} = $unused;
+	}
 }
 sub display_output(){
 	eval $start if $b_log;
@@ -13628,6 +13660,9 @@ sub display_output(){
 						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
 						if ($monitor->{'position'}){
 							$row[$row_key]->{main::key($num++,0,4,'pos')} = $monitor->{'position'};
+						}
+						if ($monitor_ids && $monitor_ids->{$monitor->{'monitor'}}{'product'}){
+							$row[$row_key]->{main::key($num++,0,4,'model')} = $monitor_ids->{$monitor->{'monitor'}}{'product'};
 						}
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
 							$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
@@ -14010,6 +14045,49 @@ sub set_layouts {
 	$layouts->[3][3] = {'1-1' => 'top-left','1-2' => 'top-center',,'1-3' => 'top-right',
 	 '2-1' => 'middle-l','2-2' => 'middle-c','2-3' => 'middle-r',
 	 '3-1' => 'bottom-l','3-2' => 'bottom-c','3-3' => 'bottom-r'};
+}
+sub set_monitors {
+	eval $start if $b_log;
+	my $glob = '/sys/class/drm/card*-*/{edid,enabled,status}';
+	my @data = main::globber($glob);
+	return if !@data;
+	my (@edid,$item,$path,$port);
+	foreach my $file (@data){
+		next if ! -r $file;
+		$item = $file;
+		$item =~ s|(/.*/card\d+-([^/]+))/(.+)||;
+		$path = $1;
+		$port = $2;
+		$item = $3;
+		$monitor_ids = {} if !$monitor_ids;
+		$monitor_ids->{$port}{'path'} = readlink($path);
+		$monitor_ids->{$port}{'path'} =~ s|^\.\./\.\.|/sys|;
+		if ($item eq 'status' || $item eq 'enabled'){
+			# print "$file\n";
+			$monitor_ids->{$port}{$item} = main::reader($file,'strip',0);
+		}
+		elsif ($item eq 'edid'){
+			@edid = main::reader($file,'strip');
+			# print Data::Dumper::Dumper \@edid;
+			next if !@edid;
+			# trim off first non ascii characters
+			# $edid[0] =~ s/[^[:print:]]+//g;
+			# print "$edid[0]\n";
+			if ($edid[1]){
+				$monitor_ids->{$port}{'product'} = $edid[1];
+				$monitor_ids->{$port}{'product'} =~ s/[^[:print:]]+//g;
+				# print length($monitor_ids->{$port}{'product'}),"\n";
+			}
+			# I don't know what this value actually refers to
+			if ($edid[2]){
+				$monitor_ids->{$port}{'product-info'} = $edid[2];
+				$monitor_ids->{$port}{'product-info'} =~ s/[^[:print:]]+//;
+			}
+		}
+	}
+	main::log_data('dump','$ports ref',$monitor_ids) if $b_log;
+	print Data::Dumper::Dumper $monitor_ids if $dbg[44];
+	eval $end if $b_log;
 }
 sub set_compositor {
 	eval $start if $b_log;
@@ -26657,6 +26735,7 @@ sub get_pcie_data {
 	eval $start if $b_log;
 	my ($bus_id,$j,$rows,$num,$type) = @_;
 	$type ||= '';
+	# see also /sys/class/drm/
 	my $path_start = '/sys/bus/pci/devices/0000:';
 	return if !$bus_id || ! -d $path_start . $bus_id;
 	$path_start .= $bus_id;
@@ -26681,22 +26760,22 @@ sub get_pcie_data {
 	# print Data::Dumper::Dumper \%data;
 	# Maximum PCIe Bandwidth = SPEED * WIDTH * (1 - ENCODING) - 1Gb/s.
 	if ($data{'current_link_speed'} && $data{'current_link_width'}){
-		$$rows[$j]->{main::key($$num++,1,2,'pcie')} = '';
-		$$rows[$j]{main::key($$num++,1,3,'speed')} = $data{'current_link_speed'};
+		$$rows[$j]->{key($$num++,1,2,'pcie')} = '';
+		$$rows[$j]{key($$num++,1,3,'speed')} = $data{'current_link_speed'};
 		if ($b_admin && $data{'max_link_speed'} && 
 		 $data{'max_link_speed'} ne  $data{'current_link_speed'}){
-			$$rows[$j]{main::key($$num++,0,4,'max')} = $data{'max_link_speed'};
+			$$rows[$j]{key($$num++,0,4,'max')} = $data{'max_link_speed'};
 		}
-		$$rows[$j]->{main::key($$num++,1,3,'lanes')} = $data{'current_link_width'};
+		$$rows[$j]->{key($$num++,1,3,'lanes')} = $data{'current_link_width'};
 		if ($b_admin && $data{'max_link_width'} && 
 		 $data{'current_link_width'} < $data{'max_link_width'}){
-			$$rows[$j]->{main::key($$num++,0,4,'max')} = $data{'max_link_width'};
+			$$rows[$j]->{key($$num++,0,4,'max')} = $data{'max_link_width'};
 		}
 	}
 	if ($type eq 'gpu' && $data{'mem_info_vram_used'} && $data{'mem_info_vram_total'}){
-		$$rows[$j]->{main::key($$num++,1,2,'vram')} = '';
-		$$rows[$j]->{main::key($$num++,0,3,'total')} = get_size($data{'mem_info_vram_total'}/1024,'string');
-		$$rows[$j]->{main::key($$num++,0,3,'used')} = get_size($data{'mem_info_vram_used'}/1024,'string');
+		$$rows[$j]->{key($$num++,1,2,'vram')} = '';
+		$$rows[$j]->{key($$num++,0,3,'total')} = get_size($data{'mem_info_vram_total'}/1024,'string');
+		$$rows[$j]->{key($$num++,0,3,'used')} = get_size($data{'mem_info_vram_used'}/1024,'string');
 	}
 	eval $end if $b_log;
 }
