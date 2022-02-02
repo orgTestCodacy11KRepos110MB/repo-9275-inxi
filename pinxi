@@ -7230,7 +7230,7 @@ sub device_output {
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pci_link_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,\@rows,\$num);
 			}
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
@@ -8019,7 +8019,7 @@ sub device_output {
 		if ($extra > 0){
 			$bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pci_link_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,\@rows,\$num);
 			}
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
@@ -13373,7 +13373,7 @@ sub device_output {
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pci_link_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,\@rows,\$num);
 			}
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
@@ -15643,7 +15643,7 @@ sub device_output {
 			}
 			$row->[8] ||= 'N/A';
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pci_link_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,\@rows,\$num);
 			}
 			# as far as I know, wifi has no port, but in case it does in future, use it
 			$rows[$j]->{main::key($num++,0,2,'port')} = $row->[8] if (!$b_wifi || ($b_wifi && $row->[8] ne 'N/A'));
@@ -26626,8 +26626,34 @@ sub proc_data {
 }
 }
 
+# args: 1 - pci device string; 2 - pci cleaned subsystem string
+sub get_pci_vendor {
+	eval $start if $b_log;
+	my ($device, $subsystem) = @_;
+	return if !$subsystem;
+	my ($vendor,$sep,$temp) = ('','','');
+	# get rid of any [({ type characters that will make regex fail
+	# and similar matches show as non-match
+	$subsystem = clean_regex($subsystem);
+	my @data = split(/\s+/, $subsystem);
+	# when using strings in patterns for regex have to escape them
+	foreach (@data){
+		$temp = $_;
+		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
+		if ($device !~ m|\b$temp\b|){
+			$vendor .= $sep . $_;
+			$sep = ' ';
+		}
+		else {
+			last;
+		}
+	}
+	eval $end if $b_log;
+	return $vendor;
+}
+
 # $rows, $num by ref.
-sub get_pci_link_data {
+sub get_pcie_data {
 	eval $start if $b_log;
 	my ($bus_id,$j,$rows,$num) = @_;
 	my $path = '/sys/bus/pci/devices/0000:';
@@ -26661,32 +26687,6 @@ sub get_pci_link_data {
 		}
 	}
 	eval $end if $b_log;
-}
-
-# args: 1 - pci device string; 2 - pci cleaned subsystem string
-sub get_pci_vendor {
-	eval $start if $b_log;
-	my ($device, $subsystem) = @_;
-	return if !$subsystem;
-	my ($vendor,$sep,$temp) = ('','','');
-	# get rid of any [({ type characters that will make regex fail
-	# and similar matches show as non-match
-	$subsystem = clean_regex($subsystem);
-	my @data = split(/\s+/, $subsystem);
-	# when using strings in patterns for regex have to escape them
-	foreach (@data){
-		$temp = $_;
-		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
-		if ($device !~ m|\b$temp\b|){
-			$vendor .= $sep . $_;
-			$sep = ' ';
-		}
-		else {
-			last;
-		}
-	}
-	eval $end if $b_log;
-	return $vendor;
 }
 
 sub set_ps_aux {
