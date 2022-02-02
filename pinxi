@@ -13373,7 +13373,7 @@ sub device_output {
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pcie_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,\@rows,\$num,'gpu');
 			}
 			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
@@ -26655,36 +26655,48 @@ sub get_pci_vendor {
 # $rows, $num by ref.
 sub get_pcie_data {
 	eval $start if $b_log;
-	my ($bus_id,$j,$rows,$num) = @_;
-	my $path = '/sys/bus/pci/devices/0000:';
-	return if !$bus_id || ! -d $path . $bus_id;
-	$path .= $bus_id . '/{max_link_width,current_link_width,max_link_speed';
+	my ($bus_id,$j,$rows,$num,$type) = @_;
+	$type ||= '';
+	my $path_start = '/sys/bus/pci/devices/0000:';
+	return if !$bus_id || ! -d $path_start . $bus_id;
+	$path_start .= $bus_id;
+	my $path = $path_start . '/{max_link_width,current_link_width,max_link_speed';
 	$path .= ',current_link_speed}';
 	my @files = globber($path);
+	if ($type eq 'gpu'){
+		$path = $path_start . '/0000*/0000*/{mem_info_vram_used,mem_info_vram_total}';
+	}
+	push(@files,globber($path));
+	# print @files,"\n";
 	return if !@files;
-	my (%links,$name);
+	my (%data,$name);
 	foreach (@files){
 		if (-r $_){
 			$name = $_;
 			$name =~ s|^/.*/||;
-			$links{$name} = reader($_,'strip',0);
-			$links{$name} =~ s/ PCIe$//;
+			$data{$name} = reader($_,'strip',0);
+			$data{$name} =~ s/ PCIe$//;
 		}
 	}
-	# print Data::Dumper::Dumper \%links;
+	# print Data::Dumper::Dumper \%data;
 	# Maximum PCIe Bandwidth = SPEED * WIDTH * (1 - ENCODING) - 1Gb/s.
-	if ($links{'current_link_speed'} && $links{'current_link_width'}){
+	if ($data{'current_link_speed'} && $data{'current_link_width'}){
 		$$rows[$j]->{main::key($$num++,1,2,'pcie')} = '';
-		$$rows[$j]{main::key($$num++,1,3,'speed')} = $links{'current_link_speed'};
-		if ($b_admin && $links{'max_link_speed'} && 
-		 $links{'max_link_speed'} ne  $links{'current_link_speed'}){
-			$$rows[$j]{main::key($$num++,0,4,'max')} = $links{'max_link_speed'};
+		$$rows[$j]{main::key($$num++,1,3,'speed')} = $data{'current_link_speed'};
+		if ($b_admin && $data{'max_link_speed'} && 
+		 $data{'max_link_speed'} ne  $data{'current_link_speed'}){
+			$$rows[$j]{main::key($$num++,0,4,'max')} = $data{'max_link_speed'};
 		}
-		$$rows[$j]->{main::key($$num++,1,3,'lanes')} = $links{'current_link_width'};
-		if ($b_admin && $links{'max_link_width'} && 
-		 $links{'current_link_width'} < $links{'max_link_width'}){
-			$$rows[$j]->{main::key($$num++,0,4,'max')} = $links{'max_link_width'};
+		$$rows[$j]->{main::key($$num++,1,3,'lanes')} = $data{'current_link_width'};
+		if ($b_admin && $data{'max_link_width'} && 
+		 $data{'current_link_width'} < $data{'max_link_width'}){
+			$$rows[$j]->{main::key($$num++,0,4,'max')} = $data{'max_link_width'};
 		}
+	}
+	if ($type eq 'gpu' && $data{'mem_info_vram_used'} && $data{'mem_info_vram_total'}){
+		$$rows[$j]->{main::key($$num++,1,2,'vram')} = '';
+		$$rows[$j]->{main::key($$num++,0,3,'total')} = get_size($data{'mem_info_vram_total'}/1024,'string');
+		$$rows[$j]->{main::key($$num++,0,3,'used')} = get_size($data{'mem_info_vram_used'}/1024,'string');
 	}
 	eval $end if $b_log;
 }
