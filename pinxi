@@ -14113,8 +14113,7 @@ sub map_ids {
 	eval $start if $b_log;
 	my ($xrandr_ids) = @_;
 	return if !$monitor_ids;
-	@$xrandr_ids = sort { "\L$a" cmp "\L$b" } @$xrandr_ids;
-	@$xrandr_ids = sort(@$xrandr_ids);
+	@$xrandr_ids = sort { lc($a) cmp lc($b) } @$xrandr_ids;
 	my @kernel_ids;
 	foreach my $key (keys %$monitor_ids){
 		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
@@ -14122,47 +14121,64 @@ sub map_ids {
 			push(@kernel_ids,$key);
 		}
 	}
-	@kernel_ids = sort { "\L$a" cmp "\L$b" } @kernel_ids;
+	@kernel_ids = sort { lc($a) cmp lc($b) } @kernel_ids;
+	# print Data::Dumper::Dumper \@kernel_ids;
 	# $xrandr_ids->[1] = 'VGA-0';
 	# $xrandr_ids->[2] = 'DisplayPort-0';
 	# $xrandr_ids->[3] = 'HDMI-2';
+	# @kernel_ids = ('DP-1','DVI-I-1','VGA-1');
 	# $kernel_ids[2] = 'VGA-1';
-	# $kernel_ids[1] = 'DP-1';
+	# $kernel_ids[0] = 'VGA-1';
+	# $kernel_ids[0] = 'DP-1';
 	# $kernel_ids[3] = 'HDMI-A-2';
+	main::log_data('dump','@kernel_ids',\@kernel_ids) if $b_log;
+	main::log_data('dump','$xrandr_ids ref',$xrandr_ids) if $b_log;
+	# print Data::Dumper::Dumper \@kernel_ids;
+	# print Data::Dumper::Dumper $xrandr_ids;
 	return if scalar @kernel_ids != scalar @$xrandr_ids;
 	$monitor_map = {};
 	# known patterns: amdgpu: k: DP-1, x: DisplayPort-0; k: HDMI-A-2, x: HDMI-A-1
 	# modesetting: k: HDMI-A-2, x: HDMI-2; k: DVI-1 x: DVI1; k: HDMI-1, x: HDMI1 
-	my ($k_1,$k_2,$k_3,$p_1,$p_2,$p_3);
+	my ($k_1,$k_2,$k_3,$k_4,$x_1,$x_2,$x_3,$x_4);
 	for (my $i=0; $i < scalar @$xrandr_ids; $i++){
-		 print "$kernel_ids[$i] :: $xrandr_ids->[$i]\n";
-		if ($xrandr_ids->[$i] =~ /^([A-Z]+-?)(-[ABDI]-)?(\d+)$/i){
-			$p_1 = $1;
-			$p_2 = ($2) ? $2 : '';
-			$p_3 = $3;
-			$p_1 =~ s/^DisplayPort/DP/i; # amdgpu...
+		# print "$kernel_ids[$i] :: $xrandr_ids->[$i]\n";
+		if ($xrandr_ids->[$i] =~ /^([A-Z]+)(-[ABDI])?(-)?(\d+)$/i){
+			$x_1 = $1;
+			$x_2 = ($2) ? $2 : '';
+			$x_3 = ($3) ? $3 : '';
+			$x_4 = $4;
+			$x_1 =~ s/^DisplayPort/DP/i; # amdgpu...
 			# check each type we find
 			# all good, no problems
 			# case of amdgpu subtracting 1 from at least DP and HDMI
 			# case of modesetting dropping the -A from HDMI-A
-			# case of DisplayPort-0 / DP-1 or DisplayPort-1 / DP-1
-			# print "$p_1$p_2$p_3\n";
+			# case of DisplayPort-0 / DP-1 or DisplayPort-1 / DP-1; DVI0/DVI-I-1
+			# print "x1: $x_1 x2: $x_2 x3: $x_3 x4: $x_4\n";
 			if ($xrandr_ids->[$i] eq $kernel_ids[$i] || 
-			 $kernel_ids[$i] eq $p_1 . $p_2 . $p_3 ||
-			 $kernel_ids[$i] eq $p_1 . $p_2 . ($p_3 + 1) ||
-			 $kernel_ids[$i] eq $p_1 . $p_3 ||
-			 $kernel_ids[$i] eq $p_1 . ($p_3 + 1)){
+			 $kernel_ids[$i] eq $x_1 . $x_4 ||
+			 $kernel_ids[$i] eq $x_1 . $x_2 . $x_4 ||
+			 $kernel_ids[$i] eq $x_1 . $x_3 . $x_4 ||
+			 $kernel_ids[$i] eq $x_1 . ($x_4 + 1) ||
+			 $kernel_ids[$i] eq $x_1 . $x_2 . ($x_4 + 1) ||
+			 $kernel_ids[$i] eq $x_1 . $x_2 . $x_3 . ($x_4 + 1) 
+			 ){
 				$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
 			}
 			else {
-				$kernel_ids[$i] =~ /^([A-Z]+-?)(-[ABDI]-)?(\d+)/;
+				$kernel_ids[$i] =~ /^([A-Z]+?)(-[ABDI])?(-)?(\d+)$/;
 				$k_1 = $1;
 				$k_2 = ($2) ? $2 : '';
-				$k_3 = $3;
+				$k_3 = ($3) ? $3 : '';
+				$k_4 = $4;
+				# print "k1: $k_1 k2: $k_2 k3: $k_3 k4: $k_4 x: $xrandr_ids->[$i]\n";
 				# modesetting: k: HDMI-A-2, x: HDMI-2
-				if ($xrandr_ids->[$i] eq $k_1 . $k_3 ||
-				 $xrandr_ids->[$i] eq $k_1 . $k_2 . ($k_3 - 1) ||
-				 $xrandr_ids->[$i] eq $k_1 . ($k_3 - 1)){
+				if ($xrandr_ids->[$i] eq $k_1 . $k_2 . $k_4 ||
+				 $xrandr_ids->[$i] eq $k_1 . $k_3 . $k_4 ||
+				 $xrandr_ids->[$i] eq $k_1 . ($k_4 - 1) ||
+				 $xrandr_ids->[$i] eq $k_1 . $k_2 . ($k_4 - 1) ||
+				 $xrandr_ids->[$i] eq $k_1 . $k_3 . ($k_4 - 1) ||
+				 $xrandr_ids->[$i] eq $k_1 . $k_2 . $k_3 . ($k_4 - 1)
+				 ){
 					$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
 				}
 				else {
