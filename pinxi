@@ -13297,7 +13297,7 @@ sub device_speed {
 {
 package GraphicItem;
 my $driver = ''; # we need this as a fallback in case no xorg log found
-my (%graphics,$monitor_ids);
+my (%graphics,$monitor_ids,$monitor_map);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13667,15 +13667,15 @@ sub display_output(){
 						}
 						$row_key++;
 						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
+						if ($monitor_map->{$monitor->{'monitor'}} ne $monitor->{'monitor'}){
+							$row[$row_key]->{main::key($num++,0,4,'mapped')} = $monitor_map->{$monitor->{'monitor'}};
+						}
 						if ($monitor->{'position'}){
 							$row[$row_key]->{main::key($num++,0,4,'pos')} = $monitor->{'position'};
 						}
-						if ($monitor_ids){
-							my $key = $monitor->{'monitor'};
-							$key =~ s/^DisplayPort/DP/i; # internal is DP-
-							if ($monitor_ids->{$key}{'product'}){
-								$row[$row_key]->{main::key($num++,0,4,'model')} = $monitor_ids->{$key}{'product'};
-							}
+						my $mon_key = ($monitor_map) ? $monitor_map->{$monitor->{'monitor'}} : undef;
+						if ($mon_key && $monitor_ids->{$mon_key}{'product'}){
+							$row[$row_key]->{main::key($num++,0,4,'model')} = $monitor_ids->{$mon_key}{'product'};
 						}
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
 							$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
@@ -13830,7 +13830,7 @@ sub display_data_xrandr {
 	my ($diagonal,$diagonal_m,$dpi,$monitor_id,$pos_x,$pos_y,$primary);
 	my ($res_x,$res_x_max,$res_y,$res_y_max);
 	my ($screen,$screen_id,$set_as,$size_x,$size_x_i,$size_y,$size_y_i);
-	my (@monitors,@primaries,@xrandr_screens,@xrandr);
+	my (@ids,@monitors,@primaries,@xrandr_screens,@xrandr);
 	if (!$fake{'xrandr'}){
 		@xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 	}
@@ -13897,6 +13897,7 @@ sub display_data_xrandr {
 			$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 			$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 			$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+			push(@ids,$monitor_id);
 			if ($set_as){
 				$primary = $monitor_id;
 				$set_as =~ s/\s$//;
@@ -13942,7 +13943,7 @@ sub display_data_xrandr {
 		# print "h: " . Data::Dumper::Dumper $main;
 		# print $main->{'screen'}, "\n";
 		foreach my $screen (@xrandr_screens){
-			# print "d: " . Data::Dumper::Dumper $screens;
+			# print "d: " . Data::Dumper::Dumper $screen;
 			if ($b_admin){
 				if (!$layouts){
 					$layouts = [];
@@ -13960,6 +13961,7 @@ sub display_data_xrandr {
 		}
 		$i++;
 	}
+	map_ids(\@ids) if @ids;
 	undef $layouts;
 	# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
 	print 'data: xrandr: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
@@ -14089,6 +14091,8 @@ sub set_monitors {
 			if ($edid[1]){
 				$monitor_ids->{$port}{'product'} = $edid[1];
 				$monitor_ids->{$port}{'product'} =~ s/[^[:print:]]+//g;
+				# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV
+				$monitor_ids->{$port}{'product'} =~ s/^.*[@!\(]//g;
 				# print length($monitor_ids->{$port}{'product'}),"\n";
 			}
 			# I don't know what this value actually refers to
@@ -14100,6 +14104,71 @@ sub set_monitors {
 	}
 	main::log_data('dump','$ports ref',$monitor_ids) if $b_log;
 	print Data::Dumper::Dumper $monitor_ids if $dbg[44];
+	eval $end if $b_log;
+}
+# this is required to resolve the insane situation where some xorg drivers change 
+# the kernel ID for the port to something slightly different, amdgpu in particular.
+sub map_ids {
+	eval $start if $b_log;
+	my ($xrandr_ids) = @_;
+	return if !$monitor_ids;
+	@$xrandr_ids = sort(@$xrandr_ids);
+	my @kernel_ids;
+	foreach my $key (sort keys %$monitor_ids){
+		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
+		 $monitor_ids->{$key}{'enabled'} eq 'enabled'){
+			push(@kernel_ids,$key);
+		}
+	}
+	return if scalar @kernel_ids != scalar @$xrandr_ids;
+	$monitor_map = {};
+	# known patterns: amdgpu: k: DP-1, x: DisplayPort-0; k: HDMI-A-2, x: HDMI-A-1
+	# modesetting: k: HDMI-A-2, x: HDMI-2
+	my ($k_1,$k_2,$k_3,$p_1,$p_2,$p_3);
+	# $xrandr_ids->[1] = 'VGA-0';
+	# $xrandr_ids->[2] = 'DisplayPort-0';
+	# $xrandr_ids->[3] = 'HDMI-2';
+	# $kernel_ids[1] = 'VGA-2';
+	# $kernel_ids[2] = 'DP-1';
+	# $kernel_ids[3] = 'HDMI-A-2';
+	for (my $i=0; $i < scalar @$xrandr_ids; $i++){
+		# print "$kernel_ids[$i] :: $xrandr_ids->[$i]\n";
+		$xrandr_ids->[$i] =~ s/^DisplayPort/DP/; # amdgpu...
+		if ($xrandr_ids->[$i] =~ /^([A-Z]+-)([ABDI]-)?(\d+)/){
+			$p_1 = $1;
+			$p_2 = ($2) ? $2 : '';
+			$p_3 = $3;
+			# check each type we find
+			# all good, no problems
+			if ($xrandr_ids->[$i] eq $kernel_ids[$i]){
+				$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
+			}
+			# case of amdgpu subtracting 1 from at least DP and HDMI
+			# case of modesetting dropping the -A from HDMI-A
+			elsif ($kernel_ids[$i] eq $p_1 . $p_2 . ($p_3 + 1) ||
+			 $kernel_ids[$i] eq $p_1 . $p_3 ||
+			 $kernel_ids[$i] eq $p_1 . ($p_3 + 1)){
+				$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
+			}
+			else {
+				$kernel_ids[$i] =~ /^([A-Z]+-)([ABDI]-)?(\d+)/;
+				$k_1 = $1;
+				$k_2 = ($2) ? $2 : '';
+				$k_3 = $3;
+				# modesetting: k: HDMI-A-2, x: HDMI-2
+				if ($xrandr_ids->[$i] eq $k_1 . $k_3 ||
+				 $xrandr_ids->[$i] eq $k_1 . $k_2 . ($k_3 - 1) ||
+				 $xrandr_ids->[$i] eq $k_1 . ($k_3 - 1)){
+					$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
+				}
+				else {
+					$monitor_map->{$xrandr_ids->[$i]} = '';
+				}
+			}
+		}
+	}
+	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
+	print Data::Dumper::Dumper $monitor_map if $dbg[44];
 	eval $end if $b_log;
 }
 sub set_compositor {
