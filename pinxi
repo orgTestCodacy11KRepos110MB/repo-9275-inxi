@@ -13667,15 +13667,16 @@ sub display_output(){
 						}
 						$row_key++;
 						$row[$row_key]->{main::key($num++,1,3,'Monitor')} = $monitor->{'monitor'};
-						if ($monitor_map->{$monitor->{'monitor'}} ne $monitor->{'monitor'}){
-							$row[$row_key]->{main::key($num++,0,4,'mapped')} = $monitor_map->{$monitor->{'monitor'}};
+						my $mon_mapped = ($monitor_map) ? $monitor_map->{$monitor->{'monitor'}} : undef;
+						if ($mon_mapped && $mon_mapped ne $monitor->{'monitor'}){
+							$row[$row_key]->{main::key($num++,0,4,'mapped')} = $mon_mapped;
 						}
 						if ($monitor->{'position'}){
 							$row[$row_key]->{main::key($num++,0,4,'pos')} = $monitor->{'position'};
 						}
-						my $mon_key = ($monitor_map) ? $monitor_map->{$monitor->{'monitor'}} : undef;
-						if ($mon_key && $monitor_ids->{$mon_key}{'product'}){
-							$row[$row_key]->{main::key($num++,0,4,'model')} = $monitor_ids->{$mon_key}{'product'};
+						
+						if ($mon_mapped && $monitor_ids->{$mon_mapped}{'product'}){
+							$row[$row_key]->{main::key($num++,0,4,'model')} = $monitor_ids->{$mon_mapped}{'product'};
 						}
 						if ($monitor->{'res-x'} && $monitor->{'res-y'}){
 							$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
@@ -14120,17 +14121,17 @@ sub map_ids {
 			push(@kernel_ids,$key);
 		}
 	}
+	# $xrandr_ids->[1] = 'VGA-0';
+	# $xrandr_ids->[2] = 'DisplayPort-0';
+	# $xrandr_ids->[3] = 'HDMI-2';
+	# $kernel_ids[1] = 'VGA-2';
+	# $kernel_ids[1] = 'DP-1';
+	# $kernel_ids[3] = 'HDMI-A-2';
 	return if scalar @kernel_ids != scalar @$xrandr_ids;
 	$monitor_map = {};
 	# known patterns: amdgpu: k: DP-1, x: DisplayPort-0; k: HDMI-A-2, x: HDMI-A-1
 	# modesetting: k: HDMI-A-2, x: HDMI-2
 	my ($k_1,$k_2,$k_3,$p_1,$p_2,$p_3);
-	# $xrandr_ids->[1] = 'VGA-0';
-	# $xrandr_ids->[2] = 'DisplayPort-0';
-	# $xrandr_ids->[3] = 'HDMI-2';
-	# $kernel_ids[1] = 'VGA-2';
-	# $kernel_ids[2] = 'DP-1';
-	# $kernel_ids[3] = 'HDMI-A-2';
 	for (my $i=0; $i < scalar @$xrandr_ids; $i++){
 		# print "$kernel_ids[$i] :: $xrandr_ids->[$i]\n";
 		if ($xrandr_ids->[$i] =~ /^([A-Z]+-)([ABDI]-)?(\d+)$/i){
