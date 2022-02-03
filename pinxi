@@ -13446,12 +13446,17 @@ sub usb_output {
 # $rows, $num by ref
 sub port_output {
 	my ($bus_id,$j,$rows,$num) = @_;
-	my (@connected,@empty);
+	my (@connected,@disabled,@empty);
 	foreach my $id (keys %$monitor_ids){
 		next if !$monitor_ids->{$id}{'status'};
 		if ($monitor_ids->{$id}{'path'} =~ m|\Q$bus_id/drm/\E|){
 			if ($monitor_ids->{$id}{'status'} eq 'connected'){
-				push(@connected,$id);
+				if ($monitor_ids->{$id}{'enabled'} eq 'enabled'){
+					push(@connected,$id);
+				}
+				else {
+					push(@disabled,$id);
+				}
 			}
 			else {
 				push(@empty,$id);
@@ -13459,10 +13464,14 @@ sub port_output {
 		}
 	}
 	if (@connected || @empty){
-		my ($used,$unused);
+		my ($off,$used,$unused);
 		$$rows[$j]->{main::key($$num++,1,2,'ports')} = '';
 		$used = (@connected) ? join(',',sort @connected) : 'none';
 		$$rows[$j]->{main::key($$num++,0,3,'used')} = $used;
+		if (@disabled){
+			$off = join(',',sort @disabled);
+			$$rows[$j]->{main::key($$num++,0,3,'off')} = $off;
+		}
 		$unused = (@empty) ? join(',',sort @empty) : 'none';
 		$$rows[$j]->{main::key($$num++,0,3,'empty')} = $unused;
 	}
