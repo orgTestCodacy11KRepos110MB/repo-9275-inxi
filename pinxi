@@ -6521,6 +6521,7 @@ sub message {
 	'disk-data-bsd' => 'No disk data found.',
 	'disk-size-0' => 'Total N/A',
 	'display-console' => 'No advanced graphics data found on this system in console.',
+	'monitor-id' => 'not-matched',
 	'display-driver-na' => 'n/a (using device driver)',
 	'display-null' => 'No advanced graphics data found on this system.',
 	'display-monitor' => 'N/A',
@@ -14356,8 +14357,8 @@ sub map_monitor_ids {
 	# @sys_ids = ('DP-1','DVI-I-1','VGA-1');
 	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
 	main::log_data('dump','$xrandr_ids ref',$xrandr_ids) if $b_log;
-	print Data::Dumper::Dumper \@sys_ids if $dbg[45];
-	print Data::Dumper::Dumper $xrandr_ids if $dbg[45];
+	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
+	print 'xrandr: ', Data::Dumper::Dumper $xrandr_ids if $dbg[45];
 	return if scalar @sys_ids != scalar @$xrandr_ids;
 	$monitor_map = {};
 	# known patterns: k: DP-1, x: DisplayPort-0; k: HDMI-A-2, x: HDMI-A-1
@@ -14365,26 +14366,28 @@ sub map_monitor_ids {
 	# k: DVI-I-1, x: DVI0; k: VGA-1, x: VGA1
 	my ($s_1,$s_2,$s_3,$s_4,$x_1,$x_2,$x_3,$x_4);
 	for (my $i=0; $i < scalar @$xrandr_ids; $i++){
-		print "K: $sys_ids[$i] x: $xrandr_ids->[$i]\n" if $dbg[45];
-		if ($xrandr_ids->[$i] =~ /^([A-Z]+)(-[ABDI])?(-)?(\d+)$/i){
+		print "s: $sys_ids[$i] x: $xrandr_ids->[$i]\n" if $dbg[45];
+		if ($xrandr_ids->[$i] =~ /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?)?(-)?(\d+)$/i){
 			$x_1 = $1;
 			$x_2 = ($2) ? $2 : '';
 			$x_3 = ($3) ? $3 : '';
 			$x_4 = $4;
 			$x_1 =~ s/^DisplayPort/DP/i; # amdgpu...
-			print "x1: $x_1 x2: $x_2 x3: $x_3 x4: $x_4\n" if $dbg[45];
-			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[ABDI])?(-)?(\d+)$/){
+			print " x1: $x_1 x2: $x_2 x3: $x_3 x4: $x_4\n" if $dbg[45];
+			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?)?(-)?(\d+)$/){
 				$s_1 = $1;
 				$s_2 = ($2) ? $2 : '';
 				$s_3 = ($3) ? $3 : '';
 				$s_4 = $4;
-				print "k1: $s_1 k2: $s_2 k3: $s_3 k4: $s_4\n" if $dbg[45];
+				print " s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
 				if ($x_1 eq $s_1 && ($x_4 == $s_4 || $x_4 == ($s_4 - 1))){
 					$monitor_map->{$xrandr_ids->[$i]} = $sys_ids[$i];
 				}
 			}
 		}
-		$monitor_map->{$xrandr_ids->[$i]} = '' if !$monitor_map->{$xrandr_ids->[$i]};
+		if (!$monitor_map->{$xrandr_ids->[$i]}){
+			$monitor_map->{$xrandr_ids->[$i]} = main::message('monitor-id');
+		}
 	}
 	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
