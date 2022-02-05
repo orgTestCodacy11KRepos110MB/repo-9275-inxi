@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-04';
-my $self_patch='15';
+my $self_date='2022-02-05';
+my $self_patch='16';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -4549,6 +4549,7 @@ sub get {
 		$show{'disk'} = 1;
 		$show{'graphic'} = 1;
 		$show{'graphic-basic'} = 1;
+		$show{'graphic-full'} = 1;
 		$show{'info'} = 1;
 		$show{'machine'} = 1;
 		$show{'network'} = 1;
@@ -4561,7 +4562,8 @@ sub get {
 	'G|graphics|graphic' => sub {
 		$show{'short'} = 0;
 		$show{'graphic'} = 1; 
-		$show{'graphic-basic'} = 1;},
+		$show{'graphic-basic'} = 1;
+		$show{'graphic-full'} = 1;},
 	'h|help|?' => sub {
 		$show{'help'} = 1;},
 	'i|ip' => sub {
@@ -4711,11 +4713,11 @@ sub get {
 			if ($arg >= 5){
 				$show{'audio'} = 1;
 				$show{'bluetooth'} = 1;
-				$show{'ram'} = 1;
+				$show{'graphic-full'} = 1;
 				$show{'label'} = 1;
 				$show{'optical-basic'} = 1;
-				$show{'ram'} = 1;
 				$show{'raid'} = 1;
+				$show{'ram'} = 1;
 				$show{'sensor'} = 1;
 				$show{'swap'} = 1;
 				$show{'uuid'} = 1;
@@ -5226,7 +5228,8 @@ sub post_process {
 	 !$show{'partition-full'} && !$show{'swap'} && !$show{'unmounted'}){
 		main::error_handler('bad-arg', '-l/-u', 'missing required option(s) -j, -o, -p, -P');
 	}
-	$show{'graphic-basic'} = 0 if $b_admin;
+	$extra = 3 if $b_admin;
+	$show{'graphic-basic'} = 0 if $show{'graphic-full'} && $extra > 1;
 	if ($use{'sensors-default'}){
 		@sensors_exclude = ();
 		@sensors_use = ();
@@ -5250,7 +5253,6 @@ sub post_process {
 		$use{'logical'} = 1;
 	}
 	main::set_sudo() if ($show{'unmounted'} || ($extra > 0 && $show{'disk'}));
-	$extra = 3 if $b_admin;
 	$use{'filter'} = 0 if $use{'filter-override'};
 	# override for things like -b or -v2 to -v3
 	$show{'cpu-basic'} = 0 if $show{'cpu'};
@@ -6527,6 +6529,8 @@ sub message {
 	'display-root-x' => 'Advanced graphics data unavailable for root.',
 	'display-server' => 'No display server data found. Headless machine?',
 	'glxinfo-missing' => 'Unable to show advanced data. Required tool glxinfo missing.',
+	'display-wayland-monitor' => 'no compositor data',
+	'display-wayland-screen' => 'no compositor data',
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'display-try' => 'Advanced graphics data unavailable in console. Try -G --display',
 	'dev' => 'Feature under development',
@@ -13331,7 +13335,6 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
-
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'graphics'};
@@ -13492,11 +13495,10 @@ sub display_output(){
 	}
 	if ($b_display){
 		display_data_x();
+		# $protocol = 'wayland';
 		# currently barebones, wayland needs a lot more work
 		if ($protocol && $protocol eq 'wayland' && !$graphics{'screens'}){
 			display_data_wayland();
-			# it worked! we got screen data
-			undef $graphics{'no-screens'} if $graphics{'screens'};
 		}
 	}
 	else {
@@ -13627,7 +13629,7 @@ sub display_output(){
 					if ($main->{'s-dpi'} && (!$show{'graphic-basic'} || $extra > 1)){
 						$row[$row_key]->{main::key($num++,0,3,'s-dpi')} = $main->{'s-dpi'};
 					}
-					if (!$show{'graphic-basic'}){
+					if (!$show{'graphic-basic'} && $extra > 2){
 						if ($main->{'size-missing'}){
 							$row[$row_key]->{main::key($num++,0,3,'s-size')} = $main->{'size-missing'};
 						}
@@ -13686,7 +13688,7 @@ sub display_output(){
 		}
 		# fallback, if no xrandr/xdpyinfo, if wayland, if console. Note we've 
 		# deleted each key used in monitor_advanced_data() so those won't show again
-		if ($monitor_ids && %$monitor_ids){
+		if (!$show{'graphic-basic'} && $monitor_ids && %$monitor_ids){
 			foreach my $key (sort keys %$monitor_ids){
 				if ($monitor_ids->{$key}{'enabled'} && 
 				 $monitor_ids->{$key}{'enabled'} eq 'enabled' &&
@@ -13707,9 +13709,8 @@ sub monitors_output {
 	eval $start if $b_log;
 	my ($type,$monitor,$row_key,$row,$num) = @_;
 	my ($resolution);
-	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (1,2,3);
+	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (2,3,4);
 	$$row[$row_key]->{main::key($$num++,1,$m1,'Monitor')} = $monitor->{'monitor'};
-	
 	if ($monitor->{'monitor-mapped'}){
 		$$row[$row_key]->{main::key($$num++,0,$m2,'mapped')} = $monitor->{'monitor-mapped'};
 	}
@@ -13736,13 +13737,13 @@ sub monitors_output {
 		}
 		$$row[$row_key]->{main::key($$num++,0,$m2,'size-res')} = $resolution;
 	}
-	if ($monitor->{'hz'}){
+	if ($extra > 2 && $monitor->{'hz'}){
 		$$row[$row_key]->{main::key($$num++,0,$m2,'hz')} = $monitor->{'hz'};
 	}
 	if ($monitor->{'dpi'}){
 		$$row[$row_key]->{main::key($$num++,0,$m2,'dpi')} = $monitor->{'dpi'};
 	}
-	if ($monitor->{'size-x'} && $monitor->{'size-y'}){
+	if ($b_admin && $monitor->{'size-x'} && $monitor->{'size-y'}){
 		my $size =  $monitor->{'size-x'} . 'x' . $monitor->{'size-y'} .
 		'mm ('. $monitor->{'size-x-i'} . 'x' . $monitor->{'size-y-i'} . '")';
 		$$row[$row_key]->{main::key($$num++,0,$m2,'size')} = $size;
@@ -13751,15 +13752,16 @@ sub monitors_output {
 		my $diag = $monitor->{'diagonal-m'} . 'mm ('. $monitor->{'diagonal'} . '")';
 		$$row[$row_key]->{main::key($$num++,0,$m2,'diag')} = $diag;
 	}
-	if ($monitor->{'modes-min-max'}){
-		$$row[$row_key]->{main::key($$num++,0,$m2,'mode')} = $monitor->{'modes-min-max'};
+	if ($extra > 2){
+		if ($monitor->{'modes-min-max'}){
+			$$row[$row_key]->{main::key($$num++,0,$m2,'mode')} = $monitor->{'modes-min-max'};
+		}
+		elsif ($monitor->{'modes-min'} && $monitor->{'modes-max'}){
+			$$row[$row_key]->{main::key($$num++,1,$m2,'modes')} = '';
+			$$row[$row_key]->{main::key($$num++,0,$m3,'max')} = $monitor->{'modes-max'};
+			$$row[$row_key]->{main::key($$num++,0,$m3,'min')} = $monitor->{'modes-min'};
+		}
 	}
-	elsif ($monitor->{'modes-min'} && $monitor->{'modes-max'}){
-		$$row[$row_key]->{main::key($$num++,1,$m2,'modes')} = '';
-		$$row[$row_key]->{main::key($$num++,0,$m3,'max')} = $monitor->{'modes-max'};
-		$$row[$row_key]->{main::key($$num++,0,$m3,'min')} = $monitor->{'modes-min'};
-	}
-	
 	eval $end if $b_log;
 }
 sub gl_output(){
@@ -13909,8 +13911,17 @@ sub display_data_wayland {
 		# return as wayland-0 or 0?
 		$graphics{'display-id'} =~ s/wayland-?//i;
 	}
-	# print 'last: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
-	# main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
+	# it worked! we got screen data
+	if ($graphics{'no-screens'}){
+		if ($graphics{'screens'}){
+			undef $graphics{'no-screens'};
+		}
+		else {
+			$graphics{'no-screens'} = main::message('display-wayland-screen');
+		}
+	}
+	print 'Wayland screen: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
+	main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
 sub display_data_x {
@@ -13932,7 +13943,7 @@ sub display_data_x {
 			$graphics{'no-screens'} = main::message('tool-missing-basic','xdpyinfo/xrandr');
 		}
 	}
-	print 'final display x: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
+	print 'Final display x: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
@@ -14019,7 +14030,7 @@ sub display_data_xdpyinfo {
 			push(@{$graphics{'screens'}}, $screen);
 		}
 	}
-	print 'data: xdpyinfo: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
+	print 'Data: xdpyinfo: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
@@ -14150,7 +14161,7 @@ sub display_data_xrandr {
 				!defined $graphics{'screens'}->[$i]{'monitors'}){
 				$graphics{'screens'}->[$i]{'monitors'} = $screen;
 			}
-			if ($b_admin){
+			if ($extra > 1){
 				if (!$layouts){
 					$layouts = [];
 					set_monitor_layouts($layouts);
@@ -14165,7 +14176,7 @@ sub display_data_xrandr {
 	}
 	undef $layouts;
 	# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
-	print 'data: xrandr: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
+	print 'Data: xrandr: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
