@@ -13337,7 +13337,7 @@ sub device_output {
 	return if !$devices{'graphics'};
 	my (@rows);
 	my ($j,$num) = (0,1);
-	set_monitor_sys() if $extra > 1 && !$monitor_ids && -e '/sys/class/drm';
+	set_monitors_sys() if $extra > 1 && !$monitor_ids && -e '/sys/class/drm';
 	foreach my $row (@{$devices{'graphics'}}){
 		$num = 1;
 		# print "$row->[0] $row->[3]\n";
@@ -13684,6 +13684,8 @@ sub display_output(){
 			$graphics{'tty'} ||= 'N/A';
 			$row[0]->{main::key($num++,0,2,'tty')} = $graphics{'tty'};
 		}
+		# fallback, if no xrandr/xdpyinfo, if wayland, if console. Note we've 
+		# deleted each key used in monitor_advanced_data() so those won't show again
 		if ($monitor_ids && %$monitor_ids){
 			foreach my $key (sort keys %$monitor_ids){
 				if ($monitor_ids->{$key}{'enabled'} && 
@@ -13693,7 +13695,6 @@ sub display_output(){
 					$monitor_ids->{$key}{'monitor'} = $key;
 					$row_key++;
 					monitors_output('monitor',$monitor_ids->{$key},$row_key,\@row,\$num);
-				
 				}
 			}
 		}
@@ -13725,7 +13726,6 @@ sub monitors_output {
 		}
 		$resolution ||= 'N/A';
 		$$row[$row_key]->{main::key($$num++,0,$m2,'res')} = $resolution;
-		$resolution = '';
 	}
 	else {
 		if ($b_display){
@@ -13734,7 +13734,7 @@ sub monitors_output {
 		else {
 			$resolution = main::message('display-monitor-console');
 		}
-		$$row[$row_key]->{main::key($$num++,0,$m3,'size-res')} = $resolution;
+		$$row[$row_key]->{main::key($$num++,0,$m2,'size-res')} = $resolution;
 	}
 	if ($monitor->{'hz'}){
 		$$row[$row_key]->{main::key($$num++,0,$m2,'hz')} = $monitor->{'hz'};
@@ -14218,7 +14218,7 @@ sub monitor_advanced_data {
 				$screen->[$j]{'monitor-mapped'} = $mon_mapped;
 			}
 			# now that we have it, dump that hash key, which will let us do tests on 
-			# the remaining for monitor output without xrandr
+			# the remaining for monitor output without xrandr (or future sources)
 			delete $monitor_ids->{$mon_mapped};
 		}
 	}
@@ -14266,7 +14266,7 @@ sub set_monitor_layouts {
 	 '2-1' => 'middle-l','2-2' => 'middle-c','2-3' => 'middle-r',
 	 '3-1' => 'bottom-l','3-2' => 'bottom-c','3-3' => 'bottom-r'};
 }
-sub set_monitor_sys {
+sub set_monitors_sys {
 	eval $start if $b_log;
 	my $pattern = '/sys/class/drm/card*-*/{edid,enabled,status,modes}';
 	my @glob = main::globber($pattern);
@@ -14330,27 +14330,27 @@ sub map_monitor_ids {
 	my ($xrandr_ids) = @_;
 	return if !$monitor_ids;
 	@$xrandr_ids = sort { lc($a) cmp lc($b) } @$xrandr_ids;
-	my @kernel_ids;
+	my @sys_ids;
 	foreach my $key (keys %$monitor_ids){
 		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
 		 $monitor_ids->{$key}{'enabled'} eq 'enabled'){
-			push(@kernel_ids,$key);
+			push(@sys_ids,$key);
 		}
 	}
-	@kernel_ids = sort { lc($a) cmp lc($b) } @kernel_ids;
-	# @kernel_ids = ('DP-1','DVI-I-1','VGA-1');
-	main::log_data('dump','@kernel_ids',\@kernel_ids) if $b_log;
+	@sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
+	# @sys_ids = ('DP-1','DVI-I-1','VGA-1');
+	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
 	main::log_data('dump','$xrandr_ids ref',$xrandr_ids) if $b_log;
-	print Data::Dumper::Dumper \@kernel_ids if $dbg[45];
+	print Data::Dumper::Dumper \@sys_ids if $dbg[45];
 	print Data::Dumper::Dumper $xrandr_ids if $dbg[45];
-	return if scalar @kernel_ids != scalar @$xrandr_ids;
+	return if scalar @sys_ids != scalar @$xrandr_ids;
 	$monitor_map = {};
 	# known patterns: k: DP-1, x: DisplayPort-0; k: HDMI-A-2, x: HDMI-A-1
 	# k: HDMI-A-2, x: HDMI-2; k: DVI-1 x: DVI1; k: HDMI-1, x: HDMI1 
 	# k: DVI-I-1, x: DVI0; k: VGA-1, x: VGA1
-	my ($k_1,$k_2,$k_3,$k_4,$x_1,$x_2,$x_3,$x_4);
+	my ($s_1,$s_2,$s_3,$s_4,$x_1,$x_2,$x_3,$x_4);
 	for (my $i=0; $i < scalar @$xrandr_ids; $i++){
-		print "K: $kernel_ids[$i] x: $xrandr_ids->[$i]\n" if $dbg[45];
+		print "K: $sys_ids[$i] x: $xrandr_ids->[$i]\n" if $dbg[45];
 		if ($xrandr_ids->[$i] =~ /^([A-Z]+)(-[ABDI])?(-)?(\d+)$/i){
 			$x_1 = $1;
 			$x_2 = ($2) ? $2 : '';
@@ -14358,14 +14358,14 @@ sub map_monitor_ids {
 			$x_4 = $4;
 			$x_1 =~ s/^DisplayPort/DP/i; # amdgpu...
 			print "x1: $x_1 x2: $x_2 x3: $x_3 x4: $x_4\n" if $dbg[45];
-			if ($kernel_ids[$i] =~ /^([A-Z]+?)(-[ABDI])?(-)?(\d+)$/){
-				$k_1 = $1;
-				$k_2 = ($2) ? $2 : '';
-				$k_3 = ($3) ? $3 : '';
-				$k_4 = $4;
-				print "k1: $k_1 k2: $k_2 k3: $k_3 k4: $k_4\n" if $dbg[45];
-				if ($x_1 eq $k_1 && ($x_4 == $k_4 || $x_4 == ($k_4 - 1))){
-					$monitor_map->{$xrandr_ids->[$i]} = $kernel_ids[$i];
+			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[ABDI])?(-)?(\d+)$/){
+				$s_1 = $1;
+				$s_2 = ($2) ? $2 : '';
+				$s_3 = ($3) ? $3 : '';
+				$s_4 = $4;
+				print "k1: $s_1 k2: $s_2 k3: $s_3 k4: $s_4\n" if $dbg[45];
+				if ($x_1 eq $s_1 && ($x_4 == $s_4 || $x_4 == ($s_4 - 1))){
+					$monitor_map->{$xrandr_ids->[$i]} = $sys_ids[$i];
 				}
 			}
 		}
