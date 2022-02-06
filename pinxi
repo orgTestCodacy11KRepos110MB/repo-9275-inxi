@@ -25100,53 +25100,65 @@ sub set_gpart_data {
 
 sub get_display_manager {
 	eval $start if $b_log;
-	my (@data,@found,$path,$working,$b_run,$b_vrun,$b_vrunrc);
+	my (@data,@found,@glob,$path,@temp);
 	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
-	# extension in Arch note: to avoid positives with directories, test for -f 
-	# explicitly, not -e. Guessing on cdm.pid, greetd.pid, qingy.pid.
-	# pcdm uses vt, PCDM-vt9.pid
-	# not verified: qingy emptty; greetd.run verfied, but has greetd-684.sock 
-	# if no .run. Bummer.
+	# extension in Arch. Guessing on cdm, qingy. pcdm uses vt, PCDM-vt9.pid
+	# Not verified: qingy emptty; greetd.run verified, but alternate:
+	# greetd-684.sock if no .run seen. Add Ly in case they add run file/directory.
 	# greetd frontends: agreety dlm gtkgreet qtgreet tuigreet wlgreet
-	my @dms = qw(cdm.pid emptty.pid entranced.pid gdm.pid gdm3.pid greetd.pid 
-	greetd.run kdm.pid kdm3.pid ldm.pid lightdm.pid lxdm.pid mdm.pid nodm.pid 
-	pcdm.pid qingy.pid sddm.pid slim.lock slim.pid tdm.pid udm.pid wdm.pid xdm.pid 
-	xenodm.pid);
+	my @dms = qw(cdm emptty entranced gdm gdm3 greetd kdm kdm3 ldm lightdm lxdm ly
+	mdm nodm pcdm qingy sddm slim tdm udm wdm xdm xenodm);
 	# these are the only one I know of so far that have version info
-	my @dms_version = qw(gdm gdm3 lightdm slim);
-	$b_run = 1 if -d "/run";
-	# in most linux, /var/run is a sym link to /run, so no need to check it twice
-	if (-d "/var/run"){
-		my $rdlink = readlink('/var/run');
-		$b_vrun = 1 if !$rdlink || ($rdlink && $rdlink ne '/run');
-		$b_vrunrc = 1 if -d "/var/run/rc.d";
+	my @dms_version = qw(gdm gdm3 lightdm ly slim);
+	my $pattern = '';
+	if (-d '/run'){
+		$pattern .= '/run';
 	}
-	my $pattern = ($b_run) ? '/run/*' : '/var/run/*';
-	# for gibberish dm ids, like greetd-684.sock
-	my @glob = globber($pattern);
+	# in most linux, /var/run is a sym link to /run, so no need to check it twice
+	if (-d '/var/run' && readlink('/var/run') ne '/run'){
+		$pattern .= ',' if $pattern;
+		$pattern .= '/var/run';
+	}
+	if (-d '/var/run/rc.d'){
+		$pattern .= ',' if $pattern;
+		$pattern .= '/var/run/rc.d';
+	}
+	if ($pattern){
+		$pattern = '{' . $pattern . '/*}' if $pattern;
+		# for dm.pid type file or dm directory names, like greetd-684.sock
+		@glob = globber($pattern) if $pattern;
+	}
 	# print Data::Dumper::Dumper \@glob;
-	foreach my $id (@dms){
-		# note: $working will create a dir name out of the dm $id, then 
-		# test if pid is in that note: sddm, in an effort to be unique and special, 
-		# do not use a pid/lock file, but rather a random string inside a directory 
-		# called /run/sddm/ so assuming the existence of the pid inside a directory named
-		# from the dm. Hopefully this change will not have negative results.
-		$working = $id;
-		$working =~ s/\.\S+$//;
-		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
-		if ((($b_run && (-f "/run/$id" || -d "/run/$working")) || 
-		 ($b_vrun && (-f "/var/run/$id" || -d "/var/run/$working")) || 
-		 ($b_vrunrc && (-f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id")) ||
-		 (@glob && (grep {/\/$working\b/} @glob))) && 
-		 !grep {/$working/i} @found){
-			if ($extra > 2 && awk(\@dms_version, $working) && ($path = check_program($working))){}
-			else {$path = $working;}
-			# print "$path $extra\n";
-			@data = program_data($working,$path,3);
-			$working = $data[0];
-			$working .= ' ' . $data[1] if $data[1];
-			push(@found, $working);
+	# used to test for .pid/lock type file or directory, now just see if the 
+	# search name exists in run and call it good since test would always be true
+	# if directory existed previously anyway.
+	if (@glob){
+		my $search = join('|',@dms);
+		@glob = grep {/\/($search)\b/} @glob;
+		# $search = join('|',@glob);
+		if (@glob){
+			uniq(\@glob);
+			foreach my $item (@glob){
+				my @id = grep {$item =~ /\/$_\b/} @dms;
+				push(@temp,@id) if @id;
+			}
+			# note: there were issues with duplicated dm's, using uniq will handle those
+			uniq(\@temp) if @temp;
 		}
+	}
+	@dms = @temp;
+	# print Data::Dumper::Dumper \@dms;
+	# we know the files or directories exist so no need for further checks here
+	foreach my $dm (@dms){
+		# do nothing, we just wanted the path
+		if ($extra > 2 && (grep {$dm eq $_} @dms_version) && 
+		 ($path = check_program($dm))){}
+		else {$path = $dm}
+		# print "$path $extra\n";
+		@data = program_data($dm,$path,3);
+		$dm = $data[0];
+		$dm .= ' ' . $data[1] if $data[1];
+		push(@found,$dm);
 	}
 	if (!@found){
 		# ly does not have a run/pid file
