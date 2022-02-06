@@ -25108,7 +25108,7 @@ sub get_display_manager {
 	# not verified: qingy emptty; greetd.run verfied, but has greetd-684.sock 
 	# if no .run. Bummer.
 	# greetd frontends: agreety dlm gtkgreet qtgreet tuigreet wlgreet
-	my @dms = qw(cdm.pid empty.pid entranced.pid gdm.pid gdm3.pid greetd.pid 
+	my @dms = qw(cdm.pid emptty.pid entranced.pid gdm.pid gdm3.pid greetd.pid 
 	greetd.run kdm.pid kdm3.pid ldm.pid lightdm.pid lxdm.pid mdm.pid nodm.pid 
 	pcdm.pid qingy.pid sddm.pid slim.lock slim.pid tdm.pid udm.pid wdm.pid xdm.pid 
 	xenodm.pid);
@@ -25121,6 +25121,10 @@ sub get_display_manager {
 		$b_vrun = 1 if !$rdlink || ($rdlink && $rdlink ne '/run');
 		$b_vrunrc = 1 if -d "/var/run/rc.d";
 	}
+	my $pattern = ($b_run) ? '/run/*' : '/var/run/*';
+	# for gibberish dm ids, like greetd-684.sock
+	my @glob = globber($pattern);
+	# print Data::Dumper::Dumper \@glob;
 	foreach my $id (@dms){
 		# note: $working will create a dir name out of the dm $id, then 
 		# test if pid is in that note: sddm, in an effort to be unique and special, 
@@ -25132,7 +25136,8 @@ sub get_display_manager {
 		# note: there were issues with duplicated dm's in inxi, checking @found corrects it
 		if ((($b_run && (-f "/run/$id" || -d "/run/$working")) || 
 		 ($b_vrun && (-f "/var/run/$id" || -d "/var/run/$working")) || 
-		 ($b_vrunrc && (-f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id"))) && 
+		 ($b_vrunrc && (-f "/var/run/rc.d/$working" || -d "/var/run/rc.d/$id")) ||
+		 (@glob && (grep {/\/$working\b/} @glob))) && 
 		 !grep {/$working/i} @found){
 			if ($extra > 2 && awk(\@dms_version, $working) && ($path = check_program($working))){}
 			else {$path = $working;}
