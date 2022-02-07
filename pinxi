@@ -13566,7 +13566,7 @@ sub display_output(){
 	}
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
-		my ($driver_missing,$resolution,$server_string) = ('','','');
+		my ($driver_note,$resolution,$server_string) = ('','','');
 		my ($b_screen_monitors,@x_drivers);
 		@x_drivers = x_drivers() if !$force{'wayland'};
 		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
@@ -13608,25 +13608,25 @@ sub display_output(){
 				if ($graphics{'display-driver'}){
 					$driver = join(',',@{$graphics{'display-driver'}});
 				}
-				elsif ($driver && $driver ne 'N/A'){
-					if (-e '/var/lib/gdm' && !$b_root){
-						$driver_missing = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
-					}
-					elsif ($graphics{'protocol'} eq 'wayland'){
-						my $drivers = get_display_drivers('all');
-						if ($drivers){
-							$driver = $drivers;
+				else {
+					if ($driver && $driver ne 'N/A'){
+						my $display_drivers = get_display_drivers('all');
+						$driver = $display_drivers if $display_drivers;
+						if (-e '/var/lib/gdm' && !$b_root){
+							$driver_note = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
+						}
+						elsif ($graphics{'protocol'} eq 'wayland'){
+							if (!$display_drivers) {
+								$driver_note = main::message('display-driver-wayland');
+							}
 						}
 						else {
-							$driver_missing = main::message('display-driver-wayland');
+							$driver_note = main::message('display-driver-na');
 						}
 					}
-					else {
-						$driver_missing = main::message('display-driver-na');
+					elsif (-e '/var/lib/gdm' && !$b_root) {
+						$driver_note = main::message('root-suggested');
 					}
-				}
-				elsif (-e '/var/lib/gdm' && !$b_root) {
-					$driver_missing = main::message('root-suggested');
 				}
 			}
 			else {
@@ -13636,15 +13636,15 @@ sub display_output(){
 			if (($graphics{'protocol'} eq 'wayland' || $graphics{'xvesa'}) && 
 			!$x_drivers[0]){
 				$row[0]->{main::key($num++,1,2,'driver')} = $driver;
-				if ($driver_missing){
-					$row[0]->{main::key($num++,0,3,'note')} = $driver_missing;
+				if ($driver_note){
+					$row[0]->{main::key($num++,0,3,'note')} = $driver_note;
 				}
 			}
 			else {
 				$row[0]->{main::key($num++,1,2,'driver')} = '';
 				$row[0]->{main::key($num++,1,3,'loaded')} = $driver;
-				if ($driver_missing){
-					$row[0]->{main::key($num++,0,4,'note')} = $driver_missing;
+				if ($driver_note){
+					$row[0]->{main::key($num++,0,4,'note')} = $driver_note;
 				}
 				if ($x_drivers[1]){
 					$row[0]->{main::key($num++,0,3,'unloaded')} = $x_drivers[1];
@@ -14385,8 +14385,8 @@ sub get_display_drivers {
 	foreach my $port (keys %{$monitor_ids}){
 		if (!$monitor_ids->{$port}{'drivers'} ||
 		($id ne 'all' && $id ne $port) ||
-		!$monitor_ids->{$port}{'connected'} || 
-		$monitor_ids->{$port}{'connected'} ne 'connected'){
+		!$monitor_ids->{$port}{'status'} || 
+		$monitor_ids->{$port}{'status'} ne 'connected'){
 			next;
 		}
 		foreach my $driver (@{$monitor_ids->{$port}{'drivers'}}){
