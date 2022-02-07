@@ -1909,6 +1909,8 @@ sub display_data {
 	['Xorg','-version'],
 	['xprop','-root'],
 	['xrandr',''],
+	['Xvesa','-version'],
+	['Xvesa','-listmodes'],
 	);
 	run_commands(\@cmds,'display');
 }
@@ -13560,19 +13562,20 @@ sub display_output(){
 	# no xdpyinfo installed
 	if (!$graphics{'x-version'}){
 		# fallback, will complete x-server/x-version, set flags, if found
-		x_server_data(); 
+		display_server_data(); 
 	}
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_missing,$resolution,$server_string) = ('','','');
-		my ($b_screen_monitors,@drivers);
-		@drivers = x_drivers() if !$force{'wayland'};
+		my ($b_screen_monitors,@x_drivers);
+		@x_drivers = x_drivers() if !$force{'wayland'};
 		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
 		if ($graphics{'x-server'}){
 			$server_string = $graphics{'x-server'};
 			# print "$server_string\n";
 		}
-		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && !@drivers){
+		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && 
+		!@x_drivers){
 			$server_string = main::message('display-server');
 			@row = ({
 			main::key($num++,1,1,'Display') => '',
@@ -13597,35 +13600,41 @@ sub display_output(){
 			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
 			# obviously, so we use the last driver found on the card section in that case.
 			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
-			if (!$drivers[0]){
+			if (!$x_drivers[0]){
 				# Fallback: specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is 
 				# located inside this directory, which is not readable unless you are root
 				# Normally Arch gdm log is here: ~/.local/share/xorg/Xorg.1.log
 				# $driver comes from the Device lines, and is just last fallback.
-				if ($driver && $driver ne 'N/A'){
+				if ($graphics{'display-driver'}){
+					$driver = join(',',@{$graphics{'display-driver'}});
+				}
+				elsif ($driver && $driver ne 'N/A'){
 					if (-e '/var/lib/gdm' && !$b_root){
 						$driver_missing = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
 					}
 					elsif ($graphics{'protocol'} eq 'wayland'){
-						$driver_missing = main::message('display-driver-wayland');
+						my $drivers = get_display_drivers('all');
+						if ($drivers){
+							$driver = $drivers;
+						}
+						else {
+							$driver_missing = main::message('display-driver-wayland');
+						}
 					}
 					else {
 						$driver_missing = main::message('display-driver-na');
 					}
-				}
-				elsif ($graphics{'x-driver'}){
-					$driver = $graphics{'x-driver'};
 				}
 				elsif (-e '/var/lib/gdm' && !$b_root) {
 					$driver_missing = main::message('root-suggested');
 				}
 			}
 			else {
-				$driver = $drivers[0];
+				$driver = $x_drivers[0];
 			}
 			$driver ||= 'N/A';
 			if (($graphics{'protocol'} eq 'wayland' || $graphics{'xvesa'}) && 
-			!$drivers[0]){
+			!$x_drivers[0]){
 				$row[0]->{main::key($num++,1,2,'driver')} = $driver;
 				if ($driver_missing){
 					$row[0]->{main::key($num++,0,3,'note')} = $driver_missing;
@@ -13637,14 +13646,14 @@ sub display_output(){
 				if ($driver_missing){
 					$row[0]->{main::key($num++,0,4,'note')} = $driver_missing;
 				}
-				if ($drivers[1]){
-					$row[0]->{main::key($num++,0,3,'unloaded')} = $drivers[1];
+				if ($x_drivers[1]){
+					$row[0]->{main::key($num++,0,3,'unloaded')} = $x_drivers[1];
 				}
-				if ($drivers[2]){
-					$row[0]->{main::key($num++,0,3,'failed')} = $drivers[2];
+				if ($x_drivers[2]){
+					$row[0]->{main::key($num++,0,3,'failed')} = $x_drivers[2];
 				}
-				if ($extra > 1 && $drivers[3]){
-					$row[0]->{main::key($num++,0,3,'alternate')} = $drivers[3];
+				if ($extra > 1 && $x_drivers[3]){
+					$row[0]->{main::key($num++,0,3,'alternate')} = $x_drivers[3];
 				}
 			}
 		}
@@ -13826,6 +13835,12 @@ sub monitors_output {
 			$$row[$row_key]->{main::key($$num++,0,$m3,'min')} = $monitor->{'modes-min'};
 		}
 	}
+	# we only want to see gpu drivers for wayland since otherwise it's x drivers.
+	if ($b_display && $b_admin && $graphics{'protocol'} && 
+	$graphics{'protocol'} eq 'wayland' && $monitor->{'drivers'}){
+		$driver = join(',',@{$monitor->{'drivers'}});
+		$$row[$row_key]->{main::key($$num++,0,$m2,'driver')} = $driver;
+	}
 	eval $end if $b_log;
 }
 # as soon as EGL for Wayland appears add it!
@@ -13987,6 +14002,42 @@ sub gl_glxinfo {
 	if ($extra > 0){
 		$row->[0]{main::key($$num++,0,2,'direct render')} = $direct_render;
 	}
+	eval $end if $b_log;
+}
+sub set_protocol {
+	eval $start if $b_log;
+	$graphics{'protocol'} = '';
+	if ($ENV{'XDG_SESSION_TYPE'}){
+		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
+	}
+	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
+		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
+	}
+	# can show as wayland-0
+	$graphics{'protocol'} = 'wayland' if $graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i;
+	# yes, I've seen this in 2019 distros, sigh
+	$graphics{'protocol'} = '' if $graphics{'protocol'} eq 'tty';
+	# need to confirm that there's a point to this test, I believe no, fails out of x
+	# loginctl also results in the session id
+	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
+		if (my $program = main::check_program('loginctl')){
+			my $id = '';
+			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
+			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
+			foreach (@data){
+				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
+				$id = (split(/\s+/, $_))[0];
+				last; # multiuser? too bad, we'll go for the first one
+			}
+			if ($id){
+				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
+				$temp =~ s/Type=// if $temp;
+				# ssh will not show /dev/ttyx so would have passed the first test
+				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
+			}
+		}
+	}
+	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
 	eval $end if $b_log;
 }
 sub display_data_wayland {
@@ -14267,7 +14318,88 @@ sub display_data_xrandr {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-
+# case where no xpdyinfo display server/version data exists
+sub display_server_data {
+	eval $start if $b_log;
+	my (@data,$program,$server,$version);
+	# load the extra X paths, it's important that these are first, because
+	# later Xorg versions show error if run in console or ssh if the true path 
+	# is not used.
+	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths);
+	# IMPORTANT: both commands send version data to stderr!
+	if ($program = main::check_program('Xorg')){
+		@data = main::grabber("$program -version 2>&1");
+		$server = 'X.org';
+	}
+	elsif ($program = main::check_program('X')){
+		@data = main::grabber("$program -version 2>&1");
+		$server = 'X.org';
+	}
+	elsif ($program = main::check_program('Xwayland')){
+		@data = main::grabber("$program -version 2>&1");
+		$server = 'Xwayland';
+	}
+	elsif ($program = main::check_program('Xvesa')){
+		@data = main::grabber("$program -version 2>&1");
+		$server = 'Xvesa';
+		$graphics{'display-driver'} = ['vesa'];
+		$graphics{'xvesa'} = 1;
+		if (!$graphics{'screens'}){
+			$graphics{'no-screens'} = main::message('screen-xvesa');
+		}
+	}
+	# print join('^ ', @paths), " :: $program\n";
+	# print Data::Dumper::Dumper \@data;
+	if (@data){
+		foreach (@data){
+			if (/^X.org X server/i){
+				$version = (split(/\s+/, $_))[3];
+				last;
+			}
+			elsif (/^X Window System Version/i){
+				$version = (split(/\s+/, $_))[4];
+				last;
+			}
+			elsif (/Xwayland Version/i){
+				$version = (split(/\s+/, $_))[5];
+				last;
+			}
+			elsif (/^Xvesa from/i){
+				$version = (split(/\s+/, $_))[3];
+				$server .= ' TinyX' if $_ =~ /tinyx/i;
+				last;
+			}
+		}
+	}
+	$graphics{'x-server'} = $server if !$graphics{'x-server'};
+	$graphics{'x-version'} = $version;
+	# remove extra X paths from global @paths
+	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
+	eval $end if $b_log;
+}
+sub get_display_drivers {
+	eval $start if $b_log;
+	my ($id) = @_;
+	my @drivers;
+	# we only want list of drivers for cards with a connected monitor
+	foreach my $port (keys %{$monitor_ids}){
+		if (!$monitor_ids->{$port}{'drivers'} ||
+		($id ne 'all' && $id ne $port) ||
+		!$monitor_ids->{$port}{'connected'} || 
+		$monitor_ids->{$port}{'connected'} ne 'connected'){
+			next;
+		}
+		foreach my $driver (@{$monitor_ids->{$port}{'drivers'}}){
+			push(@drivers,$driver);
+		}
+	}
+	if (@drivers){
+		@drivers = sort(@drivers);
+		main::uniq(\@drivers);
+	}
+	eval $end if $b_log;
+	return join(',',@drivers) if @drivers;
+}
 sub monitor_advanced_data {
 	eval $start if $b_log;
 	my ($primary,$screen,$layouts) = @_;
@@ -14303,6 +14435,8 @@ sub monitor_advanced_data {
 		$screen->[$j]{'position'} .= $position;
 		my $mon_mapped = ($monitor_map) ? $monitor_map->{$screen->[$j]->{'monitor'}} : undef;
 		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
+			# note: xorg drivers can be different than gpu drivers
+			# $screen->[$j]{'drivers'} = get_display_drivers($mon_mapped);
 			$screen->[$j]{'modes-min-max'} = $monitor_ids->{$mon_mapped}{'modes-min-max'};
 			$screen->[$j]{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
 			$screen->[$j]{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
@@ -14365,18 +14499,34 @@ sub set_monitor_layouts {
 }
 sub set_monitors_sys {
 	eval $start if $b_log;
-	my $pattern = '/sys/class/drm/card*-*/{edid,enabled,status,modes}';
-	my @glob = main::globber($pattern);
-	return if !@glob;
-	my (@data,$item,$path,$port);
-	foreach my $file (@glob){
+	my $pattern = '/sys/class/drm/card[0-9]/device/driver/module/drivers/*';
+	my @cards_glob = main::globber($pattern);
+	$pattern = '/sys/class/drm/card*-*/{edid,enabled,status,modes}';
+	my @ports_glob = main::globber($pattern);
+	# print Data::Dumper::Dumper \@cards_glob;
+	# print Data::Dumper::Dumper \@ports_glob;
+	my ($card,%cards,@data,$file,$item,$path,$port);
+	foreach $file (@cards_glob){
+		next if ! -e $file;
+		if ($file =~ m|^/sys/class/drm/(card\d+)/.+?/drivers/(\S+):(\S+)$|){
+			push(@{$cards{$1}},[$2,$3]);
+		}
+	}
+	# print Data::Dumper::Dumper \%cards;
+	foreach $file (sort @ports_glob){
 		next if ! -r $file;
 		$item = $file;
-		$item =~ s|(/.*/card\d+-([^/]+))/(.+)||;
+		$item =~ s|(/.*/(card\d+)-([^/]+))/(.+)||;
 		$path = $1;
-		$port = $2;
-		$item = $3;
+		$card = $2;
+		$port = $3;
+		$item = $4;
 		$monitor_ids = {} if !$monitor_ids;
+		if (!$monitor_ids->{$port}{'drivers'} && $cards{$card}){
+			foreach my $info (@{$cards{$card}}){
+				push(@{$monitor_ids->{$port}{'drivers'}},$info->[1]);
+			}
+		}
 		$monitor_ids->{$port}{'path'} = readlink($path);
 		$monitor_ids->{$port}{'path'} =~ s|^\.\./\.\.|/sys|;
 		if ($item eq 'status' || $item eq 'enabled'){
@@ -14396,6 +14546,7 @@ sub set_monitors_sys {
 			}
 		}
 		elsif ($item eq 'edid'){
+			next if -s $file;
 			@data = main::reader($file,'strip');
 			print 'edid: ', Data::Dumper::Dumper \@data if $dbg[44];
 			next if !@data;
@@ -14476,42 +14627,6 @@ sub map_monitor_ids {
 	}
 	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
-	eval $end if $b_log;
-}
-sub set_protocol {
-	eval $start if $b_log;
-	$graphics{'protocol'} = '';
-	if ($ENV{'XDG_SESSION_TYPE'}){
-		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
-	}
-	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
-		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
-	}
-	# can show as wayland-0
-	$graphics{'protocol'} = 'wayland' if $graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i;
-	# yes, I've seen this in 2019 distros, sigh
-	$graphics{'protocol'} = '' if $graphics{'protocol'} eq 'tty';
-	# need to confirm that there's a point to this test, I believe no, fails out of x
-	# loginctl also results in the session id
-	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
-		if (my $program = main::check_program('loginctl')){
-			my $id = '';
-			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
-			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
-			foreach (@data){
-				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
-				$id = (split(/\s+/, $_))[0];
-				last; # multiuser? too bad, we'll go for the first one
-			}
-			if ($id){
-				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
-				$temp =~ s/Type=// if $temp;
-				# ssh will not show /dev/ttyx so would have passed the first test
-				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
-			}
-		}
-	}
-	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
 	eval $end if $b_log;
 }
 sub set_compositor_data {
@@ -14659,65 +14774,6 @@ sub x_drivers {
 	}
 	eval $end if $b_log;
 	return @driver_data;
-}
-# fallback if no glx x version data found
-sub x_server_data {
-	eval $start if $b_log;
-	my (@data,$program,$server,$version);
-	# load the extra X paths, it's important that these are first, because
-	# later Xorg versions show error if run in console or ssh if the true path 
-	# is not used.
-	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths);
-	# IMPORTANT: both commands send version data to stderr!
-	if ($program = main::check_program('Xorg')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'X.org';
-	}
-	elsif ($program = main::check_program('X')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'X.org';
-	}
-	elsif ($program = main::check_program('Xwayland')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'Xwayland';
-	}
-	elsif ($program = main::check_program('Xvesa')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'Xvesa';
-		$graphics{'x-driver'} = 'vesa';
-		$graphics{'xvesa'} = 1;
-		if (!$graphics{'screens'}){
-			$graphics{'no-screens'} = main::message('screen-xvesa');
-		}
-	}
-	# print join('^ ', @paths), " :: $program\n";
-	# print Data::Dumper::Dumper \@data;
-	if (@data){
-		foreach (@data){
-			if (/^X.org X server/i){
-				$version = (split(/\s+/, $_))[3];
-				last;
-			}
-			elsif (/^X Window System Version/i){
-				$version = (split(/\s+/, $_))[4];
-				last;
-			}
-			elsif (/Xwayland Version/i){
-				$version = (split(/\s+/, $_))[5];
-				last;
-			}
-			elsif (/^Xvesa from/i){
-				$version = (split(/\s+/, $_))[3];
-				$server .= ' TinyX' if $_ =~ /tinyx/i;
-				last;
-			}
-		}
-	}
-	$graphics{'x-server'} = $server if !$graphics{'x-server'};
-	$graphics{'x-version'} = $version;
-	# remove extra X paths from global @paths
-	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
-	eval $end if $b_log;
 }
 sub tty_data(){
 	eval $start if $b_log;
