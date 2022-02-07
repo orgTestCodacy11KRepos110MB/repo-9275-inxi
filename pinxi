@@ -3008,9 +3008,9 @@ sub check_items {
 		%info = item_data($item);
 		$about = $info{$info_os};
 		if (($b_dir && -d $item) || ($b_file && -r $item) ||
-		     ($b_program && main::check_program($item)) || 
-		     ($b_perl_module && main::check_perl_module($item)) ||
-		     ($b_kernel_module && @modules && (grep {/^$item$/} @modules))){
+		($b_program && main::check_program($item)) || 
+		($b_perl_module && main::check_perl_module($item)) ||
+		($b_kernel_module && @modules && (grep {/^$item$/} @modules))){
 			$result = 'Present';
 		}
 		elsif ($b_file && -f $item){
@@ -3998,6 +3998,8 @@ sub set_program_values {
 	'xfwm5' => ['xfwm5? version',5,'--version','xfwm',0,1,0,'^^\s+',''], # unverified
 	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
 	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
+	## X Servers ##
+	'xwayland' => ['X\.org.*Xwayland',6,'-version','Xwayland',0,1,0,'',''],
 	## Toolkits ##
 	'gtk-launch' => ['^\S',1,'--version','GTK',0,1,0,'',''],
 	'qmake' => ['^^Using Qt version',4,'--version','Qt',0,0,0,'',''],
@@ -5045,8 +5047,8 @@ sub get {
 		if ($arg){
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
-			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|sysctl|uptime|usbconfig|';
-			$wl .= 'usbdevs|vmstat|xorg-log|xrandr';
+			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|swaymsg|sysctl|';
+			$wl .= 'uptime|usbconfig|usbdevs|vmstat|xorg-log|xrandr';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -5063,7 +5065,7 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
-			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|usb-sys|vmstat|wmctrl';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|usb-sys|wayland|vmstat|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$force{lc($1)} = 1;
@@ -5214,8 +5216,10 @@ sub get {
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
+	'wayland|wl' => sub { 
+		$force{'wayland'} = 1},
 	'wm' => sub { 
-		$force{'wmctrl'} = 1 },
+		$force{'wmctrl'} = 1},
 	'<>' => sub {
 		my ($opt) = @_;
 		main::error_handler('unknown-option', "$opt", "");}
@@ -5271,8 +5275,8 @@ sub post_process {
 		@sensors_use = ();
 	}
 	if ($show{'short'} || $show{'disk'} || $show{'disk-basic'} || $show{'disk-total'} || 
-	    $show{'logical'} || $show{'partition'} || $show{'partition-full'} || $show{'raid'} || 
-	    $show{'unmounted'}){
+	$show{'logical'} || $show{'partition'} || $show{'partition-full'} || $show{'raid'} || 
+	$show{'unmounted'}){
 		$use{'block-tool'} = 1;
 	}
 	if ($show{'short'} || $show{'raid'} || $show{'disk'} || $show{'disk-total'} || 
@@ -5285,7 +5289,7 @@ sub post_process {
 	}
 	# triggers may extend to -D, -pP
 	if ($show{'short'} || $show{'logical'} || $show{'raid'} || $show{'disk'} || 
-	    $show{'disk-total'} || $show{'disk-basic'} || $show{'unmounted'}){
+	$show{'disk-total'} || $show{'disk-basic'} || $show{'unmounted'}){
 		$use{'logical'} = 1;
 	}
 	main::set_sudo() if ($show{'unmounted'} || ($extra > 0 && $show{'disk'}));
@@ -6159,7 +6163,7 @@ sub get_cmdline {
 	}
 	local $\ = '';
 	open(my $fh, '<', "/proc/$ppid/cmdline") or 
-	  print_line("Open /proc/$ppid/cmdline failed: $!");
+		print_line("Open /proc/$ppid/cmdline failed: $!");
 	my @rows = <$fh>;
 	close $fh;
 	foreach (@rows){
@@ -6553,29 +6557,27 @@ sub message {
 	'cpu-speeds' => 'No per core speed data found.',
 	'cpu-speeds-bsd' => 'No OS support for core speeds.',
 	'darwin-feature' => 'Feature not supported iu Darwin/OSX.',
+	'dev' => 'Feature under development',
 	'disk-data' => 'No disk data found.',
 	'disk-data-bsd' => 'No disk data found.',
 	'disk-size-0' => 'Total N/A',
-	'display-console' => 'No advanced graphics data found on this system in console.',
-	'monitor-id' => 'not-matched',
-	'display-driver-na' => 'n/a (using device driver)',
-	'display-null' => 'No advanced graphics data found on this system.',
-	'display-monitor' => 'N/A',
-	'display-monitor-console' => 'N/A in console',
-	'display-root' => 'Advanced graphics data unavailable in console for root.',
-	'display-root-x' => 'Advanced graphics data unavailable for root.',
+	'display-driver-na' => 'n/a (using gpu driver)',
+	'display-driver-wayland' => 'gpu-driver',
 	'display-server' => 'No display server data found. Headless machine?',
-	'glxinfo-missing' => 'Unable to show advanced data. Required tool glxinfo missing.',
-	'display-wayland-monitor' => 'no compositor data',
-	'display-wayland-screen' => 'no compositor data',
-	'gl-empty' => 'Unset. Missing GL driver?',
-	'display-try' => 'Advanced graphics data unavailable in console. Try -G --display',
-	'dev' => 'Feature under development',
 	'dmesg-boot-permissions' => 'dmesg.boot permissions',
 	'dmesg-boot-missing' => 'dmesg.boot not found',
-	'IP' => "No $id found. Connected to web? SSL issues?",
 	'dmidecode-dev-mem' => 'dmidecode is not allowed to read /dev/mem',
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
+	'egl-wayland' => 'Wayland EGL data currently not available.',
+	'gl-console' => 'No advanced graphics data found on this system in console.',
+	'gl-empty' => 'Unset. Missing GL driver?',
+	'gl-null' => 'No GL data found on this system.',
+	'gl-root' => 'GL data unavailable in console for root.',
+	'gl-root-display' => 'GL data unavailable for root.',
+	'gl-try' => 'GL data unavailable in console. Try -G --display',
+	'gl-xvesa' => 'GL data unavailable for Xvesa.',
+	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
+	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
 	'IP-no-dig' => "No $id found. Connected to web? SSL issues? Try enabling dig",
 	'logical-data' => 'No logical block device data found.',
@@ -6584,6 +6586,10 @@ sub message {
 	'machine-data-bsd' => 'No machine data: Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-force-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
+	'monitor-console' => 'N/A in console',
+	'monitor-id' => 'not-matched',
+	'monitor-na' => 'N/A',
+	'monitor-wayland' => 'no compositor data',
 	'note-check' => 'check',
 	'note-est' => 'est.',
 	'optical-data' => 'No optical or floppy data found.',
@@ -6612,6 +6618,8 @@ sub message {
 	'root-item-incomplete' => "Full $id report requires superuser permissions.",
 	'root-required' => '<superuser required>',
 	'root-suggested' => 'try sudo/root',# gdm only
+	'screen-wayland' => 'no compositor data',
+	'screen-xvesa' => 'N/A for Xvesa',
 	'sensors-data-bsd' => "$id sensor data found but not usable.",
 	'sensors-data-bsd-ok' => 'No sensor data found. Are sensors present?',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
@@ -7217,7 +7225,7 @@ sub get {
 		push(@rows,device_output());
 	}
 	if (((%risc && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows) && 
-	   (my $file = $system_files{'asound-cards'})){
+	(my $file = $system_files{'asound-cards'})){
 		push(@rows,asound_output($file));
 	}
 	push(@rows,usb_output());
@@ -8242,7 +8250,7 @@ sub advanced_output {
 				# }
 				# this data only from hciconfig
 				if ($b_admin && 
-				   ($hci{$item}->{'acl-mtu'} || $hci{$item}->{'sco-mtu'} || $hci{$item}->{'link-policy'})){
+				($hci{$item}->{'acl-mtu'} || $hci{$item}->{'sco-mtu'} || $hci{$item}->{'link-policy'})){
 					$j = scalar @rows;
 					push(@rows,{
 					main::key($num++,1,$l,'Info') => '',
@@ -8268,7 +8276,7 @@ sub advanced_output {
 		}
 	}
 	if (!@rows && !$b_hci_error && ($alerts{'hciconfig'}->{'action'} ne 'use' &&
-	  $alerts{'bt-adapter'}->{'action'} ne 'use')){
+	$alerts{'bt-adapter'}->{'action'} ne 'use')){
 		my $key = 'Report';
 		my $value = '';
 		if ($alerts{'hciconfig'}->{'action'} eq 'platform' || 
@@ -9555,7 +9563,7 @@ sub sysctl_data {
 		# darwin shows machine, like MacBook7,1, not cpu
 		# machdep.cpu.brand_string: Intel(R) Core(TM)2 Duo CPU     P8600  @ 2.40GHz
 		if (($bsd_type ne 'darwin' && $line[0] eq 'hw.model') || 
-		      $line[0] eq 'machdep.cpu.brand_string'){
+		$line[0] eq 'machdep.cpu.brand_string'){
 			# cut L2 cache/cpu max speed out of model string, if available
 			# openbsd 5.6: AMD Sempron(tm) Processor 3400+ ("AuthenticAMD" 686-class, 256KB L2 cache)
 			# openbsd 6.x has Lx cache data in dmesg.boot
@@ -11911,10 +11919,10 @@ sub proc_data_advanced {
 				$drives->[$i]{'drive-type'} = 'HDD';
 			}
 			elsif (($block_type && $block_type ne 'sdx') ||
-			       # note: this case could conceivabley be wrong for a spun down HDD
-			       (defined $data[2] && $data[2] eq '0') ||
-			       ($drives->[$i]{'model'} && 
-			        $drives->[$i]{'model'} =~ /(flash|mmc|msata|\bm[\.-]?2\b|nvme|ssd|solid\s?state)/i)){
+			# note: this case could conceivabley be wrong for a spun down HDD
+			(defined $data[2] && $data[2] eq '0') ||
+			($drives->[$i]{'model'} && 
+			$drives->[$i]{'model'} =~ /(flash|mmc|msata|\bm[\.-]?2\b|nvme|ssd|solid\s?state)/i)){
 				$drives->[$i]{'drive-type'} = 'SSD';
 			}
 		}
@@ -12274,7 +12282,7 @@ sub smartctl_data {
 				# 'Airflow_Temperature_Cel' like: 29 (Min/Max 14/43) so can't use -1 index
 				# Temperature like 29 Celsisu
 				elsif ($split[$a] eq 'Temperature_Celsius' || $split[$a] eq 'Temperature' ||
-				  $split[$a] eq 'Airflow_Temperature_Cel'){
+				$split[$a] eq 'Airflow_Temperature_Cel'){
 					if (!$data->[$i]{'temp'} && $split[$r]){
 						$data->[$i]{'temp'} = $split[$r];
 					}
@@ -13523,50 +13531,44 @@ sub port_output {
 sub display_output(){
 	eval $start if $b_log;
 	my (@row);
-	my ($num,$protocol,$row_key) = (0,'',0);
+	my ($num,$row_key) = (0,0);
 	# note: these may not always be set, they won't be out of X, for example
-	$protocol = get_protocol();
+	set_protocol();
 	# note, since the compositor is the server with wayland, always show it
-	if ($extra > 1 || $protocol eq 'wayland'){
-		set_compositor($protocol);
+	if ($extra > 1 || $graphics{'protocol'} eq 'wayland'){
+		set_compositor_data();
 	}
 	if ($b_display){
-		display_data_x();
-		# $protocol = 'wayland';
+		if (!$force{'wayland'}){
+			display_data_x();
+		}
+		else {
+			$graphics{'protocol'} = 'wayland';
+		}
 		# currently barebones, wayland needs a lot more work
-		if ($protocol && $protocol eq 'wayland' && !$graphics{'screens'}){
+		if ($graphics{'protocol'} eq 'wayland' && !$graphics{'screens'}){
 			display_data_wayland();
 		}
 	}
 	else {
 		$graphics{'tty'} = tty_data();
 	}
-	# this gives better output than the failure last case, which would only show:
-	# for example: X.org: 1.9 instead of: X.org: 1.9.0
-	$graphics{'x-version'} = $graphics{'xorg-version'} if $graphics{'xorg-version'};;
-	$graphics{'x-version'} = x_version() if !$graphics{'x-version'};
-	$graphics{'x-version'} = $graphics{'x-version-id'} if !$graphics{'x-version'};
+	# no xdpyinfo installed
+	if (!$graphics{'x-version'}){
+		# fallback, will complete x-server/x-version, set flags, if found
+		x_server_data(); 
+	}
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_missing,$resolution,$server_string) = ('','','');
-		my ($b_screen_monitors);
-		# print "$graphics{'x-vendor'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
-		if ($graphics{'x-vendor'}){
-			my $version = ($graphics{'x-version'}) ? " $graphics{'x-version'}" : '';
-			# $version = (!$version && $graphics{'x-vendor-release'}) ? " $graphics{'x-vendor-release'}" : '';
-			$server_string = "$graphics{'x-vendor'}$version";
+		my ($b_screen_monitors,@drivers);
+		@drivers = x_drivers() if !$force{'wayland'};
+		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
+		if ($graphics{'x-server'}){
+			$server_string = $graphics{'x-server'};
 			# print "$server_string\n";
 		}
-		elsif ($graphics{'x-version'}){
-			if ($graphics{'x-version'} =~ /^Xvesa/){
-				$server_string = $graphics{'x-version'};
-			}
-			else {
-				$server_string = "X.org $graphics{'x-version'}";
-			}
-		}
-		my @drivers = x_drivers();
-		if (!$protocol && !$server_string && !$graphics{'x-vendor'} && !@drivers){
+		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && !@drivers){
 			$server_string = main::message('display-server');
 			@row = ({
 			main::key($num++,1,1,'Display') => '',
@@ -13576,11 +13578,14 @@ sub display_output(){
 		else {
 			$server_string ||= 'N/A';
 			@row = ({
-			main::key($num++,1,1,'Display') => $protocol,
-			main::key($num++,0,2,'server') => $server_string,
+			main::key($num++,1,1,'Display') => $graphics{'protocol'},
+			main::key($num++,1,2,'server') => $server_string,
 			});
+			if ($graphics{'x-version'}){
+				$row[0]->{main::key($num++,0,3,'v')} = $graphics{'x-version'};
+			}
 			if ($graphics{'compositor'}){
-				$row[0]->{main::key($num++,0,2,'compositor')} = $graphics{'compositor'};
+				$row[0]->{main::key($num++,1,2,'compositor')} = $graphics{'compositor'};
 				if ($graphics{'compositor-version'}){
 					$row[0]->{main::key($num++,0,3,'v')} = $graphics{'compositor-version'};
 				}
@@ -13597,31 +13602,46 @@ sub display_output(){
 					if (-e '/var/lib/gdm' && !$b_root){
 						$driver_missing = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
 					}
+					elsif ($graphics{'protocol'} eq 'wayland'){
+						$driver_missing = main::message('display-driver-wayland');
+					}
 					else {
 						$driver_missing = main::message('display-driver-na');
 					}
 				}
-				else {
-					$driver_missing = main::message('root-suggested') if -e '/var/lib/gdm' && !$b_root;
+				elsif ($graphics{'x-driver'}){
+					$driver = $graphics{'x-driver'};
+				}
+				elsif (-e '/var/lib/gdm' && !$b_root) {
+					$driver_missing = main::message('root-suggested');
 				}
 			}
 			else {
 				$driver = $drivers[0];
 			}
-			$row[0]->{main::key($num++,1,2,'driver')} = '';
 			$driver ||= 'N/A';
-			$row[0]->{main::key($num++,1,3,'loaded')} = $driver;
-			if ($driver_missing){
-				$row[0]->{main::key($num++,0,4,'note')} = $driver_missing;
+			if (($graphics{'protocol'} eq 'wayland' || $graphics{'xvesa'}) && 
+			!$drivers[0]){
+				$row[0]->{main::key($num++,1,2,'driver')} = $driver;
+				if ($driver_missing){
+					$row[0]->{main::key($num++,0,3,'note')} = $driver_missing;
+				}
 			}
-			if ($drivers[1]){
-				$row[0]->{main::key($num++,0,3,'unloaded')} = $drivers[1];
-			}
-			if ($drivers[2]){
-				$row[0]->{main::key($num++,0,3,'failed')} = $drivers[2];
-			}
-			if ($extra > 1 && $drivers[3]){
-				$row[0]->{main::key($num++,0,3,'alternate')} = $drivers[3];
+			else {
+				$row[0]->{main::key($num++,1,2,'driver')} = '';
+				$row[0]->{main::key($num++,1,3,'loaded')} = $driver;
+				if ($driver_missing){
+					$row[0]->{main::key($num++,0,4,'note')} = $driver_missing;
+				}
+				if ($drivers[1]){
+					$row[0]->{main::key($num++,0,3,'unloaded')} = $drivers[1];
+				}
+				if ($drivers[2]){
+					$row[0]->{main::key($num++,0,3,'failed')} = $drivers[2];
+				}
+				if ($extra > 1 && $drivers[3]){
+					$row[0]->{main::key($num++,0,3,'alternate')} = $drivers[3];
+				}
 			}
 		}
 		if ($b_admin){
@@ -13637,7 +13657,7 @@ sub display_output(){
 			}
 		}
 		if ($graphics{'no-screens'}){
-			my $res = ($b_admin) ? 'screens' : 'resolution';
+			my $res = ($extra > 1) ? 'screens' : 'resolution';
 			$row[0]->{main::key($num++,0,2,$res)} = $graphics{'no-screens'};
 		}
 		elsif ($graphics{'screens'}){
@@ -13722,7 +13742,7 @@ sub display_output(){
 				}
 			}
 		}
-		else {
+		elsif (!$b_display){
 			$graphics{'tty'} ||= 'N/A';
 			$row[0]->{main::key($num++,0,2,'tty')} = $graphics{'tty'};
 		}
@@ -13770,10 +13790,10 @@ sub monitors_output {
 	}
 	elsif (!$show{'graphic-basic'} || !$b_display) {
 		if ($b_display){
-			$resolution = main::message('display-monitor');
+			$resolution = main::message('monitor-na');
 		}
 		else {
-			$resolution = main::message('display-monitor-console');
+			$resolution = main::message('monitor-console');
 		}
 		$$row[$row_key]->{main::key($$num++,0,$m2,'size-res')} = $resolution;
 	}
@@ -13804,137 +13824,51 @@ sub monitors_output {
 	}
 	eval $end if $b_log;
 }
-sub gl_output(){
+# as soon as EGL for Wayland appears add it!
+sub gl_output {
 	eval $start if $b_log;
 	my $num = 0;
-	my (@row,$arg);
+	my (@row,$program,$type);
 	# print ("$b_display : $b_root\n");
 	if ($b_display){
-		if (my $program = main::check_program('glxinfo')){
-			# NOTE: glxinfo -B is not always available, unfortunately
-			my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
-			# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
-			# my @glxinfo = main::reader($file);
-			if (!@glxinfo){
-				my $type = 'display-console';
-				if ($b_root){
-					$type = 'display-root-x';
-				}
-				else {
-					$type = 'display-null';
-				}
-				@row = ({
-				main::key($num++,0,1,'Message') => main::message($type),
-				});
-				return @row;
-			}
-			# print join("\n", @glxinfo),"\n";
-			my $compat_version = '';
-			my ($b_compat,$b_nogl,@core_profile_version,@direct_render,@renderer,
-			@opengl_version,@working);
-			foreach (@glxinfo){
-				next if /^\s/;
-				if (/^opengl renderer/i){
-					@working = split(/:\s*/, $_, 2);
-					if ($working[1]){
-						$working[1] = main::clean($working[1]);
-						# Allow all mesas
-						# if ($working[1] =~ /mesa/i){
-						#	
-						# }
-					}
-					# note: there are cases where gl drivers are missing and empty 
-					# field value occurs.
-					else {
-						$b_nogl = 1;
-						$working[1] = main::message('gl-empty');
-					}
-					push(@renderer, $working[1]);
-				}
-				# dropping all conditions from this test to just show full mesa information
-				# there is a user case where not f and mesa apply, atom mobo
-				# /opengl version/ && ( f || $2 !~ /mesa/){
-				elsif (/^opengl version/i){
-					@working = split(/:\s*/, $_, 2);
-					if ($working[1]){
-						# fglrx started appearing with this extra string, does not appear 
-						# to communicate anything of value
-						$working[1] =~ s/(Compatibility Profile Context|\(Compatibility Profile\))//;
-						$working[1] =~ s/\s\s/ /g;
-						$working[1] =~ s/^\s+|\s+$//;
-						push(@opengl_version, $working[1]);
-						# note: this is going to be off if ever multi opengl versions appear, 
-						# never seen one
-						@working = split(/\s+/, $working[1]);
-						$compat_version = $working[0];
-					}
-					elsif (!$b_nogl){
-						push(@opengl_version, main::message('gl-empty'));
-					}
-				}
-				elsif (/^opengl core profile version/i){
-					@working = split(/:\s*/, $_, 2);
-					# note: no need to apply empty message here since we don't have the data
-					# anyway
-					if ($working[1]){
-						# fglrx started appearing with this extra string, does not appear 
-						# to communicate anything of value
-						$working[1] =~ s/(Compatibility Profile Context|\((Compatibility|Core) Profile\))//;
-						$working[1] =~ s/\s\s/ /g;
-						$working[1] =~ s/^\s+|\s+$//;
-						push(@core_profile_version, $working[1]);
-					}
-				}
-				elsif (/direct rendering/){
-					@working = split(/:\s*/, $_, 2);
-					push(@direct_render, $working[1]);
-				}
-				# if -B was always available, we could skip this, but it is not
-				elsif (/GLX Visuals/){
-					last;
-				}
-			}
-			my ($direct_render,$renderer,$version) = ('N/A','N/A','N/A');
-			$direct_render = join(', ',  @direct_render) if @direct_render;
-			# non free drivers once filtered and cleaned show the same for core and compat
-			# but this stopped for some reason at 4.5/4.6 nvidia
-			if (@core_profile_version && @opengl_version && 
-			  join('', @core_profile_version) ne join('', @opengl_version) &&
-			  !(grep {/nvidia/i} @opengl_version)){
-				@opengl_version = @core_profile_version;
-				$b_compat = 1;
-			}
-			$version = join(', ', @opengl_version) if @opengl_version;
-			$renderer = join(', ', @renderer) if @renderer;
-			@row = ({
-			main::key($num++,1,1,'OpenGL') => '',
-			main::key($num++,1,2,'renderer') => ($renderer) ? $renderer : 'N/A',
-			main::key($num++,0,2,'v') => ($version) ? $version : 'N/A',
-			});
-			if ($b_compat && $extra > 1 && $compat_version){
-				$row[0]->{main::key($num++,0,2,'compat-v')} = $compat_version;
-			}
-			if ($extra > 0){
-				$row[0]->{main::key($num++,0,2,'direct render')} = $direct_render;
-			}
+		if (!$force{'wayland'} && ($program = main::check_program('glxinfo'))){
+			gl_glxinfo($program,\@row,\$num);
 		}
 		else {
+			$type = 'glxinfo-missing';
+			if ($graphics{'protocol'} eq 'wayland'){
+				$type = 'egl-wayland';
+			}
+			elsif ($graphics{'xvesa'}){
+				$type = 'gl-xvesa';
+			}
 			@row = ({
-			main::key($num++,0,1,'Message') => main::message('glxinfo-missing'),
+			main::key($num++,0,1,'Message') => main::message($type),
 			});
 		}
 	}
 	else {
-		my $type = 'display-console';
+		$type = 'gl-console';
 		if (!main::check_program('glxinfo')){
-			$type = 'glxinfo-missing';
-		}
-		else {
-			if ($b_root){
-				$type = 'display-root';
+			if ($graphics{'protocol'} eq 'wayland'){
+				$type = 'egl-wayland';
+			}
+			elsif ($graphics{'xvesa'}){
+				$type = 'gl-xvesa';
 			}
 			else {
-				$type = 'display-try';
+				$type = 'glxinfo-missing';
+			}
+		}
+		else {
+			if ($graphics{'protocol'} eq 'wayland'){
+				$type = 'egl-wayland';
+			}
+			elsif ($b_root){
+				$type = 'gl-root';
+			}
+			else {
+				$type = 'gl-try';
 			}
 		}
 		@row = ({
@@ -13943,6 +13877,113 @@ sub gl_output(){
 	}
 	eval $end if $b_log;
 	return @row;
+}
+sub gl_glxinfo {
+	eval $start if $b_log;
+	my ($program,$row,$num) = @_;
+	# NOTE: glxinfo -B is not always available, unfortunately
+	my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
+	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
+	# my @glxinfo = main::reader($file);
+	if (!@glxinfo){
+		my $type = 'gl-console';
+		if ($b_root){
+			$type = 'gl-root-display';
+		}
+		else {
+			$type = 'gl-null';
+		}
+		@$row = ({
+		main::key($$num++,0,1,'Message') => main::message($type),
+		});
+		return;
+	}
+	# print join("\n", @glxinfo),"\n";
+	my $compat_version = '';
+	my ($b_compat,$b_nogl,@core_profile_version,@direct_render,@renderer,
+	@opengl_version,@working);
+	foreach (@glxinfo){
+		next if /^\s/;
+		if (/^opengl renderer/i){
+			@working = split(/:\s*/, $_, 2);
+			if ($working[1]){
+				$working[1] = main::clean($working[1]);
+			}
+			# note: there are cases where gl drivers are missing and empty 
+			# field value occurs.
+			else {
+				$b_nogl = 1;
+				$working[1] = main::message('gl-empty');
+			}
+			push(@renderer, $working[1]);
+		}
+		# dropping all conditions from this test to just show full mesa information
+		# there is a user case where not f and mesa apply, atom mobo
+		# /opengl version/ && ( f || $2 !~ /mesa/){
+		elsif (/^opengl version/i){
+			@working = split(/:\s*/, $_, 2);
+			if ($working[1]){
+				# fglrx started appearing with this extra string, does not appear 
+				# to communicate anything of value
+				$working[1] =~ s/(Compatibility Profile Context|\(Compatibility Profile\))//;
+				$working[1] =~ s/\s\s/ /g;
+				$working[1] =~ s/^\s+|\s+$//;
+				push(@opengl_version, $working[1]);
+				# note: this is going to be off if ever multi opengl versions appear, 
+				# never seen one
+				@working = split(/\s+/, $working[1]);
+				$compat_version = $working[0];
+			}
+			elsif (!$b_nogl){
+				push(@opengl_version, main::message('gl-empty'));
+			}
+		}
+		elsif (/^opengl core profile version/i){
+			@working = split(/:\s*/, $_, 2);
+			# note: no need to apply empty message here since we don't have the data
+			# anyway
+			if ($working[1]){
+				# fglrx started appearing with this extra string, does not appear 
+				# to communicate anything of value
+				$working[1] =~ s/(Compatibility Profile Context|\((Compatibility|Core) Profile\))//;
+				$working[1] =~ s/\s\s/ /g;
+				$working[1] =~ s/^\s+|\s+$//;
+				push(@core_profile_version, $working[1]);
+			}
+		}
+		elsif (/direct rendering/){
+			@working = split(/:\s*/, $_, 2);
+			push(@direct_render, $working[1]);
+		}
+		# if -B was always available, we could skip this, but it is not
+		elsif (/GLX Visuals/){
+			last;
+		}
+	}
+	my ($direct_render,$renderer,$version) = ('N/A','N/A','N/A');
+	$direct_render = join(', ',  @direct_render) if @direct_render;
+	# non free drivers once filtered and cleaned show the same for core and compat
+	# but this stopped for some reason at 4.5/4.6 nvidia
+	if (@core_profile_version && @opengl_version && 
+		join('', @core_profile_version) ne join('', @opengl_version) &&
+		!(grep {/nvidia/i} @opengl_version)){
+		@opengl_version = @core_profile_version;
+		$b_compat = 1;
+	}
+	$version = join(', ', @opengl_version) if @opengl_version;
+	$renderer = join(', ', @renderer) if @renderer;
+	@$row = ({
+	main::key($$num++,1,1,'OpenGL') => '',
+	main::key($$num++,1,2,'renderer') => ($renderer) ? $renderer : 'N/A',
+	main::key($$num++,0,2,'v') => ($version) ? $version : 'N/A',
+	});
+	if ($b_compat && $extra > 1 && $compat_version){
+		$row->[0]{main::key($$num++,0,2,'compat-v')} = $compat_version;
+	}
+	if ($extra > 0){
+		$row->[0]{main::key($$num++,0,2,'direct render')} = $direct_render;
+	}
+	eval $end if $b_log;
 }
 sub display_data_wayland {
 	eval $start if $b_log;
@@ -13957,7 +13998,7 @@ sub display_data_wayland {
 			undef $graphics{'no-screens'};
 		}
 		else {
-			$graphics{'no-screens'} = main::message('display-wayland-screen');
+			$graphics{'no-screens'} = main::message('screen-wayland');
 		}
 	}
 	print 'Wayland screen: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
@@ -14012,20 +14053,22 @@ sub display_data_xdpyinfo {
 			if ($working[1] !~ /x/i){
 				$working[1] .= ' X.org';
 			}
-			$graphics{'x-vendor'} = $working[1];
+			$graphics{'x-server'} = $working[1];
 		}
 		elsif ($working[0] eq 'name of display'){
 			$graphics{'display-id'} = $working[1];
 		}
+		# this is the x protocol version
 		elsif ($working[0] eq 'version number'){
-			$graphics{'x-version-id'} = $working[1];
+			$graphics{'x-protocol-version'} = $working[1];
 		}
-		# note used, fix that
+		# not used, fix that
 		elsif ($working[0] eq 'vendor release number'){
 			$graphics{'x-vendor-release'} = $working[1];
 		}
+		# the real X.org version string 
 		elsif ($working[0] eq 'X.Org version'){
-			$graphics{'xorg-version'} = $working[1];
+			$graphics{'x-version'} = $working[1];
 		}
 		elsif ($working[0] eq 'default screen number'){
 			$graphics{'display-default-screen'} = $working[1];
@@ -14226,11 +14269,6 @@ sub monitor_advanced_data {
 	my ($primary,$screen,$layouts) = @_;
 	my (@horiz,@vert);
 	my $position = '';
-	# not printing out primary if Screen has only 1 Monitor
-	if (scalar @$screen == 1){
-		$screen->[0]{'position'} = undef;
-		return;
-	}
 	# then see if we can locate a default position primary monitor
 	for (my $j = 0; $j < scalar @$screen; $j++){
 		# this is the only scenario we can guess at if no primary detected
@@ -14272,6 +14310,10 @@ sub monitor_advanced_data {
 			# the remaining for monitor output without xrandr (or future sources)
 			delete $monitor_ids->{$mon_mapped};
 		}
+	}
+# not printing out primary if Screen has only 1 Monitor
+	if (scalar @$screen == 1){
+		$screen->[0]{'position'} = undef;
 	}
 	eval $end if $b_log;
 }
@@ -14412,12 +14454,13 @@ sub map_monitor_ids {
 			$d_4 = $4;
 			$d_1 =~ s/^DisplayPort/DP/i; # amdgpu...
 			print " d1: $d_1 d2: $d_2 d3: $d_3 d4: $d_4\n" if $dbg[45];
-			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/){
+			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
 				$s_1 = $1;
 				$s_2 = ($2) ? $2 : '';
 				$s_3 = ($3) ? $3 : '';
 				$s_4 = $4;
-				print " s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
+				$d_1 = $s_1 if uc($d_1) eq 'XWAYLAND';
+				print " d1: $d_1 s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
 				if ($d_1 eq $s_1 && ($d_4 == $s_4 || $d_4 == ($s_4 - 1))){
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
 				}
@@ -14431,31 +14474,22 @@ sub map_monitor_ids {
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
 	eval $end if $b_log;
 }
-sub set_compositor {
+sub set_protocol {
 	eval $start if $b_log;
-	my ($protocol) = @_;
-	# initial tests, if wayland, it is certainly a compositor
-	$protocol = lc($protocol) if $protocol;
-	$graphics{'compositor'} = display_compositor($protocol);
-	# gnome-shell is incredibly slow to return version
-	if (($extra > 2 || $protocol eq 'wayland') && $graphics{'compositor'} && 
-	 (!$show{'system'} || $graphics{'compositor'} ne 'gnome-shell')){
-		$graphics{'compositor-version'} = (main::program_data($graphics{'compositor'},$graphics{'compositor'},3))[1];
+	$graphics{'protocol'} = '';
+	if ($ENV{'XDG_SESSION_TYPE'}){
+		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
 	}
-	eval $end if $b_log;
-}
-sub get_protocol {
-	eval $start if $b_log;
-	my ($protocol) = ('');
-	$protocol = $ENV{'XDG_SESSION_TYPE'} if $ENV{'XDG_SESSION_TYPE'};
-	$protocol = $ENV{'WAYLAND_DISPLAY'} if (!$protocol && $ENV{'WAYLAND_DISPLAY'});
+	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
+		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
+	}
 	# can show as wayland-0
-	$protocol = 'wayland' if $protocol && $protocol =~ /wayland/i;
+	$graphics{'protocol'} = 'wayland' if $graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i;
 	# yes, I've seen this in 2019 distros, sigh
-	$protocol = '' if $protocol eq 'tty';
+	$graphics{'protocol'} = '' if $graphics{'protocol'} eq 'tty';
 	# need to confirm that there's a point to this test, I believe no, fails out of x
 	# loginctl also results in the session id
-	if (!$protocol && $b_display && $force{'display'}){
+	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
 		if (my $program = main::check_program('loginctl')){
 			my $id = '';
 			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
@@ -14469,36 +14503,61 @@ sub get_protocol {
 				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
 				$temp =~ s/Type=// if $temp;
 				# ssh will not show /dev/ttyx so would have passed the first test
-				$protocol = $temp if $temp && $temp ne 'tty';
+				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
 			}
 		}
 	}
+	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
 	eval $end if $b_log;
-	return $protocol;
 }
-sub tty_data(){
+sub set_compositor_data {
 	eval $start if $b_log;
-	my ($tty);
-	if ($size{'term-cols'}){
-		$tty = "$size{'term-cols'}x$size{'term-lines'}";
-	}
-	# this is broken
-	elsif ($b_irc && $client{'console-irc'}){
-		ShellData::console_irc_tty() if !$loaded{'con-irc-tty'};
-		my $tty_working = $client{'con-irc-tty'};
-		if ($tty_working ne '' && (my $program = main::check_program('stty'))){
-			my $tty_arg = ($bsd_type) ? '-f' : '-F';
-			# handle vtnr integers, and tty ID with letters etc.
-			$tty_working = "tty$tty_working" if -e "/dev/tty$tty_working";
-			$tty = (main::grabber("$program $tty_arg /dev/$tty_working size 2>/dev/null"))[0];
-			if ($tty){
-				my @temp = split(/\s+/, $tty);
-				$tty = "$temp[1]x$temp[0]";
-			}
+	if (my $compositor = get_compositor()){
+		my @data;
+		# gnome-shell is incredibly slow to return version
+		if (($extra > 2 || $graphics{'protocol'} eq 'wayland') && 
+		(!$show{'system'} || $compositor ne 'gnome-shell')){
+			@data = main::program_data($compositor,$compositor,3);
+			$graphics{'compositor'} = $data[0];
+			$graphics{'compositor-version'} = $data[1];
+		}
+		else {
+			$graphics{'compositor'} = (main::program_values($compositor))[3];
 		}
 	}
 	eval $end if $b_log;
-	return $tty;
+}
+# This has a structural weakness, where if > 1 compositor used, it 
+# will exit on first detected in alphanumeric sort order. 
+sub get_compositor {
+	eval $start if $b_log;
+	my $compositor = '';
+	main::set_ps_gui() if !$loaded{'ps-gui'};
+	if (@ps_gui){
+		# ORDER MATTES!
+		# notes: compiz: debian package compiz-core; 
+		# enlightenment: as of version 20 wayland compositor
+		my @compositors = qw(budgie-wm compiz compton enlightenment gnome-shell 
+		kwin_wayland kwin_x11 marco muffin mutter);
+		# these are more obscure, so check for them after primary common ones
+		push (@compositors,qw(3dwm asc cage cagebreak cardboard clayland dcompmgr 
+		dwc dwl epd-wm fireplace gala gamescope greenfield grefson hikari hopalong
+		japokwm kiwmi kmscon labwc laikawm liri lipstick maze metisse mir moblin
+		motorcar monsterwm newm orbital papyros perceptia phoc picom river rustland
+		sommelier sway swc swvkc taiwins tinybox tinywl ukwm unagi 
+		unity-system-compositor velox vivarium wavy waybox waycooler way-cooler
+		wayfire wayhouse waymonad westeros westford weston wio wxrc wxrd xcompmgr
+		xfwm4 xfwm5 xfwm));
+		foreach my $item (@compositors){
+			if (grep {$_ eq $item} @ps_gui){
+				$compositor = $item;
+				last;
+			}
+		}
+	}
+	main::log_data('data',"compositor: $compositor") if $b_log;
+	eval $end if $b_log;
+	return $compositor;
 }
 sub x_drivers {
 	eval $start if $b_log;
@@ -14598,9 +14657,9 @@ sub x_drivers {
 	return @driver_data;
 }
 # fallback if no glx x version data found
-sub x_version {
+sub x_server_data {
 	eval $start if $b_log;
-	my ($version,@data,$program);
+	my (@data,$program,$server,$version);
 	# load the extra X paths, it's important that these are first, because
 	# later Xorg versions show error if run in console or ssh if the true path 
 	# is not used.
@@ -14608,12 +14667,24 @@ sub x_version {
 	# IMPORTANT: both commands send version data to stderr!
 	if ($program = main::check_program('Xorg')){
 		@data = main::grabber("$program -version 2>&1");
+		$server = 'X.org';
 	}
 	elsif ($program = main::check_program('X')){
 		@data = main::grabber("$program -version 2>&1");
+		$server = 'X.org';
+	}
+	elsif ($program = main::check_program('Xwayland')){
+		@data = main::grabber("$program -version 2>&1");
+		$server = 'Xwayland';
 	}
 	elsif ($program = main::check_program('Xvesa')){
 		@data = main::grabber("$program -version 2>&1");
+		$server = 'Xvesa';
+		$graphics{'x-driver'} = 'vesa';
+		$graphics{'xvesa'} = 1;
+		if (!$graphics{'screens'}){
+			$graphics{'no-screens'} = main::message('screen-xvesa');
+		}
 	}
 	# print join('^ ', @paths), " :: $program\n";
 	# print Data::Dumper::Dumper \@data;
@@ -14627,121 +14698,46 @@ sub x_version {
 				$version = (split(/\s+/, $_))[4];
 				last;
 			}
+			elsif (/Xwayland Version/i){
+				$version = (split(/\s+/, $_))[5];
+				last;
+			}
 			elsif (/^Xvesa from/i){
 				$version = (split(/\s+/, $_))[3];
-				$version = "Xvesa $version" if $version;
+				$server .= ' TinyX' if $_ =~ /tinyx/i;
 				last;
 			}
 		}
 	}
-	# remove extra X paths
+	$graphics{'x-server'} = $server if !$graphics{'x-server'};
+	$graphics{'x-version'} = $version;
+	# remove extra X paths from global @paths
 	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
 	eval $end if $b_log;
-	return $version;
 }
-# $1 - protocol: wayland|x11
-sub display_compositor {
+sub tty_data(){
 	eval $start if $b_log;
-	my ($protocol) = @_; 
-	my ($compositor) = ('');
-	main::set_ps_gui() if !$loaded{'ps-gui'};
-	if (@ps_gui){
-		# 1 check program; 2 search; 3 unused version; 4 print
-		my @compositors = (
-		['budgie-wm','budgie-wm','','budgie-wm'],
-		# owned by: compiz-core in debian
-		['compiz','compiz','','compiz'],
-		['compton','compton','','compton'],
-		# as of version 20 is wayland compositor
-		['enlightenment','enlightenment','','enlightenment'],
-		['gnome-shell','gnome-shell','','gnome-shell'],
-		['kwin_wayland','kwin_wayland','','kwin_wayland'],
-		['kwin_x11','kwin_x11','','kwin_x11'],
-		# ['kwin','kwin','','kwin'],
-		['marco','marco','','marco'],
-		['muffin','muffin','','muffin'],
-		['mutter','mutter','','mutter'],
-		# these are more obscure, so check for them last
-		['3dwm','3dwm','','3dwm'],
-		['asc','asc','','asc'],
-		['cage','cage','','cage'],
-		['cagebreak','cagebreak','','cagebreak'],
-		['cardboard','cardboard','','cardboard'],
-		['clayland','clayland','','clayland'],
-		['dcompmgr','dcompmgr','','dcompmgr'],
-		['dwc','dwc','','dwc'],
-		['dwl','dwl','','dwl'], # not verified
-		['epd-wm','epd-wm','','epd-wm'],
-		['fireplace','fireplace','','fireplace'],
-		['gala','gala','','gala'],
-		['gamescope','gamescope','','gamescope'],
-		['greenfield','greenfield','','greenfield'],
-		['grefson','grefson','','grefson'],
-		['hikari','hikari','','hikari'],
-		['hopalong','hopalong','','hopalong'],
-		['japokwm','japokwm','','japokwm'],
-		['kiwmi','kiwmi','','kiwmi'],
-		['kmscon','kmscon','','kmscon'],
-		['labwc','labwc','','labwc'],
-		['laikawm','laikawm','','laikawm'],
-		['liri','liri','','liri'],
-		['lipstick','lipstick','','lipstick'],
-		['maze','maze','','maze'],
-		['metisse','metisse','','metisse'],
-		['mir','mir','','mir'],
-		['moblin','moblin','','moblin'],
-		['motorcar','motorcar','','motorcar'],
-		['monsterwm','monsterwm','','monsterwm'],
-		['newm','newm','','newm'],
-		['orbital','orbital','','orbital'],
-		['papyros','papyros','','papyros'],
-		['perceptia','perceptia','','perceptia'],
-		['phoc','phoc','','phoc'],
-		['picom','picom','','picom'],
-		['river','river','','river'],
-		['rustland','rustland','','rustland'],
-		['swvkc','swvkc','','swvkc'],
-		['sommelier','sommelier','','sommelier'],
-		['sway','sway','','Sway'],
-		['swc','swc','','swc'],
-		['taiwins','taiwins','','taiwins'],
-		['tinybox','tinybox','','tinybox'],
-		['tinywl','tinywl','','tinywl'],
-		['ukwm','ukwm','','ukwm'],
-		['unagi','unagi','','unagi'],
-		['unity-system-compositor','unity-system-compositor','','unity-system-compositor'],
-		['velox','velox','','velox'],
-		['vivarium','vivarium','','vivarium'],
-		['wavy','wavy','','wavy'],
-		['waybox','waybox','','waybox'],
-		['waycooler','waycooler','','way-cooler'],
-		['way-cooler','way-cooler','','way-cooler'],
-		['wayfire','wayfire','','wayfire'],
-		['wayhouse','wayhouse','','wayhouse'],
-		['waymonad','waymonad','','waymonad'],
-		['westeros','westeros','westeros'],
-		['westford','westford','','westford'],
-		['weston','weston','','weston'],
-		['wio','wio','','wio'],
-		['wxrc','wxrc','','wxrc'],
-		['wxrd','wxrd','','wxrd'],
-		['xcompmgr','xcompmgr','','xcompmgr'],
-		['xfwm4','xfwm4','','xfwm4'],
-		['xfwm5','xfwm5','','xfwm5'],
-		['xfwm','xfwm','','xfwm'],
-		);
-		foreach my $item (@compositors){
-			# no need to use check program with short list of ps_gui
-			# if (main::check_program($item[0]) && (grep {/^$item[1]$/} @ps_gui)){
-			if (grep {/^$item->[1]$/} @ps_gui){
-				$compositor = $item->[3];
-				last;
+	my ($tty);
+	if ($size{'term-cols'}){
+		$tty = "$size{'term-cols'}x$size{'term-lines'}";
+	}
+	# this is broken
+	elsif ($b_irc && $client{'console-irc'}){
+		ShellData::console_irc_tty() if !$loaded{'con-irc-tty'};
+		my $tty_working = $client{'con-irc-tty'};
+		if ($tty_working ne '' && (my $program = main::check_program('stty'))){
+			my $tty_arg = ($bsd_type) ? '-f' : '-F';
+			# handle vtnr integers, and tty ID with letters etc.
+			$tty_working = "tty$tty_working" if -e "/dev/tty$tty_working";
+			$tty = (main::grabber("$program $tty_arg /dev/$tty_working size 2>/dev/null"))[0];
+			if ($tty){
+				my @temp = split(/\s+/, $tty);
+				$tty = "$temp[1]x$temp[0]";
 			}
 		}
 	}
-	main::log_data('data',"compositor: $compositor") if $b_log;
 	eval $end if $b_log;
-	return $compositor;
+	return $tty;
 }
 }
 
@@ -14782,7 +14778,7 @@ sub get {
 			},);
 		}
 		elsif (@lsblk && !$use{'logical-lvm'} && ($alerts{'lvs'}->{'action'} eq 'permissions' || 
-		       $alerts{'lvs'}->{'action'} eq 'missing')){
+		$alerts{'lvs'}->{'action'} eq 'missing')){
 			my $key = 'Message';
 			push(@rows, {
 			main::key($num++,0,1,$key) => main::message('logical-data',''),
@@ -14946,9 +14942,9 @@ sub general_data {
 		%parent = LsblkData::get($row->{'parent'});
 		next if !$parent{'fs'};
 		if ($row->{'type'} && (($row->{'type'} eq 'crypt' || 
-		    $row->{'type'} eq 'mpath' || $row->{'type'} eq 'multipath')  ||
-		    ($row->{'type'} eq 'dm' && $row->{'name'} =~ /veracrypt/i) ||
-		    ($parent{'fs'} eq 'bcache'))){
+		$row->{'type'} eq 'mpath' || $row->{'type'} eq 'multipath')  ||
+		($row->{'type'} eq 'dm' && $row->{'name'} =~ /veracrypt/i) ||
+		($parent{'fs'} eq 'bcache'))){
 			my (@full_components,$mapped,$type);
 			$mapped = $mapper{$row->{'name'}} if %mapper;
 			next if grep(/^$row->{'name'}$/, @found);
@@ -15197,8 +15193,9 @@ sub machine_output {
 # 		print "$key: $data->{$key}\n";
 # 	}
 	if (!$data->{'sys_vendor'} || 
-	    ($data->{'board_vendor'} && $data->{'sys_vendor'} eq $data->{'board_vendor'} && 
-	     !$data->{'product_name'} && !$data->{'product_version'} && !$data->{'product_serial'})){
+	($data->{'board_vendor'} && $data->{'sys_vendor'} eq $data->{'board_vendor'} && 
+	!$data->{'product_name'} && !$data->{'product_version'} && 
+	!$data->{'product_serial'})){
 		$b_skip_system = 1;
 	}
 	# The goal here is to not show laptop/mobile devices
@@ -15209,11 +15206,11 @@ sub machine_output {
 		# in case where the vendor is the same and the version is the same and not null, 
 		# otherwise the version information is going to be different in all cases I think
 		if (($data->{'sys_vendor'} && $data->{'board_vendor'} && 
-		      $data->{'sys_vendor'} eq $data->{'board_vendor'}) &&
-			 (($data->{'product_version'} && $data->{'board_version'} && 
-			   $data->{'product_version'} eq $data->{'board_version'}) ||
-			   (!$data->{'product_version'} && $data->{'product_name'} && $data->{'board_name'} && 
-			     $data->{'product_name'} eq $data->{'board_name'}))){
+		$data->{'sys_vendor'} eq $data->{'board_vendor'}) &&
+		(($data->{'product_version'} && $data->{'board_version'} && 
+		$data->{'product_version'} eq $data->{'board_version'}) ||
+		(!$data->{'product_version'} && $data->{'product_name'} && $data->{'board_name'} && 
+		$data->{'product_name'} eq $data->{'board_name'}))){
 			$b_skip_system = 1;
 		}
 	}
@@ -19016,7 +19013,7 @@ sub ram_output {
 					$rows[$j]->{main::key($num++,0,3,'info')} = $mod->{'type'};
 				}
 				if ($mod->{'speed'} && $mod->{'configured-clock-speed'} && 
-				    $mod->{'speed'} ne $mod->{'configured-clock-speed'}){
+				$mod->{'speed'} ne $mod->{'configured-clock-speed'}){
 					$rows[$j]->{main::key($num++,1,3,'speed')} = '';
 					$rows[$j]->{main::key($num++,0,4,'spec')} = $mod->{'speed'};
 					$rows[$j]->{main::key($num++,0,4,'note')} = $mod->{'speed-note'} if $mod->{'speed-note'};
@@ -19464,7 +19461,7 @@ sub process_data {
 		}
 		# 2: now check to see if actually found module sizes are > than listed max module, replace if >
 		if ($item->{'max-module-size'} && $item->{'derived-module-size'} && 
-		     $item->{'derived-module-size'} > $item->{'max-module-size'}){
+		$item->{'derived-module-size'} > $item->{'max-module-size'}){
 			$item->{'max-module-size'} = $item->{'derived-module-size'};
 			$est_mod = $est;
 		}
@@ -19479,13 +19476,13 @@ sub process_data {
 			if ($item->{'used-capacity'} && $item->{'max-capacity-16'}){
 				if ($item->{'used-capacity'} > $max_cap){
 					if ($item->{'max-module-size'} && 
-					  $item->{'used-capacity'} < ($item->{'slots-16'} * $item->{'max-module-size'})){
+					$item->{'used-capacity'} < ($item->{'slots-16'} * $item->{'max-module-size'})){
 						$max_cap = $item->{'slots-16'} * $item->{'max-module-size'};
 						$est_cap = $est;
 						print "A\n" if $b_debug;
 					}
 					elsif ($item->{'derived-module-size'} && 
-					  $item->{'used-capacity'} < ($item->{'slots-16'} * $item->{'derived-module-size'})){
+					$item->{'used-capacity'} < ($item->{'slots-16'} * $item->{'derived-module-size'})){
 						$max_cap = $item->{'slots-16'} * $item->{'derived-module-size'};
 						$est_cap = $est;
 						print "B\n" if $b_debug;
@@ -19502,7 +19499,7 @@ sub process_data {
 			if (!$est_cap){
 				# do not do this for only single modules found, max mod size can be equal to the array size
 				if ($item->{'slots-16'} > 1 && $item->{'device-count-found'} > 1 && 
-				  $max_cap < ($item->{'derived-module-size'} * $item->{'slots-16'})){
+				$max_cap < ($item->{'derived-module-size'} * $item->{'slots-16'})){
 					$max_cap = $item->{'derived-module-size'} * $item->{'slots-16'};
 					$est_cap = $est;
 					print "D\n" if $b_debug;
@@ -19515,9 +19512,9 @@ sub process_data {
 				## handle cases where we have type 5 data: mms x device count equals type 5 max cap
 				# however do not use it if cap / devices equals the derived module size
 				elsif ($item->{'max-module-size'} > 0 &&
-				  ($item->{'max-module-size'} * $item->{'slots-16'}) == $item->{'max-capacity-5'} &&
-				  $item->{'max-capacity-5'} != $item->{'max-capacity-16'} &&
-				  $item->{'derived-module-size'} != ($item->{'max-capacity-16'}/$item->{'slots-16'})){
+				($item->{'max-module-size'} * $item->{'slots-16'}) == $item->{'max-capacity-5'} &&
+				$item->{'max-capacity-5'} != $item->{'max-capacity-16'} &&
+				$item->{'derived-module-size'} != ($item->{'max-capacity-16'}/$item->{'slots-16'})){
 					$max_cap = $item->{'max-capacity-5'};
 					$est_cap = $est;
 					print "F\n" if $b_debug;
@@ -20650,8 +20647,8 @@ sub get {
 	# we're allowing 1 or 2 ipmi tools, first the gnu one, then the 
 	# almost certain to be present in BSDs
 	if ($fake{'ipmi'} || (main::globber('/dev/ipmi**') && 
-	    (($program = main::check_program('ipmi-sensors')) ||
-	     ($program = main::check_program('ipmitool'))))){
+	(($program = main::check_program('ipmi-sensors')) ||
+	($program = main::check_program('ipmitool'))))){
 		if ($fake{'ipmi'} || $b_root){
 			%sensors = ipmi_data($program);
 			@data = sensors_output('ipmi',\%sensors);
@@ -20843,7 +20840,8 @@ sub sensors_output {
 		}
 	}
 	if ($extra > 0 && ($source eq 'ipmi' || 
-	   ($sensors->{'volts-12'} || $sensors->{'volts-5'} || $sensors->{'volts-3.3'} || $sensors->{'volts-vbat'}))){
+	($sensors->{'volts-12'} || $sensors->{'volts-5'} || $sensors->{'volts-3.3'} || 
+	$sensors->{'volts-vbat'}))){
 		$j = scalar @rows;
 		$sensors->{'volts-12'} ||= 'N/A';
 		$sensors->{'volts-5'} ||= 'N/A';
@@ -22121,11 +22119,11 @@ sub proc_data {
 		# In arm/android seen /dev/block/mmcblk0p12
 		# print "mount: $row->[-1]\n";
 		if ($row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
-		    $row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
-		    $row->[-1] !~ /\bloop/ && 
-		    !(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
-		    !(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted) &&
-		    !(grep {$_ =~ /^sd[a-z]+$/ && $row->[-1] =~ /^$_[0-9]+/} @mounted)){
+		$row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
+		$row->[-1] !~ /\bloop/ && 
+		!(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
+		!(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted) &&
+		!(grep {$_ =~ /^sd[a-z]+$/ && $row->[-1] =~ /^$_[0-9]+/} @mounted)){
 			$dev_mapped = $dmmapper{$row->[-1]} if $dmmapper{$row->[-1]};
 			if (@lsblk){
 				my $id = ($dev_mapped) ? $dev_mapped: $row->[-1];
@@ -23552,8 +23550,8 @@ sub get_env_de_data {
 		foreach my $item (@desktops){
 			# Check if in xdg_desktop OR desktop_session OR if in $item->[6] and in ps_gui
 			if ((($item->[0] && ($xdg_desktop eq $item->[1] || $desktop_session eq $item->[1])) ||
-			   (!$item->[0] && ($xdg_desktop =~ /$item->[1]/ || $desktop_session  =~ /$item->[1]/))) ||
-			   ($item->[5] && @ps_gui && (grep {/$item->[5]/} @ps_gui))){
+			(!$item->[0] && ($xdg_desktop =~ /$item->[1]/ || $desktop_session  =~ /$item->[1]/))) ||
+			($item->[5] && @ps_gui && (grep {/$item->[5]/} @ps_gui))){
 				($desktop[0],$desktop[1]) = main::program_data($item->[2]);
 				$b_gtk = $item->[3];
 				$b_qt = $item->[4];
@@ -25113,7 +25111,7 @@ sub set_gpart_data {
 
 sub get_display_manager {
 	eval $start if $b_log;
-	my (@data,@found,@glob,$path,@temp);
+	my (@data,@found,@glob,$link,$path,@temp);
 	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
 	# extension in Arch. Guessing on cdm, qingy. pcdm uses vt, PCDM-vt9.pid
 	# Not verified: qingy emptty; greetd.run verified, but alternate:
@@ -25128,7 +25126,7 @@ sub get_display_manager {
 		$pattern .= '/run';
 	}
 	# in most linux, /var/run is a sym link to /run, so no need to check it twice
-	if (-d '/var/run' && readlink('/var/run') ne '/run'){
+	if (-d '/var/run' && ($link = readlink('/var/run')) && $link ne '/run'){
 		$pattern .= ',' if $pattern;
 		$pattern .= '/var/run';
 	}
@@ -25248,8 +25246,8 @@ sub get_bsd_os {
 		$distro_id = lc($uname[0]);
 	}
 	if ($distro &&
-	 (-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
-	  $distro =~ /freebsd/i){
+	(-e '/etc/pkg/GhostBSD.conf' || -e '/usr/local/etc/pkg/repos/GhostBSD.conf') && 
+	$distro =~ /freebsd/i){
 		my $version = (main::grabber("pkg query '%v' os-generic-userland-base 2>/dev/null"))[0];
 		# only swap if we get result from the query
 		if ($version){
@@ -26446,9 +26444,10 @@ sub set {
 				# note: for bcache and luks, the device that has that fs is the parent!!
 				if ($show{'logical'}){
 					$use{'logical-lvm'} = 1 if !$use{'logical-lvm'} && $2 && $2 eq 'lvm';
-					if (!$use{'logical-general'} && (($4 && ($4 eq 'crypto_LUKS' || $4 eq 'bcache')) 
-					    || ($2 && ($2 eq 'dm' && $1 =~ /veracrypt/i) || 
-					    $2 eq 'crypto' || $2 eq 'mpath' || $2 eq 'multipath'))){
+					if (!$use{'logical-general'} && (($4 && 
+					($4 eq 'crypto_LUKS' || $4 eq 'bcache')) || 
+					($2 && ($2 eq 'dm' && $1 =~ /veracrypt/i) || $2 eq 'crypto' || 
+					$2 eq 'mpath' || $2 eq 'multipath'))){
 						$use{'logical-general'} = 1;
 					}
 				}
@@ -28530,9 +28529,8 @@ sub assign_usb_type {
 	# nested hubs of course can be > 1 too. No need to build these if none of 
 	# lines are showing.
 	if (($row->[4] && $row->[4] eq '09') || 
-	  ($row->[14] && $row->[14] eq 'Hub') ||
-	  $row->[1] <= 1 ||
-	  (!$show{'audio'} && !$show{'bluetooth'} && !$show{'graphic'} && !$show{'network'})){
+	($row->[14] && $row->[14] eq 'Hub') || $row->[1] <= 1 ||
+	(!$show{'audio'} && !$show{'bluetooth'} && !$show{'graphic'} && !$show{'network'})){
 		return;
 	}
 	$row->[13] = '' if !defined $row->[13]; # product
@@ -28542,27 +28540,24 @@ sub assign_usb_type {
 	set_network_regex() if $show{'network'} && !$network_regex;
 	# NOTE: a device, like camera, can be audio+graphic
 	if ($show{'audio'} && (
-	  (@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
-	  ($row->[14] =~ /Audio/) || 
-	  ($row->[15] && $row->[15] =~ /audio/) ||
-	  ($row->[13] && lc($row->[13]) =~ /(audio|\bdac[0-9]*\b|headphone|\bmic(rophone)?\b)/))){
+	(@asound_ids && $row->[7] && (grep {$row->[7] eq $_} @asound_ids)) ||
+	($row->[14] =~ /Audio/) || ($row->[15] && $row->[15] =~ /audio/) ||
+	($row->[13] && lc($row->[13]) =~ /(audio|\bdac[0-9]*\b|headphone|\bmic(rophone)?\b)/))){
 		push(@{$usb{'audio'}},$row);
 	}
-	if ($show{'graphic'} && (
-	  $row->[14] && ($row->[14] =~ /Video/) ||
-	  ($row->[15] && $row->[15] =~ /video/) || 
-	  ($row->[13] && lc($row->[13]) =~ /(camera|\bdvb-t|\b(pc)?tv\b|video|webcam)/))){
+	if ($show{'graphic'} && ($row->[14] && ($row->[14] =~ /Video/) ||
+	($row->[15] && $row->[15] =~ /video/) || 
+	($row->[13] && lc($row->[13]) =~ /(camera|\bdvb-t|\b(pc)?tv\b|video|webcam)/))){
 		push(@{$usb{'graphics'}},$row);
 	}
-	elsif ($show{'bluetooth'} && (
-	  $row->[14] && $row->[14] =~ /Bluetooth/ || 
-	  ($row->[15] && $row->[15] =~ /\b(btusb|ubt)\b/))){
+	elsif ($show{'bluetooth'} && ($row->[14] && $row->[14] =~ /Bluetooth/ || 
+	($row->[15] && $row->[15] =~ /\b(btusb|ubt)\b/))){
 		push(@{$usb{'bluetooth'}},$row);
 	}
 	elsif ($show{'network'} && (
-	   ($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
-	   ($row->[15] && $row->[15] =~ /(^ipw|^iwl|wifi)/) || 
-	   ($row->[13] && $row->[13] =~ /($network_regex)/i))){
+	($row->[14] && $row->[14] =~ /(Ethernet|Network|WiFi)/i) ||
+	($row->[15] && $row->[15] =~ /(^ipw|^iwl|wifi)/) || 
+	($row->[13] && $row->[13] =~ /($network_regex)/i))){
 		# print "$1\n";
 		push(@{$usb{'network'}},$row);
 	}
@@ -28643,7 +28638,7 @@ sub check_type {
 		$type = 'Bluetooth'
 	}
 	elsif (($driver && $driver =~ /video/) || 
-	  $name =~ /(camera|display|\bdvb-t|\b(pc)?tv\bvideo|webcam)/){
+	$name =~ /(camera|display|\bdvb-t|\b(pc)?tv\bvideo|webcam)/){
 		$type = 'Video';
 	}
 	elsif ($name =~ /(wlan|wi-?fi|802\.1[15]|(11|54|108|240|300|450|1300)\s?mbps|(11|54|108|240)g\b|wireless[\s-][gn]\b|wireless.*adapter)/){
@@ -28659,7 +28654,7 @@ sub check_type {
 		$type = 'HID';
 	}
 	elsif (($driver && $driver =~ /^(umass)$/) || 
-	  $name =~ /\b(disk|drive|flash)\b/){
+	$name =~ /\b(disk|drive|flash)\b/){
 		$type = 'Mass Storage';
 	}
 	return $type;
@@ -29205,8 +29200,8 @@ sub system_item {
 		}
 		# don't print the desktop if it's a wm and the same
 		if ($extra > 1 && $desktop_data[5] && 
-		    (!$desktop_data[0] || $desktop_data[5] =~ /^(deepin.+|gnome[\s_-]shell|budgie.+)$/i || 
-		    index(lc($desktop_data[5]),lc($desktop_data[0])) == -1)){
+		(!$desktop_data[0] || $desktop_data[5] =~ /^(deepin.+|gnome[\s_-]shell|budgie.+)$/i || 
+		index(lc($desktop_data[5]),lc($desktop_data[0])) == -1)){
 			$wm = $desktop_data[5];
 			$wm .= ' ' . $desktop_data[6] if $extra > 2 && $desktop_data[6];
 		}
