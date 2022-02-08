@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-06';
-my $self_patch='18';
+my $self_date='2022-02-07';
+my $self_patch='19';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -1901,8 +1901,7 @@ sub display_data {
 	['swaymsg','-t get_inputs -r'],
 	['swaymsg','-t get_outputs -p'],
 	['swaymsg','-t get_outputs -r'],
-	['swaymsg','-t get_tree -p'],
-	['swaymsg','-t get_tree -r'],
+	['swaymsg','-t get_tree'],
 	['swaymsg','-t get_workspaces -p'],
 	['swaymsg','-t get_workspaces -r'],
 	['vainfo',''],
@@ -13393,7 +13392,7 @@ sub device_output {
 	return if !$devices{'graphics'};
 	my (@rows);
 	my ($j,$num) = (0,1);
-	set_monitors_sys() if $extra > 1 && !$monitor_ids && -e '/sys/class/drm';
+	set_monitors_sys() if !$monitor_ids && -e '/sys/class/drm';
 	foreach my $row (@{$devices{'graphics'}}){
 		$num = 1;
 		# print "$row->[0] $row->[3]\n";
@@ -13726,33 +13725,15 @@ sub display_output(){
 				}
 				if ($main->{'monitors'}){
 					# print $basic_count . '::' . $m_count, "\n";
-					foreach my $monitor (@{$main->{'monitors'}}){
-						($diag,$dpi,$hz,$resolution,$size) = ();
-						if ($show{'graphic-basic'}){
-							$basic_count++;
-							if ($monitor->{'res-x'} && $monitor->{'res-y'}){
-								$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
-							}
-							# using main, noit monitor, dpi because we want xorg dpi, not physical screen dpi
-							$dpi = $main->{'s-dpi'} if $resolution && $extra > 1 && $main->{'s-dpi'};
-							$resolution .= '~' . $monitor->{'hz'} . 'Hz' if $monitor->{'hz'} && $resolution;
-							$resolution ||= 'N/A';
-							if ($basic_count == 1 && $m_count == 1){
-								$row[$row_key]->{main::key($num++,0,2,'resolution')} = $resolution;
-							}
-							else {
-								$row[$row_key]->{main::key($num++,1,2,'resolution')} = '' if $basic_count == 1;
-								$row[$row_key]->{main::key($num++,0,3,$basic_count)} = $resolution;
-							}
-							if ($m_count == $basic_count){
-								$row[$row_key]->{main::key($num++,0,2,'s-dpi')} = $dpi if $dpi;
-							}
-							next;
-						}
-						else {
+					$b_screen_monitors = 1;
+					if ($show{'graphic-basic'}){
+						monitors_output_basic('screen',$main->{'monitors'},
+						$main->{'s-dpi'},$row_key,\@row,\$num);
+					}
+					else {
+						foreach my $monitor (@{$main->{'monitors'}}){
 							$row_key++;
-							monitors_output('screen',$monitor,$row_key,\@row,\$num);
-							$b_screen_monitors = 1;
+							monitors_output_full('screen',$monitor,$row_key,\@row,\$num);
 						}
 					}
 				}
@@ -13767,15 +13748,24 @@ sub display_output(){
 		}
 		# fallback, if no xrandr/xdpyinfo, if wayland, if console. Note we've 
 		# deleted each key used in monitor_advanced_data() so those won't show again
-		if (!$show{'graphic-basic'} && !$b_screen_monitors && $monitor_ids && %$monitor_ids){
-			foreach my $key (sort keys %$monitor_ids){
-				if ($monitor_ids->{$key}{'enabled'} && 
-				 $monitor_ids->{$key}{'enabled'} eq 'enabled' &&
-				 $monitor_ids->{$key}{'status'} && 
-				 $monitor_ids->{$key}{'status'} eq 'connected'){
-					$monitor_ids->{$key}{'monitor'} = $key;
-					$row_key++;
-					monitors_output('monitor',$monitor_ids->{$key},$row_key,\@row,\$num);
+		if (!$b_screen_monitors && $monitor_ids && %$monitor_ids){
+			if ($show{'graphic-basic'}){
+				my $monitors;
+				foreach my $key (sort keys %{$monitor_ids}){
+					push(@{$monitors},$monitor_ids->{$key});
+				}
+				monitors_output_basic('monitor',$monitors,'',$row_key,\@row,\$num);
+			}
+			else {
+				foreach my $key (sort keys %$monitor_ids){
+					if ($monitor_ids->{$key}{'enabled'} && 
+					$monitor_ids->{$key}{'enabled'} eq 'enabled' &&
+					$monitor_ids->{$key}{'status'} && 
+					$monitor_ids->{$key}{'status'} eq 'connected'){
+						$monitor_ids->{$key}{'monitor'} = $key;
+						$row_key++;
+						monitors_output_full('monitor',$monitor_ids->{$key},$row_key,\@row,\$num);
+					}
 				}
 			}
 		}
@@ -13783,11 +13773,49 @@ sub display_output(){
 	eval $end if $b_log;
 	return @row;
 }
+sub monitors_output_basic {
+	eval $start if $b_log;
+	my ($type,$monitors,$s_dpi,$row_key,$row,$num) = @_;
+	my ($dpi,$resolution);
+	my ($basic_count,$m_count) = (0,scalar @{$monitors});
+	foreach my $monitor (@{$monitors}){
+		if ($type eq 'monitor' && (!$monitor->{'enabled'} || 
+		$monitor->{'enabled'} ne 'enabled' ||
+		!$monitor->{'status'} || $monitor->{'status'} ne 'connected' ||
+		!$monitor->{'res-x'} || !$monitor->{'res-y'})){
+			next;
+		}
+		($dpi,$resolution) = ();
+		$basic_count++;
+		if ($monitor->{'res-x'} && $monitor->{'res-y'}){
+			$resolution = $monitor->{'res-x'} . 'x' . $monitor->{'res-y'};
+		}
+		# using main, not monitor, dpi because we want xorg dpi, not physical screen dpi
+		$dpi = $s_dpi if $resolution && $extra > 1 && $s_dpi;
+		if ($monitor->{'hz'} && $resolution){
+			$resolution .= '~' . $monitor->{'hz'} . 'Hz';
+		}
+		$resolution ||= 'N/A';
+		if ($basic_count == 1 && $m_count == 1){
+			$row->[$row_key]{main::key($$num++,0,2,'resolution')} = $resolution;
+		}
+		else {
+			if ($basic_count == 1){
+				$row->[$row_key]{main::key($$num++,1,2,'resolution')} = '';
+			}
+			$row->[$row_key]{main::key($$num++,0,3,$basic_count)} = $resolution;
+		}
+		if ($m_count == $basic_count && $dpi){
+			$row->[$row_key]{main::key($$num++,0,2,'s-dpi')} = $dpi;
+		}
+	}
+	eval $end if $b_log;
+}
 # row, num passed by ref
-sub monitors_output {
+sub monitors_output_full {
 	eval $start if $b_log;
 	my ($type,$monitor,$row_key,$row,$num) = @_;
-	my ($resolution);
+	my ($b_no_size,$resolution);
 	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (2,3,4);
 	$$row[$row_key]->{main::key($$num++,1,$m1,'Monitor')} = $monitor->{'monitor'};
 	if ($monitor->{'monitor-mapped'}){
@@ -13814,6 +13842,7 @@ sub monitors_output {
 		else {
 			$resolution = main::message('monitor-console');
 		}
+		$b_no_size = 1;
 		$$row[$row_key]->{main::key($$num++,0,$m2,'size-res')} = $resolution;
 	}
 	if ($extra > 2 && $monitor->{'hz'}){
@@ -13831,6 +13860,10 @@ sub monitors_output {
 		my $diag = $monitor->{'diagonal-m'} . 'mm ('. $monitor->{'diagonal'} . '")';
 		$$row[$row_key]->{main::key($$num++,0,$m2,'diag')} = $diag;
 	}
+	elsif ($b_display && !$b_no_size && !$monitor->{'size-x'} && 
+	!$monitor->{'size-x'}){
+		$$row[$row_key]->{main::key($$num++,0,$m2,'size')} = main::message('monitor-na');;
+	}
 	if ($extra > 2){
 		if ($monitor->{'modes-min-max'}){
 			$$row[$row_key]->{main::key($$num++,0,$m2,'mode')} = $monitor->{'modes-min-max'};
@@ -13842,11 +13875,11 @@ sub monitors_output {
 		}
 	}
 	# we only want to see gpu drivers for wayland since otherwise it's x drivers.
-	if ($b_display && $b_admin && $graphics{'protocol'} && 
-	$graphics{'protocol'} eq 'wayland' && $monitor->{'drivers'}){
-		$driver = join(',',@{$monitor->{'drivers'}});
-		$$row[$row_key]->{main::key($$num++,0,$m2,'driver')} = $driver;
-	}
+# 	if ($b_display && $b_admin && $graphics{'protocol'} && 
+# 	$graphics{'protocol'} eq 'wayland' && $monitor->{'drivers'}){
+# 		$driver = join(',',@{$monitor->{'drivers'}});
+# 		$$row[$row_key]->{main::key($$num++,0,$m2,'driver')} = $driver;
+# 	}
 	eval $end if $b_log;
 }
 # as soon as EGL for Wayland appears add it!
@@ -14020,9 +14053,13 @@ sub set_protocol {
 		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
 	}
 	# can show as wayland-0
-	$graphics{'protocol'} = 'wayland' if $graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i;
+	if ($graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i){
+		$graphics{'protocol'} = 'wayland';
+	}
 	# yes, I've seen this in 2019 distros, sigh
-	$graphics{'protocol'} = '' if $graphics{'protocol'} eq 'tty';
+	elsif ($graphics{'protocol'} eq 'tty'){
+		$graphics{'protocol'} = '';
+	}
 	# need to confirm that there's a point to this test, I believe no, fails out of x
 	# loginctl also results in the session id
 	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
@@ -14048,10 +14085,15 @@ sub set_protocol {
 }
 sub display_data_wayland {
 	eval $start if $b_log;
+	my ($program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
 		$graphics{'display-id'} =~ s/wayland-?//i;
+	}
+	if ($fake{'swaymsg'} || (lc($graphics{'compositor'}) eq 'sway' &&
+	($program = main::check_program('swaymsg')))){
+		display_data_swaymsg($program);
 	}
 	# it worked! we got screen data
 	if ($graphics{'no-screens'}){
@@ -14062,8 +14104,69 @@ sub display_data_wayland {
 			$graphics{'no-screens'} = main::message('screen-wayland');
 		}
 	}
-	print 'Wayland screen: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
-	main::log_data('dump','@graphics{screens}',$graphics{'screens'}) if $b_log;
+	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
+	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
+	eval $end if $b_log;
+}
+sub display_data_swaymsg {
+	eval $start if $b_log;
+	my ($program) = @_;
+	my (@data,%monitors,@temp);
+	my ($file,$id,$pos_x,$pos_y,$res_x,$res_y,$hz,$scaling);
+	if (!$fake{'swaymsg'}){
+		@data = main::grabber("$program -t get_outputs -p",'','strip');
+	}
+	else {
+		
+	}
+	# print Data::Dumper::Dumper \@data;
+	foreach (@data){
+		push(@temp,'~~') if /^Output/;
+		push(@temp,$_);
+	}
+	foreach (@data){
+		if ($_ eq '~~' && $id){
+			$monitors{$id}->{'pos-x'} = $pos_x;
+			$monitors{$id}->{'pos-y'} = $pos_y;
+			$monitors{$id}->{'res-x'} = $res_x;
+			$monitors{$id}->{'res-y'} = $res_y;
+			$monitors{$id}->{'hz'} = $hz;
+			($pos_x,$pos_y,$res_x,$res_y) = ();
+		}
+		if (/^Output (\S+) '([^']+)'/){
+			$id = $1;
+		}
+		elsif (/^Current mode:\s+(\d+)x(\d+)\s+\@\s+([\d\.]+)\s+Hz/){
+			$res_x = $1;
+			$res_y = $2;
+			$hz = $3;
+			if ($hz){
+				$hz = (($hz - int($hz)) > 0.5) ? POSIX::ceil($hz) : int($hz);
+			}
+		}
+		elsif (/^Position:\s+(\d+),(\d+)/){
+			$pos_x = $1;
+			$pos_y = $2;
+		}
+	}
+	if ($id){
+		$monitors{$id}->{'pos-x'} = $pos_x;
+		$monitors{$id}->{'pos-y'} = $pos_y;
+		$monitors{$id}->{'res-x'} = $res_x;
+		$monitors{$id}->{'res-y'} = $res_y;
+		$monitors{$id}->{'hz'} = $hz;
+		($pos_x,$pos_y,$res_x,$res_y) = ();
+	}
+	foreach my $key (keys %monitors){
+		if ($monitor_ids->{$key}){
+			$monitor_ids->{$key}{'pos-x'} = $monitors{$key}->{'pos-x'};
+			$monitor_ids->{$key}{'pos-y'} = $monitors{$key}->{'pos-y'};
+			$monitor_ids->{$key}{'res-x'} = $monitors{$key}->{'res-x'};
+			$monitor_ids->{$key}{'res-y'} = $monitors{$key}->{'res-y'};
+			$monitor_ids->{$key}{'hz'} = $monitors{$key}->{'hz'};
+		}
+	}
+	# print Data::Dumper::Dumper \%monitors;
 	eval $end if $b_log;
 }
 sub display_data_x {
@@ -14155,9 +14258,9 @@ sub display_data_xdpyinfo {
 				$size_x_i = ($size_x) ? sprintf("%.1f", ($size_x/25.4)) : 0;
 				$size_y_i = ($size_y) ? sprintf("%.1f", ($size_y/25.4)) : 0;
 				$dpi = ($res_x && $size_x) ? sprintf("%.0f", ($res_x*25.4/$size_x)) : '';
-				$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
+				$diagonal = ($size_x && $size_y) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 				$diagonal += 0 if $diagonal;# trick to get rid of decimal 0
-				$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+				$diagonal_m = ($size_x && $size_y) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 			}
 			$screen = {
 			'screen' => $screen_id,
@@ -14637,6 +14740,7 @@ sub map_monitor_ids {
 }
 sub set_compositor_data {
 	eval $start if $b_log;
+	$graphics{'compositor'} = '';
 	if (my $compositor = get_compositor()){
 		my @data;
 		# gnome-shell is incredibly slow to return version
@@ -27222,7 +27326,7 @@ sub set_ps_gui {
 	}
 	# compositors (for wayland these are also the server, note.
 	# for wayland always show, so always load these
-	if ($show{'graphic'} && $extra > 0){
+	if ($show{'graphic'}){
 		@temp=qw(3dwm budgie-wm cairo compiz compton deepin-wm dcompmgr enlightenment 
 		gala gnome-shell kmscon kwin_wayland kwin_x11 kwin
 		marco metisse mir moblin muffin mutter picom steamcompmgr 
