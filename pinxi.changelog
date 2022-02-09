@@ -7,10 +7,14 @@ RELEASE NOTES:
 --------------------------------------------------------------------------------
 
 Just as 3.3.10 > 3.3.11 were a huge set of CPU upgrades, including significant 
-internal refactors, so too is 3.3.13 a significant Graphics upgrade, paving the 
-way for significant Wayland support, and allowing for much more granular output 
-controls. The legacy -Ga showing Display/Screen/Monitors is now split apart, and 
-can now work for some features in and out of display.
+internal refactors, so too is 3.3.13 a significant Graphics upgrade, featuring 
+significant upgrades to Wayland (and Xvesa/TinyX!) support, and allowing for 
+much more granular output controls. The legacy -Ga showing 
+Display/Screen/Monitors is now split apart, and can now work for some features 
+in and out of display.
+
+This upgrade should be of significant interest to any Wayland using distro, as
+well as the tiny Xvesa based distros like TinyCore, Slitaz, and Puppy.
 
 --------------------------------------------------------------------------------
 KNOWN ISSUES:
@@ -19,7 +23,9 @@ KNOWN ISSUES:
 kernel IDs for monitors/gfx device ports, which is somewhat bizarre since the 
 ideal role of any ID is to be an identifier that always works. Due to this 
 situation, inxi has to map the kernel ids to the x driver monitor IDs in order
-to show the advanced monitor data, like model: mapped: and modes:.
+to show the advanced monitor data, like model: mapped: and modes:. This may not
+always work as expected since if the mapping fails, the data will fail to match
+to the monitors.
 
 --------------------------------------------------------------------------------
 BUGS:
@@ -39,13 +45,15 @@ oversight.
 monitors placed in a vertical, portait mode, instead of standard landscape mode.
 Now switches mm x and y if that is detected, which corrects dpi as well.
 
-3. For Xvesa, show vesa as display driver, Xvesa == vesa, dugh,lol.
+3. For Xvesa:
+
+* Show vesa as display driver, Xvesa == vesa, dugh,lol.
+
+* Show better Interface and Screen resolution data missing messages.
 
 4. For Wayland, which currently has no EGL support in inxi, if no glxinfo 
 present, show EGL Wayland specific Messsage: for advanced EGL data, not the 
 generic glxinfo that were shown previously.
-
-5. For Xvesa, show better GL and Screen data missing messages.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -105,12 +113,20 @@ speed / lanes if different than current speeds/lanes. Note that for unknown
 reasons not all devices in a PCIe slot show this data.
 
 4. Wayland updates:
-* -S, -G: compositors, full redo of list, now supported: asc cage cagebreak 
-cardboard clayland dwc dwl epd-wm fireplace gamescope greenfield grefson hikari 
-hopalong japokwm kiwmi labwc laikawm lipstick liri maze motorcar newm orbital 
-perceptia phoc river rustland sommelier sway swc swvkc taiwins tinybox tinywl 
-velox vivarium wavy waybox way-?cooler wayfire wayhouse waymonad westeros 
-westford weston wio wxrc wxrd
+* -S, -G: compositors, full redo of list, now supported: 
+
+asc cage cagebreak cardboard clayland dwc dwl epd-wm fireplace gamescope 
+greenfield grefson hikari hopalong japokwm kiwmi labwc laikawm lipstick liri 
+maze motorcar newm orbital perceptia phoc river rustland sommelier sway swc 
+swvkc taiwins tinybox tinywl velox vivarium wavy waybox way-?cooler wayfire 
+wayhouse waymonad westeros westford weston wio wxrc wxrd
+
+* For Display: new type, d-rect: for > 1 monitor Wayland display layouts. Works
+roughly the same as Screen: s-res: does, except since Wayland has no 'Screen' 
+concept, that goes into Display. This is sort of a rough algo, basically it 
+takes either the dimensions of the total of x and y resolutions, or the greatest 
+x or y resolution found for any monitor, whichever is greater, and uses that to
+create the display rectangle resolution composite value.
 
 5. -Ixx: terminals added: foot, ate
 
@@ -143,6 +159,9 @@ diag; -Gxxx adds Monitor modes; --Ga adds screen/monitor size, Screen diag.
 mode output, which it should have always done.
 
 4. Split apart x-server version to v:, which should always have been the case.
+
+5. Xvesa and Wayland no longer show glxinfo messages for no glxinfo for GL data.
+Now they show their own custom messages, appropriate to the case.
 
 --------------------------------------------------------------------------------
 DOCUMENTATION:
@@ -207,6 +226,17 @@ code, less to maintain.
 use same indent level as starting if/elsif etc. I've been debating this one, but
 can't find any real way to handle that elegantly so I think best to just not 
 try, and leave it up the code flow to show when it's wrapped condition tests.
+
+8. Refactored previous gl_output, expanded it to handle all interface types, 
+OpenGL, EGL (not currently active due to no known tool to get EGL data for 
+Wayland, and Interface: VBE type data for Xvesa. This roughly completed the 
+breaking apart of the X.org centric logic for Display, Monitors, and GL data, 
+and make all sections now fully agnostic to display server or protocol type. 
+
+Should new display servers appear, it will now be far more simple to add support 
+for them, since they would just plug into the existing abstraction layers.
+
+9. Added --debug-arg to allow for passing specific custom args to the debugger.
 
 --------------------------------------------------------------------------------
 -- Harald Hope - Tue, 18 Jan 2022 23:16:24 -0800
