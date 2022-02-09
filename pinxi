@@ -6582,7 +6582,6 @@ sub message {
 	'gl-root' => 'GL data unavailable in console for root.',
 	'gl-root-display' => 'GL data unavailable for root.',
 	'gl-try' => 'GL data unavailable in console. Try -G --display',
-	'gl-xvesa' => 'GL data unavailable for Xvesa.',
 	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
 	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
@@ -6660,6 +6659,7 @@ sub message {
 	'unknown-shell' => 'ERR-100',
 	'weather-error' => "Error: $id",
 	'weather-null' => "No $id found. Internet connection working?",
+	'xvesa-interface' => 'No Xvesa VBE/GOP data found.',
 	);
 	return $unfound{$type};
 }
@@ -13382,7 +13382,7 @@ sub get {
 	# note: not perfect, but we need usb gfx to show for all types, soc, pci, etc
 	push(@rows,usb_output());
 	push(@rows,display_output());
-	push(@rows,gl_output());
+	push(@rows,interface_output());
 	(%graphics,$monitor_ids,$monitor_map) = ();
 	eval $end if $b_log;
 	return @rows;
@@ -13873,22 +13873,23 @@ sub monitors_output_full {
 	eval $end if $b_log;
 }
 # as soon as EGL for Wayland appears add it!
-sub gl_output {
+sub interface_output {
 	eval $start if $b_log;
 	my $num = 0;
 	my (@row,$program,$type);
 	# print ("$b_display : $b_root\n");
 	if ($b_display){
 		if (!$force{'wayland'} && ($program = main::check_program('glxinfo'))){
-			gl_glxinfo($program,\@row,\$num);
+			interface_glx($program,\@row,\$num);
 		}
+		elsif ($graphics{'xvesa'}){
+			interface_vesa(\@row,\$num);
+		}
+		# interface_egl() would go here once we find one for wayland egl data
 		else {
 			$type = 'glxinfo-missing';
 			if ($graphics{'protocol'} eq 'wayland'){
 				$type = 'egl-wayland';
-			}
-			elsif ($graphics{'xvesa'}){
-				$type = 'gl-xvesa';
 			}
 			@row = ({
 			main::key($num++,0,1,'Message') => main::message($type),
@@ -13897,12 +13898,12 @@ sub gl_output {
 	}
 	else {
 		$type = 'gl-console';
-		if (!main::check_program('glxinfo')){
+		if ($graphics{'xvesa'}){
+			interface_vesa(\@row,\$num);
+		}
+		elsif (!main::check_program('glxinfo')){
 			if ($graphics{'protocol'} eq 'wayland'){
 				$type = 'egl-wayland';
-			}
-			elsif ($graphics{'xvesa'}){
-				$type = 'gl-xvesa';
 			}
 			else {
 				$type = 'glxinfo-missing';
@@ -13926,7 +13927,12 @@ sub gl_output {
 	eval $end if $b_log;
 	return @row;
 }
-sub gl_glxinfo {
+sub interface_egl {
+	eval $start if $b_log;
+	
+	eval $end if $b_log;
+}
+sub interface_glx {
 	eval $start if $b_log;
 	my ($program,$row,$num) = @_;
 	# NOTE: glxinfo -B is not always available, unfortunately
@@ -14030,6 +14036,43 @@ sub gl_glxinfo {
 	}
 	if ($extra > 0){
 		$row->[0]{main::key($$num++,0,2,'direct render')} = $direct_render;
+	}
+	eval $end if $b_log;
+}
+# WARNING! Never seen a GOP type UEFI, needs more data
+sub interface_vesa {
+	eval $start if $b_log;
+	my ($row,$num) = @_;
+	my ($controller,$dac,$interface,$ram,$source,$version);
+	# note: goes to stderr, not stdout
+	my @data = main::grabber($graphics{'xvesa'} . ' -listmodes 2>&1');
+	if ($data[0] && $data[0] =~ /^(VBE|GOP)\s+version\s+(\S+)\s\(([^)]+)\)/i){
+		$interface = $1;
+		$version = $2;
+		$source = $3;
+	}
+	if ($data[1] && $data[1] =~ /^DAC is ([^,]+), controller is ([^,]+)/i){
+		$dac = $1;
+		$controller = $2;
+	}
+	if ($data[2] && $data[2] =~ /^Total memory:\s+(\d+)\s/i){
+		$ram = $1;
+		$ram = main::get_size($ram,'string');
+	}
+	if (!$interface){
+		$row->[0]{main::key($$num++,0,1,'Message')} = main::message('xvesa-interface');
+	}
+	else {
+		$row->[0]{main::key($$num++,1,1,'Interface')} = $interface;
+		$row->[0]{main::key($$num++,0,2,'v')} = ($version) ? $version : 'N/A';
+		$row->[0]{main::key($$num++,0,2,'source')} = ($source) ? $source : 'N/A';
+		if ($dac){
+			$row->[0]{main::key($$num++,0,2,'dac')} = $dac;
+			$row->[0]{main::key($$num++,0,2,'controller')} = $controller;
+		}
+		if ($ram){
+			$row->[0]{main::key($$num++,0,2,'ram')} = $ram;
+		}
 	}
 	eval $end if $b_log;
 }
