@@ -3794,19 +3794,22 @@ sub load_json {
 	# recommended, but not in core modules
 	if (check_perl_module('Cpanel::JSON::XS')){
 		Cpanel::JSON::XS->import;
-		$use{'json'} = {'encode' => \&Cpanel::JSON::XS::encode_json,
+		$use{'json'} = {'type' => 'cpanel-json-xs',
+		'encode' => \&Cpanel::JSON::XS::encode_json,
 		'decode' => \&Cpanel::JSON::XS::decode_json};
 	}
 	# somewhat legacy, not in perl modules
 	elsif (check_perl_module('JSON::XS')){
 		JSON::XS->import;
-		$use{'json'} = {'encode' => \&JSON::XS::encode_json,
+		$use{'json'} = {'type' => 'json-xs',
+		'encode' => \&JSON::XS::encode_json,
 		'decode' => \&JSON::XS::decode_json};
 	}
 	# perl, in core modules as of 5.14
 	elsif (check_perl_module('JSON::PP')){
 		JSON::PP->import;
-		$use{'json'} = {'encode' => \&JSON::PP::encode_json,
+		$use{'json'} = {'type' => 'json-pp',
+		'encode' => \&JSON::PP::encode_json,
 		'decode' => \&JSON::PP::decode_json};
 	}
 	eval $end if $b_log;
@@ -14171,6 +14174,7 @@ sub display_data_wayland {
 	($program = main::check_program('swaymsg')))){
 		display_data_swaymsg($program,\$primary);
 	}
+	check_monitor_ids() if !$b_wayland_data && $monitor_ids;
 	if ($b_wayland_data){
 		# map_monitor_ids([keys %$monitors]);
 		wayland_data_advanced($primary) if $extra > 1;
@@ -14179,12 +14183,28 @@ sub display_data_wayland {
 	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
 	eval $end if $b_log;
 }
+# if we didn't get explicit tool for wayland data, check to see if we got most 
+# of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
+# the data, in that case, all we get from xrandr would be the position, which is
+# nice but not a must-have. We've already cleared out all disabled ports.
+sub check_monitor_ids {
+	eval $start if $b_log;
+	my $b_invalid;
+	foreach my $key (%$monitor_ids){
+		if (!$monitor_ids->{$key}{'size-x'} || !$monitor_ids->{$key}{'size-y'} ||
+		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
+			$b_invalid = 1;
+		}
+	}
+	$b_wayland_data = 1 if $b_invalid;
+	eval $end if $b_log;
+}
 # note; since not all systems will have /sys data, we'll repack it if it's 
 # missing here.
 sub display_data_swaymsg {
 	eval $start if $b_log;
 	my ($program,$primary) = @_;
-	my (@data,%json,@temp);
+	my (@data,%json,@temp,$ref);
 	my ($b_json,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
 	if (!$fake{'swaymsg'}){
 		main::load_json() if !$loaded{'json'};
@@ -14193,6 +14213,8 @@ sub display_data_swaymsg {
 			# returns array of monitors found
 			@data = &{$use{'json'}->{'decode'}}($result) if $result;
 			$b_json = 1;
+			print "$use{'json'}->{'type'}: " if $dbg[46];
+			# print "using: $use{'json'}->{'type'}\n";
 		}
 		else {
 			@data = main::grabber("$program -t get_outputs -p 2>/dev/null",'','strip');
@@ -14202,6 +14224,8 @@ sub display_data_swaymsg {
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/swaymsg-2-monitor-1.txt";
 		@data = main::reader($file,'strip');
 	}
+	print 'swaymsg: ', Data::Dumper::Dumper \@data if $dbg[46]; 
+	main::log_data('dump','@data', \@data) if $b_log;
 	# print Data::Dumper::Dumper \@data;
 	if ($b_json){
 		$b_wayland_data = 1 if scalar @data > 0;
@@ -14226,7 +14250,7 @@ sub display_data_swaymsg {
 				# sys data will only have edid type info, not active state res/pos/hz
 				if ($mon->{'current_mode'}){
 					if ($hz = $mon->{'current_mode'}{'refresh'}){
-						$hz = (sprintf('%.0f',($mon->{'current_mode'}{'refresh'}/1000)) + 0);
+						$hz = sprintf('%.0f',($mon->{'current_mode'}{'refresh'}/1000));
 						$monitor_ids->{$id}{'hz'} = $hz;
 					}
 					$monitor_ids->{$id}{'res-x'} = $mon->{'current_mode'}{'width'};
@@ -14281,7 +14305,7 @@ sub display_data_swaymsg {
 	# print Data::Dumper::Dumper \%monitors;
 	eval $end if $b_log;
 }
-# not sure if we need mapping or not, confirm
+# Get Display rect size for > 1 monitors
 sub wayland_data_advanced {
 	eval $start if $b_log;
 	my ($primary) = @_;
@@ -14289,37 +14313,45 @@ sub wayland_data_advanced {
 	my ($x_max,$y_max) = (0,0);
 	my @keys = keys %$monitor_ids;
 	foreach my $key (@keys){
-		if ($monitor_ids->{$key}){
+		# we need these 4 items to construct the grid rectangle
+		if (defined $monitor_ids->{$key}{'res-x'} && defined 
+		$monitor_ids->{$key}{'res-y'} && defined $monitor_ids->{$key}{'pos-x'} &&
+		defined $monitor_ids->{$key}{'pos-y'}){
 			$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
 			$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
+			# if no tool, we didn't get this data, oh well.
 			if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
 				$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
 			}
 			if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
 				$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
 			}
-			if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'}){
-				my $size_x = $monitor_ids->{$key}{'size-x'};
-				my $size_y = $monitor_ids->{$key}{'size-y'};
-				$monitor_ids->{$key}{'size-x-i'} = sprintf("%.1f", ($size_x/25.4));
-				$monitor_ids->{$key}{'size-y-i'} = sprintf("%.1f", ($size_y/25.4));
-				if ($monitor_ids->{$key}{'res-x'}){
-					my $res_x = $monitor_ids->{$key}{'res-x'};
-					$monitor_ids->{$key}{'dpi'} = sprintf("%.0f", $res_x * 25.4 / $size_x);
-					$monitor_ids->{$key}{'diagonal'} = sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) + 0;
-					$monitor_ids->{$key}{'diagonal-m'} = sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)));
-				}
+		}
+		# this means we failed to get EDID real data, and are using just the wayland 
+		# tool to get this info, that could be the case with eg. BSD wayland.
+		if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'} &&
+		(!$monitor_ids->{$key}{'size-x-i'} || !$monitor_ids->{$key}{'size-y-i'} ||
+		!$monitor_ids->{$key}{'dpi'} || !$monitor_ids->{$key}{'diagonal'})){
+			my $size_x = $monitor_ids->{$key}{'size-x'};
+			my $size_y = $monitor_ids->{$key}{'size-y'};
+			$monitor_ids->{$key}{'size-x-i'} = sprintf("%.1f", ($size_x/25.4));
+			$monitor_ids->{$key}{'size-y-i'} = sprintf("%.1f", ($size_y/25.4));
+			if ($monitor_ids->{$key}{'res-x'}){
+				my $res_x = $monitor_ids->{$key}{'res-x'};
+				$monitor_ids->{$key}{'dpi'} = sprintf("%.0f", $res_x * 25.4 / $size_x);
+				$monitor_ids->{$key}{'diagonal'} = sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) + 0;
+				$monitor_ids->{$key}{'diagonal-m'} = sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)));
 			}
 		}
-		if (scalar @keys > 1 && %x_pos && %y_pos){
-			my ($x,$y) = (0,0);
-			foreach (keys %x_pos){$x += $x_pos{$_}}
-			foreach (keys %y_pos){$y += $y_pos{$_}}
-			# handle cases with one tall portrait mode > 2 short landscapes, etc.
-			$x = $x_max if $x_max > $x;
-			$y = $y_max if $y_max > $y;
-			$graphics{'display-rect'} = $x . 'x' . $y;
-		}
+	}
+	if (scalar @keys > 1 && %x_pos && %y_pos){
+		my ($x,$y) = (0,0);
+		foreach (keys %x_pos){$x += $x_pos{$_}}
+		foreach (keys %y_pos){$y += $y_pos{$_}}
+		# handle cases with one tall portrait mode > 2 short landscapes, etc.
+		$x = $x_max if $x_max > $x;
+		$y = $y_max if $y_max > $y;
+		$graphics{'display-rect'} = $x . 'x' . $y;
 	}
 	my $layouts = [];
 	set_monitor_layouts($layouts);
