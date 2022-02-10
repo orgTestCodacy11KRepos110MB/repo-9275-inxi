@@ -13864,6 +13864,9 @@ sub monitors_output_full {
 		if ($b_admin && $monitors->{$key}{'serial'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
 		}
+		if ($b_admin && $monitors->{$key}{'build-date'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'built')} = main::filter($monitors->{$key}{'build-date'});
+		}
 		if ($monitors->{$key}{'res-x'} || $monitors->{$key}{'res-y'} || $monitors->{$key}{'hz'} || 
 		$monitors->{$key}{'size-x'} || $monitors->{$key}{'size-y'}){
 			if ($monitors->{$key}{'res-x'} && $monitors->{$key}{'res-y'}){
@@ -14845,17 +14848,36 @@ sub monitor_edid_data {
 		main::log_data('dump','Parse::EDID',$edid) if $b_log;
 		print Data::Dumper::Dumper $edid if $dbg[44];
 		return if !$edid;
+		$monitor_ids->{$port}{'build-date'} = $edid->{'year'};
 		if ($edid->{'gamma'}){
 			$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
 		}
 		if ($edid->{'monitor_name'}){
 			$monitor_ids->{$port}{'model'} = main::clean($edid->{'monitor_name'}); 
 		}
+		if ($edid->{'diagonal_size'}){
+			$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
+			$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
+		}
+		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
+		if ($edid->{'detailed_timings'}){
+			$monitor_ids->{$port}{'res-x'} = $edid->{'detailed_timings'}[0]{'horizontal_active'};
+			$monitor_ids->{$port}{'res-y'} = $edid->{'detailed_timings'}[0]{'vertical_active'};
+			if ($edid->{'detailed_timings'}[0]{'horizontal_image_size'}){
+				$monitor_ids->{$port}{'size-x'} = $edid->{'detailed_timings'}[0]{'horizontal_image_size'};
+				$monitor_ids->{$port}{'size-x-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'horizontal_image_size'}/25.4)) + 0;
+			}
+			if ($edid->{'detailed_timings'}[0]{'vertical_image_size'}){
+				$monitor_ids->{$port}{'size-y'} = $edid->{'detailed_timings'}[0]{'vertical_image_size'};
+				$monitor_ids->{$port}{'size-y-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'vertical_image_size'}/25.4)) + 0;
+			}
+			if ($edid->{'detailed_timings'}[0]{'horizontal_dpi'}){
+				$monitor_ids->{$port}{'dpi'} = sprintf('%.0f',$edid->{'detailed_timings'}[0]{'horizontal_dpi'}) + 0;
+			}
+		}
 		if ($edid->{'serial_number'}){
 			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
 		}
-		$monitor_ids->{$port}{'build-date'} = $edid->{'year'};
-		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
 	}
 	elsif ($edid_prog){
 		@data = main::grabber("cat $file | $edid_prog 2>/dev/null");
@@ -14947,6 +14969,9 @@ sub advanced_monitor_data {
 		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
 			# note: xorg drivers can be different than gpu drivers
 			# $monitors->{$key}{'drivers'} = display_drivers_sys($mon_mapped);
+			$monitors->{$key}{'build-date'} = $monitor_ids->{$mon_mapped}{'build-date'};
+			$monitors->{$key}{'diagonal'} = $monitor_ids->{$mon_mapped}{'diagonal'};
+			$monitors->{$key}{'diagonal-m'} = $monitor_ids->{$mon_mapped}{'diagonal-m'};
 			$monitors->{$key}{'gamma'} = $monitor_ids->{$mon_mapped}{'gamma'};
 			$monitors->{$key}{'modes-min-max'} = $monitor_ids->{$mon_mapped}{'modes-min-max'};
 			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
