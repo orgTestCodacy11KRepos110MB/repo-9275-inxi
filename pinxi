@@ -1892,6 +1892,7 @@ sub display_data {
 	['kwin_x11','--version'],
 	# ['locate','/Xorg'], # for Xorg.wrap problem
 	['loginctl','--no-pager list-sessions'],
+	['ls','/sys/class/drm'],
 	['nvidia-settings','-q screens'],
 	['nvidia-settings','-c :0.0 -q all'],
 	['nvidia-smi','-q'],
@@ -13671,10 +13672,23 @@ sub display_output(){
 					$row[0]->{main::key($num++,0,4,'v')} = $graphics{'x-server'}->[1][1];
 				}
 			}
-			if ($graphics{'compositor'}){
-				$row[0]->{main::key($num++,1,2,'compositor')} = $graphics{'compositor'};
-				if ($graphics{'compositor-version'}){
-					$row[0]->{main::key($num++,0,3,'v')} = $graphics{'compositor-version'};
+			if ($graphics{'compositors'}){
+				if (scalar @{$graphics{'compositors'}} == 1){
+					$row[0]->{main::key($num++,1,2,'compositor')} = $graphics{'compositors'}->[0][0];
+					if ($graphics{'compositors'}->[0][1]){
+						$row[0]->{main::key($num++,0,3,'v')} = $graphics{'compositors'}->[0][1];
+					}
+				}
+				else {
+					my $i =1;
+					$row[0]->{main::key($num++,1,2,'compositors')} = '';
+					foreach (@{$graphics{'compositors'}}){
+						$row[0]->{main::key($num++,1,3,$i)} = $_->[0];
+						if ($_->[1]){
+							$row[0]->{main::key($num++,0,4,'v')} = $_->[1];
+						}
+						$i++;
+					}
 				}
 			}
 			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
@@ -13945,7 +13959,7 @@ sub monitors_output_full {
 		}
 		if ($extra > 2){
 			if ($monitors->{$key}{'modes-min-max'}){
-				$$row[$j]->{main::key($$num++,0,$m2,'mode')} = $monitors->{$key}{'modes-min-max'};
+				$$row[$j]->{main::key($$num++,0,$m2,'modes')} = $monitors->{$key}{'modes-min-max'};
 			}
 			elsif ($monitors->{$key}{'modes-min'} && $monitors->{$key}{'modes-max'}){
 				$$row[$j]->{main::key($$num++,1,$m2,'modes')} = '';
@@ -14174,7 +14188,7 @@ sub interface_vesa_output {
 ## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
-	my ($primary,$program);
+	my ($program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14182,38 +14196,22 @@ sub display_data_wayland {
 	}
 	if ($fake{'swaymsg'} || (lc($graphics{'compositor'}) eq 'sway' &&
 	($program = main::check_program('swaymsg')))){
-		display_data_swaymsg($program,\$primary);
+		display_data_swaymsg($program);
 	}
 	check_monitor_ids() if !$b_wayland_data && $monitor_ids;
 	if ($b_wayland_data){
 		# map_monitor_ids([keys %$monitors]);
-		wayland_data_advanced($primary) if $extra > 1;
+		wayland_data_advanced() if $extra > 1;
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
 	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
-	eval $end if $b_log;
-}
-# if we didn't get explicit tool for wayland data, check to see if we got most 
-# of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
-# the data, in that case, all we get from xrandr would be the position, which is
-# nice but not a must-have. We've already cleared out all disabled ports.
-sub check_monitor_ids {
-	eval $start if $b_log;
-	my $b_invalid;
-	foreach my $key (keys %$monitor_ids){
-		if (!$monitor_ids->{$key}{'size-x'} || !$monitor_ids->{$key}{'size-y'} ||
-		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
-			$b_invalid = 1;
-		}
-	}
-	$b_wayland_data = 1 if $b_invalid;
 	eval $end if $b_log;
 }
 # note; since not all systems will have /sys data, we'll repack it if it's 
 # missing here.
 sub display_data_swaymsg {
 	eval $start if $b_log;
-	my ($program,$primary) = @_;
+	my ($program) = @_;
 	my (@data,%json,@temp,$ref);
 	my ($b_json,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
 	if (!$fake{'swaymsg'}){
@@ -14253,6 +14251,10 @@ sub display_data_swaymsg {
 					}
 					# includes clean duplicates
 					$monitor_ids->{$id}{'model'} = main::clean_dmi($monitor_ids->{$id}{'model'});
+				}
+				if ($monitor_ids->{$id}{'primary'} && 
+				$monitor_ids->{$id}{'primary'} ne 'false'){
+					$monitor_ids->{$id}{'primary'} = $id;
 				}
 				if (!$monitor_ids->{$id}{'serial'}){
 					$monitor_ids->{$id}{'serial'} = main::clean_dmi($mon->{'serial'});
@@ -14295,6 +14297,8 @@ sub display_data_swaymsg {
 				($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
 				$b_wayland_data = 1;
 			}
+			# Output VGA-1 '<Unknown> <Unknown> ' (focused)
+			# unknown how 'primary' is shown, if it shows in this output
 			if (/^Output (\S+) '([^']+)'/i){
 				$id = $1;
 			}
@@ -14315,30 +14319,42 @@ sub display_data_swaymsg {
 	print 'sway moniitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
 }
+# if we didn't get explicit tool for wayland data, check to see if we got most 
+# of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
+# the data, in that case, all we get from xrandr would be the position, which is
+# nice but not a must-have. We've already cleared out all disabled ports.
+sub check_monitor_ids {
+	eval $start if $b_log;
+	my $b_invalid;
+	# we need these 4 items to construct the grid rectangle
+	foreach my $key (keys %$monitor_ids){
+		if (!defined $monitor_ids->{$key}{'pos-x'} || 
+		!defined $monitor_ids->{$key}{'pos-y'} ||
+		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
+			$b_invalid = 1;
+		}
+	}
+	$b_wayland_data = 1 if !$b_invalid;
+	eval $end if $b_log;
+}
 # Get Display rect size for > 1 monitors
 sub wayland_data_advanced {
 	eval $start if $b_log;
-	my ($primary) = @_;
 	my (%x_pos,%y_pos);
 	my ($x_max,$y_max) = (0,0);
 	my @keys = keys %$monitor_ids;
 	foreach my $key (@keys){
-		# we need these 4 items to construct the grid rectangle
-		if (defined $monitor_ids->{$key}{'res-x'} && defined 
-		$monitor_ids->{$key}{'res-y'} && defined $monitor_ids->{$key}{'pos-x'} &&
-		defined $monitor_ids->{$key}{'pos-y'}){
-			$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
-			$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
-			# if no tool, we didn't get this data, oh well.
-			if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
-				$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
-			}
-			if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
-				$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
-			}
+		$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
+		$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
+		# if no tool, we didn't get this data, oh well.
+		if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
+			$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
+		}
+		if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
+			$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
 		}
 		# this means we failed to get EDID real data, and are using just the wayland 
-		# tool to get this info, that could be the case with eg. BSD wayland.
+		# tool to get this info, eg. with BSD without compositor data.
 		if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'} &&
 		(!$monitor_ids->{$key}{'size-x-i'} || !$monitor_ids->{$key}{'size-y-i'} ||
 		!$monitor_ids->{$key}{'dpi'} || !$monitor_ids->{$key}{'diagonal'})){
@@ -14366,7 +14382,7 @@ sub wayland_data_advanced {
 	my $layouts = [];
 	set_monitor_layouts($layouts);
 	# only update position, we already have all the rest of the data
-	advanced_monitor_data($primary,$monitor_ids,$layouts);
+	advanced_monitor_data($monitor_ids,$layouts);
 	undef $layouts;
 	eval $end if $b_log;
 }
@@ -14493,7 +14509,7 @@ sub display_data_xrandr {
 	my ($diagonal,$diagonal_m,$dpi,$monitor_id,$pos_x,$pos_y,$primary);
 	my ($res_x,$res_x_max,$res_y,$res_y_max);
 	my ($screen_id,$set_as,$size_x,$size_x_i,$size_y,$size_y_i,$x_screen);
-	my (@ids,%monitors,@primaries,@xrandr_screens,@xrandr);
+	my (@ids,%monitors,@xrandr_screens,@xrandr);
 	if (!$fake{'xrandr'}){
 		@xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 	}
@@ -14532,9 +14548,7 @@ sub display_data_xrandr {
 			}
 			if (%monitors){
 				push(@xrandr_screens,\%monitors);
-				push(@primaries,$primary);
 				%monitors = ();
-				undef $primary;
 			}
 		}
 		# HDMI-2 connected 1920x1200+1080+0 (normal left inverted right x axis y axis) 519mm x 324mm
@@ -14563,6 +14577,7 @@ sub display_data_xrandr {
 			$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
 			$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
 			$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+			undef $primary;
 			push(@ids,$monitor_id);
 			if ($set_as){
 				$primary = $monitor_id;
@@ -14573,6 +14588,7 @@ sub display_data_xrandr {
 			'monitor' => $monitor_id,
 			'pos-x' => $pos_x,
 			'pos-y' => $pos_y,
+			'primary' => $primary,
 			'res-x' => $res_x,
 			'res-y' => $res_y,
 			'size-x' => $size_x,
@@ -14601,7 +14617,6 @@ sub display_data_xrandr {
 	}
 	if (%monitors){
 		push(@xrandr_screens,\%monitors);
-		push(@primaries,$primary);
 	}
 	my $i = 0;
 	my $layouts;
@@ -14625,7 +14640,7 @@ sub display_data_xrandr {
 					$layouts = [];
 					set_monitor_layouts($layouts);
 				}
-				advanced_monitor_data($primaries[$i],$x_screen,$layouts);
+				advanced_monitor_data($x_screen,$layouts);
 			}
 			if (!defined $main->{'size-x'}){
 				$graphics{'screens'}->[$i]{'size-missing'} = main::message('tool-missing-basic','xdpyinfo');
@@ -14984,17 +14999,17 @@ sub monitor_edid_data {
 }
 sub advanced_monitor_data {
 	eval $start if $b_log;
-	my ($primary,$monitors,$layouts) = @_;
+	my ($monitors,$layouts) = @_;
 	my (@horiz,@vert);
 	my $position = '';
 	# then see if we can locate a default position primary monitor
 	foreach my $key (keys %$monitors){
 		next if !defined $monitors->{$key}{'pos-x'};
 		# this is the only scenario we can guess at if no primary detected
-		if (!$primary &&
+		if (!$monitors->{$key}{'primary'} &&
 		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
 			$monitors->{$key}{'position'} = 'primary';
-			$primary = $monitors->{$key}{'monitor'};
+			$monitors->{$key}{'primary'} = $monitors->{$key}{'monitor'};
 		}
 		if (!grep {$monitors->{$key}{'pos-x'} == $_} @horiz){
 			push(@horiz,$monitors->{$key}{'pos-x'});
@@ -15163,26 +15178,26 @@ sub map_monitor_ids {
 sub set_compositor_data {
 	eval $start if $b_log;
 	$graphics{'compositor'} = '';
-	if (my $compositor = get_compositor()){
+	if (my $compositors = get_compositors()){
 		my @data;
 		# gnome-shell is incredibly slow to return version
-		if (($extra > 2 || $graphics{'protocol'} eq 'wayland') && 
-		(!$show{'system'} || $compositor ne 'gnome-shell')){
-			@data = main::program_data($compositor,$compositor,3);
-			$graphics{'compositor'} = $data[0];
-			$graphics{'compositor-version'} = $data[1];
-		}
-		else {
-			$graphics{'compositor'} = (main::program_values($compositor))[3];
+		foreach my $compositor (@$compositors){
+			if (($extra > 2 || $graphics{'protocol'} eq 'wayland') && 
+			(!$show{'system'} || $compositor ne 'gnome-shell')){
+				$graphics{'compositors'} = [] if !$graphics{'compositors'};
+				push(@{$graphics{'compositors'}},[main::program_data($compositor,$compositor,3)]);
+			}
+			else {
+				$graphics{'compositors'} = [] if !$graphics{'compositors'};
+				push(@{$graphics{'compositors'}},[(main::program_values($compositor))[3]]);
+			}
 		}
 	}
 	eval $end if $b_log;
 }
-# This has a structural weakness, where if > 1 compositor used, it 
-# will exit on first detected in alphanumeric sort order. 
-sub get_compositor {
+sub get_compositors {
 	eval $start if $b_log;
-	my $compositor = '';
+	my @found;
 	main::set_ps_gui() if !$loaded{'ps-gui'};
 	if (@ps_gui){
 		# ORDER MATTES!
@@ -15199,16 +15214,15 @@ sub get_compositor {
 		unity-system-compositor velox vivarium wavy waybox waycooler way-cooler
 		wayfire wayhouse waymonad westeros westford weston wio wxrc wxrd xcompmgr
 		xfwm4 xfwm5 xfwm));
-		foreach my $item (@compositors){
-			if (grep {$_ eq $item} @ps_gui){
-				$compositor = $item;
-				last;
+		foreach my $compositor (@compositors){
+			if (grep {$_ eq $compositor} @ps_gui){
+				push(@found,$compositor);
 			}
 		}
 	}
-	main::log_data('data',"compositor: $compositor") if $b_log;
+	main::log_data('dump','compositors:', \@found) if $b_log;
 	eval $end if $b_log;
-	return $compositor;
+	(@found) ? return \@found : return;
 }
 
 ## UTILITIES ##
