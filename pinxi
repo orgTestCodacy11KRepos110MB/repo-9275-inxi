@@ -13608,7 +13608,7 @@ sub display_output(){
 	my (@row);
 	my ($num,$j) = (0,0);
 	# note: these may not always be set, they won't be out of X, for example
-	set_protocol();
+	display_protocol();
 	$graphics{'protocol'} = 'wayland' if $force{'wayland'};
 	# get rid of all inactive or disabled monitor port ids
 	set_active_monitors() if $monitor_ids;
@@ -14188,7 +14188,7 @@ sub interface_vesa_output {
 ## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
-	my ($program);
+	my ($b_skip_advanced,$program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14198,10 +14198,10 @@ sub display_data_wayland {
 	($program = main::check_program('swaymsg')))){
 		display_data_swaymsg($program);
 	}
-	check_monitor_ids() if !$b_wayland_data && $monitor_ids;
-	if ($b_wayland_data){
+	$b_skip_advanced = check_monitor_ids() if !$b_wayland_data && $monitor_ids;
+	if ($extra > 1 && $b_wayland_data && !$b_skip_advanced){
 		# map_monitor_ids([keys %$monitors]);
-		wayland_data_advanced() if $extra > 1;
+		wayland_data_advanced();
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
 	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
@@ -14323,19 +14323,26 @@ sub display_data_swaymsg {
 # of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
 # the data, in that case, all we get from xrandr would be the position, which is
 # nice but not a must-have. We've already cleared out all disabled ports.
+# The secondary check determines if we send data to wayland_data_advanced. Since
+# that requires pos-x/pos-y to do anything, no point if we did not get those for
+# all the monitors found.
 sub check_monitor_ids {
 	eval $start if $b_log;
-	my $b_invalid;
+	my ($b_invalid,$b_skip_advanced);
 	# we need these 4 items to construct the grid rectangle
 	foreach my $key (keys %$monitor_ids){
-		if (!defined $monitor_ids->{$key}{'pos-x'} || 
-		!defined $monitor_ids->{$key}{'pos-y'} ||
+		if (!$monitor_ids->{$key}{'size-x'} || !$monitor_ids->{$key}{'size-y'} ||
 		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
 			$b_invalid = 1;
+		}
+		elsif (!defined $monitor_ids->{$key}{'pos-x'} ||
+		!defined $monitor_ids->{$key}{'pos-y'}){
+			$b_skip_advanced = 1;
 		}
 	}
 	$b_wayland_data = 1 if !$b_invalid;
 	eval $end if $b_log;
+	return $b_skip_advanced;
 }
 # Get Display rect size for > 1 monitors
 sub wayland_data_advanced {
@@ -14754,13 +14761,12 @@ sub display_drivers_x {
 		# list is from sgfxi plus non-free drivers, plus ARM drivers
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc ati 
 		chips cirrus cyrix fbdev fbturbo fglrx geode glide glint 
-		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 
-		i965 iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
-		nouveau nsc nvidia nv openchrome r128 radeonhd radeon 
-		rendition s3virge s3 savage siliconmotion sisimedia sisusb sis 
-		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx
-		tdfx tga trident tseng unichrome v4l vboxvideo vesa vga via vmware vmwgfx
-		voodoo));
+		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
+		iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
+		nouveau nsc nvidia nv openchrome r128 radeonhd radeon rendition 
+		s3virge s3 savage siliconmotion sisimedia sisusb sis 
+		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx tdfx tga trident tseng 
+		unichrome v4l vboxvideo vesa vga via vmware vmwgfx voodoo));
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
 		# @xorg = grep {/Failed|Unload|Loading/} @xorg;
@@ -14834,6 +14840,46 @@ sub display_drivers_x {
 	}
 	eval $end if $b_log;
 	return @driver_data;
+}
+sub display_protocol {
+	eval $start if $b_log;
+	$graphics{'protocol'} = '';
+	if ($ENV{'XDG_SESSION_TYPE'}){
+		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
+	}
+	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
+		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
+	}
+	# can show as wayland-0
+	if ($graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i){
+		$graphics{'protocol'} = 'wayland';
+	}
+	# yes, I've seen this in 2019 distros, sigh
+	elsif ($graphics{'protocol'} eq 'tty'){
+		$graphics{'protocol'} = '';
+	}
+	# need to confirm that there's a point to this test, I believe no, fails out of x
+	# loginctl also results in the session id
+	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
+		if (my $program = main::check_program('loginctl')){
+			my $id = '';
+			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
+			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
+			foreach (@data){
+				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
+				$id = (split(/\s+/, $_))[0];
+				last; # multiuser? too bad, we'll go for the first one
+			}
+			if ($id){
+				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
+				$temp =~ s/Type=// if $temp;
+				# ssh will not show /dev/ttyx so would have passed the first test
+				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
+			}
+		}
+	}
+	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
+	eval $end if $b_log;
 }
 
 ## MONITOR DATA ##
@@ -15226,46 +15272,6 @@ sub get_compositors {
 }
 
 ## UTILITIES ##
-sub set_protocol {
-	eval $start if $b_log;
-	$graphics{'protocol'} = '';
-	if ($ENV{'XDG_SESSION_TYPE'}){
-		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
-	}
-	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
-		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
-	}
-	# can show as wayland-0
-	if ($graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i){
-		$graphics{'protocol'} = 'wayland';
-	}
-	# yes, I've seen this in 2019 distros, sigh
-	elsif ($graphics{'protocol'} eq 'tty'){
-		$graphics{'protocol'} = '';
-	}
-	# need to confirm that there's a point to this test, I believe no, fails out of x
-	# loginctl also results in the session id
-	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
-		if (my $program = main::check_program('loginctl')){
-			my $id = '';
-			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
-			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
-			foreach (@data){
-				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
-				$id = (split(/\s+/, $_))[0];
-				last; # multiuser? too bad, we'll go for the first one
-			}
-			if ($id){
-				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
-				$temp =~ s/Type=// if $temp;
-				# ssh will not show /dev/ttyx so would have passed the first test
-				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
-			}
-		}
-	}
-	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
-	eval $end if $b_log;
-}
 sub tty_data(){
 	eval $start if $b_log;
 	my ($tty);
