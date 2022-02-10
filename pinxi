@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-09';
-my $self_patch='23';
+my $self_date='2022-02-10';
+my $self_patch='243';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -1916,6 +1916,7 @@ sub display_data {
 	['xrandr',''],
 	['Xvesa','-version'],
 	['Xvesa','-listmodes'],
+	['Xwayland','-version'],
 	);
 	run_commands(\@cmds,'display');
 }
@@ -4060,7 +4061,7 @@ sub set_program_values {
 	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
 	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
 	## X Servers ##
-	'xwayland' => ['X\.org.*Xwayland',6,'-version','Xwayland',0,1,0,'',''],
+	'xwayland' => ['Xwayland ',3,'-version','Xwayland',0,1,1,'^(The X.org Foundation )?',''],
 	## Toolkits ##
 	'gtk-launch' => ['^\S',1,'--version','GTK',0,1,0,'',''],
 	'qmake' => ['^^Using Qt version',4,'--version','Qt',0,0,0,'',''],
@@ -13627,13 +13628,16 @@ sub display_output(){
 		$graphics{'tty'} = tty_data();
 	}
 	# no xdpyinfo installed
-	if (!$graphics{'x-version'}){
+	# undef $graphics{'x-server'};
+	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1] || 
+	!$b_display || $graphics{'protocol'} eq 'wayland'){
 		# fallback, will complete x-server/x-version, set flags, if found
 		display_server_data(); 
 	}
 	if (!defined $graphics{'display-id'} && defined $ENV{'DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'DISPLAY'};
 	}
+	# print Data::Dumper::Dumper $graphics{'x-server'};
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_note,$resolution,$server_string) = ('','','');
@@ -13641,7 +13645,7 @@ sub display_output(){
 		@x_drivers = display_drivers_x() if !$force{'wayland'};
 		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
 		if ($graphics{'x-server'}){
-			$server_string = $graphics{'x-server'};
+			$server_string = $graphics{'x-server'}->[0][0];
 			# print "$server_string\n";
 		}
 		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && 
@@ -13658,8 +13662,14 @@ sub display_output(){
 			main::key($num++,1,1,'Display') => $graphics{'protocol'},
 			main::key($num++,1,2,'server') => $server_string,
 			});
-			if ($graphics{'x-version'}){
-				$row[0]->{main::key($num++,0,3,'v')} = $graphics{'x-version'};
+			if ($graphics{'x-server'} && $graphics{'x-server'}->[0][1]){
+				$row[0]->{main::key($num++,0,3,'v')} = $graphics{'x-server'}->[0][1];
+			}
+			if ($graphics{'x-server'} && $graphics{'x-server'}->[1][0]){
+				$row[0]->{main::key($num++,1,3,'with')} = $graphics{'x-server'}->[1][0];
+				if ($graphics{'x-server'}->[1][1]){
+					$row[0]->{main::key($num++,0,4,'v')} = $graphics{'x-server'}->[1][1];
+				}
 			}
 			if ($graphics{'compositor'}){
 				$row[0]->{main::key($num++,1,2,'compositor')} = $graphics{'compositor'};
@@ -14413,7 +14423,7 @@ sub display_data_xdpyinfo {
 			if ($working[1] !~ /x/i){
 				$working[1] .= ' X.org';
 			}
-			$graphics{'x-server'} = $working[1];
+			$graphics{'x-server'} = [[$working[1]]];
 		}
 		elsif ($working[0] eq 'name of display'){
 			$graphics{'display-id'} = $working[1];
@@ -14422,13 +14432,13 @@ sub display_data_xdpyinfo {
 		elsif ($working[0] eq 'version number'){
 			$graphics{'x-protocol-version'} = $working[1];
 		}
-		# not used, fix that
+		# not used, but might be good for something?
 		elsif ($working[0] eq 'vendor release number'){
 			$graphics{'x-vendor-release'} = $working[1];
 		}
 		# the real X.org version string 
 		elsif ($working[0] eq 'X.Org version'){
-			$graphics{'x-version'} = $working[1];
+			push(@{$graphics{'x-server'}->[0]},$working[1]);
 		}
 		elsif ($working[0] eq 'default screen number'){
 			$graphics{'display-default-screen'} = $working[1];
@@ -14633,60 +14643,60 @@ sub display_data_xrandr {
 # Xwayland version, or Xvesa data.
 sub display_server_data {
 	eval $start if $b_log;
-	my (@data,$program,$server,$version);
+	my ($program);
 	# load the extra X paths, it's important that these are first, because
 	# later Xorg versions show error if run in console or ssh if the true path 
 	# is not used.
 	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths);
-	# IMPORTANT: both commands send version data to stderr!
-	if ($program = main::check_program('Xorg')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'X.org';
-	}
-	elsif ($program = main::check_program('X')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'X.org';
-	}
-	elsif ($program = main::check_program('Xwayland')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'Xwayland';
-	}
-	elsif ($program = main::check_program('Xvesa')){
-		@data = main::grabber("$program -version 2>&1");
-		$server = 'Xvesa';
-		$graphics{'display-driver'} = ['vesa'];
-		$graphics{'xvesa'} = $program;
-		if (!$graphics{'screens'}){
-			$graphics{'no-screens'} = main::message('screen-xvesa');
+	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1]){
+		my (@data,$server,$version);
+		# IMPORTANT: both commands send version data to stderr!
+		if ($program = main::check_program('Xorg')){
+			@data = main::grabber("$program -version 2>&1");
+			$server = 'X.org';
 		}
-	}
-	# print join('^ ', @paths), " :: $program\n";
-	# print Data::Dumper::Dumper \@data;
-	if (@data){
-		foreach (@data){
-			if (/^X.org X server/i){
-				$version = (split(/\s+/, $_))[3];
-				last;
-			}
-			elsif (/^X Window System Version/i){
-				$version = (split(/\s+/, $_))[4];
-				last;
-			}
-			elsif (/Xwayland Version/i){
-				$version = (split(/\s+/, $_))[5];
-				last;
-			}
-			elsif (/^Xvesa from/i){
-				$version = (split(/\s+/, $_))[3];
-				$server .= ' TinyX' if $_ =~ /tinyx/i;
-				last;
+		elsif ($program = main::check_program('X')){
+			@data = main::grabber("$program -version 2>&1");
+			$server = 'X.org';
+		}
+		elsif ($program = main::check_program('Xvesa')){
+			@data = main::grabber("$program -version 2>&1");
+			$server = 'Xvesa';
+			$graphics{'display-driver'} = ['vesa'];
+			$graphics{'xvesa'} = $program;
+			if (!$graphics{'screens'}){
+				$graphics{'no-screens'} = main::message('screen-xvesa');
 			}
 		}
+		# print join('^ ', @paths), " :: $program\n";
+		# print Data::Dumper::Dumper \@data;
+		if (@data){
+			foreach (@data){
+				if (/^X.org X server/i){
+					$version = (split(/\s+/, $_))[3];
+					last;
+				}
+				elsif (/^X Window System Version/i){
+					$version = (split(/\s+/, $_))[4];
+					last;
+				}
+				elsif (/^Xvesa from/i){
+					$version = (split(/\s+/, $_))[3];
+					$server .= ' TinyX' if $_ =~ /tinyx/i;
+					last;
+				}
+			}
+		}
+		$graphics{'x-server'} = [$server,$version] if $server;
 	}
-	$graphics{'x-server'} = $server if !$graphics{'x-server'};
-	$graphics{'x-version'} = $version;
+	if ((!$b_display || $graphics{'protocol'} eq 'wayland') && 
+	($program = main::check_program('Xwayland'))){
+		$graphics{'x-server'} = [] if !$graphics{'x-server'};
+		push(@{$graphics{'x-server'}},[main::program_data('xwayland','Xwayland')]);
+	}
 	# remove extra X paths from global @paths
 	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
+	undef $graphics{'x-server'} if !@{$graphics{'x-server'}};
 	eval $end if $b_log;
 }
 # for wayland display/monitor drivers, or if no display drivers found for x
