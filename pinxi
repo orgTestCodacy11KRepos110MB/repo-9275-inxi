@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-08';
-my $self_patch='21';
+my $self_date='2022-02-09';
+my $self_patch='22';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2949,16 +2949,18 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended Perl modules'){
 		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
-		Time::HiRes Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
+		Time::HiRes JSON::PP Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
 		push(@data, qw(OpenBSD::Pledge OpenBSD::Unveil)) if $bsd_type && $bsd_type eq 'openbsd';
 		$b_perl_module = 1;
 		$item = 'Perl Module';
 		$extra = ' (Optional)';
-		$extra2 = "None of these are strictly required, but if you have them all, you can 
-		eliminate some recommended non Perl programs from the install. ";
-		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a downloader option. 
-		For json export Cpanel::JSON::XS is preferred over JSON::XS. To run --debug 20-22 File::Copy,
-		File::Find, and File::Spec::Functions must be present (most distros have these in Core Modules).
+		$extra2 = "None of these are strictly required, but if you have them all, 
+		you can eliminate some recommended non Perl programs from the install. ";
+		$extra3 = "HTTP::Tiny and IO::Socket::SSL must both be present to use as a 
+		downloader option. For json export Cpanel::JSON::XS is preferred over 
+		JSON::XS, but JSON::PP is in core modules. To run --debug 20-22 File::Copy,
+		File::Find, and File::Spec::Functions must be present (most distros have 
+		these in Core Modules).
 		";
 	}
 	elsif ($type eq 'recommended kernel modules'){
@@ -3454,8 +3456,8 @@ sub item_data {
 	},
 	# Perl Modules
 	'Cpanel::JSON::XS' => {
-	'info' => '--output json - required for export.',
-	'info-bsd' => '--output json - required for export.',
+	'info' => '--output json (faster than JSON::PP).',
+	'info-bsd' => '--output json (faster than JSON::PP).',
 	'apt' => 'libcpanel-json-xs-perl',
 	'pacman' => 'perl-cpanel-json-xs',
 	'rpm' => 'perl-Cpanel-JSON-XS',
@@ -3495,9 +3497,16 @@ sub item_data {
 	'pacman' => 'perl-io-socket-ssl',
 	'rpm' => 'perl-IO-Socket-SSL',
 	},
+	'JSON::PP' => {
+	'info' => '--output json (in CoreModules, but slower).',
+	'info-bsd' => '--output json (in CoreModules, but slower).',
+	'apt' => 'libcpanel-json-xs-perl',
+	'pacman' => 'perl-cpanel-json-xs',
+	'rpm' => 'perl-Cpanel-JSON-XS',
+	},
 	'JSON::XS' => {
-	'info' => '--output json - required for export (legacy).',
-	'info-bsd' => '--output json - required for export (legacy).',
+	'info' => '--output json (legacy).',
+	'info-bsd' => '--output json (legacy).',
 	'apt' => 'libjson-xs-perl',
 	'pacman' => 'perl-json-xs',
 	'rpm' => 'perl-JSON-XS',
@@ -3760,6 +3769,31 @@ sub lister {
 	@list = grep {!/^(\.|\.\.)$/} @list if @list;
 	closedir $dir;
 	return @list;
+}
+# checks for 1 of 3 perl json modules. All three have same encode_json, 
+# decode_json() methods.
+sub load_json {
+	eval $start if $b_log;
+	$loaded{'json'} = 1;
+	# recommended, but not in core modules
+	if (check_perl_module('Cpanel::JSON::XS')){
+		Cpanel::JSON::XS->import;
+		$use{'json'} = {'encode' => \&Cpanel::JSON::XS::encode_json,
+		'decode' => \&Cpanel::JSON::XS::decode_json};
+	}
+	# somewhat legacy, not in perl modules
+	elsif (check_perl_module('JSON::XS')){
+		JSON::XS->import;
+		$use{'json'} = {'encode' => \&JSON::XS::encode_json,
+		'decode' => \&JSON::XS::decode_json};
+	}
+	# perl, in core modules as of 5.14
+	elsif (check_perl_module('JSON::PP')){
+		JSON::PP->import;
+		$use{'json'} = {'encode' => \&JSON::PP::encode_json,
+		'decode' => \&JSON::PP::decode_json};
+	}
+	eval $end if $b_log;
 }
 
 # returns array of: 0: program print name 1: program version
@@ -6340,7 +6374,7 @@ sub clean {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or '' or undefined
 	# note: |nee trips engineering, but I don't know why nee was filtered
-	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?|[^[:print:]]+//gi;
 	$item =~ s/,|\*/ /g;
 	$item =~ s/^\s+|\s+$//g;
 	$item =~ s/\s\s+/ /g;
@@ -6777,16 +6811,12 @@ sub generate_json {
 	my ($b_cpanel,$b_valid);
 	error_handler('not-in-irc', 'help') if $b_irc;
 	print Dumper $data if $b_debug;
-	if (check_perl_module('Cpanel::JSON::XS')){
-		Cpanel::JSON::XS->import;
-		$json = Cpanel::JSON::XS::encode_json($data);
-	}
-	elsif (check_perl_module('JSON::XS')){
-		JSON::XS->import;
-		$json = JSON::XS::encode_json($data);
+	load_json() if !$loaded{'json'};
+	if ($use{'json'}){
+		$json = &{$use{'json'}->{'encode'}}($data);
 	}
 	else {
-		error_handler('required-module', 'json', 'Cpanel::JSON::XS OR JSON::XS');
+		error_handler('required-module', 'json', 'JSON::PP, Cpanel::JSON::XS or JSON::XS');
 	}
 	if ($json){
 		#$json =~ s/"[0-9]+#/"/g;
@@ -13364,7 +13394,7 @@ sub device_speed {
 {
 package GraphicItem;
 my $driver = ''; # we need this as a fallback in case no xorg log found
-my (%graphics,$monitor_ids,$monitor_map);
+my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13396,6 +13426,8 @@ sub get {
 	eval $end if $b_log;
 	return @rows;
 }
+
+## DEVICE OUTPUT ##
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'graphics'};
@@ -13548,6 +13580,8 @@ sub port_output {
 		$$rows[$j]->{main::key($$num++,0,3,'empty')} = $unused;
 	}
 }
+
+## DISPLAY OUTPUT ##
 sub display_output(){
 	eval $start if $b_log;
 	my (@row);
@@ -13562,10 +13596,12 @@ sub display_output(){
 		set_compositor_data();
 	}
 	if ($b_display){
-		display_data_x() if !$force{'wayland'};
-		# currently barebones, wayland needs a lot more work
-		if ($graphics{'protocol'} eq 'wayland' && !$graphics{'screens'}){
+		# Add compositors as data sources found
+		if ($graphics{'protocol'} eq 'wayland'){
 			display_data_wayland();
+		}
+		if (!$b_wayland_data){
+			display_data_x() if !$force{'wayland'};
 		}
 	}
 	else {
@@ -13576,11 +13612,14 @@ sub display_output(){
 		# fallback, will complete x-server/x-version, set flags, if found
 		display_server_data(); 
 	}
+	if (!defined $graphics{'display-id'} && defined $ENV{'DISPLAY'}){
+		$graphics{'display-id'} = $ENV{'DISPLAY'};
+	}
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_note,$resolution,$server_string) = ('','','');
 		my ($b_screen_monitors,@x_drivers);
-		@x_drivers = x_drivers() if !$force{'wayland'};
+		@x_drivers = display_drivers_x() if !$force{'wayland'};
 		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
 		if ($graphics{'x-server'}){
 			$server_string = $graphics{'x-server'};
@@ -13622,7 +13661,7 @@ sub display_output(){
 				}
 				else {
 					if ($driver && $driver ne 'N/A'){
-						my $display_drivers = get_display_drivers('all');
+						my $display_drivers = display_drivers_sys('all');
 						$driver = $display_drivers if $display_drivers;
 						if (-e '/var/lib/gdm' && !$b_root){
 							$driver_note = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
@@ -13822,6 +13861,9 @@ sub monitors_output_full {
 		if ($monitors->{$key}{'model'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'model')} = $monitors->{$key}{'model'};
 		}
+		if ($b_admin && $monitors->{$key}{'serial'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
+		}
 		if ($monitors->{$key}{'res-x'} || $monitors->{$key}{'res-y'} || $monitors->{$key}{'hz'} || 
 		$monitors->{$key}{'size-x'} || $monitors->{$key}{'size-y'}){
 			if ($monitors->{$key}{'res-x'} && $monitors->{$key}{'res-y'}){
@@ -13830,7 +13872,7 @@ sub monitors_output_full {
 			$resolution ||= 'N/A';
 			$$row[$j]->{main::key($$num++,0,$m2,'res')} = $resolution;
 		}
-		elsif (!$show{'graphic-basic'} || !$b_display) {
+		else {
 			if ($b_display){
 				$resolution = main::message('monitor-na');
 			}
@@ -13845,6 +13887,9 @@ sub monitors_output_full {
 		}
 		if ($monitors->{$key}{'dpi'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'dpi')} = $monitors->{$key}{'dpi'};
+		}
+		if ($b_admin && $monitors->{$key}{'gamma'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'gamma')} = $monitors->{$key}{'gamma'};
 		}
 		if ($extra > 2 && $monitors->{$key}{'scale'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'scale')} = $monitors->{$key}{'scale'};
@@ -13881,6 +13926,8 @@ sub monitors_output_full {
 # 	}
 	eval $end if $b_log;
 }
+
+## INTERFACE OUTPUT ##
 # as soon as EGL for Wayland appears add it!
 sub interface_output {
 	eval $start if $b_log;
@@ -14087,50 +14134,11 @@ sub interface_vesa_output {
 	}
 	eval $end if $b_log;
 }
-sub set_protocol {
-	eval $start if $b_log;
-	$graphics{'protocol'} = '';
-	if ($ENV{'XDG_SESSION_TYPE'}){
-		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
-	}
-	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
-		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
-	}
-	# can show as wayland-0
-	if ($graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i){
-		$graphics{'protocol'} = 'wayland';
-	}
-	# yes, I've seen this in 2019 distros, sigh
-	elsif ($graphics{'protocol'} eq 'tty'){
-		$graphics{'protocol'} = '';
-	}
-	# need to confirm that there's a point to this test, I believe no, fails out of x
-	# loginctl also results in the session id
-	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
-		if (my $program = main::check_program('loginctl')){
-			my $id = '';
-			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
-			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
-			foreach (@data){
-				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
-				$id = (split(/\s+/, $_))[0];
-				last; # multiuser? too bad, we'll go for the first one
-			}
-			if ($id){
-				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
-				$temp =~ s/Type=// if $temp;
-				# ssh will not show /dev/ttyx so would have passed the first test
-				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
-			}
-		}
-	}
-	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
-	eval $end if $b_log;
-}
+
+## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
 	my ($primary,$program);
-	my $monitors = {}; 
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14138,105 +14146,155 @@ sub display_data_wayland {
 	}
 	if ($fake{'swaymsg'} || (lc($graphics{'compositor'}) eq 'sway' &&
 	($program = main::check_program('swaymsg')))){
-		display_data_swaymsg($program,$monitors,\$primary);
+		display_data_swaymsg($program,\$primary);
 	}
-	if (%$monitors){
-		map_monitor_ids([keys %$monitors]);
-		set_wayland_monitors($monitors,$primary);
-	}
-	# it worked! we got screen data
-	if ($graphics{'no-screens'}){
-		if ($graphics{'screens'}){
-			undef $graphics{'no-screens'};
-		}
-		else {
-			$graphics{'no-screens'} = main::message('screen-wayland');
-		}
+	if ($b_wayland_data){
+		# map_monitor_ids([keys %$monitors]);
+		wayland_data_advanced($primary) if $extra > 1;
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
 	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
 	eval $end if $b_log;
 }
+# note; since not all systems will have /sys data, we'll repack it if it's 
+# missing here.
 sub display_data_swaymsg {
 	eval $start if $b_log;
-	my ($program,$monitors,$primary) = @_;
-	my (@data,@temp);
-	my ($file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
+	my ($program,$primary) = @_;
+	my (@data,%json,@temp);
+	my ($b_json,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
 	if (!$fake{'swaymsg'}){
-		@data = main::grabber("$program -t get_outputs -p",'','strip');
+		main::load_json() if !$loaded{'json'};
+		if ($use{'json'}){
+			my $result = qx($program -t get_outputs -r 2>/dev/null);
+			# returns array of monitors found
+			@data = &{$use{'json'}->{'decode'}}($result) if $result;
+			$b_json = 1;
+		}
+		else {
+			@data = main::grabber("$program -t get_outputs -p 2>/dev/null",'','strip');
+		}
 	}
 	else {
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/swaymsg-2-monitor-1.txt";
 		@data = main::reader($file,'strip');
 	}
 	# print Data::Dumper::Dumper \@data;
-	foreach (@data){
-		push(@temp,'~~') if /^Output/i;
-		push(@temp,$_);
-	}
-	push(@temp,'~~') if @temp;
-	@data = @temp;
-	foreach (@data){
-		if ($_ eq '~~' && $id){
-			$monitors->{$id}{'hz'} = $hz;
-			$monitors->{$id}{'pos-x'} = $pos_x;
-			$monitors->{$id}{'pos-y'} = $pos_y;
-			$monitors->{$id}{'res-x'} = $res_x;
-			$monitors->{$id}{'res-y'} = $res_y;
-			$monitors->{$id}{'scale'} = $scale;
-			($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
-		}
-		if (/^Output (\S+) '([^']+)'/i){
-			$id = $1;
-		}
-		elsif (/^Current mode:\s+(\d+)x(\d+)\s+\@\s+([\d\.]+)\s+Hz/i){
-			$res_x = $1;
-			$res_y = $2;
-			$hz = $3;
-			if ($hz){
-				$hz = (($hz - int($hz)) > 0.5) ? POSIX::ceil($hz) : int($hz);
+	if ($b_json){
+		$b_wayland_data = 1 if scalar @data > 0;
+		foreach my $display (@data){
+			foreach my $mon (@$display){
+				($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
+				$id = $mon->{'name'};
+				if (!$monitor_ids->{$id}{'monitor'}){
+					$monitor_ids->{$id}{'monitor'} = $mon->{'name'};
+				}
+				if (!$monitor_ids->{$id}{'model'} && $mon->{'make'}){
+					$monitor_ids->{$id}{'model'} = main::clean($mon->{'make'});
+					if ($mon->{'model'}){
+						$monitor_ids->{$id}{'model'} .= ' ' . main::clean($mon->{'model'});
+					}
+					# includes clean duplicates
+					$monitor_ids->{$id}{'model'} = main::clean_dmi($monitor_ids->{$id}{'model'});
+				}
+				if (!$monitor_ids->{$id}{'serial'}){
+					$monitor_ids->{$id}{'serial'} = main::clean_dmi($mon->{'serial'});
+				}
+				# sys data will only have edid type info, not active state res/pos/hz
+				if ($mon->{'current_mode'}){
+					if ($hz = $mon->{'current_mode'}{'refresh'}){
+						$hz = ($mon->{'current_mode'}{'refresh'}/1000);
+						$hz = (($hz - int($hz)) > 0.5) ? POSIX::ceil($hz) : int($hz);
+						$monitor_ids->{$id}{'hz'} = $hz;
+					}
+					$monitor_ids->{$id}{'res-x'} = $mon->{'current_mode'}{'width'};
+					$monitor_ids->{$id}{'res-y'} = $mon->{'current_mode'}{'height'};
+				}
+				if ($mon->{'rect'}){
+					$monitor_ids->{$id}{'pos-x'} = $mon->{'rect'}{'x'};
+					$monitor_ids->{$id}{'pos-y'} = $mon->{'rect'}{'y'};
+				}
+				if ($mon->{'scale'}){
+					$monitor_ids->{$id}{'scale'} =$mon->{'scale'};
+				}
 			}
 		}
-		elsif (/^Position:\s+(\d+),(\d+)/i){
-			$pos_x = $1;
-			$pos_y = $2;
+	}
+	else {
+		foreach (@data){
+			push(@temp,'~~') if /^Output/i;
+			push(@temp,$_);
 		}
-		elsif (/^Scale factor:\s+([\d\.]+)/i){
-			$scale = $1 + 0;
+		push(@temp,'~~') if @temp;
+		@data = @temp;
+		foreach (@data){
+			if ($_ eq '~~' && $id){
+				$monitor_ids->{$id}{'hz'} = $hz;
+				$monitor_ids->{$id}{'monitor'} = $id;
+				$monitor_ids->{$id}{'pos-x'} = $pos_x;
+				$monitor_ids->{$id}{'pos-y'} = $pos_y;
+				$monitor_ids->{$id}{'res-x'} = $res_x;
+				$monitor_ids->{$id}{'res-y'} = $res_y;
+				$monitor_ids->{$id}{'scale'} = $scale;
+				($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
+				$b_wayland_data = 1;
+			}
+			if (/^Output (\S+) '([^']+)'/i){
+				$id = $1;
+			}
+			elsif (/^Current mode:\s+(\d+)x(\d+)\s+\@\s+([\d\.]+)\s+Hz/i){
+				$res_x = $1;
+				$res_y = $2;
+				$hz = $3;
+				if ($hz){
+					$hz = (($hz - int($hz)) > 0.5) ? POSIX::ceil($hz) : int($hz);
+				}
+			}
+			elsif (/^Position:\s+(\d+),(\d+)/i){
+				$pos_x = $1;
+				$pos_y = $2;
+			}
+			elsif (/^Scale factor:\s+([\d\.]+)/i){
+				$scale = $1 + 0;
+			}
 		}
 	}
 	# print Data::Dumper::Dumper \%monitors;
 	eval $end if $b_log;
 }
 # not sure if we need mapping or not, confirm
-sub set_wayland_monitors {
+sub wayland_data_advanced {
 	eval $start if $b_log;
-	my ($monitors,$primary) = @_;
+	my ($primary) = @_;
 	my (%x_pos,%y_pos);
 	my ($x_max,$y_max) = (0,0);
-	my @keys = keys %$monitors;
+	my @keys = keys %$monitor_ids;
 	foreach my $key (@keys){
 		if ($monitor_ids->{$key}){
-			$monitor_ids->{$key}{'hz'} = $monitors->{$key}{'hz'};
-			$monitor_ids->{$key}{'monitor'} = $key;
-			$monitor_ids->{$key}{'pos-x'} = $monitors->{$key}{'pos-x'};
-			$monitor_ids->{$key}{'pos-y'} = $monitors->{$key}{'pos-y'};
-			$monitor_ids->{$key}{'res-x'} = $monitors->{$key}{'res-x'};
-			$monitor_ids->{$key}{'res-y'} = $monitors->{$key}{'res-y'};
-			$monitor_ids->{$key}{'scale'} = $monitors->{$key}{'scale'};
-			if ($extra > 1){
-				$x_max = $monitors->{$key}{'res-x'} if $monitors->{$key}{'res-x'} > $x_max;
-				$y_max = $monitors->{$key}{'res-y'} if $monitors->{$key}{'res-y'} > $y_max;
-				if (!defined $x_pos{$monitors->{$key}{'pos-x'}}){
-					$x_pos{$monitors->{$key}{'pos-x'}} = $monitors->{$key}{'res-x'};
-				}
-				if (!defined $y_pos{$monitors->{$key}{'pos-y'}}){
-					$y_pos{$monitors->{$key}{'pos-y'}} += $monitors->{$key}{'res-y'};
+			$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
+			$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
+			if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
+				$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
+			}
+			if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
+				$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
+			}
+			if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'}){
+				my $size_x = $monitor_ids->{$key}{'size-x'};
+				my $size_y = $monitor_ids->{$key}{'size-y'};
+				$monitor_ids->{$key}{'size-x-i'} = sprintf("%.1f", ($size_x/25.4));
+				$monitor_ids->{$key}{'size-y-i'} = sprintf("%.1f", ($size_y/25.4));
+				if ($monitor_ids->{$key}{'res-x'}){
+					my $res_x = $monitor_ids->{$key}{'res-x'};
+					$monitor_ids->{$key}{'dpi'} = sprintf("%.0f", $res_x * 25.4 / $size_x);
+					$monitor_ids->{$key}{'diagonal'} = sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4));
+					if ($monitor_ids->{$key}{'diagonal'}){
+						$monitor_ids->{$key}{'diagonal'} += 0; # trick to get rid of decimal 0
+					}
+					$monitor_ids->{$key}{'diagonal-m'} = sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)));
 				}
 			}
 		}
-	}
-	if ($extra > 1){
 		if (scalar @keys > 1 && %x_pos && %y_pos){
 			my ($x,$y) = (0,0);
 			foreach (keys %x_pos){$x += $x_pos{$_}}
@@ -14246,13 +14304,16 @@ sub set_wayland_monitors {
 			$y = $y_max if $y_max > $y;
 			$graphics{'display-rect'} = $x . 'x' . $y;
 		}
-		my $layouts = [];
-		set_monitor_layouts($layouts);
-		advanced_monitor_data($primary,$monitor_ids,$layouts);
-		undef $layouts;
 	}
+	my $layouts = [];
+	set_monitor_layouts($layouts);
+	# only update position, we already have all the rest of the data
+	advanced_monitor_data($primary,$monitor_ids,$layouts);
+	undef $layouts;
 	eval $end if $b_log;
 }
+
+# DISPLAY DATA X.org ##
 sub display_data_x {
 	eval $start if $b_log;
 	my ($prog_xdpyinfo,$prog_xrandr);
@@ -14271,6 +14332,9 @@ sub display_data_x {
 		if (!$prog_xdpyinfo){
 			$graphics{'no-screens'} = main::message('tool-missing-basic','xdpyinfo/xrandr');
 		}
+	}
+	if ($graphics{'protocol'} eq 'wayland' && $graphics{'no-screens'}){
+		$graphics{'no-screens'} = main::message('screen-wayland');
 	}
 	print 'Final display x: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
@@ -14517,7 +14581,8 @@ sub display_data_xrandr {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-# case where no xpdyinfo display server/version data exists
+# case where no xpdyinfo display server/version data exists, or to set Wayland
+# Xwayland version, or Xvesa data.
 sub display_server_data {
 	eval $start if $b_log;
 	my (@data,$program,$server,$version);
@@ -14576,7 +14641,8 @@ sub display_server_data {
 	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
 	eval $end if $b_log;
 }
-sub get_display_drivers {
+# for wayland display/monitor drivers, or if no display drivers found for x
+sub display_drivers_sys {
 	eval $start if $b_log;
 	my ($id) = @_;
 	my @drivers;
@@ -14599,301 +14665,7 @@ sub get_display_drivers {
 	eval $end if $b_log;
 	return join(',',@drivers) if @drivers;
 }
-sub advanced_monitor_data {
-	eval $start if $b_log;
-	my ($primary,$monitors,$layouts) = @_;
-	my (@horiz,@vert);
-	my $position = '';
-	# then see if we can locate a default position primary monitor
-	foreach my $key (keys %$monitors){
-		# this is the only scenario we can guess at if no primary detected
-		if (!$primary &&
-		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
-			$monitors->{$key}{'position'} = 'primary';
-			$primary = $monitors->{$key}{'monitor'};
-		}
-		if (!grep {$monitors->{$key}{'pos-x'} == $_} @horiz){
-			push(@horiz,$monitors->{$key}{'pos-x'});
-		}
-		if (!grep {$monitors->{$key}{'pos-y'} == $_} @vert){
-			push(@vert,$monitors->{$key}{'pos-y'});
-		}
-	}
-	@horiz = sort(@horiz);
-	@vert = sort(@vert);
-	my ($h,$v) = (scalar(@horiz),scalar(@vert));
-	# print Data::Dumper::Dumper \@horiz;
-	# print Data::Dumper::Dumper \@vert;
-	# print Data::Dumper::Dumper $layouts;
-	# print Data::Dumper::Dumper $monitor_map;
-	foreach my $key (keys %$monitors){
-		$monitors->{$key}{'position'} ||= '';
-		$position = '';
-		$position = get_monitor_position($monitors->{$key},\@horiz,\@vert);
-		$position = $layouts->[$v][$h]{$position} if $layouts->[$v][$h]{$position};
-		$monitors->{$key}{'position'} .= ',' if $monitors->{$key}{'position'};
-		$monitors->{$key}{'position'} .= $position;
-		my $mon_mapped = ($monitor_map) ? $monitor_map->{$monitors->{$key}{'monitor'}} : undef;
-		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
-			# note: xorg drivers can be different than gpu drivers
-			# $monitors->{$key}{'drivers'} = get_display_drivers($mon_mapped);
-			$monitors->{$key}{'modes-min-max'} = $monitor_ids->{$mon_mapped}{'modes-min-max'};
-			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
-			$monitors->{$key}{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
-			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
-			if ($mon_mapped ne $monitors->{$key}{'monitor'}){
-				$monitors->{$key}{'monitor-mapped'} = $mon_mapped;
-			}
-		}
-	}
-	# not printing out primary if Screen has only 1 Monitor
-	if (scalar keys %$monitors == 1){
-		my @keys = keys %$monitors;
-		$monitors->{$keys[0]}{'position'} = undef;
-	}
-	eval $end if $b_log;
-}
-sub get_monitor_position {
-	eval $start if $b_log;
-	my ($monitor,$horiz,$vert) = @_;
-	my ($i,$position) = (1,'');
-	foreach (@$vert){
-		if ($_ == $monitor->{'pos-y'}){
-			$position = $i . '-';
-			last;
-		}
-		$i++;
-	}
-	$i = 1;
-	foreach (@$horiz){
-		if ($_ == $monitor->{'pos-x'}){
-			$position .= $i;
-			last;
-		}
-		$i++;
-	}
-	main::log_data('data','pos-raw: ' . $position) if $b_log;
-	eval $end if $b_log;
-	return $position;
-}
-sub set_monitor_layouts {
-	my ($layouts) = @_;
-	$layouts->[1][2] = {'1-1' => 'left','1-2' => 'right'};
-	$layouts->[1][3] = {'1-1' => 'left','1-2' => 'center','1-3' => 'right'};
-	$layouts->[1][4] = {'1-1' => 'left','1-2' => 'center-l','1-3' => 'center-r',
-	 '1-4' => 'right'};
-	$layouts->[2][1] = {'1-1' => 'top','2-1' => 'bottom'};
-	$layouts->[2][2] = {'1-1' => 'top-left','1-2' => 'top-right',
-	 '2-1' => 'bottom-l','2-2' => 'bottom-r'};
-	$layouts->[2][3] = {'1-1' => 'top-left','1-2' => 'top-center','1-3' => 'top-right',
-	 '2-1' => 'bottom-l','2-2' => 'bottom-c','2-3' => 'bottom-r'};
-	$layouts->[3][1] = {'1-1' => 'top','2-1' => 'middle','3-1' => 'bottom'};
-	$layouts->[3][2] = {'1-1' => 'top-left','1-2' => 'top-right',
-	'2-1' => 'middle-l','2-2' => 'middle-r',
-	'3-1' => 'bottom-l','3-2' => 'bottom-r'};
-	$layouts->[3][3] = {'1-1' => 'top-left','1-2' => 'top-center',,'1-3' => 'top-right',
-	 '2-1' => 'middle-l','2-2' => 'middle-c','2-3' => 'middle-r',
-	 '3-1' => 'bottom-l','3-2' => 'bottom-c','3-3' => 'bottom-r'};
-}
-sub set_monitors_sys {
-	eval $start if $b_log;
-	my $pattern = '/sys/class/drm/card[0-9]/device/driver/module/drivers/*';
-	my @cards_glob = main::globber($pattern);
-	$pattern = '/sys/class/drm/card*-*/{edid,enabled,status,modes}';
-	my @ports_glob = main::globber($pattern);
-	# print Data::Dumper::Dumper \@cards_glob;
-	# print Data::Dumper::Dumper \@ports_glob;
-	my ($card,%cards,@data,$file,$item,$path,$port);
-	foreach $file (@cards_glob){
-		next if ! -e $file;
-		if ($file =~ m|^/sys/class/drm/(card\d+)/.+?/drivers/(\S+):(\S+)$|){
-			push(@{$cards{$1}},[$2,$3]);
-		}
-	}
-	# print Data::Dumper::Dumper \%cards;
-	foreach $file (sort @ports_glob){
-		next if ! -r $file;
-		$item = $file;
-		$item =~ s|(/.*/(card\d+)-([^/]+))/(.+)||;
-		$path = $1;
-		$card = $2;
-		$port = $3;
-		$item = $4;
-		next if !$1;
-		$monitor_ids = {} if !$monitor_ids;
-		$monitor_ids->{$port}{'monitor'} = $port;
-		if (!$monitor_ids->{$port}{'drivers'} && $cards{$card}){
-			foreach my $info (@{$cards{$card}}){
-				push(@{$monitor_ids->{$port}{'drivers'}},$info->[1]);
-			}
-		}
-		$monitor_ids->{$port}{'path'} = readlink($path);
-		$monitor_ids->{$port}{'path'} =~ s|^\.\./\.\.|/sys|;
-		if ($item eq 'status' || $item eq 'enabled'){
-			# print "$file\n";
-			$monitor_ids->{$port}{$item} = main::reader($file,'strip',0);
-		}
-		# arm: U:1680x1050p-0
-		elsif ($item eq 'modes'){
-			@data = main::reader($file,'strip');
-			next if !@data;
-			if (scalar @data == 1 || $data[-1] eq $data[0]){
-				$monitor_ids->{$port}{'modes-min-max'} = $data[0];
-			}
-			else {
-				$monitor_ids->{$port}{'modes-min'} = $data[-1];
-				$monitor_ids->{$port}{'modes-max'} = $data[0];
-			}
-		}
-		elsif ($item eq 'edid'){
-			next if -s $file;
-			@data = main::reader($file,'strip');
-			print 'edid: ', Data::Dumper::Dumper \@data if $dbg[44];
-			next if !@data;
-			# print "$data[0]\n";
-			if ($data[1]){
-				$monitor_ids->{$port}{'model'} = $data[1];
-				# trim off first non ascii characters
-				$monitor_ids->{$port}{'model'} =~ s/[^[:print:]]+//g;
-				# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
-				# string was not clean. 
-				if ($monitor_ids->{$port}{'model'} =~ /[@!=]/){
-					$monitor_ids->{$port}{'model'} = undef;
-				}
-				# print length($monitor_ids->{$port}{'model'}),"\n";
-			}
-			# I don't know what this value actually refers to
-			if ($data[2]){
-				$monitor_ids->{$port}{'model-info'} = $data[2];
-				# trim off first non ascii characters
-				$monitor_ids->{$port}{'model-info'} =~ s/[^[:print:]]+//;
-			}
-		}
-	}
-	main::log_data('dump','$ports ref',$monitor_ids) if $b_log;
-	print Data::Dumper::Dumper $monitor_ids if $dbg[44];
-	eval $end if $b_log;
-}
-# clear out all disabled or not connected monitor ports
-sub set_active_monitors {
-	eval $start if $b_log;
-	foreach my $key (keys %$monitor_ids){
-		if (!$monitor_ids->{$key}{'enabled'} || 
-		$monitor_ids->{$key}{'enabled'} ne 'enabled' ||
-		!$monitor_ids->{$key}{'status'} ||
-		$monitor_ids->{$key}{'status'} ne 'connected'){
-			delete $monitor_ids->{$key};
-		}
-	}
-	# print Data::Dumper::Dumper $monitor_ids;
-	eval $end if $b_log;
-}
-# this is required to resolve the insane situation where some xorg drivers change 
-# the kernel ID for the port to something slightly different, amdgpu in particular.
-sub map_monitor_ids {
-	eval $start if $b_log;
-	my ($display_ids) = @_;
-	return if !$monitor_ids;
-	@$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
-	my @sys_ids;
-	foreach my $key (keys %$monitor_ids){
-		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
-		 $monitor_ids->{$key}{'enabled'} eq 'enabled'){
-			push(@sys_ids,$key);
-		}
-	}
-	@sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
-	# @sys_ids = ('DP-1-1','DVI-I-1','VGA-1');
-	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
-	main::log_data('dump','$xrandr_ids ref',$display_ids) if $b_log;
-	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
-	print 'display: ', Data::Dumper::Dumper $display_ids if $dbg[45];
-	return if scalar @sys_ids != scalar @$display_ids;
-	$monitor_map = {};
-	# known patterns: s: DP-1, d: DisplayPort-0; s: HDMI-A-2, d: HDMI-A-1
-	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
-	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1
-	my ($d_1,$d_2,$d_3,$d_4,$s_1,$s_2,$s_3,$s_4);
-	for (my $i=0; $i < scalar @$display_ids; $i++){
-		print "s: $sys_ids[$i] x: $display_ids->[$i]\n" if $dbg[45];
-		if ($display_ids->[$i] =~ /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
-			$d_1 = $1;
-			$d_2 = ($2) ? $2 : '';
-			$d_3 = ($3) ? $3 : '';
-			$d_4 = $4;
-			$d_1 =~ s/^DisplayPort/DP/i; # amdgpu...
-			print " d1: $d_1 d2: $d_2 d3: $d_3 d4: $d_4\n" if $dbg[45];
-			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
-				$s_1 = $1;
-				$s_2 = ($2) ? $2 : '';
-				$s_3 = ($3) ? $3 : '';
-				$s_4 = $4;
-				$d_1 = $s_1 if uc($d_1) eq 'XWAYLAND';
-				print " d1: $d_1 s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
-				if ($d_1 eq $s_1 && ($d_4 == $s_4 || $d_4 == ($s_4 - 1))){
-					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
-				}
-			}
-		}
-		if (!$monitor_map->{$display_ids->[$i]}){
-			$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
-		}
-	}
-	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
-	print Data::Dumper::Dumper $monitor_map if $dbg[45];
-	eval $end if $b_log;
-}
-sub set_compositor_data {
-	eval $start if $b_log;
-	$graphics{'compositor'} = '';
-	if (my $compositor = get_compositor()){
-		my @data;
-		# gnome-shell is incredibly slow to return version
-		if (($extra > 2 || $graphics{'protocol'} eq 'wayland') && 
-		(!$show{'system'} || $compositor ne 'gnome-shell')){
-			@data = main::program_data($compositor,$compositor,3);
-			$graphics{'compositor'} = $data[0];
-			$graphics{'compositor-version'} = $data[1];
-		}
-		else {
-			$graphics{'compositor'} = (main::program_values($compositor))[3];
-		}
-	}
-	eval $end if $b_log;
-}
-# This has a structural weakness, where if > 1 compositor used, it 
-# will exit on first detected in alphanumeric sort order. 
-sub get_compositor {
-	eval $start if $b_log;
-	my $compositor = '';
-	main::set_ps_gui() if !$loaded{'ps-gui'};
-	if (@ps_gui){
-		# ORDER MATTES!
-		# notes: compiz: debian package compiz-core; 
-		# enlightenment: as of version 20 wayland compositor
-		my @compositors = qw(budgie-wm compiz compton enlightenment gnome-shell 
-		kwin_wayland kwin_x11 marco muffin mutter);
-		# these are more obscure, so check for them after primary common ones
-		push (@compositors,qw(3dwm asc cage cagebreak cardboard clayland dcompmgr 
-		dwc dwl epd-wm fireplace gala gamescope greenfield grefson hikari hopalong
-		japokwm kiwmi kmscon labwc laikawm liri lipstick maze metisse mir moblin
-		motorcar monsterwm newm orbital papyros perceptia phoc picom river rustland
-		sommelier sway swc swvkc taiwins tinybox tinywl ukwm unagi 
-		unity-system-compositor velox vivarium wavy waybox waycooler way-cooler
-		wayfire wayhouse waymonad westeros westford weston wio wxrc wxrd xcompmgr
-		xfwm4 xfwm5 xfwm));
-		foreach my $item (@compositors){
-			if (grep {$_ eq $item} @ps_gui){
-				$compositor = $item;
-				last;
-			}
-		}
-	}
-	main::log_data('data',"compositor: $compositor") if $b_log;
-	eval $end if $b_log;
-	return $compositor;
-}
-sub x_drivers {
+sub display_drivers_x {
 	eval $start if $b_log;
 	my ($driver,@driver_data,,%drivers);
 	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
@@ -14989,6 +14761,410 @@ sub x_drivers {
 	}
 	eval $end if $b_log;
 	return @driver_data;
+}
+
+## MONITOR DATA ##
+sub set_monitors_sys {
+	eval $start if $b_log;
+	my $pattern = '/sys/class/drm/card[0-9]/device/driver/module/drivers/*';
+	my @cards_glob = main::globber($pattern);
+	$pattern = '/sys/class/drm/card*-*/{edid,enabled,status,modes}';
+	my @ports_glob = main::globber($pattern);
+	# print Data::Dumper::Dumper \@cards_glob;
+	# print Data::Dumper::Dumper \@ports_glob;
+	my ($b_perl_edid,$card,%cards,@data,$edid_prog,$file,$item,$path,$port);
+	foreach $file (@cards_glob){
+		next if ! -e $file;
+		if ($file =~ m|^/sys/class/drm/(card\d+)/.+?/drivers/(\S+):(\S+)$|){
+			push(@{$cards{$1}},[$2,$3]);
+		}
+	}
+	if (main::check_perl_module('Parse::EDID')){
+		$b_perl_edid = 1;
+		Parse::EDID->import();
+	}
+	else {
+		$edid_prog = main::check_program('parse-edid');
+	}
+	# print Data::Dumper::Dumper \%cards;
+	foreach $file (sort @ports_glob){
+		next if ! -r $file;
+		$item = $file;
+		$item =~ s|(/.*/(card\d+)-([^/]+))/(.+)||;
+		$path = $1;
+		$card = $2;
+		$port = $3;
+		$item = $4;
+		next if !$1;
+		$monitor_ids = {} if !$monitor_ids;
+		$monitor_ids->{$port}{'monitor'} = $port;
+		if (!$monitor_ids->{$port}{'drivers'} && $cards{$card}){
+			foreach my $info (@{$cards{$card}}){
+				push(@{$monitor_ids->{$port}{'drivers'}},$info->[1]);
+			}
+		}
+		$monitor_ids->{$port}{'path'} = readlink($path);
+		$monitor_ids->{$port}{'path'} =~ s|^\.\./\.\.|/sys|;
+		if ($item eq 'status' || $item eq 'enabled'){
+			# print "$file\n";
+			$monitor_ids->{$port}{$item} = main::reader($file,'strip',0);
+		}
+		# arm: U:1680x1050p-0
+		elsif ($item eq 'modes'){
+			@data = main::reader($file,'strip');
+			next if !@data;
+			if (scalar @data == 1 || $data[-1] eq $data[0]){
+				$monitor_ids->{$port}{'modes-min-max'} = $data[0];
+			}
+			else {
+				$monitor_ids->{$port}{'modes-min'} = $data[-1];
+				$monitor_ids->{$port}{'modes-max'} = $data[0];
+			}
+		}
+		elsif ($item eq 'edid'){
+			next if -s $file;
+			monitor_edid_data($file,$port,$b_perl_edid,$edid_prog);
+		}
+	}
+	main::log_data('dump','$ports ref',$monitor_ids) if $b_log;
+	print Data::Dumper::Dumper $monitor_ids if $dbg[44];
+	eval $end if $b_log;
+}
+sub monitor_edid_data {
+	eval $start if $b_log;
+	my ($file,$port,$b_perl_edid,$edid_prog) = @_;
+	my (@data);
+	if ($b_perl_edid){
+		open my $fh, '<:raw', $file or die "Can't open file $!";
+		my $edid;
+		my $edid_raw = do { local $/; <$fh> };
+		$edid = Parse::EDID::parse_edid($edid_raw) if $edid_raw;
+		main::log_data('dump','Parse::EDID',$edid) if $b_log;
+		print Data::Dumper::Dumper $edid if $dbg[44];
+		return if !$edid;
+		if ($edid->{'gamma'}){
+			$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
+		}
+		if ($edid->{'manufacturer_name'}){
+			$monitor_ids->{$port}{'model'} = main::clean($edid->{'manufacturer_name'}); 
+		}
+		if ($edid->{'serial_number'}){
+			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
+		}
+		$monitor_ids->{$port}{'build-date'} = $edid->{'year'};
+		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
+	}
+	elsif ($edid_prog){
+		@data = main::grabber("cat $file | $edid_prog 2>/dev/null");
+		main::log_data('dump','parse-edid @data',\@data) if $b_log;
+		print 'edid prog read: ', Data::Dumper::Dumper \@data if $dbg[44];
+		@data = map {s/^(\s+(#\s+)?)//;$_} @data;
+		return if !@data;
+		my @working;
+		shift @data;
+		pop @data;
+		foreach (@data){
+			if (/^ModelName "([^"]+)"/){
+				$monitor_ids->{$port}{'model'} = main::clean($1);
+			}
+			elsif (/^Monitor Manufactured .* (\d{4})/){
+				$monitor_ids->{$port}{'build-date'} = $1;
+			}
+			elsif (/^DisplaySize (\d+) (\d+)/){
+				$monitor_ids->{$port}{'size-x'} = $1;
+				$monitor_ids->{$port}{'size-y'} = $2;
+				$monitor_ids->{$port}{'size-x-i'} = sprintf("%.1f", ($1/25.4));
+				$monitor_ids->{$port}{'size-y-i'} = sprintf("%.1f", ($2/25.4));
+			}
+			elsif (/^Gamma ([\d.]+)/){
+				$monitor_ids->{$port}{'gamma'} = $1;
+			}
+		}
+	}
+	else {
+		@data = main::reader($file,'strip');
+		print 'edid bin read: ', Data::Dumper::Dumper \@data if $dbg[44];
+		main::log_data('dump','string read @data',\@data) if $b_log;
+		return if !@data;
+		if ($data[1]){
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
+			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
+			# string was not clean. 
+			if ($monitor_ids->{$port}{'model'} =~ /[@!=\[\]]/){
+				$monitor_ids->{$port}{'model'} = undef;
+			}
+			# print length($monitor_ids->{$port}{'model'}),"\n";
+		}
+		# I don't know what this value actually refers to, sometimes serial
+		if ($data[2]){
+			$monitor_ids->{$port}{'model-info'} = main::clean($data[2]);
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model-info'} =~ s/[^[:print:]]+//;
+		}
+	}
+	eval $end if $b_log;
+}
+sub advanced_monitor_data {
+	eval $start if $b_log;
+	my ($primary,$monitors,$layouts) = @_;
+	my (@horiz,@vert);
+	my $position = '';
+	# then see if we can locate a default position primary monitor
+	foreach my $key (keys %$monitors){
+		# this is the only scenario we can guess at if no primary detected
+		if (!$primary &&
+		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
+			$monitors->{$key}{'position'} = 'primary';
+			$primary = $monitors->{$key}{'monitor'};
+		}
+		if (!grep {$monitors->{$key}{'pos-x'} == $_} @horiz){
+			push(@horiz,$monitors->{$key}{'pos-x'});
+		}
+		if (!grep {$monitors->{$key}{'pos-y'} == $_} @vert){
+			push(@vert,$monitors->{$key}{'pos-y'});
+		}
+	}
+	@horiz = sort(@horiz);
+	@vert = sort(@vert);
+	my ($h,$v) = (scalar(@horiz),scalar(@vert));
+	# print Data::Dumper::Dumper \@horiz;
+	# print Data::Dumper::Dumper \@vert;
+	# print Data::Dumper::Dumper $layouts;
+	# print Data::Dumper::Dumper $monitor_map;
+	foreach my $key (keys %$monitors){
+		$monitors->{$key}{'position'} ||= '';
+		$position = '';
+		$position = get_monitor_position($monitors->{$key},\@horiz,\@vert);
+		$position = $layouts->[$v][$h]{$position} if $layouts->[$v][$h]{$position};
+		$monitors->{$key}{'position'} .= ',' if $monitors->{$key}{'position'};
+		$monitors->{$key}{'position'} .= $position;
+		my $mon_mapped = ($monitor_map) ? $monitor_map->{$monitors->{$key}{'monitor'}} : undef;
+		# these are already set for monitor_ids, only need this for Xorg data.
+		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
+			# note: xorg drivers can be different than gpu drivers
+			# $monitors->{$key}{'drivers'} = display_drivers_sys($mon_mapped);
+			$monitors->{$key}{'modes-min-max'} = $monitor_ids->{$mon_mapped}{'modes-min-max'};
+			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
+			$monitors->{$key}{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
+			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
+			if ($mon_mapped ne $monitors->{$key}{'monitor'}){
+				$monitors->{$key}{'monitor-mapped'} = $mon_mapped;
+			}
+		}
+	}
+	# not printing out primary if Screen has only 1 Monitor
+	if (scalar keys %$monitors == 1){
+		my @keys = keys %$monitors;
+		$monitors->{$keys[0]}{'position'} = undef;
+	}
+	print Data::Dumper::Dumper $monitors if $dbg[45];
+	eval $end if $b_log;
+}
+# clear out all disabled or not connected monitor ports
+sub set_active_monitors {
+	eval $start if $b_log;
+	foreach my $key (keys %$monitor_ids){
+		if (!$monitor_ids->{$key}{'enabled'} || 
+		$monitor_ids->{$key}{'enabled'} ne 'enabled' ||
+		!$monitor_ids->{$key}{'status'} ||
+		$monitor_ids->{$key}{'status'} ne 'connected'){
+			delete $monitor_ids->{$key};
+		}
+	}
+	# print Data::Dumper::Dumper $monitor_ids;
+	eval $end if $b_log;
+}
+sub get_monitor_position {
+	eval $start if $b_log;
+	my ($monitor,$horiz,$vert) = @_;
+	my ($i,$position) = (1,'');
+	foreach (@$vert){
+		if ($_ == $monitor->{'pos-y'}){
+			$position = $i . '-';
+			last;
+		}
+		$i++;
+	}
+	$i = 1;
+	foreach (@$horiz){
+		if ($_ == $monitor->{'pos-x'}){
+			$position .= $i;
+			last;
+		}
+		$i++;
+	}
+	main::log_data('data','pos-raw: ' . $position) if $b_log;
+	eval $end if $b_log;
+	return $position;
+}
+sub set_monitor_layouts {
+	my ($layouts) = @_;
+	$layouts->[1][2] = {'1-1' => 'left','1-2' => 'right'};
+	$layouts->[1][3] = {'1-1' => 'left','1-2' => 'center','1-3' => 'right'};
+	$layouts->[1][4] = {'1-1' => 'left','1-2' => 'center-l','1-3' => 'center-r',
+	 '1-4' => 'right'};
+	$layouts->[2][1] = {'1-1' => 'top','2-1' => 'bottom'};
+	$layouts->[2][2] = {'1-1' => 'top-left','1-2' => 'top-right',
+	 '2-1' => 'bottom-l','2-2' => 'bottom-r'};
+	$layouts->[2][3] = {'1-1' => 'top-left','1-2' => 'top-center','1-3' => 'top-right',
+	 '2-1' => 'bottom-l','2-2' => 'bottom-c','2-3' => 'bottom-r'};
+	$layouts->[3][1] = {'1-1' => 'top','2-1' => 'middle','3-1' => 'bottom'};
+	$layouts->[3][2] = {'1-1' => 'top-left','1-2' => 'top-right',
+	'2-1' => 'middle-l','2-2' => 'middle-r',
+	'3-1' => 'bottom-l','3-2' => 'bottom-r'};
+	$layouts->[3][3] = {'1-1' => 'top-left','1-2' => 'top-center',,'1-3' => 'top-right',
+	 '2-1' => 'middle-l','2-2' => 'middle-c','2-3' => 'middle-r',
+	 '3-1' => 'bottom-l','3-2' => 'bottom-c','3-3' => 'bottom-r'};
+}
+# this is required to resolve the insane situation where some xorg drivers change 
+# the kernel ID for the port to something slightly different, amdgpu in particular.
+sub map_monitor_ids {
+	eval $start if $b_log;
+	my ($display_ids) = @_;
+	return if !$monitor_ids;
+	@$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
+	my @sys_ids;
+	foreach my $key (keys %$monitor_ids){
+		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
+		 $monitor_ids->{$key}{'enabled'} eq 'enabled'){
+			push(@sys_ids,$key);
+		}
+	}
+	@sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
+	# @sys_ids = ('DP-1-1','DVI-I-1','VGA-1');
+	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
+	main::log_data('dump','$xrandr_ids ref',$display_ids) if $b_log;
+	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
+	print 'display: ', Data::Dumper::Dumper $display_ids if $dbg[45];
+	return if scalar @sys_ids != scalar @$display_ids;
+	$monitor_map = {};
+	# known patterns: s: DP-1, d: DisplayPort-0; s: HDMI-A-2, d: HDMI-A-1
+	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
+	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1
+	my ($d_1,$d_2,$d_3,$d_4,$s_1,$s_2,$s_3,$s_4);
+	for (my $i=0; $i < scalar @$display_ids; $i++){
+		print "s: $sys_ids[$i] x: $display_ids->[$i]\n" if $dbg[45];
+		if ($display_ids->[$i] =~ /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
+			$d_1 = $1;
+			$d_2 = ($2) ? $2 : '';
+			$d_3 = ($3) ? $3 : '';
+			$d_4 = $4;
+			$d_1 =~ s/^DisplayPort/DP/i; # amdgpu...
+			print " d1: $d_1 d2: $d_2 d3: $d_3 d4: $d_4\n" if $dbg[45];
+			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
+				$s_1 = $1;
+				$s_2 = ($2) ? $2 : '';
+				$s_3 = ($3) ? $3 : '';
+				$s_4 = $4;
+				$d_1 = $s_1 if uc($d_1) eq 'XWAYLAND';
+				print " d1: $d_1 s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
+				if ($d_1 eq $s_1 && ($d_4 == $s_4 || $d_4 == ($s_4 - 1))){
+					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
+				}
+			}
+		}
+		if (!$monitor_map->{$display_ids->[$i]}){
+			$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
+		}
+	}
+	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
+	print Data::Dumper::Dumper $monitor_map if $dbg[45];
+	eval $end if $b_log;
+}
+
+## COMPOSITOR DATA ##
+sub set_compositor_data {
+	eval $start if $b_log;
+	$graphics{'compositor'} = '';
+	if (my $compositor = get_compositor()){
+		my @data;
+		# gnome-shell is incredibly slow to return version
+		if (($extra > 2 || $graphics{'protocol'} eq 'wayland') && 
+		(!$show{'system'} || $compositor ne 'gnome-shell')){
+			@data = main::program_data($compositor,$compositor,3);
+			$graphics{'compositor'} = $data[0];
+			$graphics{'compositor-version'} = $data[1];
+		}
+		else {
+			$graphics{'compositor'} = (main::program_values($compositor))[3];
+		}
+	}
+	eval $end if $b_log;
+}
+# This has a structural weakness, where if > 1 compositor used, it 
+# will exit on first detected in alphanumeric sort order. 
+sub get_compositor {
+	eval $start if $b_log;
+	my $compositor = '';
+	main::set_ps_gui() if !$loaded{'ps-gui'};
+	if (@ps_gui){
+		# ORDER MATTES!
+		# notes: compiz: debian package compiz-core; 
+		# enlightenment: as of version 20 wayland compositor
+		my @compositors = qw(budgie-wm compiz compton enlightenment gnome-shell 
+		kwin_wayland kwin_x11 marco muffin mutter);
+		# these are more obscure, so check for them after primary common ones
+		push (@compositors,qw(3dwm asc cage cagebreak cardboard clayland dcompmgr 
+		dwc dwl epd-wm fireplace gala gamescope greenfield grefson hikari hopalong
+		japokwm kiwmi kmscon labwc laikawm liri lipstick maze metisse mir moblin
+		motorcar monsterwm newm orbital papyros perceptia phoc picom river rustland
+		sommelier sway swc swvkc taiwins tinybox tinywl ukwm unagi 
+		unity-system-compositor velox vivarium wavy waybox waycooler way-cooler
+		wayfire wayhouse waymonad westeros westford weston wio wxrc wxrd xcompmgr
+		xfwm4 xfwm5 xfwm));
+		foreach my $item (@compositors){
+			if (grep {$_ eq $item} @ps_gui){
+				$compositor = $item;
+				last;
+			}
+		}
+	}
+	main::log_data('data',"compositor: $compositor") if $b_log;
+	eval $end if $b_log;
+	return $compositor;
+}
+
+## UTILITIES ##
+sub set_protocol {
+	eval $start if $b_log;
+	$graphics{'protocol'} = '';
+	if ($ENV{'XDG_SESSION_TYPE'}){
+		$graphics{'protocol'} = $ENV{'XDG_SESSION_TYPE'};
+	}
+	if (!$graphics{'protocol'} && $ENV{'WAYLAND_DISPLAY'}){
+		$graphics{'protocol'} = $ENV{'WAYLAND_DISPLAY'};
+	}
+	# can show as wayland-0
+	if ($graphics{'protocol'} && $graphics{'protocol'} =~ /wayland/i){
+		$graphics{'protocol'} = 'wayland';
+	}
+	# yes, I've seen this in 2019 distros, sigh
+	elsif ($graphics{'protocol'} eq 'tty'){
+		$graphics{'protocol'} = '';
+	}
+	# need to confirm that there's a point to this test, I believe no, fails out of x
+	# loginctl also results in the session id
+	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
+		if (my $program = main::check_program('loginctl')){
+			my $id = '';
+			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
+			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
+			foreach (@data){
+				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
+				$id = (split(/\s+/, $_))[0];
+				last; # multiuser? too bad, we'll go for the first one
+			}
+			if ($id){
+				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
+				$temp =~ s/Type=// if $temp;
+				# ssh will not show /dev/ttyx so would have passed the first test
+				$graphics{'protocol'} = $temp if $temp && $temp ne 'tty';
+			}
+		}
+	}
+	$graphics{'protocol'} = lc($graphics{'protocol'}) if $graphics{'protocol'};
+	eval $end if $b_log;
 }
 sub tty_data(){
 	eval $start if $b_log;

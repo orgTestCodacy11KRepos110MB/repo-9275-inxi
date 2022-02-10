@@ -17,6 +17,23 @@ This upgrade should be of significant interest to any Wayland using distro, as
 well as the tiny Xvesa based distros like TinyCore, Slitaz, and Puppy.
 
 --------------------------------------------------------------------------------
+NOTE TO MAINTAINERS AND PACKAGERS:
+
+I recommend adding as a dependency the Perl module Parse::EDID, which does an 
+excellent job supplying monitor data, including current resolution. Particularly 
+for Wayland situations, this can be extremely valuable, and can help bypass the 
+requirement to do separate parsing of each compositor data tools, of which there 
+are few and far between.
+
+Normally inxi does not use modules that are not in Core Modules, but in this 
+case, I think it warrants an exception.
+
+Also, if you had Cpanel::JSON::XS or JSON::XS Perl modules as dependencies, you 
+can remove those (unless for some reason your distro removed that core module 
+from Core Modules), inxi now can use JSON::PP, which is in Core Modules since 
+Perl 5.14.
+
+--------------------------------------------------------------------------------
 KNOWN ISSUES:
 
 1. The free drivers for xorg like amdgpu, modesetting, alter the the internal 
@@ -51,9 +68,17 @@ Now switches mm x and y if that is detected, which corrects dpi as well.
 
 * Show better Interface and Screen resolution data missing messages.
 
+* See FIX 5 for adding in display-ID:.
+
 4. For Wayland, which currently has no EGL support in inxi, if no glxinfo 
 present, show EGL Wayland specific Messsage: for advanced EGL data, not the 
 generic glxinfo that were shown previously.
+
+5. Display was relying on xdpyinfo or a Wayland environmental variable to set
+display-ID:, now falls back always to $ENV{DISPLAY} if nothing else was found 
+and that exists. I hadn't realized how much was depending on those x tools, 
+which many people never had installed in the first place. This also supplies
+that for Xvesa as well, which has features that need the Display-ID to use.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -137,13 +162,17 @@ for more info on how this change was done.
 nwg-dock, nwg-panel, rootbar, sfwbar, wapanel, waybar, yambar
 
 8. Added VBE outout to last item, previoiusly OpenGL for only X, now for:
+
 * X - OpenGL, requires glxinfo 
+
 * Wayland - EGL, currently no tool available, stub in place
+
 * Xvesa - Interface: interface type (VBE/GOP). GOP not confirmed, no data 
-samples; v:, source:, dac: (no idea what it is, show it though), controller:,
-and ram:. 
-This is base on TinyX/Xvesa as found in TinyCore, but should work in Slitaz
-TinyX as well.
+samples; v:, source:, dac: (no idea what it is, show it though), controller:, 
+and ram: items. 
+
+This is based on TinyX/Xvesa as found in TinyCore, but should work in Slitaz
+and Puppy TinyX as well if those projects are still around.
 
 --------------------------------------------------------------------------------
 CHANGES:
@@ -162,6 +191,11 @@ mode output, which it should have always done.
 
 5. Xvesa and Wayland no longer show glxinfo messages for no glxinfo for GL data.
 Now they show their own custom messages, appropriate to the case.
+
+6. json features now test for JSON::PP, JSON::XS, or Cpanel::JSON::XS modules,
+and use whichever is found. Note I did not realize JSON::PP was in core modules
+as of 5.14 so that makes sense to use, and will allow inxi to start using json
+data sources, which are a lot easier to parse.
 
 --------------------------------------------------------------------------------
 DOCUMENTATION:
