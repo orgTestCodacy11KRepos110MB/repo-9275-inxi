@@ -13682,13 +13682,13 @@ sub display_output(){
 					if ($driver && $driver ne 'N/A'){
 						my $display_drivers = display_drivers_sys('all');
 						$driver = $display_drivers if $display_drivers;
-						if (-e '/var/lib/gdm' && !$b_root){
-							$driver_note = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
-						}
-						elsif ($graphics{'protocol'} eq 'wayland'){
+						if ($graphics{'protocol'} eq 'wayland'){
 							if (!$display_drivers) {
 								$driver_note = main::message('display-driver-wayland');
 							}
+						}
+						elsif (-e '/var/lib/gdm' && !$b_root){
+							$driver_note = main::message('display-driver-na') . ' - ' . main::message('root-suggested');
 						}
 						else {
 							$driver_note = main::message('display-driver-na');
@@ -14190,7 +14190,7 @@ sub display_data_wayland {
 sub check_monitor_ids {
 	eval $start if $b_log;
 	my $b_invalid;
-	foreach my $key (%$monitor_ids){
+	foreach my $key (keys %$monitor_ids){
 		if (!$monitor_ids->{$key}{'size-x'} || !$monitor_ids->{$key}{'size-y'} ||
 		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
 			$b_invalid = 1;
@@ -14302,7 +14302,7 @@ sub display_data_swaymsg {
 			}
 		}
 	}
-	# print Data::Dumper::Dumper \%monitors;
+	print 'sway moniitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
 }
 # Get Display rect size for > 1 monitors
@@ -14979,6 +14979,7 @@ sub advanced_monitor_data {
 	my $position = '';
 	# then see if we can locate a default position primary monitor
 	foreach my $key (keys %$monitors){
+		next if !defined $monitors->{$key}{'pos-x'};
 		# this is the only scenario we can guess at if no primary detected
 		if (!$primary &&
 		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
@@ -15000,12 +15001,14 @@ sub advanced_monitor_data {
 	# print Data::Dumper::Dumper $layouts;
 	# print Data::Dumper::Dumper $monitor_map;
 	foreach my $key (keys %$monitors){
-		$monitors->{$key}{'position'} ||= '';
-		$position = '';
-		$position = get_monitor_position($monitors->{$key},\@horiz,\@vert);
-		$position = $layouts->[$v][$h]{$position} if $layouts->[$v][$h]{$position};
-		$monitors->{$key}{'position'} .= ',' if $monitors->{$key}{'position'};
-		$monitors->{$key}{'position'} .= $position;
+		if (@horiz && @vert){
+			$monitors->{$key}{'position'} ||= '';
+			$position = '';
+			$position = get_monitor_position($monitors->{$key},\@horiz,\@vert);
+			$position = $layouts->[$v][$h]{$position} if $layouts->[$v][$h]{$position};
+			$monitors->{$key}{'position'} .= ',' if $monitors->{$key}{'position'};
+			$monitors->{$key}{'position'} .= $position;
+		}
 		my $mon_mapped = ($monitor_map) ? $monitor_map->{$monitors->{$key}{'monitor'}} : undef;
 		# these are already set for monitor_ids, only need this for Xorg data.
 		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
@@ -15045,7 +15048,7 @@ sub set_active_monitors {
 			delete $monitor_ids->{$key};
 		}
 	}
-	# print Data::Dumper::Dumper $monitor_ids;
+	# print 'active monitors: ', Data::Dumper::Dumper $monitor_ids;
 	eval $end if $b_log;
 }
 sub get_monitor_position {
