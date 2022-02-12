@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-10';
-my $self_patch='243';
+my $self_date='2022-02-11';
+my $self_patch='25';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5138,7 +5138,7 @@ sub get {
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
 			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|swaymsg|sysctl|';
-			$wl .= 'uptime|usbconfig|usbdevs|vmstat|xorg-log|xrandr';
+			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wlr-randr|xorg-log|xrandr';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -14217,6 +14217,9 @@ sub display_data_wayland {
 	($program = main::check_program('swaymsg')))){
 		display_data_swaymsg($program);
 	}
+	elsif ($fake{'wlr-randr'} || ($program = main::check_program('wlr-randr'))){
+		display_data_wlrrandr($program);
+	}
 	if (!$b_wayland_data && $monitor_ids){
 		$b_skip_advanced = check_monitor_ids();
 	}
@@ -14337,7 +14340,60 @@ sub display_data_swaymsg {
 			}
 		}
 	}
-	print 'sway moniitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
+	print 'swaymsg: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
+	eval $end if $b_log;
+}
+sub display_data_wlrrandr {
+	eval $start if $b_log;
+	my ($program) = @_;
+	my ($file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
+	my (@data,@temp);
+	if (!$fake{'wlr-randr'}){
+		@data = main::grabber("$program 2>/dev/null",'','strip');
+	}
+	else {
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/wlr-randr-2-monitor-1.txt";
+		@data = main::reader($file,'strip');
+	}
+	foreach (@data){
+		push(@temp,'~~') if /^([A-Z]+-[ABID\d-]+)\s['"]/i;
+		push(@temp,$_);
+	}
+	push(@temp,'~~') if @temp;
+	@data = @temp;
+	print 'wlr-randr: ', Data::Dumper::Dumper \@data if $dbg[46]; 
+	main::log_data('dump','@data', \@data) if $b_log;
+	foreach (@data){
+		if ($_ eq '~~' && $id){
+			$monitor_ids->{$id}{'hz'} = $hz;
+			$monitor_ids->{$id}{'monitor'} = $id;
+			$monitor_ids->{$id}{'pos-x'} = $pos_x;
+			$monitor_ids->{$id}{'pos-y'} = $pos_y;
+			$monitor_ids->{$id}{'res-x'} = $res_x;
+			$monitor_ids->{$id}{'res-y'} = $res_y;
+			$monitor_ids->{$id}{'scale'} = $scale;
+			($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
+			$b_wayland_data = 1;
+		}
+		# Output VGA-1 '<Unknown> <Unknown> ' (focused)
+		# unknown how 'primary' is shown, if it shows in this output
+		if (/^([A-Z]+-[ABID\d-]+)\s['"]/i){
+			$id = $1;
+		}
+		elsif (/^(\d+)x(\d+)\s+px,\s+([\d\.]+)\s+Hz \([^\)]+current\)/i){
+			$res_x = $1;
+			$res_y = $2;
+			$hz = (sprintf('%.0f',($3/1000)) + 0) if $3;
+		}
+		elsif (/^Position:\s+(\d+),(\d+)/i){
+			$pos_x = $1;
+			$pos_y = $2;
+		}
+		elsif (/^Scale:\s+([\d\.]+)/i){
+			$scale = $1 + 0;
+		}
+	}
+	print 'wlr-randr: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
 }
 # if we didn't get explicit tool for wayland data, check to see if we got most 
