@@ -76,7 +76,7 @@ my (%alerts,%build_prop,%client,%colors,,%cpuinfo_machine,%disks_bsd,
 
 ## System Arrays
 my (@app,@cpuinfo,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
-@sensors_exclude,@sensors_use,@uname,@wayland);
+@sensors_exclude,@sensors_use,@uname);
 
 ## Disk/Logical/Partition/RAID arrays 
 my (@btrfs_raid,@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,
@@ -103,7 +103,8 @@ if (eval {require Time::HiRes}){
 my ($b_admin,$b_android,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,$b_root);
 
 ## System
-my ($bsd_type,$device_vm,$language,$os,$pci_tool,$wan_url) = ('','','','','','');
+my ($bsd_type,$device_vm,$language,$os,$pci_tool) = ('','','','','');
+my ($wan_url,$wl_compositors) = ('','');
 my ($bits_sys,$cpu_arch,$ppid);
 my ($cpu_sleep,$dl_timeout,$limit,$ps_cols,$ps_count) = (0.35,4,10,0,5);
 my $sensors_cpu_nu = 0;
@@ -15338,8 +15339,8 @@ sub get_compositors {
 		# these are more obscure, so check for them after primary common ones
 		push (@compositors,qw(3dwm dcompmgr gala kmscon metisse mir moblin 
 		monsterwm picom ukwm unagi unity-system-compositor xcompmgr xfwm4 
-		xfwm5 xfwm),@wayland);
-		my $matches = join('|',@compositors);
+		xfwm5 xfwm));
+		my $matches = join('|',@compositors) . $wl_compositors;
 		foreach (@ps_gui){
 			if (/^($matches)$/){
 				push(@found,$1);
@@ -24401,9 +24402,7 @@ sub get_ps_de_data {
 		openbox pekwm penrose qvwm ratpoison 
 		sawfish scrotwm snapwm spectrwm tinywm tvtwm twm uwm 
 		windowlab wmfs wmfs2 wingo wmii2 wmii wmx xmonad yeahwm);
-		# wayland compositors/wm. Most of these are unverified
-		push(@wms,@wayland);
-		my $matches = join('|',@wms);
+		my $matches = join('|',@wms) . $wl_compositors;
 		foreach (@ps_gui){
 			# no need to use check program with short list of ps_gui
 			if (/^($matches)$/){
@@ -24528,9 +24527,7 @@ sub get_wm_main {
 		nawm notion openbox qtile qvwm penrose ratpoison sawfish scrotwm snapwm
 		spectrwm stumpwm tinywm tvtwm twm ukwm windowlab WindowMaker wingo wmfs2?
 		wmii2? wmx xfwm[45]? xmonad yeahwm);
-		# wayland compositor/wm
-		push(@wms,@wayland);
-		my $wms = join('|',@wms);
+		my $wms = join('|',@wms) . $wl_compositors;
 		foreach (@ps_gui){
 			if (/^($wms)$/){
 				$working = $1;
@@ -27699,16 +27696,7 @@ sub set_ps_aux {
 sub set_ps_gui {
 	eval $start if $b_log;
 	$loaded{'ps-gui'} = 1;
-	my ($working,@match,@temp);
-	# wayland compositors generally are compositors and wm, with a few exceptions
-	# these will be used globally to avoid having to redo it over and over.
-	@wayland = qw(asc awc cage cagebreak cardboard chameleonwm clayland comfc 
-	dwc dwl epd-wm fireplace feathers fenestra glass gamescope greenfield grefson 
-	hikari hopalong inaban japokwm kiwmi kwinft  labwc laikawm lipstick liri 
-	mahogany marina maze motorcar newm nucleus orbital perceptia phoc pywm qtile 
-	river rustland simulavr skylight sommelier sway swc swvkc tabby taiwins 
-	tinybox tinywl trinkster velox vimway vivarium wavy waybox way-?cooler 
-	wayfire wayhouse waymonad westeros westford weston wio\+? wxr[cd] xuake);
+	my ($b_wl,$working,@match,@temp);
 	# desktops / wm (some wm also compositors)
 	if ($show{'system'}){
 		@temp=qw(razor-desktop razor-session lxsession lxqt-session 
@@ -27723,9 +27711,11 @@ sub set_ps_gui {
 		sawfish scrotwm snapwm spectrwm (sh|c?lisp).*stumpwm
 		tinywm tvtwm twm uwm windowlab WindowMaker wingo wm2 wmfs wmfs2 wmii2 wmii 
 		wmx xfdesktop xmonad yeahwm);
-		push(@match,@temp,@wayland);
+		push(@match,@temp);
+		$b_wl = 1;
 	}
-	# wm:
+	# wm: note that for all but the listed wm, the wm and desktop would be the 
+	# same, particularly with all smaller wayland wm/compositors.
 	if ($show{'system'} && $extra > 1){
 		@temp=qw(budgie-wm compiz deepin-wm gala gnome-shell
 		twin kwin_wayland kwin_x11 kwin marco 
@@ -27757,10 +27747,24 @@ sub set_ps_gui {
 		gala gnome-shell kmscon kwin_wayland kwin_x11 kwin
 		marco metisse mir moblin muffin mutter picom steamcompmgr 
 		ukwm unagi unity-system-compositor wayland xcompmgr xfwm[45]?);
-		push(@match,@temp,@wayland);
+		push(@match,@temp);
+		$b_wl = 1;
 	}
 	uniq(\@match);
 	my $matches = join('|', @match);
+	if ($b_wl){
+		# wayland compositors generally are compositors and wm. 
+		# These will be used globally to avoid having to redo it over and over.
+		$wl_compositors = '|' . join('|',qw(asc awc 
+		cage cagebreak cardboard chameleonwm clayland comfc 
+		dwc dwl epd-wm fireplace feathers fenestra glass gamescope greenfield grefson 
+		hikari hopalong inaban japokwm kiwmi kwinft  labwc laikawm lipstick liri 
+		mahogany marina maze motorcar newm nucleus orbital perceptia phoc pywm qtile 
+		river rustland simulavr skylight sommelier sway swc swvkc tabby taiwins 
+		tinybox tinywl trinkster velox vimway vivarium wavy waybox way-?cooler 
+		wayfire wayhouse waymonad westeros westford weston wio\+? wxr[cd] xuake));
+		$matches .= $wl_compositors;
+	}
 	foreach (@ps_cmd){
 		if (/^(|[\S]*\/)($matches)(\/|\s|$)/){
 			$working = $2;
