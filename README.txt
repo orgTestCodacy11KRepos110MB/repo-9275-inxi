@@ -28,6 +28,16 @@ development branch for the master man page.
 
 ====================================================================
 
+Donate:
+
+Help support the project with a one time or sustaining donation.
+
+Paypal: https://www.paypal.com/donate/?hosted_button_id=77DQVM6A4L5E2
+
+Open Collective: https://opencollective.com/inxi
+
+====================================================================
+
 DOCS:
 
 /docs contain the data needed to develop pinxi.
