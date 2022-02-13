@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.12';
 my $self_date='2022-02-12';
-my $self_patch='26';
+my $self_patch='27';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -76,7 +76,7 @@ my (%alerts,%build_prop,%client,%colors,,%cpuinfo_machine,%disks_bsd,
 
 ## System Arrays
 my (@app,@cpuinfo,@dmi,@gpudata,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
-@sensors_exclude,@sensors_use,@uname);
+@sensors_exclude,@sensors_use,@uname,@wayland);
 
 ## Disk/Logical/Partition/RAID arrays 
 my (@btrfs_raid,@glabel,@labels,@lsblk,@lvm,@lvm_raid,@md_raid,@partitions,
@@ -1908,6 +1908,7 @@ sub display_data {
 	['vainfo',''],
 	['vdpauinfo',''],
 	['vulkaninfo',''],
+	['wayland-info',''], # not packaged as far as I know yet
 	['weston-info',''], 
 	['wmctrl','-m'],
 	['weston','--version'],
@@ -4080,8 +4081,6 @@ sub set_program_values {
 	'xmonad' => ['^xmonad',2,'--version','XMonad',0,1,0,'',''],
 	'xuake' => ['^xuake',0,'0','xuake',0,1,0,'',''], # unverified
 	'yeahwm' => ['^yeahwm',0,'--version','YeahWM',0,1,0,'',''], # unverified
-	## X Servers ##
-	'xwayland' => ['Xwayland ',3,'-version','Xwayland',0,1,1,'^(The X.org Foundation )?',''],
 	## Toolkits ##
 	'gtk-launch' => ['^\S',1,'--version','GTK',0,1,0,'',''],
 	'qmake' => ['^^Using Qt version',4,'--version','Qt',0,0,0,'',''],
@@ -6658,7 +6657,6 @@ sub message {
 	'dmesg-boot-missing' => 'dmesg.boot not found',
 	'dmidecode-dev-mem' => 'dmidecode is not allowed to read /dev/mem',
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
-	'egl-wayland' => 'Wayland EGL data currently not available.',
 	'gl-console' => 'No advanced graphics data found on this system in console.',
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'gl-null' => 'No GL data found on this system.',
@@ -6666,6 +6664,7 @@ sub message {
 	'gl-root-display' => 'GL data unavailable for root.',
 	'gl-try' => 'GL data unavailable in console. Try -G --display',
 	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
+	'interface-wayland' => 'Wayland GBM/EGL data currently not available.',
 	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
 	'IP-no-dig' => "No $id found. Connected to web? SSL issues? Try enabling dig",
@@ -14027,7 +14026,7 @@ sub interface_output {
 		}
 		elsif (!main::check_program('glxinfo')){
 			if ($graphics{'protocol'} eq 'wayland'){
-				$type = 'egl-wayland';
+				$type = 'interface-wayland';
 			}
 			else {
 				$type = 'glxinfo-missing';
@@ -14035,7 +14034,7 @@ sub interface_output {
 		}
 		else {
 			if ($graphics{'protocol'} eq 'wayland'){
-				$type = 'egl-wayland';
+				$type = 'interface-wayland';
 			}
 			elsif ($b_root){
 				$type = 'gl-root';
@@ -14055,7 +14054,7 @@ sub interface_egl_output {
 	eval $start if $b_log;
 	my ($row,$num) = @_;
 	@$row = ({
-	main::key($num++,0,1,'Message') => main::message('egl-wayland'),
+	main::key($num++,0,1,'Message') => main::message('interface-wayland'),
 	});
 	eval $end if $b_log;
 }
@@ -14748,8 +14747,8 @@ sub display_server_data {
 	# later Xorg versions show error if run in console or ssh if the true path 
 	# is not used.
 	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths);
+	my (@data,$server,$version);
 	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1]){
-		my (@data,$server,$version);
 		# IMPORTANT: both commands send version data to stderr!
 		if ($program = main::check_program('Xorg')){
 			@data = main::grabber("$program -version 2>&1");
@@ -14791,8 +14790,16 @@ sub display_server_data {
 	}
 	if ((!$b_display || $graphics{'protocol'} eq 'wayland') && 
 	($program = main::check_program('Xwayland'))){
+		undef $version;
+		@data = main::grabber("$program -version 2>&1",'','strip');
+		# Slackware Linux Project Xwayland Version 21.1.4 (12101004)
+		# The X.Org Foundation Xwayland Version 21.1.4 (12101004)
+		if (@data){
+			$data[0] =~ /Xwayland Version (\S+)/;
+			$version = $1;
+		}
 		$graphics{'x-server'} = [] if !$graphics{'x-server'};
-		push(@{$graphics{'x-server'}},[main::program_data('xwayland','Xwayland')]);
+		push(@{$graphics{'x-server'}},['Xwayland',$version]);
 	}
 	# remove extra X paths from global @paths
 	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
@@ -15050,7 +15057,7 @@ sub monitor_edid_data {
 			$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
 		}
 		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
-		if ($edid->{'detailed_timings'}){
+		if (!$edid->{'detailed_timings'}){
 			$monitor_ids->{$port}{'res-x'} = $edid->{'detailed_timings'}[0]{'horizontal_active'};
 			$monitor_ids->{$port}{'res-y'} = $edid->{'detailed_timings'}[0]{'vertical_active'};
 			if ($edid->{'detailed_timings'}[0]{'horizontal_image_size'}){
@@ -15069,7 +15076,7 @@ sub monitor_edid_data {
 			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
 		}
 	}
-	elsif ($edid_prog){
+	elsif (!$edid_prog){
 		@data = main::grabber("cat $file | $edid_prog 2>/dev/null");
 		main::log_data('dump','parse-edid @data',\@data) if $b_log;
 		print 'edid prog read: ', Data::Dumper::Dumper \@data if $dbg[44];
@@ -15106,7 +15113,7 @@ sub monitor_edid_data {
 			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
 			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
 			# string was not clean. 
-			if ($monitor_ids->{$port}{'model'} =~ /[@!=\[\]]/){
+			if ($monitor_ids->{$port}{'model'} =~ /[@!^&=£°#\[\]]/){
 				$monitor_ids->{$port}{'model'} = undef;
 			}
 			# print length($monitor_ids->{$port}{'model'}),"\n";
@@ -15329,18 +15336,13 @@ sub get_compositors {
 		my @compositors = qw(budgie-wm compiz compton enlightenment gnome-shell 
 		kwin_wayland kwin_x11 marco muffin mutter);
 		# these are more obscure, so check for them after primary common ones
-		push (@compositors,qw(3dwm asc cage cagebreak cardboard chameleonwm clayland 
-		comfc dcompmgr dwc dwl epd-wm feathers fenestra fireplace gala gamescope 
-		glass greenfield grefson hikari hopalong inaban japokwm kiwmi kmscon kwinft 
-		labwc laikawm liri lipstick mahogany marina maze metisse mir moblin motorcar 
-		monsterwm newm nucleus orbital papyros perceptia phoc picom pywm river 
-		rustland simulavr skylight sommelier sway swc swvkc tabby taiwins tinybox 
-		tinywl trinkster ukwm unagi unity-system-compositor velox vimway vivarium 
-		wavy waybox waycooler way-cooler wayfire wayhouse waymonad westeros westford 
-		weston wio wio+ wxrc wxrd xcompmgr xfwm4 xfwm5 xfwm xuake));
-		foreach my $compositor (@compositors){
-			if (grep {$_ eq $compositor} @ps_gui){
-				push(@found,$compositor);
+		push (@compositors,qw(3dwm dcompmgr gala kmscon metisse mir moblin 
+		monsterwm picom ukwm unagi unity-system-compositor xcompmgr xfwm4 
+		xfwm5 xfwm),@wayland);
+		my $matches = join('|',@compositors);
+		foreach (@ps_gui){
+			if (/^($matches)$/){
+				push(@found,$1);
 			}
 		}
 	}
@@ -24388,99 +24390,57 @@ sub get_ps_de_data {
 	if (@ps_gui){
 		# the sequence here matters, some desktops like icewm, razor, let you set different
 		# wm, so we want to get the main controlling desktop first
-		# 1 check program; 2 ps_gui search; 3 data; 4: trigger alternate values/version
-		my @desktops =(
-		['icewm','icewm','icewm'],
-		['WindowMaker','WindowMaker','wmaker',''],
-		['2bwm','2bwm','2bwm',''],# unverified
-		['9wm','9wm','9wm',''],
-		['afterstep','afterstep','afterstep',''],
-		['aewm++','aewm\+\+','aewm++',''],
-		['aewm','aewm','aewm',''],
-		['amiwm','amiwm','amiwm',''],
-		['antiwm','antiwm','antiwm',''],
-		['awesome','awesome','awesome',''],
-		['blackbox','blackbox','blackbox',''],
-		['bspwm','bspwm','bspwm',''],
-		['cagebreak','cagebreak','cagebreak',''],
-		['calmwm','calmwm','calmwm',''],
-		['catwm','catwm','catwm',''],# unverified
-		['clfswm','.*(sh|c?lisp)?.*clfswm','clfswm',''],
-		['ctwm','ctwm','ctwm',''],
-		['cwm','(openbsd-)?cwm','cwm',''],
-		['dwm','dwm','dwm',''],
-		['echinus','echinus','echinus',''],
-		['evilwm','evilwm','evilwm',''],
-		['fireplace','fireplace','fireplace',''],
-		['fluxbox','fluxbox','fluxbox',''],
-		['flwm','flwm','flwm',''],
-		['flwm','flwm_topside','flwm',''],
-		['fvwm-crystal','fvwm.*-crystal','fvwm-crystal','fvwm'],
-		['fvwm1','fvwm1','fvwm1',''],
-		['fvwm2','fvwm2','fvwm2',''],
-		['fvwm3','fvwm3','fvwm3',''],
-		['fvwm95','fvwm95','fvwm95',''],
-		['fvwm','fvwm','fvwm',''],
-		['glass','glass','glass',''],
-		['hackedbox','hackedbox','hackedbox',''],
-		['herbstluftwm','herbstluftwm','herbstluftwm'],
-		['instantwm','instantwm','instantwm',''],
-		['i3','i3','i3',''],
-		['ion3','ion3','ion3',''],
-		['jbwm','jbwm','jbwm',''],
-		['jwm','jwm','jwm',''],
-		['larswm','larswm','larswm',''],
-		['leftwm','leftwm','leftwm',''],
-		['lwm','lwm','lwm',''],
-		['mcwm','mcwm','mcwm',''],# unverified
-		['mini','mini','mini',''],
-		['musca','musca','musca',''],
-		['mvwm','mvwm','mvwm',''],
-		['mwm','mwm','mwm',''],
-		['nawm','nawm','nawm',''],
-		['notion','notion','notion',''],
-		['openbox','openbox','openbox',''],
-		['orbital','orbital','orbital',''],
-		['pekwm','pekwm','pekwm',''],
-		['perceptia','perceptia','perceptia',''],
-		['penrose','penrose','penrose',''],# unverified
-		['qtile','.*(python.*)?qtile','qtile',''],
-		['qvwm','qvwm','qvwm',''],
-		['ratpoison','ratpoison','ratpoison',''],
-		['sawfish','sawfish','sawfish',''],
-		['scrotwm','scrotwm','scrotwm',''],
-		['snapwm','snapwm','snapwm',''],# unverified
-		['spectrwm','spectrwm','spectrwm',''],
-		['stumpwm','(sh|c?lisp)?.*stumpwm','stumpwm',''],
-		['sway','sway','sway',''],
-		['matchbox-window-manager','matchbox-window-manager','matchbox-window-manager',''],
-		['tinywm','tinywm','tinywm',''],
-		['tvtwm','tvtwm','tvtwm',''],
-		['twm','twm','twm',''],
-		['uwm','uwm','uwm',''],# unverified
-		['waycooler','waycooler','way-cooler',''],
-		['way-cooler','way-cooler','way-cooler',''],
-		['windowlab','windowlab','windowlab',''],
-		['wmfs','wmfs','wmfs',''],# unverified
-		['wmfs2','wmfs2','wmfs2',''],# unverified
-		['wingo','wingo','wingo',''],# unverified
-		# not in debian apt, current is wmii, version 3
-		['wmii2','wmii2','wmii2',''],
-		['wmii','wmii','wmii',''],
-		['wmx','wmx','wmx',''],
-		['xmonad','xmonad','xmonad',''],
-		## fallback for xfce in case no xprop 
-		['xfdesktop','xfdesktop','xfdesktop',''],
-		['yeahwm','yeahwm','yeahwm',''],
-		);
-		foreach my $item (@desktops){
+		# icewm and any other that permits alternate wm to be used need to go first
+		# in this list.
+		# unverfied: 2bwm catwm mcwm penrose snapwm uwm wmfs wmfs2 wingo wmii2
+		# xfdesktoo is fallback in case not in xprop
+		my @wms = qw(icewm 2bwm 9wm aewm aewm\+\+ afterstep amiwm antiwm awesome 
+		blackbox bspwm calmwm catwm ctwm dwm echinus evilwm fluxbox fvwm 
+		hackedbox herbstluftwm instantwm i3 ion3 jbwm jwm larswm leftwm lwm 
+		matchbox-window-manager mcwm mini musca mvwm mwm nawm notion 
+		openbox pekwm penrose qvwm ratpoison 
+		sawfish scrotwm snapwm spectrwm tinywm tvtwm twm uwm 
+		windowlab wmfs wmfs2 wingo wmii2 wmii wmx xmonad yeahwm);
+		# wayland compositors/wm. Most of these are unverified
+		push(@wms,@wayland);
+		my $matches = join('|',@wms);
+		foreach (@ps_gui){
 			# no need to use check program with short list of ps_gui
-			if (grep {/^$item->[1]$/} @ps_gui){
-				($desktop[0],$desktop[1]) =  main::program_data($item->[2],$item->[3]);
-				if ($extra > 1 && $item->[0] eq 'xfdesktop'){
-					($desktop[2],$desktop[3]) =  main::program_data('xfdesktop-toolkit',$item->[0],1);
+			if (/^($matches)$/){
+				my $item = $1;
+				($desktop[0],$desktop[1]) =  main::program_data($item);
+				if ($extra > 1 && $item eq 'xfdesktop'){
+					($desktop[2],$desktop[3]) = main::program_data('xfdesktop-toolkit',$item,1);
 				}
 				last;
+			}
+		}
+		if (!$desktop[0]){
+			# order matters, these have alternate search patterns from default name
+			# 1 check program; 2 ps_gui search; 3 data; 4: trigger alternate values/version
+			@wms =(
+			['WindowMaker','WindowMaker','wmaker',''],
+			['clfswm','.*(sh|c?lisp)?.*clfswm','clfswm',''],
+			['cwm','(openbsd-)?cwm','cwm',''],
+			['flwm','flwm','flwm',''],
+			['flwm','flwm_topside','flwm',''],
+			['fvwm-crystal','fvwm.*-crystal','fvwm-crystal','fvwm'],
+			['fvwm1','fvwm1','fvwm1',''],
+			['fvwm2','fvwm2','fvwm2',''],
+			['fvwm3','fvwm3','fvwm3',''],
+			['fvwm95','fvwm95','fvwm95',''],
+			['qtile','.*(python.*)?qtile','qtile',''],
+			['stumpwm','(sh|c?lisp)?.*stumpwm','stumpwm',''],
+			);
+			foreach my $item (@wms){
+				# no need to use check program with short list of ps_gui
+				if (grep {/^$item->[1]$/} @ps_gui){
+					($desktop[0],$desktop[1]) =  main::program_data($item->[2],$item->[3]);
+					if ($extra > 1 && $item->[0] eq 'xfdesktop'){
+						($desktop[2],$desktop[3]) =  main::program_data('xfdesktop-toolkit',$item->[0],1);
+					}
+					last;
+				}
 			}
 		}
 	}
@@ -24559,19 +24519,18 @@ sub get_wm_main {
 		main::set_ps_gui() if !$loaded{'ps-gui'};
 		# order matters, see above logic
 		# due to lisp/python starters, clfswm/stumpwm/qtile will not detect here
-		$wms = '2bwm|9wm|aewm\+\+|aewm|afterstep|amiwm|antiwm|awesome|blackbox|';
-		$wms .= 'cagebreak|calmwm|catwm|clfswm|compiz|ctwm|(openbsd-)?cwm|fluxbox';
-		$wms .= '|bspwm|budgie-wm|deepin-wm|dwm|echinus|evilwm|';
-		$wms .= 'fireplace|flwm|fvwm-crystal|fvwm1|fvwm2|fvwm3|fvwm95|fvwm|';
-		$wms .= 'gala|glass|gnome-shell|hackedbox|i3|instantwm|ion3|jbwm|jwm|';
-		$wms .= 'twin|kwin_wayland|kwin_x11|kwin|larswm|leftwm|lwm|';
-		$wms .= 'matchbox-window-manager|marco|mcwm|mini|muffin|';
-		$wms .= 'musca|deepin-mutter|mutter|deepin-metacity|metacity|mvwm|mwm|';
-		$wms .= 'nawm|notion|openbox|orbital|perceptia|qtile|qvwm|';
-		$wms .= 'penrose|ratpoison|sawfish|scrotwm|snapwm|spectrwm|';
-		$wms .= 'stumpwm|sway|tinywl|tinywm|tvtwm|twm|ukwm|';
-		$wms .= 'way-?cooler|windowlab|WindowMaker|wingo|wm2|wmfs2?|wmii2?|wmx|';
-		$wms .= 'xfwm[45]?|xmonad|yeahwm';
+		my @wms = qw(2bwm 9wm aewm aewm\+\+ afterstep amiwm antiwm awesome blackbox
+		calmwm catwm clfswm compiz ctwm (openbsd-)?cwm fluxbox bspwm budgie-wm 
+		deepin-wm dwm echinus evilwm flwm fvwm-crystal fvwm1 fvwm2 fvwm3 fvwm95
+		fvwm gala gnome-shell hackedbox i3 instantwm ion3 jbwm jwm twin kwin_wayland
+		kwin_x11 kwin larswm leftwm lwm matchbox-window-manager marco mcwm mini
+		muffin musca deepin-mutter mutter deepin-metacity metacity mvwm mwm
+		nawm notion openbox qtile qvwm penrose ratpoison sawfish scrotwm snapwm
+		spectrwm stumpwm tinywm tvtwm twm ukwm windowlab WindowMaker wingo wmfs2?
+		wmii2? wmx xfwm[45]? xmonad yeahwm);
+		# wayland compositor/wm
+		push(@wms,@wayland);
+		my $wms = join('|',@wms);
 		foreach (@ps_gui){
 			if (/^($wms)$/){
 				$working = $1;
@@ -27742,13 +27701,14 @@ sub set_ps_gui {
 	$loaded{'ps-gui'} = 1;
 	my ($working,@match,@temp);
 	# wayland compositors generally are compositors and wm, with a few exceptions
-	my @wayland = qw(asc awc cage cagebreak cardboard chameleonwm clayland comfc 
+	# these will be used globally to avoid having to redo it over and over.
+	@wayland = qw(asc awc cage cagebreak cardboard chameleonwm clayland comfc 
 	dwc dwl epd-wm fireplace feathers fenestra glass gamescope greenfield grefson 
 	hikari hopalong inaban japokwm kiwmi kwinft  labwc laikawm lipstick liri 
 	mahogany marina maze motorcar newm nucleus orbital perceptia phoc pywm qtile 
 	river rustland simulavr skylight sommelier sway swc swvkc tabby taiwins 
 	tinybox tinywl trinkster velox vimway vivarium wavy waybox way-?cooler 
-	wayfire wayhouse waymonad westeros westford weston wio\+ wio wxr[cd] xuake);
+	wayfire wayhouse waymonad westeros westford weston wio\+? wxr[cd] xuake);
 	# desktops / wm (some wm also compositors)
 	if ($show{'system'}){
 		@temp=qw(razor-desktop razor-session lxsession lxqt-session 
