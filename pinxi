@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-13';
-my $self_patch='28';
+my $self_date='2022-02-14';
+my $self_patch='29';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5144,7 +5144,7 @@ sub get {
 	'fake:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|ipmi|logical|lspci|';
+			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|elbrus|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
 			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|swaymsg|sysctl|';
 			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wlr-randr|xorg-log|xrandr';
@@ -6423,7 +6423,7 @@ sub clean {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or '' or undefined
 	# note: |nee trips engineering, but I don't know why nee was filtered
-	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?|[^[:print:]]+//gi;
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
 	$item =~ s/^\s+|\s+$//g;
 	$item =~ s/\s\s+/ /g;
@@ -6684,6 +6684,7 @@ sub message {
 	'machine-data-bsd' => 'No machine data: Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
 	'machine-data-force-dmidecode' => 'No machine data: try newer kernel. Is dmidecode installed? Try -M --dmidecode.',
+	'machine-data-fruid' => 'No machine data: Is fruid_print installed?',
 	'monitor-console' => 'N/A in console',
 	'monitor-id' => 'not-matched',
 	'monitor-na' => 'N/A',
@@ -15121,6 +15122,8 @@ sub monitor_edid_data {
 		if ($data[1]){
 			# trim off first non ascii characters
 			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model'} =~ s/^[^[:print:]]+//;
 			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
 			# string was not clean. 
 			if ($monitor_ids->{$port}{'model'} =~ /[@!^&=£°#\[\]]/){
@@ -15132,7 +15135,7 @@ sub monitor_edid_data {
 		if ($data[2]){
 			$monitor_ids->{$port}{'model-info'} = main::clean($data[2]);
 			# trim off first non ascii characters
-			$monitor_ids->{$port}{'model-info'} =~ s/[^[:print:]]+//;
+			$monitor_ids->{$port}{'model-info'} =~ s/^[^[:print:]]+//;
 		}
 	}
 	eval $end if $b_log;
@@ -15785,6 +15788,18 @@ sub get {
 			}
 		}
 	}
+	elsif ($fake{'elbrus'} || $cpu_arch eq 'elbrus'){
+		if ($fake{'elbrus'} || (my $program = main::check_program('fruid_print'))){
+			%data = machine_data_fruid($program);
+		}
+		if (%data){
+			@rows = machine_output(\%data);
+		}
+		elsif (!$key1){
+			$key1 = 'Message';
+			$val1 = main::message('machine-data-fruid');
+		}
+	}
 	elsif (-d '/sys/class/dmi/id/'){
 		%data = machine_data_sys();
 		if (%data){
@@ -15800,6 +15815,7 @@ sub get {
 			}
 		}
 	}
+	
 	elsif (!$bsd_type){
 		# this uses /proc/cpuinfo so only GNU/Linux
 		if (%risc){
@@ -15942,6 +15958,9 @@ sub machine_output {
 	if ($extra > 2 && $data->{'board_uuid'}){
 		$rows[$j]->{main::key($num++,0,3,'uuid')} = $data->{'board_uuid'};
 	}
+	if ($extra > 1 && $data->{'board_mfg_date'}){
+		$rows[$j]->{main::key($num++,0,3,'mfg-date')} = $data->{'board_mfg_date'};
+	}
 	$rows[$j]->{main::key($num++,1,1,$firmware)} = $bios_vendor;
 	$rows[$j]->{main::key($num++,0,2,'v')} = $bios_version;
 	if ($bios_rev){
@@ -15991,7 +16010,48 @@ sub machine_soc_output {
 	eval $end if $b_log;
 	return @rows;
 }
-
+sub machine_data_fruid {
+	eval $start if $b_log;
+	my ($program) = @_;
+	my ($b_start,%data,@fruid);
+	if (!$fake{'elbrus'}){
+		@fruid = main::grabber("$program 2>/dev/null",'','strip');
+	}
+	else {
+		# my $file;
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/fruid/fruid-e904-1_full.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/fruid/fruid-e804-1_full.txt";
+		# @fruid = main::reader($file,'strip');
+	}
+	# print Data::Dumper::Dumper \@fruid;
+	foreach (@fruid){
+		$b_start = 1 if /^Board info/;
+		next if !$b_start;
+		my @split = split(/\s*:\s+/,$_,2);
+		if ($split[0] eq 'Mfg. Date/Time'){
+			$data{'board_mfg_date'} = $split[1];
+			$data{'board_mfg_date'} =~ s/^(\d+:\d+)\s//;
+		}
+		elsif ($split[0] eq 'Board manufacturer'){
+			$data{'board_vendor'} = $split[1];
+		}
+		elsif ($split[0] eq 'Board part number'){
+			$data{'board_part_nu'} = $split[1];
+		}
+		elsif ($split[0] eq 'Board product name'){
+			$data{'board_name'} = $split[1];
+		}
+		elsif ($split[0] eq 'Board serial number'){
+			$data{'board_serial'} = $split[1];
+		}
+		elsif ($split[0] eq 'Board product version'){
+			$data{'board_version'} = $split[1];
+		}
+	}
+	print Data::Dumper::Dumper \%data if $dbg[28];
+	main::log_data('dump','%data',\%data) if $b_log;
+	return %data;
+}
 sub machine_data_sys {
 	eval $start if $b_log;
 	my (%data,$path,$vm);
