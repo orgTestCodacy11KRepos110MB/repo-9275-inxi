@@ -515,6 +515,8 @@ sub set_os {
 	}
 	elsif ($cpu_arch =~ /(alpha|64|e2k|sparc_v9|sun4[uv]|ultrasparc)/){
 		$bits_sys = 64;
+		# force to string e2k, and also in case we need that ID changed
+		$cpu_arch = 'elbrus' if $cpu_arch =~ /e2k|elbrus/;
 	}
 	$b_cygwin = 1 if $os =~ /cygwin/;
 	$b_android = 1 if -e '/system/build.prop';
@@ -2914,9 +2916,9 @@ sub check_items {
 			$info_os = 'info-bsd';
 		}
 		else {
-			@data = qw(blockdev bt-adapter dig dmidecode doas fdisk file hciconfig 
-			hddtemp ifconfig ip ipmitool ipmi-sensors lsblk lsusb lvs mdadm modinfo 
-			runlevel sensors smartctl strings sudo tree upower uptime);
+			@data = qw(blockdev bt-adapter dig dmidecode doas fdisk file fruid_print
+			hciconfig hddtemp ifconfig ip ipmitool ipmi-sensors lsblk lsusb lvs 
+			mdadm modinfo runlevel sensors smartctl strings sudo tree upower uptime);
 		}
 		$b_program = 1;
 		$item = 'Program';
@@ -3232,6 +3234,13 @@ sub item_data {
 	'ftp' => {
 	'info' => '',
 	'info-bsd' => '-i (if no dig); -w,-W; -U',
+	'apt' => '',
+	'pacman' => '',
+	'rpm' => '',
+	},
+	'fruid_print' => {
+	'info' => '-M machine data, Elbrus only',
+	'info-bsd' => '',
 	'apt' => '',
 	'pacman' => '',
 	'rpm' => '',
@@ -9028,7 +9037,7 @@ sub cpuinfo_data {
 		}
 	}
 	cpuinfo_data_grabber($file,\$cpu{'type'}) if !$loaded{'cpuinfo'};
-	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch =~ /e2k/; # already set to lower
+	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch eq 'elbrus'; # already set to lower
 	my ($core_count,$proc_count,$speed) = (0,0,0);
 	my ($b_block_1) = (1);
 	# need to prime for arm cpus, which do not have physical/core ids usually
@@ -11388,7 +11397,7 @@ sub cpu_vendor {
 	elsif ($string =~ /centaur/){
 		$vendor = "centaur"
 	}
-	elsif ($string =~ /(e2k|elbrus)/){
+	elsif ($string eq 'elbrus'){
 		$vendor = "elbrus"
 	}
 	eval $end if $b_log;
@@ -21518,6 +21527,7 @@ sub ipmi_data {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensor-tyan-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
@@ -21554,7 +21564,7 @@ sub ipmi_data {
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif ($row[$i_key] =~ /^(Ambient)([\s_]Temp)?$/i){
+		elsif ($row[$i_key] =~ /^(System\s)?(Ambient)([\s_]Temp)?$/i){
 			$sensors{'ambient-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -21563,14 +21573,14 @@ sub ipmi_data {
 		# Platform Control Hub (PCH), it is the X370 chip on the Crosshair VI Hero.
 		# VRM: voltage regulator module
 		# NOTE: CPU0_TEMP CPU1_TEMP is possible, unfortunately; CPU Temp Interf 
-		elsif (!$sensors{'cpu-temp'} && $row[$i_key] =~ /^CPU([01])?([\s_]Temp)?$/i){
+		elsif (!$sensors{'cpu-temp'} && $row[$i_key] =~ /^CPU([01])?([\s_](below[\s_]Tmax|Temp))?$/i){
 			$b_cpu_0 = 1 if defined $1 && $1 == 0;
 			$sensors{'cpu-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif ($row[$i_key] =~ /^CPU([1-4])([\s_]Temp)?$/i){
+		elsif ($row[$i_key] =~ /^CPU([1-4])([\s_](below[\s_]Tmax|Temp))?$/i){
 			$temp_working = $1;
 			$temp_working++ if $b_cpu_0;
 			$sensors{"cpu${temp_working}-temp"} = int($row[$i_value]);
@@ -21607,19 +21617,23 @@ sub ipmi_data {
 			}
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (!$sensors{'sodimm-temp'} && $row[$i_key] =~ /^(DIMM[-_]([A-Z][0-9][-_])?[A-Z]?[0-9][A-Z]?)$/i){
+		elsif (!$sensors{'sodimm-temp'} && ($row[$i_key] =~ /^(DIMM[-_]([A-Z][0-9][-_])?[A-Z]?[0-9][A-Z]?)$/i ||
+		$row[$i_key] =~ /^DIMM[0-9] Area.*/)){
 			$sensors{'sodimm-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors{'temp-unit'} = set_temp_unit($sensors{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# note: can be cpu fan:, cpu fan speed:, etc.
-		elsif ($row[$i_key] =~ /^(CPU|Processor)[\s_]Fan/i){
+		elsif ($row[$i_key] =~ /^(CPU|Processor)[\s_]Fan/i || 
+		$row[$i_key] =~ /^SYS\.[0-9][\s_]?\(CPU\s?0\)$/i){
 			$sensors{'fan-main'}->[1] = int($row[$i_value]);
 		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 		# note: cpu/mobo/ps are 1/2/3
+		# SYS.3(Front 2)
+		# $row[$i_key] =~ /^(SYS[\.])([0-9])\s?\((Front|Rear).+\)$/i
 		elsif ($row[$i_key] =~ /^(SYS[\s_])?FAN[\s_]?([0-9A-F]+)/i){
 			$sys_fan_nu = hex($2);
 			$fan_working = int($row[$i_value]);
@@ -21646,13 +21660,13 @@ sub ipmi_data {
 			$sensors{'fan-psu-2'} = int($row[$i_value]);
 		}
 		if ($extra > 0){
-			if ($row[$i_key] =~ /^((MAIN\s|P[_]?)?12V|PSU[12]_VOUT)$/i){
+			if ($row[$i_key] =~ /^((MAIN\s|P[_]?)?\+?12V|PSU[12]_VOUT)$/i){
 				$sensors{'volts-12'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^(MAIN\s5V|P5V|5VCC|5V PG|5V_SB)$/i){
+			elsif ($row[$i_key] =~ /^(MAIN\s5V|P5V|5VCC|5V( PG)?|5V_SB)$/i){
 				$sensors{'volts-5'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^(MAIN\s3\.3V|P3V3|3\.3VCC|3\.3V PG|3V3_SB)$/i){
+			elsif ($row[$i_key] =~ /^(MAIN\s3\.3V|P3V3|3\.3VCC|3\.3V( PG)?|3V3_SB)$/i){
 				$sensors{'volts-3.3'} = $row[$i_value];
 			}
 			elsif ($row[$i_key] =~ /^((P_)?VBAT|CMOS Battery|BATT 3.0V)$/i){
