@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-14';
-my $self_patch='30';
+my $self_date='2022-02-15';
+my $self_patch='31';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6423,7 +6423,6 @@ sub set_konvi_data {
 sub clean {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or '' or undefined
-	$item = clean_unset($item);
 	# note: |nee trips engineering, but I don't know why nee was filtered
 	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
@@ -14382,6 +14381,10 @@ sub wlinfo_data {
 				}
 				elsif ($make) {
 					$mon{$id}->{'model'} = $make;
+				}
+				# includes remove duplicates and remove unset
+				if ($mon{$id}->{'model'}){
+					$mon{$id}->{'model'} = main::clean_dmi($mon{$id}->{'model'});
 				}
 			}
 			elsif (/^width: (\d+) px, height: (\d+) px, refresh: ([\d\.]+) Hz,/){
@@ -24925,7 +24928,7 @@ sub lspci_data {
 	foreach (@data){
 		# print "$_\n";
 		if ($device){
-			if ($_ =~ /^~$/){
+			if ($_ eq '~'){
 				@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 				$rev,$port,$driver,$modules,$driver_nu,$subsystem,$subsystem_id);
 				assign_data('pci',\@temp);
@@ -25058,7 +25061,7 @@ sub pciconf_data {
 	my @data = pci_grabber('pciconf');
 	foreach (@data){
 		if ($driver){
-			if ($_ =~ /^~$/){
+			if ($_ eq '~'){
 				$vendor = main::clean($vendor);
 				$device = main::clean($device);
 				# handle possible regex in device name, like [ConnectX-3] 
@@ -25131,7 +25134,7 @@ sub pcidump_data {
 	my @data = pci_grabber('pcidump');
 	main::set_dboot_data() if !$loaded{'dboot'};
 	foreach (@data){
-		if ($_ =~ /^~$/ && $busid && $device){
+		if ($_ eq '~' && $busid && $device){
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu,'','','',$serial);
 			assign_data('pci',\@temp);
@@ -25180,7 +25183,7 @@ sub pcictl_data {
 	my @data = pci_grabber('pcictl');
 	my @data2 = pci_grabber('pcictl-n');
 	foreach (@data){
-		if ($_ =~ /^~$/ && $busid && $device){
+		if ($_ eq '~' && $busid && $device){
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu);
 			assign_data('pci',\@temp);
@@ -25256,6 +25259,7 @@ sub pci_grabber {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/kot--book-lspci-nnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/ben81-hwraid-lspci-nnv.txt";
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/gx78b-lspci-nnv.txt";
 		# @data = main::reader($file,'strip');
 	}
 	else {
