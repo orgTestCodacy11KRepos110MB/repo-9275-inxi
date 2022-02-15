@@ -14219,7 +14219,7 @@ sub interface_vesa_output {
 ## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
-	my ($b_skip_pos,$program);
+	my ($program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14227,21 +14227,20 @@ sub display_data_wayland {
 	}
 	if ($fake{'swaymsg'} || (lc($graphics{'compositor'}) eq 'sway' &&
 	($program = main::check_program('swaymsg')))){
-		display_data_swaymsg($program);
+		swaymsg_data($program);
 	}
 	# until we get data proving otherwise, assuming these have same output
 	elsif ($fake{'wl-info'} || (($program = main::check_program('wayland-info')) || 
 	($program = main::check_program('weston-info')))){
-		display_data_wlinfo($program);
+		wlinfo_data($program);
 	}
 	elsif ($fake{'wlr-randr'} || ($program = main::check_program('wlr-randr'))){
-		display_data_wlrrandr($program);
+		wlrrandr_data($program);
 	}
-	if ($monitor_ids){
-		$b_skip_pos = check_monitor_ids();
-	}
-	if ($extra > 1 && $b_wayland_data){
+	if ($extra > 1 && $monitor_ids && $b_wayland_data){
 		# map_monitor_ids([keys %$monitors]); # not required, but leave in case.
+		# make sure we got enough for advanced position data
+		my $b_skip_pos = check_wayland_data();
 		wayland_data_advanced($b_skip_pos);
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
@@ -14255,7 +14254,7 @@ sub display_data_wayland {
 # The secondary check determines if we send data to wayland_data_advanced. Since
 # that requires pos-x/pos-y to do anything, no point if we did not get those for
 # all the monitors found.
-sub check_monitor_ids {
+sub check_wayland_data {
 	eval $start if $b_log;
 	my ($b_skip_pos);
 	# we need these 4 items to construct the grid rectangle
@@ -14284,7 +14283,7 @@ sub wayland_data_advanced {
 			if ($monitor_ids->{$key}{'res-y'} && $monitor_ids->{$key}{'res-y'} > $y_max){
 				$y_max = $monitor_ids->{$key}{'res-y'};
 			}
-			# if no tool, we didn't get this data, oh well.
+			# Now we'll add the detected x, y res to the trackers
 			if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
 				$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
 			}
@@ -14333,7 +14332,7 @@ sub wayland_data_advanced {
 # NOTE: These patterns are VERY fragile, and depend on no changes at all to 
 # the data structure, and more important, the order. Something I would put 
 # almost no money on being able to count on.
-sub display_data_wlinfo {
+sub wlinfo_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my (@data,%mon,@temp,$ref);
@@ -14440,7 +14439,7 @@ sub display_data_wlinfo {
 }
 # note; since not all systems will have /sys data, we'll repack it if it's 
 # missing here.
-sub display_data_swaymsg {
+sub swaymsg_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my (@data,%json,@temp,$ref);
@@ -14516,7 +14515,7 @@ sub display_data_swaymsg {
 		}
 		push(@temp,'~~') if @temp;
 		@data = @temp;
-		$b_wayland_data = 1 if scalar @data > 0;
+		$b_wayland_data = 1 if scalar @data > 8;
 		foreach (@data){
 			if ($_ eq '~~' && $id){
 				$monitor_ids->{$id}{'hz'} = $hz;
@@ -14551,7 +14550,8 @@ sub display_data_swaymsg {
 	print 'swaymsg: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
 }
-sub display_data_wlrrandr {
+# like a basic stripped down swaymsg -t get_outputs -p, less data though
+sub wlrrandr_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my ($file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
@@ -14569,7 +14569,7 @@ sub display_data_wlrrandr {
 	}
 	push(@temp,'~~') if @temp;
 	@data = @temp;
-	$b_wayland_data = 1 if scalar @data > 0;
+	$b_wayland_data = 1 if scalar @data > 4;
 	print 'wlr-randr: ', Data::Dumper::Dumper \@data if $dbg[46]; 
 	main::log_data('dump','@data', \@data) if $b_log;
 	foreach (@data){
