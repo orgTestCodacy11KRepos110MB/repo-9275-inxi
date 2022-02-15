@@ -14219,7 +14219,7 @@ sub interface_vesa_output {
 ## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
-	my ($program);
+	my ($b_skip_pos,$program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14236,10 +14236,12 @@ sub display_data_wayland {
 	elsif ($fake{'wlr-randr'} || ($program = main::check_program('wlr-randr'))){
 		wlrrandr_data($program);
 	}
+	# make sure we got enough for advanced position data, might be from /sys
+	if ($extra > 1 && $monitor_ids){
+		$b_skip_pos = check_wayland_data();
+	}
 	if ($extra > 1 && $monitor_ids && $b_wayland_data){
 		# map_monitor_ids([keys %$monitors]); # not required, but leave in case.
-		# make sure we got enough for advanced position data
-		my $b_skip_pos = check_wayland_data();
 		wayland_data_advanced($b_skip_pos);
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
@@ -14250,12 +14252,11 @@ sub display_data_wayland {
 # of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
 # the data, in that case, all we get from xrandr would be the position, which is
 # nice but not a must-have. We've already cleared out all disabled ports.
-# The secondary check determines if we send data to wayland_data_advanced. Since
-# that requires pos-x/pos-y to do anything, no point if we did not get those for
-# all the monitors found.
+# wayland_data_advanced will complete size/diagonal info, and if pos, get the 
+# positions.
 sub check_wayland_data {
 	eval $start if $b_log;
-	my ($b_skip_pos);
+	my ($b_skip_pos,$b_invalid);
 	# we need these 4 items to construct the grid rectangle
 	foreach my $key (keys %$monitor_ids){
 		if (!defined $monitor_ids->{$key}{'pos-x'} ||
@@ -14263,7 +14264,12 @@ sub check_wayland_data {
 		!$monitor_ids->{$key}{'res-x'} ||	!$monitor_ids->{$key}{'res-y'}){
 			$b_skip_pos = 1;
 		}
+		if (!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
+			$b_invalid = 1;
+		}
 	}
+	# ok, we have enough, we don't need to do fallback xrandr checks
+	$b_wayland_data = 1 if !$b_invalid;
 	eval $end if $b_log;
 	return $b_skip_pos;
 }
