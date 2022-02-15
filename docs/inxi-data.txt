@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE:    inxi-data.txt
-VERSION: 2.1
-DATE:    2021-07-16
+VERSION: 2.2
+DATE:    2022-02-14
 
 ----------------------------------------
 Docs:
@@ -26,374 +26,137 @@ distributed data.
 
 Sections:
 1. CORE DATA
-  COMPOSITOR DATA
+  BLUETOOTH DATA 
+   BSDs
+    FreeBSD: hccontrol
+    OpenBSD: removed
   CPU DATA
+   ARM
+    Android
+   cpu_sys()
+   scaling / cpuinfo speeds
+   Cache L1 L2 L3
+   Topology
+    CPU Dies
+   FreeBSD
+   DragonFly
   DESKTOP / WM DATA
    PS GUI
    DESKTOP ARRAY RULES
-	 DESKTOPS + WMs
-   WM / COMPOSITORS: UNVERIFIED 
-   WM COMMANDS
+    PRIMARY ARRAY RULES
+   DESKTOPS + WMs
+    DESKTOPS
+    X WM
+    WM / COMPOSITORS: UNVERIFIED
+    WM COMMANDS
+  DEVICE DATA
+   Open/NetBSD ARM / SOC
+   FreeBSD ARM / SOC
+  DISTRO DATA
+   DistroData::get()
   GRAPHIC DATA
+   WAYLAND DATA 
+    EGL/GBM
+    WLROOTS
+   COMPOSITOR DATA
+    All Active Compositors (used for -G compositor item):
+    Wayland/Xorg compositors:
+    Wayland compositors:
+    X compositors:
+    Mir: 
+    Compositing WM (used with desktops):
+    COMPOSITOR ARRAY RULES
+   WM/compositor version (out of date)
+   DISPLAY MANAGER
+   MONITORS:
+    sub display_output()
   LOGICAL DATA
   PARTITION DATA
+   FILE SYSTEMS
+    USER SPACE FILE SYSTEMS
+    Fuse Based File Systems
+    Stackable file systems
+    Read-only file systems
+    Clustered file systems
+    Shared-disk file system
+  RAID DATA
+   OpenBSD: softraid data
+  RAM DATA
+   BSD: dmesg data for RAM / NVMe
+    OpenBSD:
+     nvme:
+    NetBSD:
+    FreeBSD:
   SERVICE DATA
+   init [BSD]: tool: /etc/rc.d source: /etc/rc.d/
+   init [BSD]: tool: rc-service source: /etc/rc.d/
+   init [BSD]: tool: service source: /etc/rc.d/
+    Nomad 1.4 / FreeBSD 12.2
+    NetBSD 9.1 
+   runit: tool: sv source: /etc/sv/
+   systemd: tool: systemctl 
+   SysVinit: tool: service source: /etc/init.d
   TTY DATA
+   What is the TTY major number of your Unix?
+   What is the difference between ttys0, ttyUSB0 and ttyAMA0 in Linux?
+    ttyS0
+    ttyUSB0
+    ttyAMA0
+    ttySAC0
 2. SECONDARY DATA
-  DISTRO DATA
   LIVE CD LOGINS
+  DISTRO DATA
+   Packages
 3. DATA ANALYSIS
+  FIND FILE IN *.tar.gz
+  get rid of arrays/hashes passed whole instead of by reference to subs
 4. OS DATA
   BSD DATA
+   OPENBSD
+    Multibooting OpenBSD
+    OpenBSD disklabel file systems:
+    OpenBSD: Installing to emmc drive
 
 ================================================================================
 CORE DATA
+================================================================================
+
+================================================================================
+BLUETOOTH DATA
 --------------------------------------------------------------------------------
 
 ========================================
-COMPOSITOR DATA
+BSDs
 ----------------------------------------
 
-qdbus org.kde.KWin /Compositor org.kde.kwin.Compositing.active
-Gives you true or false depending on whether it is currently enabled or not
-
-https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
-To track compositor you'll need to check if selection is _NET_WM_CM_S0 
-is owned by anyone (assuming you are on screen 0) using XGetSelectionOwner
-Check if xprop -root has this data in it
-
-https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
-
-https://en.wikipedia.org/wiki/Compositing_window_manager
-
-https://fedoraproject.org/wiki/How_to_debug_Wayland_problems
-
 ----------------------------------------
-WAYLAND DATA 
-----------------------------------------
-----------------------------------------
-https://gitlab.freedesktop.org/wayland/weston/-/issues/76
-
-Displays, screens, Xorg Screen vs Wayland Display, gpus, etc.
-
-Several X11 or Xorg concepts do not exist on Wayland or Weston, XScreen is one 
-of them.
-With Wayland, you also need to let go of the XScreen nomenclature. Nothing I 
-know of implements anything like that. It's all just one big desktop extending 
-to all outputs, regardless of whether it is one or more graphics cards. 
-
-----------------------------------------
-https://arewewaylandyet.com/
-list of programs/wm to use with wayland
-
-----------------------------------------
-http://manpages.ubuntu.com/manpages/focal/man5/sway-output.5.html
-
- output HDMI-A-1 mode 1920x1080 pos 1920 0 bg ~/wallpaper.png stretch
- 
- output "Some Company ABC123 0x00000000" pos 1920 0
-
-
-----------------------------------------
-Scale factor:
-https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/47
-
-The current Wayland protocol allows clients to scale their buffers by an integer 
-scale factor, matching the integer-scale defined for each output and therefore 
-allowing their surfaces to be displayed at reasonable scale even on High-DPI 
-displays.
-
-The restriction to integer scale factors however is a big issue when the ideal 
-scale factor for best usability falls in between two integers.
-
-Example: On my 32" 4K display I would consider a scale factor of 1.5 to be 
-ideal. At a scale of 1 text becomes too small to read, while a scale factor of 2 
-wastes screen real-estate.
-
-A second issue with integer scale factors is, that matching the scale of 
-multiple outputs with different DPI values is not possible. Example: A common 
-setup with this problem is a 1080p and a 1440p monitor of the same size next to 
-each other.
-
-Current implementations like Gnome, KWin, wlroots fake fractional scaling by 
-providing clients with the next-highest integer scale factor for each output and 
-then downsizing the received buffer during compositing. This approach comes with 
-two major problems:
-
-1. Since the client renders into a larger-than-native buffer there is a 
-significant performance overhead, which is especially noticeable in graphics 
-intensive applications such as games.
-
-Example: on a 4K (3840 × 2160) display with an optimal scale factor of 1.5 a 
-game might render at 5K (5120 × 2880) resolution requiring 78% more pixels than 
-necessary to be rendered.
-
-2. Downscaling causes aliasing artifacts, reducing the quality and sharpness of 
-the image. This is especially noticeable with text rendering. Advanced text 
-rendering techniques such as subpixel-rendering are completely impossible.
-----------------------------------------
-EGL/GBM
-
-https://docs.voidlinux.org/config/graphical-session/wayland.html
-
-Both GNOME and KDE Plasma have EGLStreams backends for Wayland, which means they 
-can use the proprietary NVIDIA drivers. Most other Wayland compositors require 
-drivers that implement the GBM interface. The main driver for this purpose is 
-provided by the mesa-dri package. 
-
-https://wiki.archlinux.org/title/wayland
-
-GBM 	All except NVIDIA < 495* 	All
-EGLStreams 	NVIDIA 	GNOME, KDE, Weston (with a third-party patch) 
-
-https://en.wikipedia.org/wiki/Generic_Buffer_Management
-
-Generic Buffer Management
-
-Generic Buffer Management (GBM) is an API that provides a mechanism for 
-allocating buffers for graphics rendering tied to Mesa. GBM is intended to be 
-used as a native platform for EGL on DRM or openwfd. The handle it creates can 
-be used to initialize EGL and to create render target buffers.[98]
-
-Mesa GBM is an abstraction of the graphics driver specific buffer management 
-APIs (for instance the various libdrm_* libraries), implemented internally by 
-calling into the Mesa GPU drivers.
-
-For example, the Wayland compositor Weston does its rendering using OpenGL ES 2, 
-which it initializes by calling EGL. Since the server runs on the "bare KMS 
-driver", it uses the EGL DRM platform, which could really be called the GBM 
-platform, since it relies on the Mesa GBM interface.
-
-At XDC2014, Nvidia employee Andy Ritger proposed to enhance EGL in order to 
-replace GBM.[99] This was not taken positively by the community, and Nvidia 
-eventually changed their mind,[100] and took another approach. 
-
-----------------------------------------
-WLROOTS
-
-https://forum.manjaro.org/t/how-can-i-install-wlrandr/81837
-
-wlroots > wlr-randr
-
-basis, I assume, of swaymesg, since it's a wlroot/sway based project.
-
-The package is called wlr-randr and it’s in the AUR. :arrow_down:
-
-pamac build wlr-randr
-
-That’s something similar, but it’s not actually wlrandr. It was a merge request 
-that never actually was merged and other things were done instead.
-
-https://manpages.debian.org/testing/wlr-randr/wlr-randr.1.en.html
-
-Check out our wiki to get started with wlroots. Join our IRC channel: 
-#sway-devel on Libera Chat.
-
-compositors that use this, I think:
-
-Sway
-way-cooler
-Wayfire
-
-
-There are 3 other buggy compositor frameworks:
-
-wlc - deprecated
-Smithay - rust, glitchy
-libweston - largely only used by weston
-
-----------------------------------------
-All Active Compositors (used for -G compositor item):
-
-Primary:
-
-budgie-wm compiz compton enlightenment gnome-shell kwin_wayland kwin_x11 marco 
-muffin mutter
-
-Secondary:
-
-3dwm asc cage cagebreak cardboard clayland dcompmgr dwc dwl epd-wm fireplace 
-gala gamescope greenfield grefson hikari hopalong japokwm kiwmi kmscon labwc 
-laikawm liri lipstick maze metisse mir moblin motorcar monsterwm newm orbital 
-papyros perceptia phoc picom river rustland sommelier sway swc swvkc taiwins 
-tinybox tinywl ukwm unagi unity-system-compositor velox vivarium wavy waybox 
-waycooler way-cooler wayfire wayhouse waymonad westeros westford weston wio wxrc 
-wxrd xcompmgr xfwm4 xfwm5 xfwm
-
-----------------------------------------
-Wayland/Xorg compositors:
-
-Budgie-wm Enlightenment Gala kmscon KWin Muffin Mutter Qtile
-
-NOTE: mutter is metacity + clutter
-Note: gala is made from mutter/clutter
-
-----------------------------------------
-Wayland compositors:
-
-https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
-
-https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Projects-which-use-wlroots
-
-Pure wayland:
-
-asc awc cage cagebreak cardboard chameleonwm clayland comfc dwc dwl epd-wm 
-feathers fenestra fireplace gamescope glass greenfield grefson hikari hopalong 
-inaban japokwm kiwmi kwinft labwc laikawm lipstick liri mahogony marina maze 
-motorcar newm nucleus orbital perceptia phoc pywm river rustland simulavr 
-skylight sommelier sway swc swvkc tabby taiwins tinybox tinywl trinkster velox 
-vimway vivarium wavy waybox way-?cooler wayfire wayhouse waymonad westeros 
-westford weston wio\+? wxr[cd] xuake
-
-added: 
-awc ChameleonWM comfc feathers fenestra Glass inaban KWinFT Mahogany Marina 
-Nucleus pywm SimulaVR Skylight Tabby Trinkster wio+ vimway xuake
-
-lc added:
-awc chameleonwm comfc feathers fenestra glass inaban kwinft mahogany marina 
-nucleus pywm simulavr skylight tabby trinkster wio+ vimway xuake
-
-# these are wlroot compositors, as of 2022-02:
-
-awc Cage Cagebreak ChameleonWM comfc dwl feathers fenestra gamescope Glass 
-hikari hopalong inaban japokwm kiwmi KWinFT labwc Mahogany Marina Nucleus phoc 
-pywm qtile river SimulaVR Skylight Sway Tabby tinybox Trinkster Way-Cooler 
-Waybox Wayfire Waymonad wio wio+ wxrc vimway vivarium xuake 
-
-Note: maze may be maze-compositor
-Note: papyros > liri
-Note: steamcompmgr > gamescope
-Note: is qtile now wayland only? confirm
-Note: is Glass only wayland? I have data for it, needs to be wayland
-
-Wayland but not standalone wm/desktop, like mutter:
-kwin_wayland
-
-----------------------------------------
-X compositors:
-
-compton compiz dcompmgr marco metisse picom steamcompmgr tinywm unagi ukwm 
-xcompmgr
-
-note: moblin not sure, think x
-
+FreeBSD: hccontrol
 ----------------------------------------
 
-Mir: dead, it's own thing
+https://forums.freebsd.org/threads/how-to-bluetooth.64797/
+
+hccontrol -n ubt0hci inquiry
+Inquiry result, num_responses=1
+Inquiry result #0
+BD_ADDR: 00:1a:7d:da:71:13
+Page Scan Rep. Mode: 0x1
+Page Scan Period Mode: 0x2
+Page Scan Mode: 00
+Class: 0c:01:0c
+Clock offset: 0x1c5c
+Inquiry complete. Status: No error [00]
 
 ----------------------------------------
-
-Compositing WM (used with desktops):
-
-budgie-wm 3dwm compiz enlightenment kwin_wayland kwin_x11 kwin marco muffin 
-mutter xfwm4 xfwm5 metisse mir
-
+OpenBSD: removed
 ----------------------------------------
 
-NOTE: These are the current wm, listed is available data per for
-getting version info. 
+Bluetooth removed from kernel due to bad code and security concerns.
 
-https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
-
-unknown: means not tested or verified yet. All unknown default to 0,0 version
-
-unsupported: means has values 0,0 which means no version test runs. 
-
-supported: means has known version data generator values.
-
-## these are either wayland or x11/wayland wm/compositors
-## budgie-wm, gnome-shell, kwin_x11, marco, muffin, mutter 
-## can be compositing/non compositing wm
-3dwm - unknown - wm
-asc - unknown
-budgie-wm - unknown - wm
-# owned by: compiz-core in debian
-compiz - supported - wm
-compton - supported
-dwc - unknown
-# as of version 20 is wayland compositor
-enlightenment - wm - note, uses a different method for version, from xprop, so can't be used
-fireplace - unknown - wm
-gnome-shell - supported - wm - very slow --version execution, only show if not in System:
-grefson - unknown
-kmscon - unknown
-kwin_wayland - unknown - wm
-kwin_x11 - version not used - wm
-liri - unknown # Uncertain if this is the name of the liri projectc compositor now
-marco - supported - wm
-metisse - unknown - wm
-mir - unknown - wm
-moblin - unknown
-motorcar - unknown
-muffin - supported - wm
-mutter - supports --version, but no example seen - wm
-orbital - unknown
-papyros - unknown # merged into liri, along with hawaii
-perceptia - unknown - wm
-rustland - unknown
-sway - unknown
-swc - unknown
-unagi - unknown
-wavy - unknown
-way-cooler - unknown
-wayhouse - unknown
-westford - unknown
-weston - supports --version, but no example seen
-xcompmgr - unknown
-
-## x11 common wm/compositors that have optional compositing and are not 
-## shown in Compositor: item.
-gala - unsupported - wm (deepin, --version works but not used, very slow)
-kwin - ambuity, not in compositor: version not used - wm
-metacity - ambuity, not in compositor: version not used - wm
-xfwm4 - ambuity, not in compositor: version not used - wm
-xfwm5 - ambuity, not in compositor: version not used - wm
-
-----------------------------------------
-COMPOSITOR ARRAY RULES
-----------------------------------------
-
-https://stackoverflow.com/questions/46578951/list-screen-resolutions-using-wayland-weston
-
-note these don't give me any such results, no idea why unless it's a wayland item?
-
---------------------------
-The reply is so late but still can be useful to you or someone :)
-
-You can see all supported video adapters by using this command
-
-$ ls /sys/class/drm
-card0
-card0-VGA-1
-card1
-card1-DVI-I-1
-card1-HDMI-A-1
-card1-VGA-2
-
-You can get all supported resolutions by this command, use the adapter which you are using
-
-$ cat /sys/class/drm/card0-LVDS-1/modes 
-1366x768
-1366x768
-
-========================================
-DISPLAY SERVER DATA
-----------------------------------------
-
-ARCAN
-https://www.phoronix.com/scan.php?page=news_item&px=Arcan-Display-Server-September
-
-Xvesa
-https://doc.slitaz.org/en:guides:xorg-xvesa
-
-Xvesa -version
-Xvesa -listmodes
-
-========================================
+================================================================================
 CPU DATA
-----------------------------------------
+--------------------------------------------------------------------------------
 
-----------------------------------------
+========================================
 ARM
 ----------------------------------------
 
@@ -431,8 +194,9 @@ This is the expected output to Arm based processors. All Serialized cores are sh
     CPU revision: Indicates patch release or "minor revision". 3, in your case
     Hardware    : HiKey Development Board is self explanatory
 
-------------------------------------------
-Android:
+----------------------------------------
+Android
+----------------------------------------
 https://stackoverflow.com/questions/20775982/how-to-understand-the-information-of-my-android-processor
 
 Processor   : ARMv7 Processor rev 1 (v7l)
@@ -453,7 +217,7 @@ Revision    : 0000
 Serial      : 0000000000000000
 
 
-----------------------------------------
+========================================
 cpu_sys()
 ----------------------------------------
 https://www.kernel.org/doc/html/v4.14/admin-guide/pm/cpufreq.html
@@ -609,7 +373,7 @@ Taking Table 5.2 and Table 5.3 together we can see that no CPU has hyper-threads
 
 https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-devices-system-cpu
 
-----------------------------------------
+========================================
 scaling / cpuinfo speeds
 ----------------------------------------
 https://unix.stackexchange.com/questions/87522/why-do-cpuinfo-cur-freq-and-proc-cpuinfo-report-different-numbers
@@ -618,7 +382,7 @@ So what about cpuinfo_cur_freq?
 
 This parameter has more to do with the specification of the CPU and which profile it's currently in, rather than anything useful with respect to how the CPU is currently operating. For actual operational telemetry I'd use the scaling_* kernel tunables.
 
-----------------------------------------
+========================================
 Cache L1 L2 L3
 ----------------------------------------
 https://techgearoid.com/articles/does-each-core-have-its-own-l1-and-l2-cache/
@@ -645,7 +409,7 @@ https://www.realworldtech.com/sandy-bridge/2/
 
 https://www.nas.nasa.gov/hecc/support/kb/skylake-processors_550.html
 
-----------------------------------------
+========================================
 Topology
 ----------------------------------------
 
@@ -689,7 +453,69 @@ same die.
 +
 
 ----------------------------------------
+CPU Dies
+----------------------------------------
+
+https://listman.redhat.com/archives/libvir-list/2020-January/msg00277.html
+
+Latest generation CPUs (CascadeLake-AP) support a new topology level
+known as a 'die', sitting between a socket and a core.
+
+QEMU supports this with -smp arg since 4.1.0
+
+Linux can report this via /sys/devices/system/cpu/cpuNNN/topology
+via 'die_id' and 'die_cpus' and 'die_cpus_list' files since 5.2
+
+This series adds support for <topology> in guest XML to have a new
+'dies' parameter, passed to QEMU, which defaults to '1' if omitted.
+
+It extends host capabilities so that NUMA topology reports a new
+'die_id' attribute
+
+We can't expand 'virNodeInfoPtr' struct to have a die field, so
+this will remain forever reporting 'cores' as being 'dies * cores'.
+
+The <topology> in host capabilities XML is an interesting question.
+
+If we are strict with our API semantics we would *not* add a 'dies'
+parameter with any value other than '1' to <topology> in the host
+capabilities.  If we reported a value other than 1, then any existing
+apps which multiple  sockets*cores*threads will get the wrong total
+CPU count.
+
+We already know <topology> is broken by design for asymetric
+hardware, so we could simply document that it will forever be broken
+wrt to CPU dies too.  In this case we might be better to not even
+report 'dies=1', just leave out the attr entirely.
+
+Interestingly though, <topology> is already more broken than it
+should be. For a VM with   -smp 12,sockets=2,dies=3,cores=2,threads=1
+it is reporting <topology sockets=1 dies=1 cores=12 threads=1>.
+It should at least do  <topology sockets=2 dies=1 cores=6 threads=1>.
+
+I suspect the presence of dies is confusing the really incredibly
+horrible logic in virHostCPUGetInfoLinux. This will also impact
+virNodeInfoPtr data.
+
+So even if we don't report dies, I think we still have a bug that
+needs fixing here for the coarse node topology.
+
+I'm also confused about what I see with EPYC. IIUC, it was supposed
+to use the 'dies' concept, but in machines I've tested, Linux never
+reports die count other than 1.  Perhaps only certain EPYC CPU
+models or generations use 'dies', or perhaps Linux isn't reporting
+correctly for EPYC, or perhaps I'm mislead into believeing it uses
+dies.
+
+Anyway, the upshot is I've not found any real hardware to test this
+series on. I've tested it only inside a QEMU guest with the suitable
+-smp arg to fake dies.
+
+Daniel P. Berrangé (5):
+
+========================================
 FreeBSD: 
+----------------------------------------
 
 kern.sched.topology_spec:<groups>
  <group level="1" cache-level="0">
@@ -723,6 +549,7 @@ kern.sched.topology_spec: <groups>
   </children>
  </group>
 </groups>
+
 ----------------------------------------
 2x 6 core xeon:
 
@@ -779,6 +606,7 @@ kern.sched.topology_spec: <groups>
   </children>
  </group>
 </groups>
+
 ----------------------------------------
 inxi-BSD-freebsd-ThinkBSD-2020-09:
  Info: Quad Core model: Intel Core i5-3230M 
@@ -846,7 +674,7 @@ Dual core Intel Core2 Duo P8600 (SMP) cache: 3145.73
 
 Distro: Mac OS X 10.9.2 ... lol...
 
-----------------------------------------
+========================================
 DRAGONFLY:
 ----------------------------------------
 inxi-bsd-dflybsd.local-201409
@@ -885,65 +713,6 @@ hw.cpu_topology.cpu1.physical_id: 0
 hw.cpu_topology.cpu1.physical_siblings: cpus(0-1)
 hw.cpu_topology.cpu1.core_id: 0
 hw.cpu_topology.cpu1.core_siblings: cpus(0-1)
-
-----------------------------------------
-
-https://listman.redhat.com/archives/libvir-list/2020-January/msg00277.html
-
-Latest generation CPUs (CascadeLake-AP) support a new topology level
-known as a 'die', sitting between a socket and a core.
-
-QEMU supports this with -smp arg since 4.1.0
-
-Linux can report this via /sys/devices/system/cpu/cpuNNN/topology
-via 'die_id' and 'die_cpus' and 'die_cpus_list' files since 5.2
-
-This series adds support for <topology> in guest XML to have a new
-'dies' parameter, passed to QEMU, which defaults to '1' if omitted.
-
-It extends host capabilities so that NUMA topology reports a new
-'die_id' attribute
-
-We can't expand 'virNodeInfoPtr' struct to have a die field, so
-this will remain forever reporting 'cores' as being 'dies * cores'.
-
-The <topology> in host capabilities XML is an interesting question.
-
-If we are strict with our API semantics we would *not* add a 'dies'
-parameter with any value other than '1' to <topology> in the host
-capabilities.  If we reported a value other than 1, then any existing
-apps which multiple  sockets*cores*threads will get the wrong total
-CPU count.
-
-We already know <topology> is broken by design for asymetric
-hardware, so we could simply document that it will forever be broken
-wrt to CPU dies too.  In this case we might be better to not even
-report 'dies=1', just leave out the attr entirely.
-
-Interestingly though, <topology> is already more broken than it
-should be. For a VM with   -smp 12,sockets=2,dies=3,cores=2,threads=1
-it is reporting <topology sockets=1 dies=1 cores=12 threads=1>.
-It should at least do  <topology sockets=2 dies=1 cores=6 threads=1>.
-
-I suspect the presence of dies is confusing the really incredibly
-horrible logic in virHostCPUGetInfoLinux. This will also impact
-virNodeInfoPtr data.
-
-So even if we don't report dies, I think we still have a bug that
-needs fixing here for the coarse node topology.
-
-I'm also confused about what I see with EPYC. IIUC, it was supposed
-to use the 'dies' concept, but in machines I've tested, Linux never
-reports die count other than 1.  Perhaps only certain EPYC CPU
-models or generations use 'dies', or perhaps Linux isn't reporting
-correctly for EPYC, or perhaps I'm mislead into believeing it uses
-dies.
-
-Anyway, the upshot is I've not found any real hardware to test this
-series on. I've tested it only inside a QEMU guest with the suitable
--smp arg to fake dies.
-
-Daniel P. Berrangé (5):
 
 ----------------------------------------
 https://askubuntu.com/questions/1318432/cpufreq-is-missing-from-sys-devices-system-cpu-cpu0
@@ -1023,11 +792,11 @@ scaling_setspeed.		By "echoing" a new frequency into this
 				but only within the limits of
 				scaling_min_freq and scaling_max_freq.
 
-========================================
+================================================================================
 DESKTOPS / WM DATA
-----------------------------------------
+--------------------------------------------------------------------------------
 
-----------------------------------------
+========================================
 PS GUI
 ----------------------------------------
 
@@ -1058,7 +827,7 @@ https://en.wikipedia.org/wiki/List_of_display_servers#Wayland
 
 arcan display server?
 
-----------------------------------------
+========================================
 DESKTOP ARRAY RULES
 ----------------------------------------
 
@@ -1135,12 +904,14 @@ bbdock Perl-Panel BMPanel BarPanel PyPanel
 
 wharf=afterstep dock/bar
 
-----------------------------------------
+========================================
 DESKTOPS + WMs
 ----------------------------------------
 
 ----------------------------------------
 DESKTOPS
+----------------------------------------
+
 GTK-based:
 Budgie; Cinnamon; GNOME; GPE; LXDE; MATE; Pantheon; ROX Desktop; Sugar; Xfce
 
@@ -1160,6 +931,8 @@ Pixel, raspbian default, fork of lxde
 
 ----------------------------------------
 X WM:
+----------------------------------------
+
 Compositing:
 Compiz KWin Metacity Muffin Mutter Xfwm Enlightenment
 
@@ -1597,19 +1370,18 @@ https://xmonad.org/tour.html
 ----------------------------------------
 yeahwm [evilwm, aewm fork]
 
+================================================================================
+DEVICE DATA
+--------------------------------------------------------------------------------
 
 ========================================
-DEVICE DATA
-----------------------------------------
-
-----------------------------------------
 Open/NetBSD ARM / SOC
 ----------------------------------------
 
 https://man.bsd.lv/NetBSD-8.0/ofctl.8
 ofctl without arguments will dump theh entire tree, which is what we need here!
 
-----------------------------------------
+========================================
 FreeBSD ARM / SOC
 ----------------------------------------
 
@@ -2079,11 +1851,13 @@ Node 0xc063124c: ethernet@24000
   phy-handle:
     00 00 00 04 
 
-========================================
+================================================================================
 DISTRO DATA
-----------------------------------------
+--------------------------------------------------------------------------------
 
+========================================
 DistroData::get()
+----------------------------------------
 
 NOTE: live cd TAILS which is a Debian based security live cd uses non 
 standard syntax in /etc/os-release
@@ -2110,13 +1884,370 @@ them correct the os-release syntax, not to correct it for them.
 For coming UBUNTU version:
 ubuntu-distro-info --devel --fullname
 
+================================================================================
+GRAPHIC DATA
+--------------------------------------------------------------------------------
 
 ========================================
-GRAPHIC DATA
+WAYLAND DATA 
 ----------------------------------------
+----------------------------------------
+https://gitlab.freedesktop.org/wayland/weston/-/issues/76
+
+Displays, screens, Xorg Screen vs Wayland Display, gpus, etc.
+
+Several X11 or Xorg concepts do not exist on Wayland or Weston, XScreen is one 
+of them.
+With Wayland, you also need to let go of the XScreen nomenclature. Nothing I 
+know of implements anything like that. It's all just one big desktop extending 
+to all outputs, regardless of whether it is one or more graphics cards. 
 
 ----------------------------------------
+https://l.sr.ht/jAFC.pdf
+
+Sway project document on wl-root wayland compositor backend. Highly recommended.
+
+----------------------------------------
+https://arewewaylandyet.com/
+list of programs/wm to use with wayland
+
+----------------------------------------
+http://manpages.ubuntu.com/manpages/focal/man5/sway-output.5.html
+
+ output HDMI-A-1 mode 1920x1080 pos 1920 0 bg ~/wallpaper.png stretch
+ 
+ output "Some Company ABC123 0x00000000" pos 1920 0
+
+
+----------------------------------------
+Scale factor:
+https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/47
+
+The current Wayland protocol allows clients to scale their buffers by an integer 
+scale factor, matching the integer-scale defined for each output and therefore 
+allowing their surfaces to be displayed at reasonable scale even on High-DPI 
+displays.
+
+The restriction to integer scale factors however is a big issue when the ideal 
+scale factor for best usability falls in between two integers.
+
+Example: On my 32" 4K display I would consider a scale factor of 1.5 to be 
+ideal. At a scale of 1 text becomes too small to read, while a scale factor of 2 
+wastes screen real-estate.
+
+A second issue with integer scale factors is, that matching the scale of 
+multiple outputs with different DPI values is not possible. Example: A common 
+setup with this problem is a 1080p and a 1440p monitor of the same size next to 
+each other.
+
+Current implementations like Gnome, KWin, wlroots fake fractional scaling by 
+providing clients with the next-highest integer scale factor for each output and 
+then downsizing the received buffer during compositing. This approach comes with 
+two major problems:
+
+1. Since the client renders into a larger-than-native buffer there is a 
+significant performance overhead, which is especially noticeable in graphics 
+intensive applications such as games.
+
+Example: on a 4K (3840 × 2160) display with an optimal scale factor of 1.5 a 
+game might render at 5K (5120 × 2880) resolution requiring 78% more pixels than 
+necessary to be rendered.
+
+2. Downscaling causes aliasing artifacts, reducing the quality and sharpness of 
+the image. This is especially noticeable with text rendering. Advanced text 
+rendering techniques such as subpixel-rendering are completely impossible.
+
+----------------------------------------
+EGL/GBM
+----------------------------------------
+
+https://docs.voidlinux.org/config/graphical-session/wayland.html
+
+Both GNOME and KDE Plasma have EGLStreams backends for Wayland, which means they 
+can use the proprietary NVIDIA drivers. Most other Wayland compositors require 
+drivers that implement the GBM interface. The main driver for this purpose is 
+provided by the mesa-dri package. 
+
+https://wiki.archlinux.org/title/wayland
+
+GBM 	All except NVIDIA < 495* 	All
+EGLStreams 	NVIDIA 	GNOME, KDE, Weston (with a third-party patch) 
+
+https://en.wikipedia.org/wiki/Generic_Buffer_Management
+
+Generic Buffer Management
+
+Generic Buffer Management (GBM) is an API that provides a mechanism for 
+allocating buffers for graphics rendering tied to Mesa. GBM is intended to be 
+used as a native platform for EGL on DRM or openwfd. The handle it creates can 
+be used to initialize EGL and to create render target buffers.[98]
+
+Mesa GBM is an abstraction of the graphics driver specific buffer management 
+APIs (for instance the various libdrm_* libraries), implemented internally by 
+calling into the Mesa GPU drivers.
+
+For example, the Wayland compositor Weston does its rendering using OpenGL ES 2, 
+which it initializes by calling EGL. Since the server runs on the "bare KMS 
+driver", it uses the EGL DRM platform, which could really be called the GBM 
+platform, since it relies on the Mesa GBM interface.
+
+At XDC2014, Nvidia employee Andy Ritger proposed to enhance EGL in order to 
+replace GBM.[99] This was not taken positively by the community, and Nvidia 
+eventually changed their mind,[100] and took another approach. 
+
+----------------------------------------
+WLROOTS
+----------------------------------------
+
+https://forum.manjaro.org/t/how-can-i-install-wlrandr/81837
+
+wlroots > wlr-randr
+
+basis, I assume, of swaymesg, since it's a wlroot/sway based project.
+
+The package is called wlr-randr and it’s in the AUR. :arrow_down:
+
+pamac build wlr-randr
+
+That’s something similar, but it’s not actually wlrandr. It was a merge request 
+that never actually was merged and other things were done instead.
+
+https://manpages.debian.org/testing/wlr-randr/wlr-randr.1.en.html
+
+Check out our wiki to get started with wlroots. Join our IRC channel: 
+#sway-devel on Libera Chat.
+
+compositors that use this, I think:
+
+Sway
+way-cooler
+Wayfire
+
+
+There are 3 other buggy compositor frameworks:
+
+wlc - deprecated
+Smithay - rust, glitchy
+libweston - largely only used by weston
+
+========================================
+COMPOSITOR DATA
+----------------------------------------
+
+qdbus org.kde.KWin /Compositor org.kde.kwin.Compositing.active
+Gives you true or false depending on whether it is currently enabled or not
+
+https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
+To track compositor you'll need to check if selection is _NET_WM_CM_S0 
+is owned by anyone (assuming you are on screen 0) using XGetSelectionOwner
+Check if xprop -root has this data in it
+
+https://stackoverflow.com/questions/33195570/detect-if-compositor-is-running
+
+https://en.wikipedia.org/wiki/Compositing_window_manager
+
+https://fedoraproject.org/wiki/How_to_debug_Wayland_problems
+
+----------------------------------------
+All Active Compositors (used for -G compositor item):
+----------------------------------------
+
+Primary:
+
+budgie-wm compiz compton enlightenment gnome-shell kwin_wayland kwin_x11 marco 
+muffin mutter
+
+Secondary:
+
+3dwm asc cage cagebreak cardboard clayland dcompmgr dwc dwl epd-wm fireplace 
+gala gamescope greenfield grefson hikari hopalong japokwm kiwmi kmscon labwc 
+laikawm liri lipstick maze metisse mir moblin motorcar monsterwm newm orbital 
+papyros perceptia phoc picom river rootston rustland sommelier sway swc swvkc 
+taiwins tinybox tinywl ukwm unagi unity-system-compositor velox vivarium wavy 
+waybox waycooler way-cooler wayfire wayhouse waymonad westeros westford weston 
+wio wxrc wxrd xcompmgr xfwm4 xfwm5 xfwm
+
+----------------------------------------
+Wayland/Xorg compositors:
+----------------------------------------
+
+Budgie-wm Enlightenment Gala kmscon KWin Muffin Mutter Qtile
+
+NOTE: mutter is metacity + clutter
+Note: gala is made from mutter/clutter
+
+----------------------------------------
+Wayland compositors:
+----------------------------------------
+
+https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
+
+https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Projects-which-use-wlroots
+
+Pure wayland:
+
+asc awc cage cagebreak cardboard chameleonwm clayland comfc dwc dwl epd-wm 
+feathers fenestra fireplace gamescope glass greenfield grefson hikari hopalong 
+inaban japokwm kiwmi kwinft labwc laikawm lipstick liri mahogony marina maze 
+motorcar newm nucleus orbital perceptia phoc pywm river rustland simulavr 
+skylight sommelier sway swc swvkc tabby taiwins tinybox tinywl trinkster velox 
+vimway vivarium wavy waybox way-?cooler wayfire wayhouse waymonad westeros 
+westford weston wio\+? wxr[cd] xuake
+
+added: 
+awc ChameleonWM comfc feathers fenestra Glass inaban KWinFT Mahogany Marina 
+Nucleus pywm SimulaVR Skylight Tabby Trinkster wio+ vimway xuake
+
+lc added:
+awc chameleonwm comfc feathers fenestra glass inaban kwinft mahogany marina 
+nucleus pywm simulavr skylight tabby trinkster wio+ vimway xuake
+
+# these are wlroot compositors, as of 2022-02:
+
+awc Cage Cagebreak ChameleonWM comfc dwl feathers fenestra gamescope Glass 
+hikari hopalong inaban japokwm kiwmi KWinFT labwc Mahogany Marina Nucleus phoc 
+pywm qtile river SimulaVR Skylight Sway Tabby tinybox Trinkster Way-Cooler 
+Waybox Wayfire Waymonad wio wio+ wxrc vimway vivarium xuake 
+
+Note: maze may be maze-compositor
+Note: papyros > liri
+Note: steamcompmgr > gamescope
+Note: is qtile now wayland only? confirm
+Note: is Glass only wayland? I have data for it, needs to be wayland
+
+Wayland but not standalone wm/desktop, like mutter:
+kwin_wayland
+
+----------------------------------------
+X compositors:
+----------------------------------------
+
+compton compiz dcompmgr marco metisse picom steamcompmgr tinywm unagi ukwm 
+xcompmgr
+
+note: moblin not sure, think x
+
+----------------------------------------
+Mir: 
+----------------------------------------
+dead, it's own thing
+
+----------------------------------------
+Compositing WM (used with desktops):
+----------------------------------------
+
+budgie-wm 3dwm compiz enlightenment kwin_wayland kwin_x11 kwin marco muffin 
+mutter xfwm4 xfwm5 metisse mir
+
+----------------------------------------
+COMPOSITOR ARRAY RULES
+----------------------------------------
+
+https://stackoverflow.com/questions/46578951/list-screen-resolutions-using-wayland-weston
+
+note these don't give me any such results, no idea why unless it's a wayland item?
+
+--------------------------
+The reply is so late but still can be useful to you or someone :)
+
+You can see all supported video adapters by using this command
+
+$ ls /sys/class/drm
+card0
+card0-VGA-1
+card1
+card1-DVI-I-1
+card1-HDMI-A-1
+card1-VGA-2
+
+You can get all supported resolutions by this command, use the adapter which you are using
+
+$ cat /sys/class/drm/card0-LVDS-1/modes 
+1366x768
+1366x768
+
+========================================
+WM/compositor version (out of date)
+----------------------------------------
+
+NOTE: These are the current wm, listed is available data per for
+getting version info. 
+
+This list is out of date and should be merged with the X/Wayland compositors
+sections to avoid confusion, but there is some useful info here too.
+
+https://www.phoronix.com/scan.php?page=news_item&px=Wayland-Compositors-Less-2017
+
+unknown: means not tested or verified yet. All unknown default to 0,0 version
+
+unsupported: means has values 0,0 which means no version test runs. 
+
+supported: means has known version data generator values.
+
+## these are either wayland or x11/wayland wm/compositors
+## budgie-wm, gnome-shell, kwin_x11, marco, muffin, mutter 
+## can be compositing/non compositing wm
+3dwm - unknown - wm
+asc - unknown
+budgie-wm - unknown - wm
+# owned by: compiz-core in debian
+compiz - supported - wm
+compton - supported
+dwc - unknown
+# as of version 20 is wayland compositor
+enlightenment - wm - note, uses a different method for version, from xprop, so can't be used
+fireplace - unknown - wm
+gnome-shell - supported - wm - very slow --version execution, only show if not in System:
+grefson - unknown
+kmscon - unknown
+kwin_wayland - unknown - wm
+kwin_x11 - version not used - wm
+liri - unknown # Uncertain if this is the name of the liri projectc compositor now
+marco - supported - wm
+metisse - unknown - wm
+mir - unknown - wm
+moblin - unknown
+motorcar - unknown
+muffin - supported - wm
+mutter - supports --version, but no example seen - wm
+orbital - unknown
+papyros - unknown # merged into liri, along with hawaii
+perceptia - unknown - wm
+rustland - unknown
+sway - unknown
+swc - unknown
+unagi - unknown
+wavy - unknown
+way-cooler - unknown
+wayhouse - unknown
+westford - unknown
+weston - supports --version, but no example seen
+xcompmgr - unknown
+
+## x11 common wm/compositors that have optional compositing and are not 
+## shown in Compositor: item.
+gala - unsupported - wm (deepin, --version works but not used, very slow)
+kwin - ambuity, not in compositor: version not used - wm
+metacity - ambuity, not in compositor: version not used - wm
+xfwm4 - ambuity, not in compositor: version not used - wm
+xfwm5 - ambuity, not in compositor: version not used - wm
+
+========================================
+DISPLAY SERVER DATA
+----------------------------------------
+
+ARCAN
+https://www.phoronix.com/scan.php?page=news_item&px=Arcan-Display-Server-September
+
+Xvesa
+https://doc.slitaz.org/en:guides:xorg-xvesa
+
+Xvesa -version
+Xvesa -listmodes
+
+========================================
 MONITORS:
+----------------------------------------
 
 https://metacpan.org/pod/Parse::EDID
 
@@ -2170,14 +2301,8 @@ https://fedoraproject.org/wiki/Wayland_features
 
 ----------------------------------------
 
-========================================
-LOGICAL DATA
 ----------------------------------------
-
-
-
-----------------------------------------
-sub display_output(){
+sub display_output()
 ----------------------------------------
 
 https://linuxconfig.org/how-to-configure-your-monitors-with-xrandr-in-linux
@@ -2242,9 +2367,10 @@ xrandr command line for all your currently used screens by clicking on the menu
 "Layout" -> "Save as" as a .sh file, i.e. as a text file which should contain a 
 shell script.
 
-========================================
+================================================================================
 LOGICAL DATA
-----------------------------------------
+--------------------------------------------------------------------------------
+
 lvm_data()
 
 these were for pvs:
@@ -2254,15 +2380,21 @@ lv_name lv_size lv_health_status lv_parent pv_count
 pv_count pv_name dev_size pv_size pv_free pv_used pv_major pv_minor
 seg_size devices metadata_devices segtype stripes);
 
-========================================
+================================================================================
 PARTITION DATA
-----------------------------------------
+--------------------------------------------------------------------------------
 
 Issues arise with disk used totals with remote/distributed fs mounts and fuse.
 
+========================================
+FILE SYSTEMS
 ----------------------------------------
+
+----------------------------------------
+USER SPACE FILE SYSTEMS
+----------------------------------------
+
 https://www.linuxtoday.com/blog/user-space-file-systems/
-----------------------------------------
 
 There are many examples of file systems that use FUSE. Sometimes FUSE is used 
 for prototyping or testing file systems or it is used as the file system itself. 
@@ -2330,12 +2462,15 @@ uncompress and untar them, to encrypted file systems, to high performance
 distributed parallel file systems.
 
 ----------------------------------------
+Fuse Based File Systems
+----------------------------------------
+
 see sectoin on FUSE-based file systems
 https://wiki.archlinux.org/title/file_systems
-----------------------------------------
 
 ----------------------------------------
 Stackable file systems
+----------------------------------------
 
 aufs — Advanced Multi-layered Unification Filesystem, a FUSE based union 
 filesystem, a complete rewrite of Unionfs, was rejected from Linux mainline and 
@@ -2371,8 +2506,10 @@ https://unionfs.filesystems.org/ || not packaged? search in AUR
 unionfs-fuse — A user space Unionfs implementation.
 
 https://github.com/rpodgorny/unionfs-fuse || unionfs-fuse
+
 ----------------------------------------
 Read-only file systems
+----------------------------------------
 
 EROFS — Enhanced Read-Only File System is a lightweight read-only file system, 
 it aims to improve performance and compress storage capacity.
@@ -2384,8 +2521,10 @@ files, inodes and directories, and supports block sizes up to 1 MB for greater
 compression.
 
 https://github.com/plougher/squashfs-tools || squashfs-tools
+
 ----------------------------------------
 Clustered file systems
+----------------------------------------
 
 Ceph — Unified, distributed storage system designed for excellent performance, 
 reliability and scalability.
@@ -2431,8 +2570,10 @@ decentralized, fault-tolerant, peer-to-peer distributed data store and
 distributed file system.
 
 https://tahoe-lafs.org/ || tahoe-lafsAUR
+
 ----------------------------------------
 Shared-disk file system
+----------------------------------------
 
 GFS2 — GFS2 allows all members of a cluster to have direct concurrent access to 
 the same shared block storage
@@ -2450,14 +2591,360 @@ company's flagship server virtualization suite, vSphere.
 
 https://www.vmware.com/products/vi/esx/vmfs.html || vmfs-toolsAUR
 
+================================================================================
+RAID DATA
+--------------------------------------------------------------------------------
+
 ========================================
-SERVICE DATA
+OpenBSD: softraid data
 ----------------------------------------
+
+https://man.openbsd.org/softraid.4
+
+Currently softraid supports the following disciplines:
+
+RAID 0
+    A striping discipline. It segments data over a number of chunks to increase performance. RAID 0 does not provide for data loss (redundancy).
+RAID 1
+    A mirroring discipline. It copies data across more than one chunk to provide for data loss. Read performance is increased, though at the cost of write speed. Unlike traditional RAID 1, softraid supports the use of more than two chunks in a RAID 1 setup.
+RAID 5
+    A striping discipline with floating parity across all chunks. It stripes data across chunks and provides parity to prevent data loss of a single chunk failure. Read performance is increased; write performance does incur additional overhead.
+CRYPTO
+    An encrypting discipline. It encrypts data on a single chunk to provide for data confidentiality. CRYPTO does not provide redundancy.
+CONCAT
+    A concatenating discipline. It writes data to each chunk in sequence to provide increased capacity. CONCAT does not provide redundancy.
+RAID 1C
+    A mirroring and encrypting discipline. It encrypts data to provide for data confidentiality and copies the encrypted data across more than one chunk to prevent data loss in case of a chunk failure. Unlike traditional RAID 1, softraid supports the use of more than two chunks in a RAID 1C setup. 
+
+    
+The status of softraid volumes is reported via sysctl(8) such that it can be monitored by sensorsd(8). Each volume has one fourth level node named hw.sensors.softraid0.driveN, where N is a small integer indexing the volume. The format of the volume status is:
+
+value (device), status
+
+The device identifies the softraid volume. The following combinations of value and status can occur:
+
+online, OK
+    The volume is operating normally.
+degraded, WARNING
+    The volume as a whole is operational, but not all of its chunks are. In many cases, using bioctl(8) -R to rebuild the failed chunk is advisable.
+rebuilding, WARNING
+    A rebuild operation was recently started and has not yet completed.
+failed, CRITICAL
+    The device is currently unable to process I/O.
+unknown, UNKNOWN
+    The status is unknown to the system.
+	
+https://marc.info/?l=openbsd-misc&m=145607956104915&w=2
+$ doas bioctl softraid0
+Volume      Status               Size Device
+softraid0 0 Rebuild    12002360033280 sd6     RAID5 35% done
+        0 Rebuild     4000786726912 0:0.0   noencl <sd2a>
+        1 Online      4000786726912 0:1.0   noencl <sd3a>
+        2 Online      4000786726912 0:2.0   noencl <sd4a>
+        3 Online      4000786726912 0:3.0   noencl <sd5a>
+        
+$ doas bioctl softraid0
+ Volume      Status               Size Device
+ softraid0 0 Degraded    12002360033280 sd6     RAID5
+           0 Offline     4000786726912 0:0.0
+           1 Online      4000786726912 0:1.0   noencl <sd3a>
+           2 Online      4000786726912 0:2.0   noencl <sd4a>
+           3 Online      4000786726912 0:3.0   noencl <sd5a>
+
+http://daemonforums.org/showthread.php?t=4893
+$ sudo bioctl softraid0
+Volume Status Size Device
+softraid0 0 Rebuild 1073684480 sd2 RAID1 70% done
+0 Online 1073684480 0:0.0 noencl <sd0a>
+1 Rebuild 1073684480 0:1.0 noencl <sd1a>
+
+$ sudo bioctl softraid0
+Volume Status Size Device
+softraid0 0 Rebuild 1073684480 sd2 RAID1 70% done
+0 Online 1073684480 0:0.0 noencl <sd0a>
+1 Rebuild 1073684480 0:1.0 noencl <sd1a> 
+
+$ sudo bioctl softraid0
+Volume Status Size Device
+softraid0 0 Rebuild 1073684480 sd2 RAID1 97% done
+0 Online 1073684480 0:0.0 noencl <sd0a>
+1 Rebuild 1073684480 0:1.0 noencl <sd1a>
+
+$ sudo bioctl softraid0
+Volume Status Size Device
+softraid0 0 Online 1073684480 sd2 RAID1
+0 Online 1073684480 0:0.0 noencl <sd0a>
+1 Online 1073684480 0:1.0 noencl <sd1a>
+
+http://daemonforums.org/showthread.php?t=8869
+# bioctl softraid0
+Volume      Status               Size Device  
+softraid0 0 Online       938117554176 sd2     RAID1 
+          0 Online       938117554176 0:0.0   noencl <sd0m>
+          1 Online       938117554176 0:1.0   noencl <sd1m>
+          
+@data = (
+'Volume      Status               Size Device',
+'softraid0 0 Degraded    12002360033280 sd6     RAID5',
+'0 Offline     4000786726912 0:0.0',
+'1 Online      4000786726912 0:1.0   noencl <sd3a>',
+'2 Online      4000786726912 0:2.0   noencl <sd4a>',
+'3 Online      4000786726912 0:3.0   noencl <sd5a>'
+);
+
+@data = (
+'Volume      Status               Size Device',
+'softraid0 0 Rebuild    12002360033280 sd6     RAID5 35% done',
+'0 Rebuild     4000786726912 0:0.0   noencl <sd2a>',
+'1 Online      4000786726912 0:1.0   noencl <sd3a>',
+'2 Online      4000786726912 0:2.0   noencl <sd4a>',
+'3 Online      4000786726912 0:3.0   noencl <sd5a>',
+);
+
+================================================================================
+RAM DATA
+--------------------------------------------------------------------------------
+
+========================================
+BSD: dmesg data for RAM / NVMe
+----------------------------------------
+
+----------------------------------------
+OpenBSD:
+----------------------------------------
+
+----------------------------------------
+ram:
+
+spdmem0 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-17000 with thermal sensor
+spdmem1 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-17000 with thermal sensor
+
+spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-14200 SO-DIMM
+
+piixpm0 at pci0 dev 20 function 0 "AMD FCH SMBus" rev 0x51: SMI
+iic1 at piixpm0
+spdmem0 at iic1 addr 0x50: 32GB DDR4 SDRAM PC4-25600 SO-DIMM
+
+spdmem0 at iic1 addr 0x50: 32GB DDR4 SDRAM PC4-25600 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
+spdmem1 at iic0 addr 0x52: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
+
+spdmem0 at iic1 addr 0x50: 16GB DDR4 SDRAM PC4-25600 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-10600
+spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600
+spdmem2 at iic0 addr 0x53: 4GB DDR3 SDRAM PC3-12800
+
+spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+spdmem1 at iic0 addr 0x52: 1GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+
+iic0 at ichiic0
+spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-12800 SO-DIMM
+spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
+isa0 at pcib0
+
+spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-8500 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 16GB DDR4 SDRAM PC4-17000
+spdmem1 at iic0 addr 0x51: 16GB DDR4 SDRAM PC4-17000
+spdmem2 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-17000
+spdmem3 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-17000
+
+spdmem0 at iic0 addr 0x50: 16GB DDR4 SDRAM PC4-19200 SO-DIMM
+
+sdtemp0 at iic0 addr 0x18: stts2002
+sdtemp1 at iic0 addr 0x19: stts2002
+sdtemp2 at iic0 addr 0x1a: stts2002
+sdtemp3 at iic0 addr 0x1b: stts2002
+spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem2 at iic0 addr 0x52: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem3 at iic0 addr 0x53: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+
+mem0 at mainbus0
+spdmem0 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
+spdmem1 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
+spdmem2 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
+spdmem3 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
+memc0 at mainbus0: u3 rev 0xb3
+
+sdtemp0 at iic0 addr 0x18: mcp98242
+spdmem0 at iic0 addr 0x50: 1GB DDR3 SDRAM PC3-8500 SO-DIMM with thermal sensor
+spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
+
+sd0 at scsibus1 targ 0 lun 0: <ATA, WDC WD1003FBYX-0, 01.0> naa.50014ee20946ec61
+sd0: 953869MB, 512 bytes/sector, 1953525168 sectors
+ichiic0 at pci0 dev 31 function 3 "Intel 6 Series SMBus" rev 0x04: apic 0 int 19
+iic0 at ichiic0
+sdtemp0 at iic0 addr 0x18: stts2002
+sdtemp1 at iic0 addr 0x19: stts2002
+sdtemp2 at iic0 addr 0x1a: stts2002
+sdtemp3 at iic0 addr 0x1b: stts2002
+spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem2 at iic0 addr 0x52: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+spdmem3 at iic0 addr 0x53: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
+
+mem0 at mainbus0
+spdmem0 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
+spdmem1 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
+spdmem2 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
+spdmem3 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
+memc0 at mainbus0: u3 rev 0xb3
+
+spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 8GB DDR4 SDRAM PC4-25600 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 8GB DDR4 SDRAM PC4-25600 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
+spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
+
+spdmem0 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-19200
+spdmem1 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-19200
+
+spdmem0 at iic0 addr 0x52: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
+spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-12800 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
+spdmem1 at iic0 addr 0x52: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 1GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+spdmem1 at iic0 addr 0x52: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+
+sdtemp0 at iic0 addr 0x18: mcp98243
+sdtemp1 at iic0 addr 0x19: mcp98243
+sdtemp2 at iic0 addr 0x1a: mcp98243
+sdtemp3 at iic0 addr 0x1b: mcp98243
+spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
+spdmem1 at iic0 addr 0x51: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
+spdmem2 at iic0 addr 0x52: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
+spdmem3 at iic0 addr 0x53: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
+
+spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+spdmem1 at iic0 addr 0x51: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
+
+spdmem0 at iic0 addr 0x50: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
+spdmem1 at iic0 addr 0x52: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
+
+
+spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-10600 SO-DIMM
+spdmem1 at iic0 addr 0x51: 8GB DDR3 SDRAM PC3-10600 SO-DIMM
+
+------------------------------------------
+nvme:
+
+nvme0 at pci1 dev 0 function 0 vendor "Intel", unknown product 0xfaf0 rev 0x03: msix, NVMe 1.3
+nvme0: INTEL SSDPEKNW010T9, firmware 001C, serial BTNR004318SM1P0B
+scsibus1 at nvme0: 2 targets, initiator 0
+sd0 at scsibus1 targ 1 lun 0: <NVMe, INTEL SSDPEKNW01, 001C>
+sd0: 976762MB, 512 bytes/sector, 2000409264 sectors
+
+nvme0 at pci1 dev 0 function 0 "Samsung SM981/PM981 NVMe" rev 0x00: msix, NVMe 1.3
+nvme0: Samsung SSD 970 EVO Plus 2TB, firmware 2B2QEXM7, serial serialserialserial
+scsibus1 at nvme0: 2 targets, initiator 0
+sd0 at scsibus1 targ 1 lun 0: <NVMe, Samsung SSD 970, 2B2Q>
+sd0: 1907729MB, 512 bytes/sector, 3907029168 sectors
+
+----------------------------------------
+NetBSD:
+----------------------------------------
+
+[     1.011873] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
+[     1.011873] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
+
+Mac mini (G4/PowerPC):
+[     1.000000] memory0 at mainbus0: len=128
+[     1.000000] spdmem0 at memory0
+[     1.000000] spdmem0: DDR SDRAM, no parity or ECC, 1GB, 400MHz (PC-3200)
+[     1.000000] spdmem0: 13 rows, 11 cols, 2 ranks, 4 banks/chip, 5.0ns cycle time
+[     1.000000] spdmem0: tAA-tRCD-tRP-tRAS: 2-3-3-8
+[     1.000000] spdmem0: voltage SSTL 2.5V, refresh time 7.8us (self-refreshing)
+
+[     1.037567] spdmem0 at iic0 addr 0x50: 9965745-002.A00G
+[     1.037567] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
+[     1.037567] spdmem0: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
+[     1.037567] spdmem0: 0.750ns cycle time
+[     1.037567] spdmem0: tAA-tRCD-tRP-tRAS: 19-19-19-43
+[     1.037567] spdmem1 at iic0 addr 0x51: 9965745-002.A00G
+[     1.037567] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
+[     1.037567] spdmem1: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
+[     1.037567] spdmem1: 0.750ns cycle time
+[     1.037567] spdmem1: tAA-tRCD-tRP-tRAS: 19-19-19-43
+[     1.037567] spdmem2 at iic0 addr 0x52: 9965745-002.A00G
+[     1.037567] spdmem2: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
+[     1.037567] spdmem2: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
+[     1.037567] spdmem2: 0.750ns cycle time
+[     1.037567] spdmem2: tAA-tRCD-tRP-tRAS: 19-19-19-43
+[     1.037567] spdmem3 at iic0 addr 0x53: 9965745-002.A00G
+[     1.037567] spdmem3: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
+[     1.037567] spdmem3: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
+[     1.037567] spdmem3: 0.750ns cycle time
+[     1.037567] spdmem3: tAA-tRCD-tRP-tRAS: 19-19-19-43
+
+ryzen 
+[     1.011873] spdmem0 at iic0 addr 0x50: 9ASF2G72AZ-3G2B1
+[     1.011873] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
+[     1.011873] spdmem0: 17 rows, 10 cols, 1 ranks, 4 banks/group, 4 bank groups
+[     1.011873] spdmem0: 0.625ns cycle time
+[     1.011873] spdmem0: tAA-tRCD-tRP-tRAS: 22-22-22-52
+[     1.011873] spdmem1 at iic0 addr 0x51: 9ASF2G72AZ-3G2B1
+[     1.011873] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
+[     1.011873] spdmem1: 17 rows, 10 cols, 1 ranks, 4 banks/group, 4 bank groups
+[     1.011873] spdmem1: 0.625ns cycle time
+[     1.011873] spdmem1: tAA-tRCD-tRP-tRAS: 22-22-22-52
+
+----------------------------------------
+FreeBSD:
+----------------------------------------
+
+pci0: <memory, RAM> at device 20.2 (no driver attached)
+
+https://dmesgd.nycbug.org/index.cgi?do=view&id=5990:
+[drm] vm size is 64 GB, 2 levels, block size is 10-bit, fragment size is 9-bit
+amdgpu/tonga_mc.bin: could not load firmware image, error 2
+drmn0: fail (0) to get firmware image with name: amdgpu/tonga_mc.bin
+drmn0: successfully loaded firmware image with mapped name: amdgpu_tonga_mc_bin
+drmn0: VRAM: 8192M 0x000000F400000000 - 0x000000F5FFFFFFFF (8192M used)
+drmn0: GTT: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
+Failed to add WC MTRR for [0xe0000000-0xefffffff]: -22; performance may suffer
+[drm] Detected VRAM RAM=8192M, BAR=256M
+[drm] RAM width 256bits GDDR5
+
+FreeBSD-13.0-BETA4/arm64 GENERIC-MMCCAM on raspberrypi rpi 3Bplus
+
+bcm2835_cpufreq0: ARM 600MHz, Core 250MHz, SDRAM 400MHz, Turbo OFF
+
+drmn0: VRAM: 2048M 0x000000F400000000 - 0x000000F47FFFFFFF (2048M used)
+drmn0: GART: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
+drmn0: AGP: 267419648M 0x000000F800000000 - 0x0000FFFFFFFFFFFF
+Successfully added WC MTRR for [0xe0000000-0xefffffff]: 0; 
+[drm] Detected VRAM RAM=2048M, BAR=256M
+[drm] RAM width 64bits DDR4
+
+[drm] vm size is 262144 GB, 4 levels, block size is 9-bit, fragment size is 9-bit
+drmn0: VRAM: 2048M 0x000000F400000000 - 0x000000F47FFFFFFF (2048M used)
+drmn0: GART: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
+drmn0: AGP: 267419648M 0x000000F800000000 - 0x0000FFFFFFFFFFFF
+Successfully added WC MTRR for [0xe0000000-0xefffffff]: 0; 
+[drm] Detected VRAM RAM=2048M, BAR=256M
+[drm] RAM width 64bits DDR4
+
+
+================================================================================
+SERVICE DATA
+--------------------------------------------------------------------------------
 
 Note: all use redirect of stderr to stdout to get errors, because most
 send to stderr when service not found or present in system.
 
-----------------------------------------
+========================================
 init [BSD]: tool: /etc/rc.d source: /etc/rc.d/
 ----------------------------------------
 
@@ -2481,7 +2968,7 @@ ksh: /etc/rc.d/ntp: not found
 /etc/rc.d/sshd fred
 usage: /etc/rc.d/sshd [-df] start|stop|restart|reload|check
 
-----------------------------------------
+========================================
 init [BSD]: tool: rc-service source: /etc/rc.d/
 ----------------------------------------
 
@@ -2510,12 +2997,12 @@ rc-service ntpd disable
 rc-service ntp status 
  * rc-service: service 'ntp' does not exist 
 
-----------------------------------------
+========================================
 init [BSD]: tool: service source: /etc/rc.d/
 ----------------------------------------
 
+----------------------------------------
 Nomad 1.4 / FreeBSD 12.2
-
 ----------------------------------------
 
 [loaded]
@@ -2535,11 +3022,7 @@ ntp does not exist in /etc/rc.d or the local startup
 directories (/usr.local/etc/rc.d), or is not executable
 
 ----------------------------------------
-init [BSD]: tool: service source: /etc/rc.d/
-----------------------------------------
-
 NetBSD 9.1 
-
 ----------------------------------------
 
 [running]
@@ -2559,7 +3042,7 @@ Usage: /etc/rc.d/ntpd [fast|force|one](start stop restart rcvar status poll)
 /usr/sbin/service ntp status
 ntp does not exist in /etc/rc.d
 
-----------------------------------------
+========================================
 runit: tool: sv source: /etc/sv/
 ----------------------------------------
 
@@ -2583,7 +3066,7 @@ fail: ntpd: unable to change to service directory: file does not exist
 sv fred sshd 
 usage: sv [-v] [-w sec] command service
 
-----------------------------------------
+========================================
 systemd: tool: systemctl 
 ----------------------------------------
 
@@ -2628,7 +3111,7 @@ Unit bluetoothd.service could not be found.
 systemctl fred bluetooth
 Unknown command verb fred.
 
-----------------------------------------
+========================================
 SysVinit: tool: service source: /etc/init.d
 ----------------------------------------
 
@@ -2649,11 +3132,11 @@ service cron status
 service ntpd status
 ntpd: unrecognized service 
 
-========================================
+================================================================================
 TTY DATA
-----------------------------------------
+--------------------------------------------------------------------------------
 
-----------------------------------------
+========================================
 What is the TTY major number of your Unix?
 ----------------------------------------
 
@@ -2747,15 +3230,15 @@ The devfs pseudo-filesystem on FreeBSD, conventionally mounted at /dev, does not
 So device number cannot be used as a shortcut for isatty().
 
 
-----------------------------------------
+========================================
 What is the difference between ttys0, ttyUSB0 and ttyAMA0 in Linux?
 ----------------------------------------
 
 https://unix.stackexchange.com/questions/307390/what-is-the-difference-between-ttys0-ttyusb0-and-ttyama0-in-linux/307394
 
------------------------
+----------------------------------------
 ttyS0
------------------------
+----------------------------------------
 
 What you get on the host when you connect to target with this:
 
@@ -2773,9 +3256,9 @@ and then computer 2 would reply with the login prompt, and then you can log in f
 
 So this is a bit like SSH and can be seen as an early form of networking. I think those cables cannot be too long or else the signal is lost though, and you can't do as much without the TCP/IP addressing/packet mechanisms.
 
------------------------
+----------------------------------------
 ttyUSB0
------------------------
+----------------------------------------
 
 What you get on host when using something like:
 
@@ -2791,9 +3274,9 @@ And another more integrated RPI connector version of the above:
 
 A concrete RPI example at: https://stackoverflow.com/questions/22054578/how-to-run-a-program-without-an-operating-system/32483545#32483545
 
------------------------
+----------------------------------------
 ttyAMA0
------------------------
+----------------------------------------
 
 An ARM thing as mentioned by Sato.
 
@@ -2807,19 +3290,19 @@ The only interesting Linux kernel hits are under: https://github.com/torvalds/li
 
 [note: this is what raspberry pi uses for bluetooth on at least pi 4, maybe pi 3 too.]
 
------------------------
+----------------------------------------
 ttySAC0
------------------------
+----------------------------------------
 
 Kamil reported that his Samsung Artik 710, so another one for the collection.
 
 ================================================================================
 SECONDARY DATA
---------------------------------------------------------------------------------
+================================================================================
 
-========================================
+================================================================================
 LIVE CD LOGINS
-----------------------------------------
+--------------------------------------------------------------------------------
 
 archex:
 un: exton
@@ -2851,8 +3334,12 @@ un: root
 pw: root 
 linux-solaris cheat sheet: https://wiki.smartos.org/display/DOC/The+Linux-to-SmartOS+Cheat+Sheet
 
-========================================
+================================================================================
 DISTRO DATA
+--------------------------------------------------------------------------------
+
+========================================
+Packages
 ----------------------------------------
 
 You have to use:
@@ -2868,7 +3355,7 @@ to see which the latest version that supports binary packages is.
 
 ================================================================================
 DATA ANALYSIS
---------------------------------------------------------------------------------
+================================================================================
 
 ========================================
 FIND FILE IN *.tar.gz
@@ -2891,10 +3378,14 @@ grep -En '[a-z]\([^(]*%[^)]+\)' pinxi | grep -Ev '(#|sprint|log_data\(|scalar[\(
 
 ================================================================================
 OS DATA
+================================================================================
+
+================================================================================
+BSD DATA
 --------------------------------------------------------------------------------
 
 ========================================
-BSD DATA
+OPENBSD
 ----------------------------------------
 
 ----------------------------------------
@@ -3096,7 +3587,7 @@ drivedata: 0
   k:        125285856        124781920  4.2BSD   2048 16384 12960 # /home
   
 ----------------------------------------
-OpenBSD: Installint to emmc drive
+OpenBSD: Installing to emmc drive
 ----------------------------------------
 
 source:  http://daemonforums.org/showthread.php?t=10867
@@ -3126,354 +3617,4 @@ anything, but they won't be needed again.
 
 * reboot!
 
-----------------------------------------
-bluetooth data [freebsd hccontrol]
-----------------------------------------
 
-https://forums.freebsd.org/threads/how-to-bluetooth.64797/
-
-hccontrol -n ubt0hci inquiry
-Inquiry result, num_responses=1
-Inquiry result #0
-BD_ADDR: 00:1a:7d:da:71:13
-Page Scan Rep. Mode: 0x1
-Page Scan Period Mode: 0x2
-Page Scan Mode: 00
-Class: 0c:01:0c
-Clock offset: 0x1c5c
-Inquiry complete. Status: No error [00]
-
-----------------------------------------
-dmesg data for ram
-----------------------------------------
-
-OpenBSD:
-
--------
-ram:
-
-spdmem0 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-17000 with thermal sensor
-spdmem1 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-17000 with thermal sensor
-
-spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-14200 SO-DIMM
-
-piixpm0 at pci0 dev 20 function 0 "AMD FCH SMBus" rev 0x51: SMI
-iic1 at piixpm0
-spdmem0 at iic1 addr 0x50: 32GB DDR4 SDRAM PC4-25600 SO-DIMM
-
-spdmem0 at iic1 addr 0x50: 32GB DDR4 SDRAM PC4-25600 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
-spdmem1 at iic0 addr 0x52: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
-
-spdmem0 at iic1 addr 0x50: 16GB DDR4 SDRAM PC4-25600 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-10600
-spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600
-spdmem2 at iic0 addr 0x53: 4GB DDR3 SDRAM PC3-12800
-
-spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-spdmem1 at iic0 addr 0x52: 1GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-
-iic0 at ichiic0
-spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-12800 SO-DIMM
-spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
-isa0 at pcib0
-
-spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-8500 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 16GB DDR4 SDRAM PC4-17000
-spdmem1 at iic0 addr 0x51: 16GB DDR4 SDRAM PC4-17000
-spdmem2 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-17000
-spdmem3 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-17000
-
-spdmem0 at iic0 addr 0x50: 16GB DDR4 SDRAM PC4-19200 SO-DIMM
-
-sdtemp0 at iic0 addr 0x18: stts2002
-sdtemp1 at iic0 addr 0x19: stts2002
-sdtemp2 at iic0 addr 0x1a: stts2002
-sdtemp3 at iic0 addr 0x1b: stts2002
-spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem2 at iic0 addr 0x52: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem3 at iic0 addr 0x53: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-
-mem0 at mainbus0
-spdmem0 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
-spdmem1 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
-spdmem2 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
-spdmem3 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
-memc0 at mainbus0: u3 rev 0xb3
-
-sdtemp0 at iic0 addr 0x18: mcp98242
-spdmem0 at iic0 addr 0x50: 1GB DDR3 SDRAM PC3-8500 SO-DIMM with thermal sensor
-spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
-
-sd0 at scsibus1 targ 0 lun 0: <ATA, WDC WD1003FBYX-0, 01.0> naa.50014ee20946ec61
-sd0: 953869MB, 512 bytes/sector, 1953525168 sectors
-ichiic0 at pci0 dev 31 function 3 "Intel 6 Series SMBus" rev 0x04: apic 0 int 19
-iic0 at ichiic0
-sdtemp0 at iic0 addr 0x18: stts2002
-sdtemp1 at iic0 addr 0x19: stts2002
-sdtemp2 at iic0 addr 0x1a: stts2002
-sdtemp3 at iic0 addr 0x1b: stts2002
-spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem1 at iic0 addr 0x51: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem2 at iic0 addr 0x52: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-spdmem3 at iic0 addr 0x53: 4GB DDR3 SDRAM ECC PC3-10600 with thermal sensor
-
-mem0 at mainbus0
-spdmem0 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
-spdmem1 at mem0: 1GB DDR SDRAM non-parity PC3200CL3.0
-spdmem2 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
-spdmem3 at mem0: 256MB DDR SDRAM non-parity PC3200CL2.5
-memc0 at mainbus0: u3 rev 0xb3
-
-spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 8GB DDR4 SDRAM PC4-25600 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 8GB DDR4 SDRAM PC4-25600 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
-spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-10600 SO-DIMM
-
-spdmem0 at iic0 addr 0x52: 16GB DDR4 SDRAM PC4-19200
-spdmem1 at iic0 addr 0x53: 16GB DDR4 SDRAM PC4-19200
-
-spdmem0 at iic0 addr 0x52: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 4GB DDR3 SDRAM PC3-12800 SO-DIMM
-spdmem1 at iic0 addr 0x52: 2GB DDR3 SDRAM PC3-12800 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
-spdmem1 at iic0 addr 0x52: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 1GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-spdmem1 at iic0 addr 0x52: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-
-sdtemp0 at iic0 addr 0x18: mcp98243
-sdtemp1 at iic0 addr 0x19: mcp98243
-sdtemp2 at iic0 addr 0x1a: mcp98243
-sdtemp3 at iic0 addr 0x1b: mcp98243
-spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
-spdmem1 at iic0 addr 0x51: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
-spdmem2 at iic0 addr 0x52: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
-spdmem3 at iic0 addr 0x53: 8GB DDR3 SDRAM ECC PC3-12800 with thermal sensor
-
-spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-spdmem1 at iic0 addr 0x51: 2GB DDR2 SDRAM non-parity PC2-5300CL5 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 2GB DDR2 SDRAM non-parity PC2-6400CL6 SO-DIMM
-
-spdmem0 at iic0 addr 0x50: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
-spdmem1 at iic0 addr 0x52: 4GB DDR4 SDRAM PC4-19200 SO-DIMM
-
-
-spdmem0 at iic0 addr 0x50: 8GB DDR3 SDRAM PC3-10600 SO-DIMM
-spdmem1 at iic0 addr 0x51: 8GB DDR3 SDRAM PC3-10600 SO-DIMM
--------
-nvme:
-
-nvme0 at pci1 dev 0 function 0 vendor "Intel", unknown product 0xfaf0 rev 0x03: msix, NVMe 1.3
-nvme0: INTEL SSDPEKNW010T9, firmware 001C, serial BTNR004318SM1P0B
-scsibus1 at nvme0: 2 targets, initiator 0
-sd0 at scsibus1 targ 1 lun 0: <NVMe, INTEL SSDPEKNW01, 001C>
-sd0: 976762MB, 512 bytes/sector, 2000409264 sectors
-
-nvme0 at pci1 dev 0 function 0 "Samsung SM981/PM981 NVMe" rev 0x00: msix, NVMe 1.3
-nvme0: Samsung SSD 970 EVO Plus 2TB, firmware 2B2QEXM7, serial serialserialserial
-scsibus1 at nvme0: 2 targets, initiator 0
-sd0 at scsibus1 targ 1 lun 0: <NVMe, Samsung SSD 970, 2B2Q>
-sd0: 1907729MB, 512 bytes/sector, 3907029168 sectors
-
-----------------------------------------
-
-NetBSD:
-
-[     1.011873] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
-[     1.011873] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
-
-Mac mini (G4/PowerPC):
-[     1.000000] memory0 at mainbus0: len=128
-[     1.000000] spdmem0 at memory0
-[     1.000000] spdmem0: DDR SDRAM, no parity or ECC, 1GB, 400MHz (PC-3200)
-[     1.000000] spdmem0: 13 rows, 11 cols, 2 ranks, 4 banks/chip, 5.0ns cycle time
-[     1.000000] spdmem0: tAA-tRCD-tRP-tRAS: 2-3-3-8
-[     1.000000] spdmem0: voltage SSTL 2.5V, refresh time 7.8us (self-refreshing)
-
-[     1.037567] spdmem0 at iic0 addr 0x50: 9965745-002.A00G
-[     1.037567] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
-[     1.037567] spdmem0: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
-[     1.037567] spdmem0: 0.750ns cycle time
-[     1.037567] spdmem0: tAA-tRCD-tRP-tRAS: 19-19-19-43
-[     1.037567] spdmem1 at iic0 addr 0x51: 9965745-002.A00G
-[     1.037567] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
-[     1.037567] spdmem1: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
-[     1.037567] spdmem1: 0.750ns cycle time
-[     1.037567] spdmem1: tAA-tRCD-tRP-tRAS: 19-19-19-43
-[     1.037567] spdmem2 at iic0 addr 0x52: 9965745-002.A00G
-[     1.037567] spdmem2: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
-[     1.037567] spdmem2: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
-[     1.037567] spdmem2: 0.750ns cycle time
-[     1.037567] spdmem2: tAA-tRCD-tRP-tRAS: 19-19-19-43
-[     1.037567] spdmem3 at iic0 addr 0x53: 9965745-002.A00G
-[     1.037567] spdmem3: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 2667MHz (PC4-21300)
-[     1.037567] spdmem3: 16 rows, 10 cols, 2 ranks (symmetric), 4 banks/group, 4 bank groups
-[     1.037567] spdmem3: 0.750ns cycle time
-[     1.037567] spdmem3: tAA-tRCD-tRP-tRAS: 19-19-19-43
-
-ryzen 
-[     1.011873] spdmem0 at iic0 addr 0x50: 9ASF2G72AZ-3G2B1
-[     1.011873] spdmem0: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
-[     1.011873] spdmem0: 17 rows, 10 cols, 1 ranks, 4 banks/group, 4 bank groups
-[     1.011873] spdmem0: 0.625ns cycle time
-[     1.011873] spdmem0: tAA-tRCD-tRP-tRAS: 22-22-22-52
-[     1.011873] spdmem1 at iic0 addr 0x51: 9ASF2G72AZ-3G2B1
-[     1.011873] spdmem1: DDR4 SDRAM (DDR4 UDIMM), ECC, temp-sensor, 16GB, 3200MHz (PC4-25600)
-[     1.011873] spdmem1: 17 rows, 10 cols, 1 ranks, 4 banks/group, 4 bank groups
-[     1.011873] spdmem1: 0.625ns cycle time
-[     1.011873] spdmem1: tAA-tRCD-tRP-tRAS: 22-22-22-52
-
-----------------------------------------
-
-FreeBSD:
-
-pci0: <memory, RAM> at device 20.2 (no driver attached)
-
-https://dmesgd.nycbug.org/index.cgi?do=view&id=5990:
-[drm] vm size is 64 GB, 2 levels, block size is 10-bit, fragment size is 9-bit
-amdgpu/tonga_mc.bin: could not load firmware image, error 2
-drmn0: fail (0) to get firmware image with name: amdgpu/tonga_mc.bin
-drmn0: successfully loaded firmware image with mapped name: amdgpu_tonga_mc_bin
-drmn0: VRAM: 8192M 0x000000F400000000 - 0x000000F5FFFFFFFF (8192M used)
-drmn0: GTT: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
-Failed to add WC MTRR for [0xe0000000-0xefffffff]: -22; performance may suffer
-[drm] Detected VRAM RAM=8192M, BAR=256M
-[drm] RAM width 256bits GDDR5
-
-FreeBSD-13.0-BETA4/arm64 GENERIC-MMCCAM on raspberrypi rpi 3Bplus
-
-bcm2835_cpufreq0: ARM 600MHz, Core 250MHz, SDRAM 400MHz, Turbo OFF
-
-drmn0: VRAM: 2048M 0x000000F400000000 - 0x000000F47FFFFFFF (2048M used)
-drmn0: GART: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
-drmn0: AGP: 267419648M 0x000000F800000000 - 0x0000FFFFFFFFFFFF
-Successfully added WC MTRR for [0xe0000000-0xefffffff]: 0; 
-[drm] Detected VRAM RAM=2048M, BAR=256M
-[drm] RAM width 64bits DDR4
-
-[drm] vm size is 262144 GB, 4 levels, block size is 9-bit, fragment size is 9-bit
-drmn0: VRAM: 2048M 0x000000F400000000 - 0x000000F47FFFFFFF (2048M used)
-drmn0: GART: 1024M 0x0000000000000000 - 0x000000003FFFFFFF
-drmn0: AGP: 267419648M 0x000000F800000000 - 0x0000FFFFFFFFFFFF
-Successfully added WC MTRR for [0xe0000000-0xefffffff]: 0; 
-[drm] Detected VRAM RAM=2048M, BAR=256M
-[drm] RAM width 64bits DDR4
-
-
-----------------------------------------
-softraid data
-----------------------------------------
-
-https://man.openbsd.org/softraid.4
-
-Currently softraid supports the following disciplines:
-
-RAID 0
-    A striping discipline. It segments data over a number of chunks to increase performance. RAID 0 does not provide for data loss (redundancy).
-RAID 1
-    A mirroring discipline. It copies data across more than one chunk to provide for data loss. Read performance is increased, though at the cost of write speed. Unlike traditional RAID 1, softraid supports the use of more than two chunks in a RAID 1 setup.
-RAID 5
-    A striping discipline with floating parity across all chunks. It stripes data across chunks and provides parity to prevent data loss of a single chunk failure. Read performance is increased; write performance does incur additional overhead.
-CRYPTO
-    An encrypting discipline. It encrypts data on a single chunk to provide for data confidentiality. CRYPTO does not provide redundancy.
-CONCAT
-    A concatenating discipline. It writes data to each chunk in sequence to provide increased capacity. CONCAT does not provide redundancy.
-RAID 1C
-    A mirroring and encrypting discipline. It encrypts data to provide for data confidentiality and copies the encrypted data across more than one chunk to prevent data loss in case of a chunk failure. Unlike traditional RAID 1, softraid supports the use of more than two chunks in a RAID 1C setup. 
-
-    
-The status of softraid volumes is reported via sysctl(8) such that it can be monitored by sensorsd(8). Each volume has one fourth level node named hw.sensors.softraid0.driveN, where N is a small integer indexing the volume. The format of the volume status is:
-
-value (device), status
-
-The device identifies the softraid volume. The following combinations of value and status can occur:
-
-online, OK
-    The volume is operating normally.
-degraded, WARNING
-    The volume as a whole is operational, but not all of its chunks are. In many cases, using bioctl(8) -R to rebuild the failed chunk is advisable.
-rebuilding, WARNING
-    A rebuild operation was recently started and has not yet completed.
-failed, CRITICAL
-    The device is currently unable to process I/O.
-unknown, UNKNOWN
-    The status is unknown to the system.
-	
-https://marc.info/?l=openbsd-misc&m=145607956104915&w=2
-$ doas bioctl softraid0
-Volume      Status               Size Device
-softraid0 0 Rebuild    12002360033280 sd6     RAID5 35% done
-        0 Rebuild     4000786726912 0:0.0   noencl <sd2a>
-        1 Online      4000786726912 0:1.0   noencl <sd3a>
-        2 Online      4000786726912 0:2.0   noencl <sd4a>
-        3 Online      4000786726912 0:3.0   noencl <sd5a>
-        
-$ doas bioctl softraid0
- Volume      Status               Size Device
- softraid0 0 Degraded    12002360033280 sd6     RAID5
-           0 Offline     4000786726912 0:0.0
-           1 Online      4000786726912 0:1.0   noencl <sd3a>
-           2 Online      4000786726912 0:2.0   noencl <sd4a>
-           3 Online      4000786726912 0:3.0   noencl <sd5a>
-
-http://daemonforums.org/showthread.php?t=4893
-$ sudo bioctl softraid0
-Volume Status Size Device
-softraid0 0 Rebuild 1073684480 sd2 RAID1 70% done
-0 Online 1073684480 0:0.0 noencl <sd0a>
-1 Rebuild 1073684480 0:1.0 noencl <sd1a>
-
-$ sudo bioctl softraid0
-Volume Status Size Device
-softraid0 0 Rebuild 1073684480 sd2 RAID1 70% done
-0 Online 1073684480 0:0.0 noencl <sd0a>
-1 Rebuild 1073684480 0:1.0 noencl <sd1a> 
-
-$ sudo bioctl softraid0
-Volume Status Size Device
-softraid0 0 Rebuild 1073684480 sd2 RAID1 97% done
-0 Online 1073684480 0:0.0 noencl <sd0a>
-1 Rebuild 1073684480 0:1.0 noencl <sd1a>
-
-$ sudo bioctl softraid0
-Volume Status Size Device
-softraid0 0 Online 1073684480 sd2 RAID1
-0 Online 1073684480 0:0.0 noencl <sd0a>
-1 Online 1073684480 0:1.0 noencl <sd1a>
-
-http://daemonforums.org/showthread.php?t=8869
-# bioctl softraid0
-Volume      Status               Size Device  
-softraid0 0 Online       938117554176 sd2     RAID1 
-          0 Online       938117554176 0:0.0   noencl <sd0m>
-          1 Online       938117554176 0:1.0   noencl <sd1m>
-          
-@data = (
-'Volume      Status               Size Device',
-'softraid0 0 Degraded    12002360033280 sd6     RAID5',
-'0 Offline     4000786726912 0:0.0',
-'1 Online      4000786726912 0:1.0   noencl <sd3a>',
-'2 Online      4000786726912 0:2.0   noencl <sd4a>',
-'3 Online      4000786726912 0:3.0   noencl <sd5a>'
-);
-
-@data = (
-'Volume      Status               Size Device',
-'softraid0 0 Rebuild    12002360033280 sd6     RAID5 35% done',
-'0 Rebuild     4000786726912 0:0.0   noencl <sd2a>',
-'1 Online      4000786726912 0:1.0   noencl <sd3a>',
-'2 Online      4000786726912 0:2.0   noencl <sd4a>',
-'3 Online      4000786726912 0:3.0   noencl <sd5a>',
-);

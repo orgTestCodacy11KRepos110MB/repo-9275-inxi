@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.12';
 my $self_date='2022-02-14';
-my $self_patch='29';
+my $self_patch='30';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -4023,6 +4023,7 @@ sub set_program_values {
 	'razor-session' => ['^razor',0,'0','Razor-Qt',0,1,0,'',''],
 	'ratpoison' => ['^ratpoison',2,'--version','Ratpoison',0,1,0,'',''],
 	'river' => ['^river',0,'0','River',0,1,0,'',''], # unverified
+	'rootston' => ['^rootston',0,'0','rootston',0,1,0,'',''], # unverified, wlroot ref
 	'rustland' => ['^rustland',0,'0','rustland',0,1,0,'',''], # unverified
 	'sawfish' => ['^sawfish',3,'--version','Sawfish',0,1,0,'',''],
 	'scrotwm' => ['^scrotwm.*welcome.*',5,'-v','scrotwm',0,1,1,'',''],
@@ -5147,7 +5148,7 @@ sub get {
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|elbrus|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
 			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|swaymsg|sysctl|';
-			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wlr-randr|xorg-log|xrandr';
+			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wl-info|wlr-randr|xorg-log|xrandr';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -6422,6 +6423,7 @@ sub set_konvi_data {
 sub clean {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or '' or undefined
+	$item = clean_unset($item);
 	# note: |nee trips engineering, but I don't know why nee was filtered
 	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
@@ -14217,7 +14219,7 @@ sub interface_vesa_output {
 ## DISPLAY DATA WAYLAND ##
 sub display_data_wayland {
 	eval $start if $b_log;
-	my ($b_skip_advanced,$program);
+	my ($b_skip_pos,$program);
 	if ($ENV{'WAYLAND_DISPLAY'}){
 		$graphics{'display-id'} = $ENV{'WAYLAND_DISPLAY'};
 		# return as wayland-0 or 0?
@@ -14227,18 +14229,200 @@ sub display_data_wayland {
 	($program = main::check_program('swaymsg')))){
 		display_data_swaymsg($program);
 	}
+	# until we get data proving otherwise, assuming these have same output
+	elsif ($fake{'wl-info'} || (($program = main::check_program('wayland-info')) || 
+	($program = main::check_program('weston-info')))){
+		display_data_wlinfo($program);
+	}
 	elsif ($fake{'wlr-randr'} || ($program = main::check_program('wlr-randr'))){
 		display_data_wlrrandr($program);
 	}
-	if (!$b_wayland_data && $monitor_ids){
-		$b_skip_advanced = check_monitor_ids();
+	if ($monitor_ids){
+		$b_skip_pos = check_monitor_ids();
 	}
-	if ($extra > 1 && $b_wayland_data && !$b_skip_advanced){
+	if ($extra > 1 && $b_wayland_data){
 		# map_monitor_ids([keys %$monitors]); # not required, but leave in case.
-		wayland_data_advanced();
+		wayland_data_advanced($b_skip_pos);
 	}
 	print 'Wayland monitors: ', Data::Dumper::Dumper $monitor_ids if $dbg[17];
 	main::log_data('dump','$monitor_ids',$monitor_ids) if $b_log;
+	eval $end if $b_log;
+}
+# if we didn't get explicit tool for wayland data, check to see if we got most 
+# of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
+# the data, in that case, all we get from xrandr would be the position, which is
+# nice but not a must-have. We've already cleared out all disabled ports.
+# The secondary check determines if we send data to wayland_data_advanced. Since
+# that requires pos-x/pos-y to do anything, no point if we did not get those for
+# all the monitors found.
+sub check_monitor_ids {
+	eval $start if $b_log;
+	my ($b_skip_pos);
+	# we need these 4 items to construct the grid rectangle
+	foreach my $key (keys %$monitor_ids){
+		if (!defined $monitor_ids->{$key}{'pos-x'} ||
+		!defined $monitor_ids->{$key}{'pos-y'}){
+			$b_skip_pos = 1;
+		}
+	}
+	eval $end if $b_log;
+	return $b_skip_pos;
+}
+# Get Display rect size for > 1 monitors
+sub wayland_data_advanced {
+	eval $start if $b_log;
+	my ($b_skip_pos) = @_;
+	my (%x_pos,%y_pos);
+	my ($x_max,$y_max) = (0,0);
+	my @keys = keys %$monitor_ids;
+	foreach my $key (@keys){
+		if (!$b_skip_pos){
+			$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
+			$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
+			# if no tool, we didn't get this data, oh well.
+			if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
+				$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
+			}
+			if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
+				$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
+			}
+		}
+		# this means we failed to get EDID real data, and are using just the wayland 
+		# tool to get this info, eg. with BSD without compositor data.
+		if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'} &&
+		(!$monitor_ids->{$key}{'size-x-i'} || !$monitor_ids->{$key}{'size-y-i'} ||
+		!$monitor_ids->{$key}{'dpi'} || !$monitor_ids->{$key}{'diagonal'})){
+			my $size_x = $monitor_ids->{$key}{'size-x'};
+			my $size_y = $monitor_ids->{$key}{'size-y'};
+			$monitor_ids->{$key}{'size-x-i'} = sprintf("%.1f", ($size_x/25.4));
+			$monitor_ids->{$key}{'size-y-i'} = sprintf("%.1f", ($size_y/25.4));
+			if ($monitor_ids->{$key}{'res-x'}){
+				my $res_x = $monitor_ids->{$key}{'res-x'};
+				$monitor_ids->{$key}{'dpi'} = sprintf("%.0f", $res_x * 25.4 / $size_x);
+				$monitor_ids->{$key}{'diagonal'} = sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) + 0;
+				$monitor_ids->{$key}{'diagonal-m'} = sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)));
+			}
+		}
+	}
+	if (!$b_skip_pos){
+		if (scalar @keys > 1 && %x_pos && %y_pos){
+			my ($x,$y) = (0,0);
+			foreach (keys %x_pos){$x += $x_pos{$_}}
+			foreach (keys %y_pos){$y += $y_pos{$_}}
+			# handle cases with one tall portrait mode > 2 short landscapes, etc.
+			$x = $x_max if $x_max > $x;
+			$y = $y_max if $y_max > $y;
+			$graphics{'display-rect'} = $x . 'x' . $y;
+		}
+		my $layouts = [];
+		set_monitor_layouts($layouts);
+		# only update position, we already have all the rest of the data
+		advanced_monitor_data($monitor_ids,$layouts);
+		undef $layouts;
+	}
+	eval $end if $b_log;
+}
+
+## WAYLAND COMPOSITOR DATA TOOLS ##
+
+# NOTE: These patterns are VERY fragile, and depend on no changes at all to 
+# the data structure, and more important, the order. Something I would put 
+# almost no money on being able to count on.
+sub display_data_wlinfo {
+	eval $start if $b_log;
+	my ($program) = @_;
+	my (@data,%mon,@temp,$ref);
+	my ($b_iwlo,$b_izxdg,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
+	if (!$fake{'wl-info'}){
+		@data = main::grabber("$program 2>/dev/null",'','strip');
+	}
+	else {
+		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/weston-info-2-mon-1.txt";
+		@data = main::reader($file,'strip');
+	}
+	undef $monitor_ids;
+	print 'wayland/weston-info raw: ', Data::Dumper::Dumper \@data if $dbg[46]; 
+	main::log_data('dump','@data', \@data) if $b_log;
+	foreach (@data){
+		# print 'l: ', $_,"\n";
+		if (/^interface: 'wl_output', version: \d+, name: (\d+)$/){
+			$b_iwlo = 1;
+			$id = $1;
+		}
+		elsif (/^interface: 'zxdg_output/){
+			$b_izxdg = 1;
+			$b_iwlo = 0;
+		}
+		if ($b_iwlo){
+			if (/^x: (\d+), y: (\d+), scale: ([\d\.]+)/){
+				$mon{$id}->{'pos-x'} = $1;
+				$mon{$id}->{'pos-y'} = $2;
+				$mon{$id}->{'scale'} = $3;
+			}
+			elsif (/^physical_width: (\d+) mm, physical_height: (\d+) mm/){
+				$mon{$id}->{'size-x'} = $1 if $1; # can be 0 if edid data n/a
+				$mon{$id}->{'size-y'} = $2 if $2; # can be 0 if edid data n/a
+			}
+			elsif (/^make: '([^']+)', model: '([^']+)'/){
+				my $make = main::clean($1);
+				my $model = main::clean($2);
+				$mon{$id}->{'model'} = $make;
+				if ($make && $model){
+					$mon{$id}->{'model'} = $make . ' ' . $model;
+				}
+				elsif ($model) {
+					$mon{$id}->{'model'} = $model;
+				}
+				elsif ($make) {
+					$mon{$id}->{'model'} = $make;
+				}
+			}
+			elsif (/^width: (\d+) px, height: (\d+) px, refresh: ([\d\.]+) Hz,/){
+				$mon{$id}->{'res-x'} = $1;
+				$mon{$id}->{'res-y'} = $2;
+				$mon{$id}->{'hz'} = sprintf('%.0f',$3);
+			}
+		}
+		elsif ($b_izxdg){
+			if (/^output: (\d+)/){
+				$id = $1;
+			}
+			elsif (/^name: '([^']+)'$/){
+				$mon{$id}->{'monitor'} = $1;
+			}
+			elsif (/^logical_x: (\d+), logical_y: (\d+)/){
+				$mon{$id}->{'pos-x'} = $1;
+				$mon{$id}->{'pos-y'} = $2;
+			}
+			elsif (/^logical_width: (\d+), logical_height: (\d+)/){
+				$mon{$id}->{'log-x'} = $1;
+				$mon{$id}->{'log-y'} = $2;
+			}
+		}
+		if ($b_izxdg && /^interface: '(?!zxdg_output)/){
+			last;
+		}
+	}
+	# now we need to map %mon back to $monitor_ids
+	if (%mon){
+		$b_wayland_data = 1;
+		foreach my $key (keys %mon){
+			next if !$mon{$key}->{'monitor'}; # no way to know what it is, sorry
+			$id = $mon{$key}->{'monitor'};
+			$monitor_ids->{$id}{'monitor'} = $id;
+ 			$monitor_ids->{$id}{'log-x'} = $mon{$key}->{'log-x'} if defined $mon{$key}->{'log-x'};
+			$monitor_ids->{$id}{'log-y'} = $mon{$key}->{'log-y'} if defined $mon{$key}->{'log-y'};
+			$monitor_ids->{$id}{'res-x'} = $mon{$key}->{'res-x'} if defined $mon{$key}->{'res-x'};
+			$monitor_ids->{$id}{'res-y'} = $mon{$key}->{'res-y'} if defined $mon{$key}->{'res-y'};
+			$monitor_ids->{$id}{'size-x'} = $mon{$key}->{'size-x'} if defined $mon{$key}->{'size-x'};
+			$monitor_ids->{$id}{'size-y'} = $mon{$key}->{'size-y'} if defined $mon{$key}->{'size-y'};
+			$monitor_ids->{$id}{'hz'} = $mon{$key}->{'hz'} if defined $mon{$key}->{'hz'};
+			$monitor_ids->{$id}{'model'} = $mon{$key}->{'model'} if defined $mon{$key}->{'model'};
+		}
+	}
+	print '%mon: ', Data::Dumper::Dumper \%mon if $dbg[46]; 
+	main::log_data('dump','%mon', \%mon) if $b_log;
+	print 'wayland/weston-info: monitor_ids: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
 }
 # note; since not all systems will have /sys data, we'll repack it if it's 
@@ -14319,6 +14503,7 @@ sub display_data_swaymsg {
 		}
 		push(@temp,'~~') if @temp;
 		@data = @temp;
+		$b_wayland_data = 1 if scalar @data > 0;
 		foreach (@data){
 			if ($_ eq '~~' && $id){
 				$monitor_ids->{$id}{'hz'} = $hz;
@@ -14371,6 +14556,7 @@ sub display_data_wlrrandr {
 	}
 	push(@temp,'~~') if @temp;
 	@data = @temp;
+	$b_wayland_data = 1 if scalar @data > 0;
 	print 'wlr-randr: ', Data::Dumper::Dumper \@data if $dbg[46]; 
 	main::log_data('dump','@data', \@data) if $b_log;
 	foreach (@data){
@@ -14404,81 +14590,6 @@ sub display_data_wlrrandr {
 		}
 	}
 	print 'wlr-randr: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
-	eval $end if $b_log;
-}
-# if we didn't get explicit tool for wayland data, check to see if we got most 
-# of the data from /sys/class/drm edid and then skip xrandr to avoid gunking up 
-# the data, in that case, all we get from xrandr would be the position, which is
-# nice but not a must-have. We've already cleared out all disabled ports.
-# The secondary check determines if we send data to wayland_data_advanced. Since
-# that requires pos-x/pos-y to do anything, no point if we did not get those for
-# all the monitors found.
-sub check_monitor_ids {
-	eval $start if $b_log;
-	my ($b_invalid,$b_skip_advanced);
-	# we need these 4 items to construct the grid rectangle
-	foreach my $key (keys %$monitor_ids){
-		if (!$monitor_ids->{$key}{'size-x'} || !$monitor_ids->{$key}{'size-y'} ||
-		!$monitor_ids->{$key}{'res-x'} || !$monitor_ids->{$key}{'res-y'}){
-			$b_invalid = 1;
-		}
-		# invalid skips advanced by definition
-		elsif (!defined $monitor_ids->{$key}{'pos-x'} ||
-		!defined $monitor_ids->{$key}{'pos-y'}){
-			$b_skip_advanced = 1;
-		}
-	}
-	$b_wayland_data = 1 if !$b_invalid;
-	eval $end if $b_log;
-	return $b_skip_advanced;
-}
-# Get Display rect size for > 1 monitors
-sub wayland_data_advanced {
-	eval $start if $b_log;
-	my (%x_pos,%y_pos);
-	my ($x_max,$y_max) = (0,0);
-	my @keys = keys %$monitor_ids;
-	foreach my $key (@keys){
-		$x_max = $monitor_ids->{$key}{'res-x'} if $monitor_ids->{$key}{'res-x'} > $x_max;
-		$y_max = $monitor_ids->{$key}{'res-y'} if $monitor_ids->{$key}{'res-y'} > $y_max;
-		# if no tool, we didn't get this data, oh well.
-		if (!defined $x_pos{$monitor_ids->{$key}{'pos-x'}}){
-			$x_pos{$monitor_ids->{$key}{'pos-x'}} = $monitor_ids->{$key}{'res-x'};
-		}
-		if (!defined $y_pos{$monitor_ids->{$key}{'pos-y'}}){
-			$y_pos{$monitor_ids->{$key}{'pos-y'}} += $monitor_ids->{$key}{'res-y'};
-		}
-		# this means we failed to get EDID real data, and are using just the wayland 
-		# tool to get this info, eg. with BSD without compositor data.
-		if ($monitor_ids->{$key}{'size-x'} && $monitor_ids->{$key}{'size-y'} &&
-		(!$monitor_ids->{$key}{'size-x-i'} || !$monitor_ids->{$key}{'size-y-i'} ||
-		!$monitor_ids->{$key}{'dpi'} || !$monitor_ids->{$key}{'diagonal'})){
-			my $size_x = $monitor_ids->{$key}{'size-x'};
-			my $size_y = $monitor_ids->{$key}{'size-y'};
-			$monitor_ids->{$key}{'size-x-i'} = sprintf("%.1f", ($size_x/25.4));
-			$monitor_ids->{$key}{'size-y-i'} = sprintf("%.1f", ($size_y/25.4));
-			if ($monitor_ids->{$key}{'res-x'}){
-				my $res_x = $monitor_ids->{$key}{'res-x'};
-				$monitor_ids->{$key}{'dpi'} = sprintf("%.0f", $res_x * 25.4 / $size_x);
-				$monitor_ids->{$key}{'diagonal'} = sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) + 0;
-				$monitor_ids->{$key}{'diagonal-m'} = sprintf("%.0f", (sqrt($size_x**2 + $size_y**2)));
-			}
-		}
-	}
-	if (scalar @keys > 1 && %x_pos && %y_pos){
-		my ($x,$y) = (0,0);
-		foreach (keys %x_pos){$x += $x_pos{$_}}
-		foreach (keys %y_pos){$y += $y_pos{$_}}
-		# handle cases with one tall portrait mode > 2 short landscapes, etc.
-		$x = $x_max if $x_max > $x;
-		$y = $y_max if $y_max > $y;
-		$graphics{'display-rect'} = $x . 'x' . $y;
-	}
-	my $layouts = [];
-	set_monitor_layouts($layouts);
-	# only update position, we already have all the rest of the data
-	advanced_monitor_data($monitor_ids,$layouts);
-	undef $layouts;
 	eval $end if $b_log;
 }
 
@@ -15788,18 +15899,6 @@ sub get {
 			}
 		}
 	}
-	elsif ($fake{'elbrus'} || $cpu_arch eq 'elbrus'){
-		if ($fake{'elbrus'} || (my $program = main::check_program('fruid_print'))){
-			%data = machine_data_fruid($program);
-		}
-		if (%data){
-			@rows = machine_output(\%data);
-		}
-		elsif (!$key1){
-			$key1 = 'Message';
-			$val1 = main::message('machine-data-fruid');
-		}
-	}
 	elsif (-d '/sys/class/dmi/id/'){
 		%data = machine_data_sys();
 		if (%data){
@@ -15815,7 +15914,18 @@ sub get {
 			}
 		}
 	}
-	
+	elsif ($fake{'elbrus'} || $cpu_arch eq 'elbrus'){
+		if ($fake{'elbrus'} || (my $program = main::check_program('fruid_print'))){
+			%data = machine_data_fruid($program);
+		}
+		if (%data){
+			@rows = machine_output(\%data);
+		}
+		elsif (!$key1){
+			$key1 = 'Message';
+			$val1 = main::message('machine-data-fruid');
+		}
+	}
 	elsif (!$bsd_type){
 		# this uses /proc/cpuinfo so only GNU/Linux
 		if (%risc){
@@ -27834,9 +27944,10 @@ sub set_ps_gui {
 		dwc dwl epd-wm fireplace feathers fenestra glass gamescope greenfield grefson 
 		hikari hopalong inaban japokwm kiwmi kwinft  labwc laikawm lipstick liri 
 		mahogany marina maze motorcar newm nucleus orbital perceptia phoc pywm qtile 
-		river rustland simulavr skylight sommelier sway swc swvkc tabby taiwins 
-		tinybox tinywl trinkster velox vimway vivarium wavy waybox way-?cooler 
-		wayfire wayhouse waymonad westeros westford weston wio\+? wxr[cd] xuake));
+		river rootston rustland simulavr skylight sommelier sway swc swvkc 
+		tabby taiwins tinybox tinywl trinkster velox vimway vivarium 
+		wavy waybox way-?cooler wayfire wayhouse waymonad westeros westford 
+		weston wio\+? wxr[cd] xuake));
 		$matches .= $wl_compositors;
 	}
 	foreach (@ps_cmd){
