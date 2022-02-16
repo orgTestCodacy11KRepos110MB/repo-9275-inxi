@@ -49,7 +49,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.12';
 my $self_date='2022-02-15';
-my $self_patch='31';
+my $self_patch='32';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -1848,7 +1848,7 @@ sub display_data {
 	push(@files, $system_files{'xorg-log'}) if $system_files{'xorg-log'};
 	push(@files, '/etc/X11/xorg.conf');
 	copy_files(\@files,'display-xorg');
-	print "Collecting X, xprop, glxinfo, xrandr, xdpyinfo data, wayland, weston...\n";
+	print "Collecting X, xprop, glxinfo, xrandr, xdpyinfo data, Wayland info...\n";
 	%data = (
 	'desktop-session' => $ENV{'DESKTOP_SESSION'},
 	'gdmsession' => $ENV{'GDMSESSION'},
@@ -5546,8 +5546,8 @@ sub show_options {
 	(except -J, -W) plus --swap, -s and -n. Does not show extra verbose options 
 	such as -d -f -i -J -l -m -o -p -r -t -u -x, unless specified."],
 	['1', '-G', '--graphics', "Graphics info (devices(s), drivers, display 
-	protocol (if available), display server/Wayland compositor, resolution, 
-	renderer, OpenGL version)."],
+	protocol (if available), display server/Wayland compositor, resolution, X.org: 
+	renderer, OpenGL version; Xvesa: VBE info."],
 	['1', '-i', '--ip', "WAN IP address and local interfaces (requires ifconfig 
 	or ip network tool). Triggers -n. Not shown with -F for user security reasons. 
 	You shouldn't paste your local/WAN IP."],
@@ -5702,7 +5702,7 @@ sub show_options {
 	verbose or line output, not short form); check man page for explanations!; 
 	also sets --extra=3:"],
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
-	for device(s)."],
+	for device(s); PCIe lanes-max: gen, speed, lanes (if relevant)."],
 	['2', '-C', '', "If available: CPU socket type, base/boost speeds 
 	(dmidecode+root/sudo/doas required); Full topology line, with cores, threads,
 	threads per core, granular cache data, smt status; CPU vulnerabilities (bugs);
@@ -5712,10 +5712,9 @@ sub show_options {
 	family; maj:min, USB drive specifics; SMART report."],
 	['2', '-E', '', "If available: in Report:, adds Info: line: acl-mtu, 
 	sco-mtu, link-policy, link-mode, service-classes."],
-	['2', '-G', '', "If available: Xorg Display ID, Screens total, default Screen,
-	current Screen; per X Screen: resolution, dpi, size, diagonal; per Monitor: 
-	ID, position, model, resolution, hz, dpi, size, diagonal; list of alternate
-	kernel modules/drivers for device(s)."],
+	['2', '-G', '', "PCIe lanes-max: gen, speed, lanes (if relevant); list of 
+	alternate kernel modules/drivers for device(s) (if available); Monitor built 
+	year, gamma, screen ratio (if available)."],
 	['2', '-I', '', "As well as per package manager counts, also adds total
 	number of lib files found for each package manager if not -r; adds init
 	service tool."],
@@ -5724,7 +5723,7 @@ sub show_options {
 	['2', '-L', '', "LV, Crypto, devices, components: add maj:min; show
 	full device/components report (speed, mapped names)."],
 	['2', '-n,-N', '', "If available: list of alternate kernel modules/drivers 
-	for device(s)."],
+	for device(s); PCIe lanes-max: gen, speed, lanes (if relevant)."],
 	['2', '-o', '', "If available: maj:min of device."],
 	['2', '-p,-P', '', "If available: raw size of ${partition_string}s, maj:min, 
 	percent available for user, block size of file system (root required)."],
@@ -5753,9 +5752,9 @@ sub show_options {
 	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp"],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
 	LMP version."],
-	['2', '-G', '', "Specific vendor/product information (if relevant); 
-	PCI/USB ID of device; Direct rendering status (in X); Screen 
-	number GPU is running on (Nvidia only)."],
+	['2', '-G', '', "Specific vendor/product information (if relevant); PCI/USB ID 
+	of device; Direct rendering status (in X); Screen number GPU is running on 
+	(Nvidia only)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
 	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
@@ -5790,16 +5789,20 @@ sub show_options {
 	['0', '', '', ''],
 	['1', '-xx', '--extra 2', "Show extra, extra data (only works with verbose 
 	or line output, not short form):"],
-	['2', '-A', '', "Chip vendor:product ID for each audio device."],
+	['2', '-A', '', "Chip vendor:product ID for each audio device; PCIe speed,
+	lanes (if found)."],
 	['2', '-B', '', "Serial number."],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available); disk duid (some BSDs)."],
-	['2', '-E', '', "Chip vendor:product ID, LMP subversion."],
+	['2', '-E', '', "Chip vendor:product ID, LMP subversion; PCIe speed, lanes 
+	(if found)."],
 	['2', '-G', '', "Chip vendor:product ID for each video device; Output ports, 
-	used and empty; OpenGL compatibility version, if free drivers and available; 
-	Xorg compositor; alternate Xorg drivers (if available). Alternate means driver 
-	is on automatic driver check list of Xorg for the device vendor, but is not 
-	installed on system; Xorg dpi."],
+	used and empty; PCIe speed, lanes (if found); Xorg: OpenGL compatibility 
+	version, if free drivers and available; Xorg compositor; alternate Xorg 
+	drivers (if available. Alternate means driver is on automatic driver check 
+	list of Xorg for the device vendor, but is not installed on system); Xorg 
+	Screen data: ID, s-res, dpi;  Monitors: ID, position (if > 1), resolution, 
+	dpi, model, diagonal."],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found). Adds per package manager
@@ -5812,7 +5815,7 @@ sub show_options {
 	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double 
 	bank (if found)."],
 	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available."],
-	['2', '-N', '', "Chip vendor:product ID."],
+	['2', '-N', '', "Chip vendor:product ID; PCIe speed, lanes (if found)."],
 	['2', '-r', '', "Packages, see -Ixx."],
 	['2', '-R', '', "md-raid: Superblock (if present), algorithm. If resync, 
 	shows progress bar. Hardware RAID Chip vendor:product ID."],
@@ -5839,7 +5842,8 @@ sub show_options {
 	['2', '-D', '', "Firmware rev. if available; partition scheme, in some cases; 
 	disk type, rotation rpm (if available)."],
 	['2', '-E', '', "Serial number, class ID, HCI version and revision."],
-	['2', '-G', '', "Serial number, class ID."],
+	['2', '-G', '', "Device serial number, class ID; Xorg Screen size, diag; 
+	Monitors: hz, size, modes:, serial, modes (max/min)."],
 	['2', '-I', '', "For 'Shell:' adds ([doas|su|sudo|login]) to shell name if 
 	present; adds default shell+version if different; for 'running in:' adds (SSH)
 	if SSH session; adds wakeups: (from suspend) to Uptime."],
@@ -13784,7 +13788,7 @@ sub display_output(){
 		if ($extra > 1 && $graphics{'display-rect'}){
 			$row[0]->{main::key($num++,0,2,'d-rect')} = $graphics{'display-rect'};
 		}
-		if ($b_admin){
+		if ($extra > 1){
 			if (defined $graphics{'display-id'}){
 				$row[0]->{main::key($num++,0,2,'display-ID')} = $graphics{'display-id'};
 			}
@@ -13797,7 +13801,7 @@ sub display_output(){
 			}
 		}
 		if ($graphics{'no-screens'}){
-			my $res = ($extra > 1) ? 'screens' : 'resolution';
+			my $res = ($extra > 1) ? 'note' : 'resolution';
 			$row[0]->{main::key($num++,0,2,$res)} = $graphics{'no-screens'};
 		}
 		elsif ($graphics{'screens'}){
@@ -13828,7 +13832,7 @@ sub display_output(){
 					if ($main->{'s-dpi'} && (!$show{'graphic-basic'} || $extra > 1)){
 						$row[$j]->{main::key($num++,0,3,'s-dpi')} = $main->{'s-dpi'};
 					}
-					if (!$show{'graphic-basic'} && $b_admin){
+					if (!$show{'graphic-basic'} && $extra > 2){
 						if ($main->{'size-missing'}){
 							$row[$j]->{main::key($num++,0,3,'s-size')} = $main->{'size-missing'};
 						}
@@ -13934,7 +13938,7 @@ sub monitors_output_full {
 		if ($monitors->{$key}{'model'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'model')} = $monitors->{$key}{'model'};
 		}
-		if ($b_admin && $monitors->{$key}{'serial'}){
+		if ($extra > 2 && $monitors->{$key}{'serial'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
 		}
 		if ($b_admin && $monitors->{$key}{'build-date'}){
@@ -13971,7 +13975,7 @@ sub monitors_output_full {
 		if ($extra > 2 && $monitors->{$key}{'scale'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'scale')} = $monitors->{$key}{'scale'};
 		}
-		if ($b_admin && $monitors->{$key}{'size-x'} && $monitors->{$key}{'size-y'}){
+		if ($extra > 2 && $monitors->{$key}{'size-x'} && $monitors->{$key}{'size-y'}){
 			my $size =  $monitors->{$key}{'size-x'} . 'x' . $monitors->{$key}{'size-y'} .
 			'mm ('. $monitors->{$key}{'size-x-i'} . 'x' . $monitors->{$key}{'size-y-i'} . '")';
 			$$row[$j]->{main::key($$num++,0,$m2,'size')} = $size;
@@ -13981,7 +13985,7 @@ sub monitors_output_full {
 			$$row[$j]->{main::key($$num++,0,$m2,'diag')} = $diag;
 		}
 		elsif ($b_display && !$b_no_size && !$monitors->{$key}{'size-x'} && 
-		!$monitors->{$key}{'size-x'}){
+		!$monitors->{$key}{'size-y'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'size')} = main::message('monitor-na');;
 		}
 		if ($b_admin && $monitors->{$key}{'ratio'}){
@@ -14597,12 +14601,13 @@ sub wlrrandr_data {
 			($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
 			$b_wayland_data = 1;
 		}
-		# Output VGA-1 '<Unknown> <Unknown> ' (focused)
+		# Output: VGA-1 '<Unknown> <Unknown> ' (focused)
+		# DVI-I-1 'Samsung Electric Company SyncMaster H9NX843762' (focused)
 		# unknown how 'primary' is shown, if it shows in this output
 		if (/^([A-Z]+-[ABID\d-]+)\s['"]/i){
 			$id = $1;
 		}
-		elsif (/^(\d+)x(\d+)\s+px,\s+([\d\.]+)\s+Hz \([^\)]+current\)/i){
+		elsif (/^(\d+)x(\d+)\s+px,\s+([\d\.]+)\s+Hz \([^\)]*?current\)/i){
 			$res_x = $1;
 			$res_y = $2;
 			$hz = sprintf('%.0f',$3) if $3;
