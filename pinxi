@@ -14348,13 +14348,13 @@ sub wlinfo_data {
 	my (@data,%mon,@temp,$ref);
 	my ($b_iwlo,$b_izxdg,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
 	if (!$fake{'wl-info'}){
+		undef $monitor_ids;
 		@data = main::grabber("$program 2>/dev/null",'','strip');
 	}
 	else {
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/weston-info-2-mon-1.txt";
 		@data = main::reader($file,'strip');
 	}
-	undef $monitor_ids if $fake{'wl-info'};
 	print 'wayland/weston-info raw: ', Data::Dumper::Dumper \@data if $dbg[46]; 
 	main::log_data('dump','@data', \@data) if $b_log;
 	foreach (@data){
@@ -14401,6 +14401,8 @@ sub wlinfo_data {
 				$mon{$id}->{'hz'} = sprintf('%.0f',$3);
 			}
 		}
+		# note: we don't want to use the 'description' field because that doesn't
+		# always contain make/model data, sometimes it's: Built-in/Unknown Display
 		elsif ($b_izxdg){
 			if (/^output: (\d+)/){
 				$id = $1;
@@ -14480,6 +14482,7 @@ sub swaymsg_data {
 		}
 	}
 	else {
+		undef $monitor_ids;
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/swaymsg-2-monitor-1.txt";
 		@data = main::reader($file,'strip');
 	}
@@ -14495,13 +14498,14 @@ sub swaymsg_data {
 				if (!$monitor_ids->{$id}{'monitor'}){
 					$monitor_ids->{$id}{'monitor'} = $mon->{'name'};
 				}
+				# we don't want to overwrite good edid model data if we already got it
 				if (!$monitor_ids->{$id}{'model'} && $mon->{'make'}){
 					$monitor_ids->{$id}{'model'} = main::clean($mon->{'make'});
 					if ($mon->{'model'}){
 						$monitor_ids->{$id}{'model'} .= ' ' . main::clean($mon->{'model'});
+						
 					}
-					# includes clean duplicates
-					$monitor_ids->{$id}{'model'} = main::clean_dmi($monitor_ids->{$id}{'model'});
+					$monitor_ids->{$id}{'model'} = main::clean_duplicates($monitor_ids->{$id}{'model'});
 				}
 				if ($monitor_ids->{$id}{'primary'} && 
 				$monitor_ids->{$id}{'primary'} ne 'false'){
@@ -14537,7 +14541,6 @@ sub swaymsg_data {
 		push(@temp,'~~') if @temp;
 		@data = @temp;
 		$b_wayland_data = 1 if scalar @data > 8;
-		undef $monitor_ids if $fake{'swaymsg'};
 		foreach (@data){
 			if ($_ eq '~~' && $id){
 				$monitor_ids->{$id}{'hz'} = $hz;
@@ -14576,6 +14579,7 @@ sub swaymsg_data {
 	eval $end if $b_log;
 }
 # like a basic stripped down swaymsg -t get_outputs -p, less data though
+# This is EXTREMELY LIKELY TO FAIL! Any tiny syntax change will break this.
 sub wlrrandr_data {
 	eval $start if $b_log;
 	my ($program) = @_;
@@ -14585,6 +14589,7 @@ sub wlrrandr_data {
 		@data = main::grabber("$program 2>/dev/null",'','strip');
 	}
 	else {
+		undef $monitor_ids;
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/wlr-randr-2-monitor-1.txt";
 		@data = main::reader($file,'strip');
 	}
@@ -14592,7 +14597,6 @@ sub wlrrandr_data {
 		push(@temp,'~~') if /^([A-Z]+-[ABID\d-]+)\s['"]/i;
 		push(@temp,$_);
 	}
-	undef $monitor_ids if $fake{'wlr-randr'};
 	push(@temp,'~~') if @temp;
 	@data = @temp;
 	$b_wayland_data = 1 if scalar @data > 4;
