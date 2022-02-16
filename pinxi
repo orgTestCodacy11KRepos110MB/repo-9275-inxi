@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-15';
-my $self_patch='32';
+my $self_date='2022-02-16';
+my $self_patch='33';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6428,7 +6428,7 @@ sub clean {
 	my ($item) = @_;
 	return $item if !$item;# handle cases where it was 0 or '' or undefined
 	# note: |nee trips engineering, but I don't know why nee was filtered
-	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
+	$item =~ s/chipset|company|components|computing|computer|corporation|communications|electronics|electrical|electric|gmbh|group|incorporation|industrial|international|\bnee\b|no\sstring|revision|semiconductor|software|technologies|technology|<?unknown>?|ltd\.|<ltd>|\bltd\b|inc\.|<inc>|\binc\b|intl\.|co\.|<co>|corp\.|<corp>|\(tm\)|\(r\)|®|\(rev ..\)|\'|\"|\sinc\s*$|\?//gi;
 	$item =~ s/,|\*/ /g;
 	$item =~ s/^\s+|\s+$//g;
 	$item =~ s/\s\s+/ /g;
@@ -6775,16 +6775,16 @@ sub regex_range {
 	return join('|',@processed);
 }
 
+# Handles duplicates occuring anywhere in string
 sub remove_duplicates {
 	my ($string) = @_;
 	return if !$string;
-	my $holder = '';
-	my (@temp);
+	my (%holder,@temp);
 	foreach (split(/\s+/, $string)){
-		if ($holder ne $_){
+		if (!$holder{lc($_)}){
 			push(@temp, $_);
+			$holder{lc($_)} = 1;
 		}
-		$holder = $_;
 	}
 	$string = join(' ', @temp);
 	return $string;
@@ -10918,8 +10918,10 @@ sub cp_cpu_arch {
 				$arch = 'Core Merom'}
 			elsif ($model =~ /^(15)$/){
 				$arch = 'M Tolapai'} # pentium M system on chip
-			elsif ($model =~ /^(17|1D)$/){
+			elsif ($model =~ /^(1D)$/){
 				$arch = 'Core Penryn'}
+			elsif ($model =~ /^(17)$/){
+				$arch = 'Core Yorkfield'}
 			# had 25 also, but that's westmere, at least for stepping 2
 			elsif ($model =~ /^(1A|1E|1F|2C|2E|2F)$/){
 				$arch = 'Nehalem'}
@@ -14462,7 +14464,7 @@ sub swaymsg_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my (@data,%json,@temp,$ref);
-	my ($b_json,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
+	my ($b_json,$file,$hz,$id,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial);
 	if (!$fake{'swaymsg'}){
 		main::load_json() if !$loaded{'json'};
 		if ($use{'json'}){
@@ -14535,22 +14537,26 @@ sub swaymsg_data {
 		push(@temp,'~~') if @temp;
 		@data = @temp;
 		$b_wayland_data = 1 if scalar @data > 8;
+		undef $monitor_ids if $fake{'swaymsg'};
 		foreach (@data){
 			if ($_ eq '~~' && $id){
 				$monitor_ids->{$id}{'hz'} = $hz;
+				$monitor_ids->{$id}{'model'} = $model if $model;
 				$monitor_ids->{$id}{'monitor'} = $id;
 				$monitor_ids->{$id}{'pos-x'} = $pos_x;
 				$monitor_ids->{$id}{'pos-y'} = $pos_y;
 				$monitor_ids->{$id}{'res-x'} = $res_x;
 				$monitor_ids->{$id}{'res-y'} = $res_y;
 				$monitor_ids->{$id}{'scale'} = $scale;
-				($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
+				$monitor_ids->{$id}{'serial'} = $serial if $serial;
+				($hz,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial) = ();
 				$b_wayland_data = 1;
 			}
 			# Output VGA-1 '<Unknown> <Unknown> ' (focused)
 			# unknown how 'primary' is shown, if it shows in this output
 			if (/^Output (\S+) '([^']+)'/i){
 				$id = $1;
+				($model,$serial) = get_model_serial($2) if $2;
 			}
 			elsif (/^Current mode:\s+(\d+)x(\d+)\s+\@\s+([\d\.]+)\s+Hz/i){
 				$res_x = $1;
@@ -14573,7 +14579,7 @@ sub swaymsg_data {
 sub wlrrandr_data {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
+	my ($file,$hz,$id,$info,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial);
 	my (@data,@temp);
 	if (!$fake{'wlr-randr'}){
 		@data = main::grabber("$program 2>/dev/null",'','strip');
@@ -14586,6 +14592,7 @@ sub wlrrandr_data {
 		push(@temp,'~~') if /^([A-Z]+-[ABID\d-]+)\s['"]/i;
 		push(@temp,$_);
 	}
+	undef $monitor_ids if $fake{'wlr-randr'};
 	push(@temp,'~~') if @temp;
 	@data = @temp;
 	$b_wayland_data = 1 if scalar @data > 4;
@@ -14594,20 +14601,23 @@ sub wlrrandr_data {
 	foreach (@data){
 		if ($_ eq '~~' && $id){
 			$monitor_ids->{$id}{'hz'} = $hz;
+			$monitor_ids->{$id}{'model'} = $model if $model;
 			$monitor_ids->{$id}{'monitor'} = $id;
 			$monitor_ids->{$id}{'pos-x'} = $pos_x;
 			$monitor_ids->{$id}{'pos-y'} = $pos_y;
 			$monitor_ids->{$id}{'res-x'} = $res_x;
 			$monitor_ids->{$id}{'res-y'} = $res_y;
 			$monitor_ids->{$id}{'scale'} = $scale;
-			($hz,$pos_x,$pos_y,$res_x,$res_y,$scale) = ();
+			$monitor_ids->{$id}{'serial'} = $serial if $serial;
+			($hz,$info,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial) = ();
 			$b_wayland_data = 1;
 		}
 		# Output: VGA-1 '<Unknown> <Unknown> ' (focused)
 		# DVI-I-1 'Samsung Electric Company SyncMaster H9NX843762' (focused)
 		# unknown how 'primary' is shown, if it shows in this output
-		if (/^([A-Z]+-[ABID\d-]+)\s['"]/i){
+		if (/^([A-Z]+-[ABID\d-]+)\s([']([^']+)['])?/i){
 			$id = $1;
+			($model,$serial) = get_model_serial($3) if $3;
 		}
 		elsif (/^(\d+)x(\d+)\s+px,\s+([\d\.]+)\s+Hz \([^\)]*?current\)/i){
 			$res_x = $1;
@@ -14624,6 +14634,27 @@ sub wlrrandr_data {
 	}
 	print 'wlr-randr: ', Data::Dumper::Dumper $monitor_ids if $dbg[46];
 	eval $end if $b_log;
+}
+# return model/serial for those horrible string type values we have to process
+# in swaymsg -t get_outputs -p and wlr-randr default output
+sub get_model_serial {
+	eval $start if $b_log;
+	my $info = $_[0];
+	my ($model,$serial);
+	$info = main::clean($info);
+	return if !$info;
+	my @parts = split(/\s+/, $info);
+	# Perl Madness, lol: the last just checks how many integers in string
+	if (scalar @parts > 1 && (length($parts[-1]) > 7) && 
+	(($parts[-1] =~ tr/[0-9]//) > 4)){
+		$serial = pop @parts;
+		$serial = main::clean_dmi($serial); # clears out 0x00000 type non data
+	}
+	# we're assuming that we'll never get a serial without make/model data too.
+	$model = join(' ',@parts) if @parts;
+	$model = main::remove_duplicates($model) if $model && scalar @parts > 1;
+	eval $end if $b_log;
+	return ($model,$serial);
 }
 
 # DISPLAY DATA X.org ##
