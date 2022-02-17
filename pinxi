@@ -48,8 +48,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-16';
-my $self_patch='34';
+my $self_date='2022-02-17';
+my $self_patch='35';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -2957,9 +2957,6 @@ sub check_items {
 	elsif ($type eq 'recommended Perl modules'){
 		@data = qw(File::Copy File::Find File::Spec::Functions HTTP::Tiny IO::Socket::SSL 
 		Time::HiRes JSON::PP Cpanel::JSON::XS JSON::XS XML::Dumper Net::FTP);
-		if (!$bsd_type){
-				push(@data,'Parse::EDID');
-		}
 		if ($bsd_type && $bsd_type eq 'openbsd'){
 			push(@data, qw(OpenBSD::Pledge OpenBSD::Unveil));
 		}
@@ -2974,10 +2971,6 @@ sub check_items {
 		File::Find, and File::Spec::Functions must be present (most distros have 
 		these in Core Modules).
 		";
-		if (!$bsd_type){
-			$extra3 .= ' Parse::EDID gives fantastic Monitor data if /sys/class/drm 
-			edid file available.';
-		}
 	}
 	elsif ($type eq 'recommended kernel modules'){
 		@data = qw(amdgpu drivetemp nouveau);
@@ -3554,13 +3547,6 @@ sub item_data {
 	'apt' => '',
 	'pacman' => '',
 	'rpm' => '',
-	},
-	'Parse::EDID' => {
-	'info' => '-Gxx, -Gxxx, -Ga Monitor data (recommended).',
-	'info-bsd' => 'not supported, requires /sys/class/drm.',
-	'apt' => 'libparse-edid-perl',
-	'pacman' => 'unknown',
-	'rpm' => 'perl-Parse-EDID',
 	},
 	'Time::HiRes' => {
 	'info' => '-C cpu sleep (not required); --debug timers',
@@ -5142,8 +5128,6 @@ sub get {
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
-	'edid' => sub {
-		$force{'edid'} = 1;},
 	'fake:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -5166,7 +5150,7 @@ sub get {
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'colors|cpuinfo|display|dmidecode|edid|hddtemp|lsusb|man|meminfo|';
+			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
 			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|usb-sys|vmstat|wayland|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -15175,21 +15159,13 @@ sub set_monitors_sys {
 	my @ports_glob = main::globber($pattern);
 	# print Data::Dumper::Dumper \@cards_glob;
 	# print Data::Dumper::Dumper \@ports_glob;
-	my ($b_perl_edid,$card,%cards,@data,$edid_prog,$file,$item,$path,$port);
+	my ($card,%cards,@data,$file,$item,$path,$port);
 	foreach $file (@cards_glob){
 		next if ! -e $file;
 		if ($file =~ m|^/sys/class/drm/(card\d+)/.+?/drivers/(\S+):(\S+)$|){
 			push(@{$cards{$1}},[$2,$3]);
 		}
 	}
-	$b_perl_edid = 1;
-# 	if (main::check_perl_module('Parse::EDID')){
-# 		$b_perl_edid = 1;
-# 		Parse::EDID->import();
-# 	}
-# 	else {
-		$edid_prog = main::check_program('parse-edid');
-# 	}
 	# print Data::Dumper::Dumper \%cards;
 	foreach $file (sort @ports_glob){
 		next if ! -r $file;
@@ -15227,7 +15203,7 @@ sub set_monitors_sys {
 		}
 		elsif ($item eq 'edid'){
 			next if -s $file;
-			monitor_edid_data($file,$port,$b_perl_edid,$edid_prog);
+			monitor_edid_data($file,$port);
 		}
 	}
 	main::log_data('dump','$ports ref',$monitor_ids) if $b_log;
@@ -15236,101 +15212,44 @@ sub set_monitors_sys {
 }
 sub monitor_edid_data {
 	eval $start if $b_log;
-	my ($file,$port,$b_perl_edid,$edid_prog) = @_;
+	my ($file,$port) = @_;
 	my (@data);
-	if ($b_perl_edid){
-		open my $fh, '<:raw', $file or die "Can't open file $!";
-		my $edid;
-		my $edid_raw = do { local $/; <$fh> };
-		$edid = ParseEDID::parse_edid($edid_raw) if $edid_raw;
-		main::log_data('dump','Parse::EDID',$edid) if $b_log;
-		print Data::Dumper::Dumper $edid if $dbg[44];
-		return if !$edid;
-		$monitor_ids->{$port}{'build-date'} = $edid->{'year'};
-		if ($edid->{'gamma'}){
-			$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
+	open my $fh, '<:raw', $file or return; # it failed, give up, we don't care why
+	my $edid_raw = do { local $/; <$fh> };
+	return if !$edid_raw;
+	my $edid = ParseEDID::parse_edid($edid_raw);
+	main::log_data('dump','Parse::EDID',$edid) if $b_log;
+	print Data::Dumper::Dumper $edid if $dbg[44];
+	return if !$edid || ref $edid ne 'HASH' || !%$edid;
+	$monitor_ids->{$port}{'build-date'} = $edid->{'year'};
+	if ($edid->{'gamma'}){
+		$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
+	}
+	if ($edid->{'monitor_name'}){
+		$monitor_ids->{$port}{'model'} = main::clean($edid->{'monitor_name'}); 
+	}
+	if ($edid->{'diagonal_size'}){
+		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
+		$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
+	}
+	$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
+	if (!$edid->{'detailed_timings'}){
+		$monitor_ids->{$port}{'res-x'} = $edid->{'detailed_timings'}[0]{'horizontal_active'};
+		$monitor_ids->{$port}{'res-y'} = $edid->{'detailed_timings'}[0]{'vertical_active'};
+		if ($edid->{'detailed_timings'}[0]{'horizontal_image_size'}){
+			$monitor_ids->{$port}{'size-x'} = $edid->{'detailed_timings'}[0]{'horizontal_image_size'};
+			$monitor_ids->{$port}{'size-x-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'horizontal_image_size'}/25.4)) + 0;
 		}
-		if ($edid->{'monitor_name'}){
-			$monitor_ids->{$port}{'model'} = main::clean($edid->{'monitor_name'}); 
+		if ($edid->{'detailed_timings'}[0]{'vertical_image_size'}){
+			$monitor_ids->{$port}{'size-y'} = $edid->{'detailed_timings'}[0]{'vertical_image_size'};
+			$monitor_ids->{$port}{'size-y-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'vertical_image_size'}/25.4)) + 0;
 		}
-		if ($edid->{'diagonal_size'}){
-			$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
-			$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
-		}
-		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
-		if (!$edid->{'detailed_timings'}){
-			$monitor_ids->{$port}{'res-x'} = $edid->{'detailed_timings'}[0]{'horizontal_active'};
-			$monitor_ids->{$port}{'res-y'} = $edid->{'detailed_timings'}[0]{'vertical_active'};
-			if ($edid->{'detailed_timings'}[0]{'horizontal_image_size'}){
-				$monitor_ids->{$port}{'size-x'} = $edid->{'detailed_timings'}[0]{'horizontal_image_size'};
-				$monitor_ids->{$port}{'size-x-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'horizontal_image_size'}/25.4)) + 0;
-			}
-			if ($edid->{'detailed_timings'}[0]{'vertical_image_size'}){
-				$monitor_ids->{$port}{'size-y'} = $edid->{'detailed_timings'}[0]{'vertical_image_size'};
-				$monitor_ids->{$port}{'size-y-i'} = sprintf('%.1f',($edid->{'detailed_timings'}[0]{'vertical_image_size'}/25.4)) + 0;
-			}
-			if ($edid->{'detailed_timings'}[0]{'horizontal_dpi'}){
-				$monitor_ids->{$port}{'dpi'} = sprintf('%.0f',$edid->{'detailed_timings'}[0]{'horizontal_dpi'}) + 0;
-			}
-		}
-		if ($edid->{'serial_number'}){
-			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
+		if ($edid->{'detailed_timings'}[0]{'horizontal_dpi'}){
+			$monitor_ids->{$port}{'dpi'} = sprintf('%.0f',$edid->{'detailed_timings'}[0]{'horizontal_dpi'}) + 0;
 		}
 	}
-	elsif ($edid_prog){
-		@data = main::grabber("cat $file | $edid_prog 2>/dev/null");
-		main::log_data('dump','parse-edid @data',\@data) if $b_log;
-		print 'edid prog read: ', Data::Dumper::Dumper \@data if $dbg[44];
-		@data = map {s/^(\s+(#\s+)?)//;$_} @data;
-		return if !@data;
-		my @working;
-		shift @data;
-		pop @data;
-		foreach (@data){
-			if (/^ModelName "([^"]+)"/){
-				$monitor_ids->{$port}{'model'} = main::clean($1);
-			}
-			elsif (/^Monitor Manufactured .* (\d{4})/){
-				$monitor_ids->{$port}{'build-date'} = $1;
-			}
-			elsif (/^DisplaySize (\d+) (\d+)/){
-				$monitor_ids->{$port}{'size-x'} = $1;
-				$monitor_ids->{$port}{'size-y'} = $2;
-				$monitor_ids->{$port}{'size-x-i'} = sprintf("%.1f", ($1/25.4));
-				$monitor_ids->{$port}{'size-y-i'} = sprintf("%.1f", ($2/25.4));
-			}
-			elsif (/^Gamma ([\d.]+)/){
-				$monitor_ids->{$port}{'gamma'} = ($1 + 0);
-			}
-		}
-	}
-	# NOTE: not using this fallback by default, the data is too unreliable.
-	elsif ($force{'edid'}) {
-		@data = main::reader($file,'strip');
-		print 'edid bin read: ', Data::Dumper::Dumper \@data if $dbg[44];
-		main::log_data('dump','string read @data',\@data) if $b_log;
-		return if !@data;
-		if ($data[1]){
-			# trim off first non ascii characters
-			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
-			# trim off first non ascii characters
-			$monitor_ids->{$port}{'model'} =~ s/^[^[:print:]]+//;
-			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
-			# string was not clean. 
-			if ($monitor_ids->{$port}{'model'} =~ /[@!^&=£°#\[\]]|[^[:print:]]/){
-				delete $monitor_ids->{$port}{'model'};
-			}
-			# print length($monitor_ids->{$port}{'model'}),"\n";
-		}
-		# I don't know what this value actually refers to, sometimes serial
-		if ($data[2]){
-			$monitor_ids->{$port}{'model-info'} = main::clean($data[2]);
-			# trim off first non ascii characters
-			$monitor_ids->{$port}{'model-info'} =~ s/^[^[:print:]]+//;
-			if ($monitor_ids->{$port}{'model-info'} =~ /[@!^&=£°#\[\]]|[^[:print:]]/){
-				delete $monitor_ids->{$port}{'model-info'};
-			}
-		}
+	if ($edid->{'serial_number'}){
+		$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
 	}
 	eval $end if $b_log;
 }
@@ -27781,7 +27700,6 @@ sub count_libs {
 package ParseEDID;
 my @CVT_ratios = qw(5/4 4/3 3/2 16/10 15/9 16/9);
 my @known_ratios = @CVT_ratios;
-
 my @edid_info = _group_by2(
 	a8 => '_header',
 	a2  => 'manufacturer_name',
@@ -27806,7 +27724,6 @@ my @edid_info = _group_by2(
 	C => 'extension_flag',
 	C => 'checksum',
 );
-
 my %subfields = (
 	manufacturer_name => [ _group_by2(
 		1 => '',
@@ -27814,7 +27731,6 @@ my %subfields = (
 		5 => '2',
 		5 => '3',
 	) ],
-
 	video_input_definition => [ _group_by2(
 		1 => 'digital',
 		1 => 'separate_sync',
@@ -27823,7 +27739,6 @@ my %subfields = (
 		2 => '',
 		2 => 'voltage_level',
 	) ],
-
 	feature_support => [ _group_by2(
 		1 => 'DPMS_standby',
 		1 => 'DPMS_suspend',
@@ -27835,7 +27750,6 @@ my %subfields = (
 		1 => 'has_preferred_timing',
 		1 => 'GTF_compliance',
 	) ],
-
 	established_timings => [ _group_by2(
 		1 => '720x400_70',
 		1 => '720x400_88',
@@ -27854,7 +27768,6 @@ my %subfields = (
 		1 => '1024x768_75',
 		1 => '1280x1024_75',
 	) ],
-
 	detailed_timing => [ _group_by2(
 		8 => 'horizontal_active',
 		8 => 'horizontal_blanking',
@@ -27886,7 +27799,6 @@ my %subfields = (
 		1 => 'vertical_sync_positive',
 		1 => '',
 	) ],
-
 	standard_timing => [ _group_by2(
 		8 => 'X',
 		2 => 'aspect',
@@ -27899,7 +27811,6 @@ my %subfields = (
 		8 => 'horizontal_max',
 		8 => 'pixel_clock_max',
 	) ],
-
 	manufacturer_specified_range_timing => [ _group_by2(
 		# http://www.spwg.org/salisbury_march_19_2002.pdf
 		# for the glossary: http://www.vesa.org/Public/PSWG/PSWG15v1.pdf
@@ -27917,18 +27828,15 @@ my %subfields = (
 		8 => 'vertical_blanking_max',
 		8 => 'module_revision',
 	) ],
-	
 	cea_data_block_collection => [ _group_by2(
 		3 => 'type',
 		5 => 'size',
 	) ],
-
 	cea_video_data_block => [ _group_by2(
 		1 => 'native',
 		7 => 'mode',
 	) ],
 );
-
 my @cea_video_mode_to_detailed_timing = (
 	'pixel_clock',
 	'horizontal_active',
@@ -27944,7 +27852,6 @@ my @cea_video_mode_to_detailed_timing = (
 	'vertical_sync_positive',
 	'interlaced'
 );
-
 my @cea_video_modes = (
 # [0] pixel clock, [1] X, [2] Y, [3] aspect, [4] Hblank, [5] Hsync_offset, [6] Hsync_pulse_width,
 # [7] Vblank, [8] Vsync_offset, [9] Vsync_pulse_width, [10] Hsync+, [11] Vsync+, [12] interlaced
@@ -28014,12 +27921,10 @@ my @cea_video_modes = (
 	[ 297.000, 1920, 1080, "16/9",  280,   88,  44,  45,  4,  5, 1, 1, 0 ], # 63: 1920x1080@120.00
 	[ 297.000, 1920, 1080, "16/9",  720,  528,  44,  45,  4, 10, 1, 1, 0 ], # 64: 1920x1080@100.00
 );
-
 sub _within_limit {
 	my ($value, $type, $limit) = @_;
 	$type eq 'min' ? $value >= $limit : $value <= $limit;
 }
-
 sub _get_many_bits {
 	my ($s, $field_name) = @_;
 	my @bits = split('', unpack('B*', $s));
@@ -28031,13 +27936,10 @@ sub _get_many_bits {
 	}
 	\%h;
 }
-
 sub check_parsed_edid {
 	my ($edid) = @_;
-
 	$edid->{edid_version} >= 1 && $edid->{edid_version} <= 2 or return 'bad edid_version';
 	$edid->{edid_revision} != 0xff or return 'bad edid_revision';
-
 	if ($edid->{monitor_range}) {
 		$edid->{monitor_range}{horizontal_min} && 
 		  $edid->{monitor_range}{horizontal_min} <= $edid->{monitor_range}{horizontal_max} 
@@ -28046,13 +27948,10 @@ sub check_parsed_edid {
 		  $edid->{monitor_range}{vertical_min} <= $edid->{monitor_range}{vertical_max} 
 			or return 'bad VertRefresh';
 	}
-
 	'';
 }
-
 sub _build_detailed_timing {
 	my ($pixel_clock, $vv) = @_;
-
 	my $h = _get_many_bits($vv, 'detailed_timing');
 	$h->{pixel_clock} = $pixel_clock / 100; # to have it in MHz
 	my %detailed_timing_field_size = map { $_->[1], $_->[0] } @{$subfields{detailed_timing}};
@@ -28063,10 +27962,8 @@ sub _build_detailed_timing {
 	}
 	$h;
 }
-
 sub _add_standard_timing_modes {
 	my ($edid, $v) = @_;
-
 	my @aspect2ratio = (
 		$edid->{edid_version} > 1 || $edid->{edid_revision} > 2 ? '16/10' : '1/1',
 		'4/3', '5/4', '16/9',
@@ -28085,17 +27982,14 @@ sub _add_standard_timing_modes {
 	} unpack('a2' x (length($v) / 2), $v) ];
 	$v;
 }
-
 sub parse_edid {
 	my ($raw_edid, $verbose) = @_;
-
 	my %edid;
 	my ($main_edid, @eedid_blocks) = unpack("a128" x (length($raw_edid) / 128), $raw_edid);
 	my @vals = unpack(join('', map { $_->[0] } @edid_info), $main_edid);
 	my $i;
 	foreach (@edid_info) {
 		my ($field, $v) = ($_->[1], $vals[$i++]);
-
 		if ($field eq 'year') {
 			$v += 1990;
 		} elsif ($field eq 'manufacturer_name') {
@@ -28117,7 +28011,6 @@ sub parse_edid {
 		} elsif ($field eq 'monitor_details') {
 			while ($v) {
 				(my $pixel_clock, my $vv, $v) = unpack("v a16 a*", $v);
-
 				if ($pixel_clock) {
 					# detailed timing
 					my $h = _build_detailed_timing($pixel_clock, $vv);
@@ -28125,7 +28018,6 @@ sub parse_edid {
 					  if $h->{horizontal_active} > 1 && $h->{vertical_active} > 1;
 				} else {
 					(my $flag, $vv) = unpack("n x a*", $vv);
-
 					if ($flag == 0xfd) {
 						# range
 						$edid{monitor_range} = _get_many_bits($vv, 'monitor_range');
@@ -28136,7 +28028,6 @@ sub parse_edid {
 						}
 					} elsif ($flag == 0xf) {
 						my $range = _get_many_bits($vv, 'manufacturer_specified_range_timing');
-
 						my $e = $edid{detailed_timings}[0];
 						my $valid = 1;
 						foreach my $m ('min', 'max') {
@@ -28163,7 +28054,6 @@ sub parse_edid {
 							}
 						}
 						$edid{$valid ? 'monitor_range' : 'manufacturer_specified_range_timing'} = $range;
-
 					} elsif ($flag == 0xfa) {
 						push @{$edid{standard_timings}}, _add_standard_timing_modes(\%edid, unpack('a12', $vv));
 					} elsif ($flag == 0xfc) {
@@ -28180,20 +28070,15 @@ sub parse_edid {
 				}
 			}
 		}
-
 		$edid{$field} = $v if $field && $field !~ /^_/;
 	}
-
 	foreach (@eedid_blocks) {
 		my ($tag, $v) = unpack("C a*", $_);
-
 		if ($tag == 0x02) { # CEA EDID
 			my $dtd_offset;
 			($dtd_offset, $v) = unpack("x C x a*", $v);
-
 			next if $dtd_offset < 4;
 			$dtd_offset -= 4;
-
 			while ($dtd_offset > 0) {
 				if (!$v) {
 					warn "parse_edid: DTD offset outside of available data\n" if $verbose;
@@ -28201,7 +28086,6 @@ sub parse_edid {
 				}
 				my $h = _get_many_bits($v, 'cea_data_block_collection');
 				$dtd_offset -= $h->{size} + 1;
-
 				my $vv;
 				($vv, $v) = unpack("x a$h->{size} a*", $v);
 				if ($h->{type} == 0x02) { # Video Data Block
@@ -28219,7 +28103,6 @@ sub parse_edid {
 					}
 				}
 			}
-
 			while (length($v) >= 18) {
 				(my $pixel_clock, my $vv, $v) = unpack("v a16 a*", $v);
 				last if !$pixel_clock;
@@ -28231,27 +28114,21 @@ sub parse_edid {
 			$verbose && warn "parse_edid: unknown tag $tag\n";
 		}
 	}
-
 	$edid{max_size_precision} = 'cm';
 	$edid{EISA_ID} = $edid{manufacturer_name} . sprintf('%04x', $edid{product_code}) if $edid{product_code} && $edid{manufacturer_name};
-
 	if ($edid{monitor_range}) {
 		$edid{HorizSync} = $edid{monitor_range}{horizontal_min} . '-' . $edid{monitor_range}{horizontal_max};
 		$edid{VertRefresh} = $edid{monitor_range}{vertical_min} . '-' . $edid{monitor_range}{vertical_max};
 	}
-
 	if ($edid{max_size_vertical}) {
 		$edid{ratio} = $edid{max_size_horizontal} / $edid{max_size_vertical};
 		$edid{ratio_name} = _ratio_name($edid{max_size_horizontal}, $edid{max_size_vertical}, 'cm');
 		$edid{ratio_precision} = 'cm';
 	}
-	
 	if ($edid{feature_support}{has_preferred_timing} && $edid{detailed_timings}[0]) {
 		$edid{detailed_timings}[0]{preferred} = 1;
 	}
-
 	foreach my $h (@{$edid{detailed_timings}}) {
-
 		# EDID standard is ambiguous on how interlaced modes should be
 		# specified; workaround clearly broken modes:
 		if ($h->{interlaced}) {
@@ -28265,7 +28142,6 @@ sub parse_edid {
 				}
 			}
 		}
-
 		# if the mm size given in the detailed_timing is not far from the cm size
 		# put it as a more precise cm size
 		my %in_cm = (
@@ -28283,7 +28159,6 @@ sub parse_edid {
 			$edid{ratio_name} = _ratio_name($in_cm{horizontal}, $in_cm{vertical}, 'mm');
 			$edid{ratio_precision} = 'mm';
 		}
-
 		$h->{bad_ratio} = 1 if
 			$edid{ratio_precision} &&
 			abs($edid{ratio} - $h->{horizontal_active} / $h->{vertical_active}) > ($edid{ratio_precision} eq 'mm' ? 0.02 : 0.2);
@@ -28301,10 +28176,8 @@ sub parse_edid {
 				sprintf("%d dpi", $h->{horizontal_dpi}) :
 				sprintf("%dx%d dpi", $h->{horizontal_dpi}, $h->{vertical_dpi});
 		}
-
 		my $horizontal_total = $h->{horizontal_active} + $h->{horizontal_blanking};
 		my $vertical_total = $h->{vertical_active} + $h->{vertical_blanking};
-
 		no warnings 'uninitialized';
 		$h->{ModeLine_comment} = sprintf qq(# Monitor %s%s modeline (%.1f Hz vsync, %.1f kHz hsync, %sratio %s%s)),
 		  $h->{preferred} ? "preferred" : "supported",
@@ -28315,7 +28188,7 @@ sub parse_edid {
 		  _nearest_ratio($h->{horizontal_active} / $h->{vertical_active}, 0.01) || sprintf("%.2f", $h->{horizontal_active} / $h->{vertical_active}),
 		  $dpi_string ? ", $dpi_string" : '';
 		  
-		$h->{ModeLine} = sprintf qq("%dx%d" $h->{pixel_clock} %d %d %d %d %d %d %d %d %shsync %svsync%s),
+		  $h->{ModeLine} = sprintf qq("%dx%d" $h->{pixel_clock} %d %d %d %d %d %d %d %d %shsync %svsync%s),
 		  $h->{horizontal_active}, $h->{vertical_active},
 
 		  $h->{horizontal_active},
@@ -28332,13 +28205,11 @@ sub parse_edid {
 		  $h->{vertical_sync_positive} ? '+' : '-',
 		  $h->{interlaced} ? ' Interlace' : '';
 	}
-
 	$edid{diagonal_size} = sqrt(_sqr($edid{max_size_horizontal}) + 
 								_sqr($edid{max_size_vertical})) / 2.54;
 
 	\%edid;
 }
-
 sub _nearest_ratio {
 	my ($ratio, $max_error) = @_;
 	my @sorted = 
@@ -28349,10 +28220,8 @@ sub _nearest_ratio {
 		} @known_ratios;
 	$sorted[0][0];
 }
-
 sub _ratio_name {
 	my ($horizontal, $vertical, $precision) = @_;
-	
 	if ($precision eq 'mm') {
 		_nearest_ratio($horizontal / $vertical, 0.1);
 	} else {
@@ -28368,7 +28237,6 @@ sub _ratio_name {
 		}
 	}
 }
-
 sub _edid_from_lines {
 	my (@l) = @_;
 	my $edid_str = join('', map { /\s+([0-9a-f]{32})$/ && $1 } @l);
@@ -28377,10 +28245,8 @@ sub _edid_from_lines {
 	}
 	pack("C*", map { hex($_) } $edid_str =~ /(..)/g);
 }
-
 sub find_edid_in_string {
 	my ($input) = @_;
-
 	my @edids;
 	while ($input =~ /(?:EDID_DATA|: EDID \(in hex\)|EDID):\n((.*\n){8})/g) {
 		push @edids, _edid_from_lines(split '\n', $1);
@@ -28390,7 +28256,6 @@ sub find_edid_in_string {
 	}
 	@edids;
 }
-
 sub _define { defined $_[0] ? $_[0] : 0 }
 sub _sqr { $_[0] * $_[0] }
 sub _round { int($_[0] + 0.5) }
@@ -28401,7 +28266,6 @@ sub _group_by2 {
 	}
 	@l;
 }
-
 }
 
 ## PartitionData - set/get
