@@ -5164,7 +5164,7 @@ sub get {
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
-			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
+			my $wl = 'colors|cpuinfo|display|dmidecode|edid|hddtemp|lsusb|man|meminfo|';
 			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|usb-sys|wayland|vmstat|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -15301,31 +15301,34 @@ sub monitor_edid_data {
 			}
 		}
 	}
-	# NOTE: not using this fallback, the data is too unreliable.
-	# 	else {
-	# 		@data = main::reader($file,'strip');
-	# 		print 'edid bin read: ', Data::Dumper::Dumper \@data if $dbg[44];
-	# 		main::log_data('dump','string read @data',\@data) if $b_log;
-	# 		return if !@data;
-	# 		if ($data[1]){
-	# 			# trim off first non ascii characters
-	# 			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
-	# 			# trim off first non ascii characters
-	# 			$monitor_ids->{$port}{'model'} =~ s/^[^[:print:]]+//;
-	# 			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
-	# 			# string was not clean. 
-	# 			if ($monitor_ids->{$port}{'model'} =~ /[@!^&=£°#\[\]]/){
-	# 				$monitor_ids->{$port}{'model'} = undef;
-	# 			}
-	# 			# print length($monitor_ids->{$port}{'model'}),"\n";
-	# 		}
-	# 		# I don't know what this value actually refers to, sometimes serial
-	# 		if ($data[2]){
-	# 			$monitor_ids->{$port}{'model-info'} = main::clean($data[2]);
-	# 			# trim off first non ascii characters
-	# 			$monitor_ids->{$port}{'model-info'} =~ s/^[^[:print:]]+//;
-	# 		}
-	# 	}
+	# NOTE: not using this fallback by default, the data is too unreliable.
+	elsif ($force{'edid'}) {
+		@data = main::reader($file,'strip');
+		print 'edid bin read: ', Data::Dumper::Dumper \@data if $dbg[44];
+		main::log_data('dump','string read @data',\@data) if $b_log;
+		return if !@data;
+		if ($data[1]){
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model'} = main::clean($data[1]);
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model'} =~ s/^[^[:print:]]+//;
+			# WG'HL!:q8-@X,ESoBrQ n(USoBSONY TV, too many variants, just dump if the
+			# string was not clean. 
+			if ($monitor_ids->{$port}{'model'} =~ /[@!^&=£°#\[\]]|[^[:print:]]/){
+				delete $monitor_ids->{$port}{'model'};
+			}
+			# print length($monitor_ids->{$port}{'model'}),"\n";
+		}
+		# I don't know what this value actually refers to, sometimes serial
+		if ($data[2]){
+			$monitor_ids->{$port}{'model-info'} = main::clean($data[2]);
+			# trim off first non ascii characters
+			$monitor_ids->{$port}{'model-info'} =~ s/^[^[:print:]]+//;
+			if ($monitor_ids->{$port}{'model-info'} =~ /[@!^&=£°#\[\]]|[^[:print:]]/){
+				delete $monitor_ids->{$port}{'model-info'};
+			}
+		}
+	}
 	eval $end if $b_log;
 }
 sub advanced_monitor_data {
