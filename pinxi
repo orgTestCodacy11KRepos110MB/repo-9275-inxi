@@ -2,6 +2,7 @@
 ## infobash: Copyright (C) 2005-2007  Michiel de Boer aka locsmif
 ## inxi: Copyright (C) 2008-2021 Harald Hope
 ##       Additional features (C) Scott Rogers - kde, cpu info
+## Parse::EDID (C):  2005-2010 by Mandriva SA, Pascal Rigaux, Anssi Hannula
 ## Further fixes (listed as known): Horst Tritremmel <hjt at sidux.com>
 ## Steven Barrett (aka: damentz) - usb audio patch; swap percent used patch
 ## Jarett.Stevens - dmidecode -M patch for older systems without /sys machine
@@ -6709,7 +6710,7 @@ sub message {
 	'root-required' => '<superuser required>',
 	'root-suggested' => 'try sudo/root',# gdm only
 	'screen-wayland' => 'no compositor data',
-	'screen-xvesa' => 'N/A for Xvesa',
+	'screen-xvesa' => 'no Xvesa data',
 	'sensors-data-bsd' => "$id sensor data found but not usable.",
 	'sensors-data-bsd-ok' => 'No sensor data found. Are sensors present?',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
@@ -13791,7 +13792,7 @@ sub display_output(){
 			}
 		}
 		if ($graphics{'no-screens'}){
-			my $res = (!$show{'graphic-basic'} && $extra > 1) ? 'note' : 'resolution';
+			my $res = (!$show{'graphic-basic'} && $extra > 1 && !$graphics{'xvesa'}) ? 'note' : 'resolution';
 			$row[0]->{main::key($num++,0,2,$res)} = $graphics{'no-screens'};
 		}
 		elsif ($graphics{'screens'}){
@@ -14660,11 +14661,11 @@ sub display_data_x {
 	eval $start if $b_log;
 	my ($prog_xdpyinfo,$prog_xrandr);
 	if ($prog_xdpyinfo = main::check_program('xdpyinfo')){
-		display_data_xdpyinfo($prog_xdpyinfo);
+		xdpyinfo_data($prog_xdpyinfo);
 	}
 	# print Data::Dumper::Dumper $graphics{'screens'};
 	if ($prog_xrandr = main::check_program('xrandr')){
-		display_data_xrandr($prog_xrandr);
+		xrandr_data($prog_xrandr);
 	}
 	if (!$graphics{'screens'}){
 		$graphics{'tty'} = tty_data();
@@ -14672,17 +14673,19 @@ sub display_data_x {
 	if (!$prog_xrandr){
 		$graphics{'no-monitors'} = main::message('tool-missing-basic','xrandr');
 		if (!$prog_xdpyinfo){
-			$graphics{'no-screens'} = main::message('tool-missing-basic','xdpyinfo/xrandr');
+			if ($graphics{'protocol'} eq 'wayland'){
+				$graphics{'no-screens'} = main::message('screen-wayland');
+			}
+			else {
+				$graphics{'no-screens'} = main::message('tool-missing-basic','xdpyinfo/xrandr');
+			}
 		}
-	}
-	if ($graphics{'protocol'} eq 'wayland' && $graphics{'no-screens'}){
-		$graphics{'no-screens'} = main::message('screen-wayland');
 	}
 	print 'Final display x: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-sub display_data_xdpyinfo {
+sub xdpyinfo_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my ($diagonal,$diagonal_m,$dpi) = ('','','');
@@ -14771,7 +14774,7 @@ sub display_data_xdpyinfo {
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
 }
-sub display_data_xrandr {
+sub xrandr_data {
 	eval $end if $b_log;
 	my ($program) = @_;
 	my ($diagonal,$diagonal_m,$dpi,$monitor_id,$pos_x,$pos_y,$primary);
@@ -14935,15 +14938,15 @@ sub display_server_data {
 	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1]){
 		# IMPORTANT: both commands send version data to stderr!
 		if ($program = main::check_program('Xorg')){
-			@data = main::grabber("$program -version 2>&1");
+			@data = main::grabber("$program -version 2>&1",'','strip');
 			$server = 'X.org';
 		}
 		elsif ($program = main::check_program('X')){
-			@data = main::grabber("$program -version 2>&1");
+			@data = main::grabber("$program -version 2>&1",'','strip');
 			$server = 'X.org';
 		}
 		elsif ($program = main::check_program('Xvesa')){
-			@data = main::grabber("$program -version 2>&1");
+			@data = main::grabber("$program -version 2>&1",'','strip');
 			$server = 'Xvesa';
 			$graphics{'display-driver'} = ['vesa'];
 			$graphics{'xvesa'} = $program;
@@ -14953,21 +14956,20 @@ sub display_server_data {
 		}
 		# print join('^ ', @paths), " :: $program\n";
 		# print Data::Dumper::Dumper \@data;
-		if (@data){
-			foreach (@data){
-				if (/^X.org X server/i){
-					$version = (split(/\s+/, $_))[3];
-					last;
-				}
-				elsif (/^X Window System Version/i){
-					$version = (split(/\s+/, $_))[4];
-					last;
-				}
-				elsif (/^Xvesa from/i){
-					$version = (split(/\s+/, $_))[3];
-					$server .= ' TinyX' if $_ =~ /tinyx/i;
-					last;
-				}
+		if ($data[0]){
+			if ($data[0] =~ /X.org X server (\S+)/i){
+				$version =  $1;
+			}
+			elsif ($data[0] =~ /XFree86 Version (\S+)/i){
+				$version = $1;
+				$server = 'XFree86';
+			}
+			elsif ($data[0] =~ /X Window System Version (\S+)/i){
+				$version = $1;
+			}
+			elsif ($data[0] =~ /Xvesa from tinyx (\S+)/i){
+				$version = $1;
+				$server = 'TinyX Xvesa';
 			}
 		}
 		$graphics{'x-server'} = [[$server,$version]] if $server;
@@ -25904,7 +25906,7 @@ sub get_display_manager {
 		$pattern .= '/run';
 	}
 	# in most linux, /var/run is a sym link to /run, so no need to check it twice
-	if (-d '/var/run' && ($link = readlink('/var/run')) && $link ne '/run'){
+	if (-d '/var/run' && ! -l '/var/run'){
 		$pattern .= ',' if $pattern;
 		$pattern .= '/var/run';
 	}
