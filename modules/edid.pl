@@ -1,3 +1,38 @@
+## Changes to Parse::EDID 
+
+## top, switched all _group_by2, which are pointless and an extra step, to 
+## explicit sets of array references, without using a sub to create those.
+
+# Got rid of: sub _group_by2, sub find_edid_in_string, and its helper:
+# sub _edid_from_lines, those methods are not used or useful to inxi.
+
+sub _edid_from_lines {
+	my (@l) = @_;
+	my $edid_str = join('', map { /\s+([0-9a-f]{32})$/ && $1 } @l);
+	if (length($edid_str) % (2 * 128) != 0 || length($edid_str) == 0) {
+		return ();
+	}
+	pack("C*", map { hex($_) } $edid_str =~ /(..)/g);
+}
+sub find_edid_in_string {
+	my ($input) = @_;
+	my @edids;
+	while ($input =~ /(?:EDID_DATA|: EDID \(in hex\)|EDID):\n((.*\n){8})/g) {
+		push @edids, _edid_from_lines(split '\n', $1);
+	}
+	if (!@edids) {
+		@edids = _edid_from_lines(split '\n', $input);
+	}
+	@edids;
+}
+sub _group_by2 {
+	my @l;
+	for (my $i = 0; $i < @_; $i += 2) {
+		push @l, [ $_[$i], $_[$i+1] ];
+	}
+	@l;
+}
+
 ## This is a fallback in case we need to use Parse::EDID Perl module again
 
 ## pinxi.1 - about line 1438:

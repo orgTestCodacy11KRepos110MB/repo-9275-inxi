@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.12';
 my $self_date='2022-02-17';
-my $self_patch='35';
+my $self_patch='36';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -15229,6 +15229,10 @@ sub monitor_edid_data {
 	}
 	if ($edid->{'monitor_name'}){
 		$monitor_ids->{$port}{'model'} = main::clean($edid->{'monitor_name'}); 
+		if ($edid->{'manufacturer_name_nice'}){
+			$monitor_ids->{$port}{'model'} = $edid->{'manufacturer_name_nice'} . ' ' . $monitor_ids->{$port}{'model'};
+			$monitor_ids->{$port}{'model'} = main::remove_duplicates($monitor_ids->{$port}{'model'});
+		}
 	}
 	if ($edid->{'diagonal_size'}){
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
@@ -27700,144 +27704,144 @@ sub count_libs {
 ## ParseEDID
 {
 package ParseEDID;
-my @CVT_ratios = qw(5/4 4/3 3/2 16/10 15/9 16/9);
-my @known_ratios = @CVT_ratios;
-my @edid_info = _group_by2(
-	a8 => '_header',
-	a2  => 'manufacturer_name',
+# CVT_ratios:
+my @known_ratios = qw(5/4 4/3 3/2 16/10 15/9 16/9);
+my @edid_info = (
+	['a8',  '_header'],
+	['a2',  'manufacturer_name'],
 
-	v => 'product_code',
-	V => 'serial_number',
-	C => 'week',
-	C => 'year',
-	C => 'edid_version',
-	C => 'edid_revision',
-	a => 'video_input_definition',
+	['v',   'product_code'],
+	['V',   'serial_number'],
+	['C',   'week'],
+	['C',   'year'],
+	['C',   'edid_version'],
+	['C',   'edid_revision'],
+	['a',   'video_input_definition'],
 
-	C => 'max_size_horizontal', # in cm, 0 on projectors
-	C => 'max_size_vertical', # in cm, 0 on projectors
-	C => 'gamma',
-	a => 'feature_support',
-	a10 => '_color_characteristics',
-	a3  => 'established_timings',
-	a16 => 'standard_timings',
-	a72 => 'monitor_details',
+	['C',   'max_size_horizontal'], # in cm, 0 on projectors
+	['C',   'max_size_vertical'], # in cm, 0 on projectors
+	['C',   'gamma'],
+	['a',   'feature_support'],
+	['a10', '_color_characteristics'],
+	['a3' , 'established_timings'],
+	['a16', 'standard_timings'],
+	['a72', 'monitor_details'],
 
-	C => 'extension_flag',
-	C => 'checksum',
+	['C',   'extension_flag'],
+	['C',   'checksum'],
 );
 my %subfields = (
-	manufacturer_name => [ _group_by2(
-		1 => '',
-		5 => '1',
-		5 => '2',
-		5 => '3',
-	) ],
-	video_input_definition => [ _group_by2(
-		1 => 'digital',
-		1 => 'separate_sync',
-		1 => 'composite_sync',
-		1 => 'sync_on_green',
-		2 => '',
-		2 => 'voltage_level',
-	) ],
-	feature_support => [ _group_by2(
-		1 => 'DPMS_standby',
-		1 => 'DPMS_suspend',
-		1 => 'DPMS_active_off',		
-		1 => 'rgb',
+	manufacturer_name => [
+		[1, ''],
+		[5, '1'],
+		[5, '2'],
+		[5, '3'],
+	],
+	video_input_definition => [
+		[1, 'digital'],
+		[1, 'separate_sync'],
+		[1, 'composite_sync'],
+		[1, 'sync_on_green'],
+		[2, ''],
+		[2, 'voltage_level'],
+	],
+	feature_support => [
+		[1, 'DPMS_standby'],
+		[1, 'DPMS_suspend'],
+		[1, 'DPMS_active_off'],		
+		[1, 'rgb'],
 
-		1 => '',
-		1 => 'sRGB_compliance',
-		1 => 'has_preferred_timing',
-		1 => 'GTF_compliance',
-	) ],
-	established_timings => [ _group_by2(
-		1 => '720x400_70',
-		1 => '720x400_88',
-		1 => '640x480_60',
-		1 => '640x480_67',
-		1 => '640x480_72',
-		1 => '640x480_75',
-		1 => '800x600_56',
-		1 => '800x600_60',
-		1 => '800x600_72',
-		1 => '800x600_75',
-		1 => '832x624_75',
-		1 => '1024x768_87i',
-		1 => '1024x768_60',
-		1 => '1024x768_70',
-		1 => '1024x768_75',
-		1 => '1280x1024_75',
-	) ],
-	detailed_timing => [ _group_by2(
-		8 => 'horizontal_active',
-		8 => 'horizontal_blanking',
-		4 => 'horizontal_active_hi',
-		4 => 'horizontal_blanking_hi',
-		8 => 'vertical_active',
-		8 => 'vertical_blanking',
-		4 => 'vertical_active_hi',
-		4 => 'vertical_blanking_hi',
-		8 => 'horizontal_sync_offset',
-		8 => 'horizontal_sync_pulse_width',
-		4 => 'vertical_sync_offset',
-		4 => 'vertical_sync_pulse_width',
-		2 => 'horizontal_sync_offset_hi',
-		2 => 'horizontal_sync_pulse_width_hi',
-		2 => 'vertical_sync_offset_hi',
-		2 => 'vertical_sync_pulse_width_hi',
-		8 => 'horizontal_image_size', # in mm
-		8 => 'vertical_image_size', # in mm
-		4 => 'horizontal_image_size_hi',
-		4 => 'vertical_image_size_hi',
-		8 => 'horizontal_border',
-		8 => 'vertical_border',
+		[1, ''],
+		[1, 'sRGB_compliance'],
+		[1, 'has_preferred_timing'],
+		[1, 'GTF_compliance'],
+	],
+	established_timings => [
+		[1, '720x400_70'],
+		[1, '720x400_88'],
+		[1, '640x480_60'],
+		[1, '640x480_67'],
+		[1, '640x480_72'],
+		[1, '640x480_75'],
+		[1, '800x600_56'],
+		[1, '800x600_60'],
+		[1, '800x600_72'],
+		[1, '800x600_75'],
+		[1, '832x624_75'],
+		[1, '1024x768_87i'],
+		[1, '1024x768_60'],
+		[1, '1024x768_70'],
+		[1, '1024x768_75'],
+		[1, '1280x1024_75'],
+	],
+	detailed_timing => [
+		[8, 'horizontal_active'],
+		[8, 'horizontal_blanking'],
+		[4, 'horizontal_active_hi'],
+		[4, 'horizontal_blanking_hi'],
+		[8, 'vertical_active'],
+		[8, 'vertical_blanking'],
+		[4, 'vertical_active_hi'],
+		[4, 'vertical_blanking_hi'],
+		[8, 'horizontal_sync_offset'],
+		[8, 'horizontal_sync_pulse_width'],
+		[4, 'vertical_sync_offset'],
+		[4, 'vertical_sync_pulse_width'],
+		[2, 'horizontal_sync_offset_hi'],
+		[2, 'horizontal_sync_pulse_width_hi'],
+		[2, 'vertical_sync_offset_hi'],
+		[2, 'vertical_sync_pulse_width_hi'],
+		[8, 'horizontal_image_size'], # in mm
+		[8, 'vertical_image_size'], # in mm
+		[4, 'horizontal_image_size_hi'],
+		[4, 'vertical_image_size_hi'],
+		[8, 'horizontal_border'],
+		[8, 'vertical_border'],
 
-		1 => 'interlaced',
-		2 => 'stereo',	  
-		2 => 'digital_composite',
-		1 => 'horizontal_sync_positive',
-		1 => 'vertical_sync_positive',
-		1 => '',
-	) ],
-	standard_timing => [ _group_by2(
-		8 => 'X',
-		2 => 'aspect',
-		6 => 'vfreq',
-	) ],
-	monitor_range => [ _group_by2(
-		8 => 'vertical_min',
-		8 => 'vertical_max',
-		8 => 'horizontal_min',
-		8 => 'horizontal_max',
-		8 => 'pixel_clock_max',
-	) ],
-	manufacturer_specified_range_timing => [ _group_by2(
+		[1, 'interlaced'],
+		[2, 'stereo'],	  
+		[2, 'digital_composite'],
+		[1, 'horizontal_sync_positive'],
+		[1, 'vertical_sync_positive'],
+		[1, ''],
+	],
+	standard_timing => [
+		[8, 'X'],
+		[2, 'aspect'],
+		[6, 'vfreq'],
+	],
+	monitor_range => [
+		[8, 'vertical_min'],
+		[8, 'vertical_max'],
+		[8, 'horizontal_min'],
+		[8, 'horizontal_max'],
+		[8, 'pixel_clock_max'],
+	],
+	manufacturer_specified_range_timing => [
 		# http://www.spwg.org/salisbury_march_19_2002.pdf
 		# for the glossary: http://www.vesa.org/Public/PSWG/PSWG15v1.pdf
-		8 => 'horizontal_sync_pulse_width_min', # HSPW (Horizontal Sync Pulse Width)
-		8 => 'horizontal_sync_pulse_width_max',
-		8 => 'horizontal_back_porch_min', # t_hbp
-		8 => 'horizontal_back_porch_max',
-		8 => 'vertical_sync_pulse_width_min', # VSPW (Vertical Sync Pulse Width)
-		8 => 'vertical_sync_pulse_width_max',
-		8 => 'vertical_back_porch_min', # t_vbp (Vertical Back Porch)
-		8 => 'vertical_back_porch_max',
-		8 => 'horizontal_blanking_min', # t_hp (Horizontal Period)
-		8 => 'horizontal_blanking_max',
-		8 => 'vertical_blanking_min', # t_vp
-		8 => 'vertical_blanking_max',
-		8 => 'module_revision',
-	) ],
-	cea_data_block_collection => [ _group_by2(
-		3 => 'type',
-		5 => 'size',
-	) ],
-	cea_video_data_block => [ _group_by2(
-		1 => 'native',
-		7 => 'mode',
-	) ],
+		[8, 'horizontal_sync_pulse_width_min'], # HSPW (Horizontal Sync Pulse Width)
+		[8, 'horizontal_sync_pulse_width_max'],
+		[8, 'horizontal_back_porch_min'], # t_hbp
+		[8, 'horizontal_back_porch_max'],
+		[8, 'vertical_sync_pulse_width_min'], # VSPW (Vertical Sync Pulse Width)
+		[8, 'vertical_sync_pulse_width_max'],
+		[8, 'vertical_back_porch_min'], # t_vbp (Vertical Back Porch)
+		[8, 'vertical_back_porch_max'],
+		[8, 'horizontal_blanking_min'], # t_hp (Horizontal Period)
+		[8, 'horizontal_blanking_max'],
+		[8, 'vertical_blanking_min'], # t_vp
+		[8, 'vertical_blanking_max'],
+		[8, 'module_revision'],
+	],
+	cea_data_block_collection => [
+		[3, 'type'],
+		[5, 'size'],
+	],
+	cea_video_data_block => [
+		[1, 'native'],
+		[7, 'mode'],
+	],
 );
 my @cea_video_mode_to_detailed_timing = (
 	'pixel_clock',
@@ -27923,6 +27927,92 @@ my @cea_video_modes = (
 	[ 297.000, 1920, 1080, "16/9",  280,   88,  44,  45,  4,  5, 1, 1, 0 ], # 63: 1920x1080@120.00
 	[ 297.000, 1920, 1080, "16/9",  720,  528,  44,  45,  4, 10, 1, 1, 0 ], # 64: 1920x1080@100.00
 );
+my %vendors = (
+	'ACI' => 'Asus',
+	'ACR' => 'Acer',
+	'ACT' => 'Targa',
+	'ADI' => 'ADI',
+	'AMW' => 'AMW',
+	'AOC' => 'AOC',
+	'API' => 'Acer',
+	'APP' => 'Apple',
+	'ART' => 'ArtMedia',
+	'AST' => 'AST Research',
+	'AUO' => 'AU Optronics',
+	'BMM' => 'BMM',
+	'BNQ' => 'BenQ',
+	'BOE' => 'BOE Display',
+	'CPL' => 'Compal/ALFA',
+	'CPQ' => 'COMPAQ',
+	'CTX' => 'CTX (Chuntex)',
+	'DEC' => 'DEC',
+	'DEL' => 'Dell',
+	'DPC' => 'Delta',
+	'DWE' => 'Daewoo',
+	'ECS' => 'Elitegroup',
+	'EIZ' => 'EIZO',
+	'EPI' => 'Envision',
+	'FCM' => 'Funai',
+	'FUS' => 'Fujitsu Siemens',
+	'GSM' => 'LG (GoldStar)',
+	'GWY' => 'Gateway 2000',
+	'HEI' => 'Hyundai.',
+	'HIQ' => 'Hyundai ImageQuest',
+	'HIT' => 'Hitachi',
+	'HSD' => 'Hannspree',
+	'HSL' => 'Hansol',
+	'HTC' => 'Hitachi',
+	'HWP' => 'Hewlett Packard (HP)',
+	'HPN' => 'Hewlett Packard (HP)',
+	'IBM' => 'IBM',
+	'ICL' => 'Fujitsu ICL',
+	'IFS' => 'InFocus',
+	'IQT' => 'Hyundai',
+	'IVM' => 'Idek Iiyama',
+	'KDS' => 'KDS USA',
+	'KFC' => 'KFC Computek',
+	'LEN' => 'Lenovo',
+	'LGD' => 'LG Display',
+	'LKM' => 'ADLAS / AZALEA',
+	'LNK' => 'LINK',
+	'LPL' => 'LG Philips',
+	'LTN' => 'Lite-On',
+	'MAG' => 'MAG InnoVision',
+	'MAX' => 'Maxdata',
+	'MEI' => 'Panasonic',
+	'MEL' => 'Mitsubishi',
+	'MIR' => 'Miro',
+	'MTC' => 'MITAC',
+	'NAN' => 'NANAO',
+	'NEC' => 'NEC',
+	'NOK' => 'Nokia',
+	'NVD' => 'Nvidia',
+	'OQI' => 'Viewsonic Optiquest',
+	'PBN' => 'Packard Bell',
+	'PCK' => 'Daewoo',
+	'PDC' => 'Polaroid',
+	'PGS' => 'Princeton Graphic Systems',
+	'PHL' => 'Philips',
+	'PRT' => 'Princeton',
+	'REL' => 'Relisys',
+	'SAM' => 'Samsung',
+	'SEC' => 'Seiko Epson',
+	'SMC' => 'Samtron',
+	'SMI' => 'Smile',
+	'SNI' => 'Siemens Nixdorf',
+	'SNY' => 'Sony',
+	'SPT' => 'Sceptre',
+	'SRC' => 'Shamrock',
+	'STN' => 'Samtron',
+	'STP' => 'Sceptre',
+	'TAT' => 'Tatung',
+	'TRL' => 'Royal Information',
+	'TSB' => 'Toshiba',
+	'UNM' => 'Unisys',
+	'VSC' => 'ViewSonic',
+	'WTC' => 'Wen Technology',
+	'ZCM' => 'Zenith',
+);
 sub _within_limit {
 	my ($value, $type, $limit) = @_;
 	$type eq 'min' ? $value >= $limit : $value <= $limit;
@@ -27998,6 +28088,7 @@ sub parse_edid {
 			my $h = _get_many_bits($v, 'manufacturer_name');
 			$v = join('', map { chr(ord('A') + $h->{$_} - 1) } 1 .. 3);
 			$v = "" if $v eq "@@@";
+			$edid{'manufacturer_name_nice'} = ($v && $vendors{$v}) ? $vendors{$v} : ''; 
 		} elsif ($field eq 'video_input_definition') {
 			$v = _get_many_bits($v, 'video_input_definition');
 		} elsif ($field eq 'feature_support') {
@@ -28207,8 +28298,7 @@ sub parse_edid {
 		  $h->{vertical_sync_positive} ? '+' : '-',
 		  $h->{interlaced} ? ' Interlace' : '';
 	}
-	$edid{diagonal_size} = sqrt(_sqr($edid{max_size_horizontal}) + 
-								_sqr($edid{max_size_vertical})) / 2.54;
+	$edid{diagonal_size} = sqrt(_sqr($edid{max_size_horizontal}) + _sqr($edid{max_size_vertical})) / 2.54;
 
 	\%edid;
 }
@@ -28239,35 +28329,9 @@ sub _ratio_name {
 		}
 	}
 }
-sub _edid_from_lines {
-	my (@l) = @_;
-	my $edid_str = join('', map { /\s+([0-9a-f]{32})$/ && $1 } @l);
-	if (length($edid_str) % (2 * 128) != 0 || length($edid_str) == 0) {
-		return ();
-	}
-	pack("C*", map { hex($_) } $edid_str =~ /(..)/g);
-}
-sub find_edid_in_string {
-	my ($input) = @_;
-	my @edids;
-	while ($input =~ /(?:EDID_DATA|: EDID \(in hex\)|EDID):\n((.*\n){8})/g) {
-		push @edids, _edid_from_lines(split '\n', $1);
-	}
-	if (!@edids) {
-		@edids = _edid_from_lines(split '\n', $input);
-	}
-	@edids;
-}
 sub _define { defined $_[0] ? $_[0] : 0 }
 sub _sqr { $_[0] * $_[0] }
 sub _round { int($_[0] + 0.5) }
-sub _group_by2 {
-	my @l;
-	for (my $i = 0; $i < @_; $i += 2) {
-		push @l, [ $_[$i], $_[$i+1] ];
-	}
-	@l;
-}
 }
 
 ## PartitionData - set/get
