@@ -15219,7 +15219,7 @@ sub monitor_edid_data {
 	open my $fh, '<:raw', $file or return; # it failed, give up, we don't care why
 	my $edid_raw = do { local $/; <$fh> };
 	return if !$edid_raw;
-	my $edid = ParseEDID::parse_edid($edid_raw);
+	my $edid = ParseEDID::parse_edid($edid_raw,$dbg[47]);
 	main::log_data('dump','Parse::EDID',$edid) if $b_log;
 	print Data::Dumper::Dumper $edid if $dbg[44];
 	return if !$edid || ref $edid ne 'HASH' || !%$edid;
@@ -15238,7 +15238,10 @@ sub monitor_edid_data {
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
 		$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
 	}
-	$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
+	if ($edid->{'ratio_name'}){
+		$edid->{'ratio_name'} =~ s|/|:|; # this should be changed in ParseEDID
+		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
+	}
 	if (!$edid->{'detailed_timings'}){
 		$monitor_ids->{$port}{'res-x'} = $edid->{'detailed_timings'}[0]{'horizontal_active'};
 		$monitor_ids->{$port}{'res-y'} = $edid->{'detailed_timings'}[0]{'vertical_active'};
@@ -27987,7 +27990,7 @@ my %vendors = (
 	'NEC' => 'NEC',
 	'NOK' => 'Nokia',
 	'NVD' => 'Nvidia',
-	'OQI' => 'Viewsonic Optiquest',
+	'OQI' => 'ViewSonic Optiquest',
 	'PBN' => 'Packard Bell',
 	'PCK' => 'Daewoo',
 	'PDC' => 'Polaroid',
