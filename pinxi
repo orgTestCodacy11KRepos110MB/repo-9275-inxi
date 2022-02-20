@@ -14597,14 +14597,14 @@ sub wlrrandr_data {
 	foreach (@data){
 		if ($_ eq '~~' && $id){
 			$monitor_ids->{$id}{'hz'} = $hz;
-			$monitor_ids->{$id}{'model'} = $model if $model;
+			$monitor_ids->{$id}{'model'} = $model if $model && !$monitor_ids->{$id}{'model'};
 			$monitor_ids->{$id}{'monitor'} = $id;
 			$monitor_ids->{$id}{'pos-x'} = $pos_x;
 			$monitor_ids->{$id}{'pos-y'} = $pos_y;
 			$monitor_ids->{$id}{'res-x'} = $res_x;
 			$monitor_ids->{$id}{'res-y'} = $res_y;
 			$monitor_ids->{$id}{'scale'} = $scale;
-			$monitor_ids->{$id}{'serial'} = $serial if $serial;
+			$monitor_ids->{$id}{'serial'} = $serial if $serial && !$monitor_ids->{$id}{'serial'};
 			($hz,$info,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial) = ();
 			$b_wayland_data = 1;
 		}
@@ -14748,6 +14748,10 @@ sub xdpyinfo_data {
 				$res_y = $2;
 				$size_x = $3;
 				$size_y = $4;
+				# flip size x,y if don't roughly  match res x/y ratio
+				if ($size_x && $size_y && $res_y){
+					flip_size_x_y(\$size_x,\$size_y,\$res_x,\$res_y);
+				}
 				$size_x_i = ($size_x) ? sprintf("%.1f", ($size_x/25.4)) : 0;
 				$size_y_i = ($size_y) ? sprintf("%.1f", ($size_y/25.4)) : 0;
 				$dpi = ($res_x && $size_x) ? sprintf("%.0f", ($res_x*25.4/$size_x)) : '';
@@ -14834,13 +14838,9 @@ sub xrandr_data {
 			$pos_y = $6;
 			$size_x = $9;
 			$size_y = $10;
-			# handle case of monitor on left or right edge, vertical that is.
-			# mm dimensiions are based on the default position of monitor as sold.
-			# very old systems may not have non 0 value for size x or y
-			if ($size_x && $size_y && $res_y && 
-			 (($res_x/$res_y > 1 && $size_x/$size_y < 1) || 
-			 ($res_x/$res_y < 1 && $size_x/$size_y > 1))){
-				($size_x,$size_y) = ($size_y,$size_x);
+			# flip size x,y if don't roughly  match res x/y ratio
+			if ($size_x && $size_y && $res_y){
+				flip_size_x_y(\$size_x,\$size_y,\$res_x,\$res_y);
 			}
 			$size_x_i = ($size_x) ? sprintf("%.1f", ($size_x/25.4)) : 0;
 			$size_y_i = ($size_y) ? sprintf("%.1f", ($size_y/25.4)) : 0;
@@ -15258,7 +15258,7 @@ sub monitor_edid_data {
 		}
 	}
 	if ($edid->{'serial_number'} || $edid->{'serial_number2'}){
-		# this looks much more like a real serial than the default
+		# this looks much more like a real serial than the default: serial_number
 		if ($edid->{'serial_number2'} && @{$edid->{'serial_number2'}}){
 			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number2'}[0]);
 		}
@@ -15444,7 +15444,19 @@ sub map_monitor_ids {
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
 	eval $end if $b_log;
 }
-
+# handle case of monitor on left or right edge, vertical that is.
+# mm dimensiions are based on the default position of monitor as sold.
+# very old systems may not have non 0 value for size x or y
+# size, res x,y by reference
+sub flip_size_x_y {
+	eval $start if $b_log;
+	my ($size_x,$size_y,$res_x,$res_y) = @_;
+	if ((($$res_x/$$res_y > 1 && $$size_x/$$size_y < 1) || 
+	($$res_x/$$res_y < 1 && $$size_x/$$size_y > 1))){
+		($$size_x,$$size_y) = ($$size_y,$$size_x);
+	}
+	eval $end if $b_log;
+}
 ## COMPOSITOR DATA ##
 sub set_compositor_data {
 	eval $start if $b_log;
@@ -27765,7 +27777,9 @@ my %subfields = (
 		[1, 'has_preferred_timing'],
 		[1, 'GTF_compliance'],
 	],
+	# these are VESA timings, basically: VESA-EEDID-A2.pdf
 	established_timings => [
+		# byte 1, 23h
 		[1, '720x400_70'],
 		[1, '720x400_88'],
 		[1, '640x480_60'],
@@ -27774,6 +27788,7 @@ my %subfields = (
 		[1, '640x480_75'],
 		[1, '800x600_56'],
 		[1, '800x600_60'],
+		# byte 2, 24h
 		[1, '800x600_72'],
 		[1, '800x600_75'],
 		[1, '832x624_75'],
@@ -27782,6 +27797,9 @@ my %subfields = (
 		[1, '1024x768_70'],
 		[1, '1024x768_75'],
 		[1, '1280x1024_75'],
+		# byte 3, 25h
+		# 7: [1, '1152x870_75'], # apple macII
+		# 6-0: manufacturer's timings
 	],
 	detailed_timing => [
 		[8, 'horizontal_active'],
@@ -27814,6 +27832,9 @@ my %subfields = (
 		[1, 'vertical_sync_positive'],
 		[1, ''],
 	],
+	# 16 bytes, up to 8 additional timings, each identified by a unique 2 byte 
+	# code derived from the horizontal active pixel count, the image aspect ratio 
+	# and field refresh rate as described in Table 3.19
 	standard_timing => [
 		[8, 'X'],
 		[2, 'aspect'],
@@ -27936,91 +27957,46 @@ my @cea_video_modes = (
 	[ 297.000, 1920, 1080, "16/9",  280,   88,  44,  45,  4,  5, 1, 1, 0 ], # 63: 1920x1080@120.00
 	[ 297.000, 1920, 1080, "16/9",  720,  528,  44,  45,  4, 10, 1, 1, 0 ], # 64: 1920x1080@100.00
 );
+# Exist but IDs Unknown: Pixio, AOpen (AON?), AORUS [probably GBT], Deco Gear, 
+# Eyoyo, GAEMS, GeChic, KOORUI, Lilliput, Mobile Pixels, Nexanic,
+# SunFounder, TECNII, TPEKKA, V7/VSEVEN, 
+# Guesses: KYY=KYY, MSI=MSI,  
+# PGS: Princeton Graphic Systems; SDC: Samsung Display Co; 
+# SIS: Silicon Integrated Systems; STN: Samsung Electronics America; 
+# TAI: Toshiba America
 my %vendors = (
-	'ACI' => 'Asus',
-	'ACR' => 'Acer',
-	'ACT' => 'Targa',
-	'ADI' => 'ADI',
-	'AMW' => 'AMW',
-	'AOC' => 'AOC',
-	'API' => 'Acer',
-	'APP' => 'Apple',
-	'ART' => 'ArtMedia',
-	'AST' => 'AST Research',
-	'AUO' => 'AU Optronics',
-	'BMM' => 'BMM',
-	'BNQ' => 'BenQ',
-	'BOE' => 'BOE Display',
-	'CPL' => 'Compal/ALFA',
-	'CPQ' => 'COMPAQ',
-	'CTX' => 'CTX (Chuntex)',
-	'DEC' => 'DEC',
-	'DEL' => 'Dell',
-	'DPC' => 'Delta',
-	'DWE' => 'Daewoo',
-	'ECS' => 'Elitegroup',
-	'EIZ' => 'EIZO',
-	'EPI' => 'Envision',
-	'FCM' => 'Funai',
-	'FUS' => 'Fujitsu Siemens',
-	'GSM' => 'LG (GoldStar)',
-	'GWY' => 'Gateway 2000',
-	'HEI' => 'Hyundai.',
-	'HIQ' => 'Hyundai ImageQuest',
-	'HIT' => 'Hitachi',
-	'HSD' => 'Hannspree',
-	'HSL' => 'Hansol',
-	'HTC' => 'Hitachi',
-	'HWP' => 'Hewlett Packard (HP)',
-	'HPN' => 'Hewlett Packard (HP)',
-	'IBM' => 'IBM',
-	'ICL' => 'Fujitsu ICL',
-	'IFS' => 'InFocus',
-	'IQT' => 'Hyundai',
-	'IVM' => 'Idek Iiyama',
-	'KDS' => 'KDS USA',
-	'KFC' => 'KFC Computek',
-	'LEN' => 'Lenovo',
-	'LGD' => 'LG Display',
-	'LKM' => 'ADLAS / AZALEA',
-	'LNK' => 'LINK',
-	'LPL' => 'LG Philips',
-	'LTN' => 'Lite-On',
-	'MAG' => 'MAG InnoVision',
-	'MAX' => 'Maxdata',
-	'MEI' => 'Panasonic',
-	'MEL' => 'Mitsubishi',
-	'MIR' => 'Miro',
-	'MTC' => 'MITAC',
-	'NAN' => 'NANAO',
-	'NEC' => 'NEC',
-	'NOK' => 'Nokia',
-	'NVD' => 'Nvidia',
-	'OQI' => 'ViewSonic Optiquest',
-	'PBN' => 'Packard Bell',
-	'PCK' => 'Daewoo',
-	'PDC' => 'Polaroid',
-	'PGS' => 'Princeton Graphic Systems',
-	'PHL' => 'Philips',
-	'PRT' => 'Princeton',
-	'REL' => 'Relisys',
-	'SAM' => 'Samsung',
-	'SEC' => 'Seiko Epson',
-	'SMC' => 'Samtron',
-	'SMI' => 'Smile',
-	'SNI' => 'Siemens Nixdorf',
-	'SNY' => 'Sony',
-	'SPT' => 'Sceptre',
-	'SRC' => 'Shamrock',
-	'STN' => 'Samtron',
-	'STP' => 'Sceptre',
-	'TAT' => 'Tatung',
-	'TRL' => 'Royal Information',
-	'TSB' => 'Toshiba',
-	'UNM' => 'Unisys',
-	'VSC' => 'ViewSonic',
-	'WTC' => 'Wen Technology',
-	'ZCM' => 'Zenith',
+'ACI' => 'Asus', 'ACR' => 'Acer', 'ACT' => 'Targa', 'ADI' => 'ADI', 
+'AMW' => 'AMW', 'ANX' => 'Acer Netxix', 'AOC' => 'AOC', 'API' => 'Acer', 
+'APP' => 'Apple', 'ART' => 'ArtMedia', 'AST' => 'AST Research', 'AUO' => 'AU Optronics', 
+'BEL' => 'Beltronic', 'BMM' => 'BMM', 'BNQ' => 'BenQ', 'BOE' => 'BOE Display', 
+'CMN' => 'Chi Mei Innolux', 'CPL' => 'Compal/ALFA', 'CPQ' => 'Compaq', 
+'CPT' => 'Asus', 'CTX' => 'CTX (Chuntex)', 
+'DEC' => 'DEC', 'DEL' => 'Dell', 'DPC' => 'Delta', 'DPL' => 'Digital Projection', 'DWE' => 'Daewoo', 
+'ECS' => 'Elitegroup', 'EIZ' => 'EIZO', 'EPI' => 'Envision', 'ETR' => 'Rotel', 
+'FCM' => 'Funai', 'FUS' => 'Fujitsu Siemens', 
+'GBT' => 'Gigabyte', 'GSM' => 'LG (GoldStar)', 'GWY' => 'Gateway 2000',
+'HEI' => 'Hyundai.', 'HIQ' => 'Hyundai ImageQuest', 'HIT' => 'Hitachi', 'HPN' => 'HP', 
+'HSD' => 'Hannspree', 'HSL' => 'Hansol', 'HTC' => 'Hitachi', 'HVR' => 'Hitache', 'HWP' => 'HP', 
+'IBM' => 'IBM', 'ICL' => 'Fujitsu ICL', 'IFS' => 'InFocus', 'IQT' => 'Hyundai', 
+'IVM' => 'Idek Iiyama', 
+'KDS' => 'KDS', 'KFC' => 'KFC Computek', 'KYY' => 'KYY', 
+'LEN' => 'Lenovo', 'LGD' => 'LG', 'LKM' => 'Adlas/Azalea', 'LNK' => 'LINK', 
+'LPL' => 'LG Philips', 'LTN' => 'Lite-On', 
+'MAG' => 'MAG InnoVision', 'MAX' => 'Maxdata', 'MED' => 'Medion', 
+'MEI' => 'Panasonic', 'MEL' => 'Mitsubishi', 'MIR' => 'Miro', 'MSI' => 'MSI', 'MTC' => 'MITAC', 
+'NAN' => 'NANAO', 'NEC' => 'NEC', 'NOK' => 'Nokia', 'NVD' => 'Nvidia', 
+'OQI' => 'ViewSonic Optiquest', 'ORN' => 'Orion',
+'PBN' => 'Packard Bell', 'PCK' => 'Daewoo', 'PDC' => 'Polaroid', 'PGS' => 'Princeton', 
+'PHL' => 'Philips', 'PIO' => 'Pioneer', 'PNR' => 'Planar', 'PRT' => 'Princeton', 
+'QDI' => 'Quahtum Data', 'QDS' => 'Quanta Display', 'REL' => 'Relisys', 
+'SAM' => 'Samsung', 'SAN' => 'Sanyo', 'SDC' => 'Samsung', 'SEC' => 'Seiko Epson', 
+'SEN' => 'Sensics', 'SHP' => 'Sharp', 'SII' => 'Silicon Image', 'SIS' => 'SIS', 
+'SMC' => 'Samtron', 'SMI' => 'Smile', 'SNI' => 'Siemens Nixdorf', 'SNY' => 'Sony', 
+'SPT' => 'Sceptre', 'SRC' => 'Shamrock', 'STN' => 'Samsung', 'STP' => 'Sceptre', 
+'TAI' => 'Toshiba', 'TAT' => 'Tatung', 'TOS' => 'Toshiba', 'TRL' => 'Royal Information', 
+'TSB' => 'Toshiba', 'UEG' => 'EliteGroup', 'UNM' => 'Unisys', 
+'VIT' => 'Visitech', 'VLV' => 'Valve', 'VSC' => 'ViewSonic', 'VTK' => 'Viewteck', 
+'WTC' => 'Wen Technology', 'ZCM' => 'Zenith',
 );
 sub _within_limit {
 	my ($value, $type, $limit) = @_;
