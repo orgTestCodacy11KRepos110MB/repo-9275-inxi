@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.12';
-my $self_date='2022-02-19';
-my $self_patch='37';
+my $self_date='2022-02-21';
+my $self_patch='38';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -15246,12 +15246,16 @@ sub monitor_edid_data {
 	if ($edid->{'gamma'}){
 		$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
 	}
-	if ($edid->{'monitor_name'}){
-		$monitor_ids->{$port}{'model'} = main::clean($edid->{'monitor_name'}); 
+	if ($edid->{'monitor_name'} || $edid->{'manufacturer_name_nice'}){
+		my $model = '';
 		if ($edid->{'manufacturer_name_nice'}){
-			$monitor_ids->{$port}{'model'} = $edid->{'manufacturer_name_nice'} . ' ' . $monitor_ids->{$port}{'model'};
-			$monitor_ids->{$port}{'model'} = main::remove_duplicates($monitor_ids->{$port}{'model'});
+			$model = $edid->{'manufacturer_name_nice'};
 		}
+		if ($edid->{'monitor_name'}){
+			$model .= ' ' if $model;
+			$model .= $edid->{'monitor_name'};
+		}
+		$monitor_ids->{$port}{'model'} = main::remove_duplicates(main::clean($model));
 	}
 	if ($edid->{'diagonal_size'}){
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
