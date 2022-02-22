@@ -6652,8 +6652,7 @@ sub message {
 	'disk-data' => 'No disk data found.',
 	'disk-data-bsd' => 'No disk data found.',
 	'disk-size-0' => 'Total N/A',
-	'display-driver-na' => 'n/a (using gpu driver)',
-	'display-driver-wayland' => 'gpu-driver',
+	'display-driver-na' => ' X driver n/a',
 	'display-server' => 'No display server data found. Headless machine?',
 	'dmesg-boot-permissions' => 'dmesg.boot permissions',
 	'dmesg-boot-missing' => 'dmesg.boot not found',
@@ -13456,7 +13455,6 @@ sub device_speed {
 ## GraphicItem 
 {
 package GraphicItem;
-my $driver = ''; # we need this as a fallback in case no xorg log found
 my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
 sub get {
 	eval $start if $b_log;
@@ -13508,8 +13506,7 @@ sub device_output {
 		next if $row->[3] != 0;
 		# print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
-		$driver = $row->[9];
-		$driver ||= 'N/A';
+		push(@{$graphics{'gpu-drivers'}},$row->[9]) if $row->[9];
 		my $device = main::trimmer($row->[4]);
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
@@ -13523,6 +13520,7 @@ sub device_output {
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
 			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
+		my $driver = ($row->[9]) ? $row->[9]:'N/A';
 		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
 		if ($row->[9] && !$bsd_type){
 			my $version = main::get_module_version($row->[9]);
@@ -13684,15 +13682,15 @@ sub display_output(){
 	# print Data::Dumper::Dumper \%graphics;
 	if (%graphics){
 		my ($driver_note,$resolution,$server_string) = ('','','');
-		my ($b_screen_monitors,@x_drivers);
-		@x_drivers = display_drivers_x() if !$force{'wayland'};
+		my ($b_screen_monitors,$x_drivers);
+		$x_drivers = display_drivers_x() if !$force{'wayland'};
 		# print "$graphics{'x-server'} $graphics{'x-version'} $graphics{'x-vendor-release'}","\n";
 		if ($graphics{'x-server'}){
 			$server_string = $graphics{'x-server'}->[0][0];
 			# print "$server_string\n";
 		}
 		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && 
-		!@x_drivers){
+		!$x_drivers){
 			$server_string = main::message('display-server');
 			@row = ({
 			main::key($num++,1,1,'Display') => '',
@@ -13736,25 +13734,14 @@ sub display_output(){
 			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
 			# obviously, so we use the last driver found on the card section in that case.
 			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
-			if (!$x_drivers[0]){
+			if (!$x_drivers || !$x_drivers->[0]){
 				# Fallback: specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is 
 				# located inside this directory, which is not readable unless you are root
 				# Normally Arch gdm log is here: ~/.local/share/xorg/Xorg.1.log
 				# $driver comes from the Device lines, and is just last fallback.
-				if ($graphics{'display-driver'}){
-					$driver = join(',',@{$graphics{'display-driver'}});
-				}
-				else {
-					if ($driver && $driver ne 'N/A'){
-						my $display_drivers = display_drivers_sys('all');
-						$driver = $display_drivers if $display_drivers;
-						if ($graphics{'protocol'} eq 'wayland'){
-							# as far as I can tell, driver is always gpu driver anyway for wl
-							# if (!$display_drivers) {
-							#	$driver_note = main::message('display-driver-wayland');
-							# }
-						}
-						elsif (-e '/var/lib/gdm' && !$b_root){
+				if (!$graphics{'protocol'} || $graphics{'protocol'} ne 'wayland'){
+					if ($graphics{'gpu-drivers'}){
+						if (-e '/var/lib/gdm' && !$b_root){
 							$driver_note = main::message('display-driver-na');
 							$driver_note .= ' - ' . main::message('root-suggested');
 						}
@@ -13767,31 +13754,38 @@ sub display_output(){
 					}
 				}
 			}
-			else {
-				$driver = $x_drivers[0];
-			}
-			$driver ||= 'N/A';
-			if (($graphics{'protocol'} eq 'wayland' || $graphics{'xvesa'}) && 
-			!$x_drivers[0]){
-				$row[0]->{main::key($num++,1,2,'driver')} = $driver;
-				if ($driver_note){
-					$row[0]->{main::key($num++,0,3,'note')} = $driver_note;
-				}
+			# if xvesa, will always have display-driver set
+			if ($graphics{'xvesa'} && $graphics{'display-driver'}){
+				$row[0]->{main::key($num++,1,2,'driver')} = join(',',@{$graphics{'display-driver'}});;
 			}
 			else {
 				$row[0]->{main::key($num++,1,2,'driver')} = '';
-				$row[0]->{main::key($num++,1,3,'loaded')} = $driver;
+				# The only wayland setups with x drivers have xorg, transitional that is.
+				if ($x_drivers){
+					$row[0]->{main::key($num++,1,3,'X')} = '';
+					my $driver = ($x_drivers->[0]) ? $x_drivers->[0] : 'N/A';
+					$row[0]->{main::key($num++,1,4,'loaded')} = $driver;
+					if ($x_drivers->[1]){
+						$row[0]->{main::key($num++,0,4,'unloaded')} = $x_drivers->[1];
+					}
+					if ($x_drivers->[2]){
+						$row[0]->{main::key($num++,0,4,'failed')} = $x_drivers->[2];
+					}
+					if ($extra > 1 && $x_drivers->[3]){
+						$row[0]->{main::key($num++,0,4,'alternate')} = $x_drivers->[3];
+					}
+				}
+				my $gpu_drivers = gpu_drivers_sys('all');
+				my $drivers;
+				if ($gpu_drivers ){
+					$drivers = join(',',@{$gpu_drivers});
+				}
+				else {
+					$drivers = ($graphics{'gpu-drivers'}) ? join(',',@{$graphics{'gpu-drivers'}}): 'N/A';
+				}
+				$row[0]->{main::key($num++,1,3,'gpu')} = $drivers;
 				if ($driver_note){
 					$row[0]->{main::key($num++,0,4,'note')} = $driver_note;
-				}
-				if ($x_drivers[1]){
-					$row[0]->{main::key($num++,0,3,'unloaded')} = $x_drivers[1];
-				}
-				if ($x_drivers[2]){
-					$row[0]->{main::key($num++,0,3,'failed')} = $x_drivers[2];
-				}
-				if ($extra > 1 && $x_drivers[3]){
-					$row[0]->{main::key($num++,0,3,'alternate')} = $x_drivers[3];
 				}
 			}
 		}
@@ -15011,11 +15005,12 @@ sub display_server_data {
 	eval $end if $b_log;
 }
 # for wayland display/monitor drivers, or if no display drivers found for x
-sub display_drivers_sys {
+sub gpu_drivers_sys {
 	eval $start if $b_log;
 	my ($id) = @_;
-	my @drivers;
-	# we only want list of drivers for cards with a connected monitor
+	my ($driver,@drivers);
+	# we only want list of drivers for cards with a connected monitor, and inactive
+	# ports are already removed by the 'all' stage.
 	foreach my $port (keys %{$monitor_ids}){
 		if (!$monitor_ids->{$port}{'drivers'} ||
 		($id ne 'all' && $id ne $port) ||
@@ -15023,8 +15018,10 @@ sub display_drivers_sys {
 		$monitor_ids->{$port}{'status'} ne 'connected'){
 			next;
 		}
-		foreach my $driver (@{$monitor_ids->{$port}{'drivers'}}){
-			push(@drivers,$driver);
+		else {
+			foreach $driver (@{$monitor_ids->{$port}{'drivers'}}){
+				push(@drivers,$driver);
+			}
 		}
 	}
 	if (@drivers){
@@ -15032,7 +15029,7 @@ sub display_drivers_sys {
 		main::uniq(\@drivers);
 	}
 	eval $end if $b_log;
-	return join(',',@drivers) if @drivers;
+	@drivers ? return \@drivers : return;
 }
 sub display_drivers_x {
 	eval $start if $b_log;
@@ -15125,10 +15122,12 @@ sub display_drivers_x {
 				$alternate .= $sep . $_;
 			}
 		}
-		@driver_data = ($loaded,$unloaded,$failed,$alternate);
+		if ($loaded || $unloaded || $failed || $alternate){
+			@driver_data = ($loaded,$unloaded,$failed,$alternate);
+		}
 	}
 	eval $end if $b_log;
-	return @driver_data;
+	@driver_data ? return \@driver_data : return;
 }
 sub display_protocol {
 	eval $start if $b_log;
@@ -15332,7 +15331,7 @@ sub advanced_monitor_data {
 		# these are already set for monitor_ids, only need this for Xorg data.
 		if ($mon_mapped && $monitor_ids->{$mon_mapped}){
 			# note: xorg drivers can be different than gpu drivers
-			# $monitors->{$key}{'drivers'} = display_drivers_sys($mon_mapped);
+			$monitors->{$key}{'drivers'} = gpu_drivers_sys($mon_mapped);
 			$monitors->{$key}{'build-date'} = $monitor_ids->{$mon_mapped}{'build-date'};
 			$monitors->{$key}{'diagonal'} = $monitor_ids->{$mon_mapped}{'diagonal'};
 			$monitors->{$key}{'diagonal-m'} = $monitor_ids->{$mon_mapped}{'diagonal-m'};
