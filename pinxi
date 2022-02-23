@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-02-22';
-my $self_patch='01';
+my $self_date='2022-02-23';
+my $self_patch='02';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13932,6 +13932,9 @@ sub monitors_output_full {
 	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (2,3,4);
 	foreach my $key (sort keys %{$monitors}){
 		$j++;
+		if ($monitors->{$key}{'monitor-mapped'} && $monitors->{$key}{'monitor'}){
+			($monitors->{$key}{'monitor-mapped'},$monitors->{$key}{'monitor'}) = ($monitors->{$key}{'monitor'},$monitors->{$key}{'monitor-mapped'});
+		}
 		$$row[$j]->{main::key($$num++,1,$m1,'Monitor')} = $monitors->{$key}{'monitor'};
 		if ($monitors->{$key}{'monitor-mapped'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
@@ -22130,7 +22133,8 @@ sub process_lm_sensors {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-pch-intel-1.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-ppc-sr71.txt";
-		# @sensors_data = main::reader($file);
+		 my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-applesmc-1.txt";
+		 @sensors_data = main::reader($file);
 	}
 	else {
 		# only way to get sensor array data? Unless using sensors -j, but can't assume json 
@@ -22150,6 +22154,9 @@ sub process_lm_sensors {
 			# note: drivetemp: known, but many others could exist
 			if ($adapter =~ /^(drive|nvme)/){
 				$type = 'disk';
+			}
+			elsif ($adapter =~ /^(BAT)/){
+				$type = 'bat';
 			}
 			# intel on die io controller, like southbridge/northbridge used to be
 			elsif ($adapter =~ /^(pch[_-])/){
