@@ -33,6 +33,65 @@ sub _group_by2 {
 	@l;
 }
 
+C# hanged external method to internal, to allow for error returns in the main data 
+sub check_parsed_edid {
+	my ($edid) = @_;
+	$edid->{edid_version} >= 1 && $edid->{edid_version} <= 2 or return 'bad edid_version';
+	$edid->{edid_revision} != 0xff or return 'bad edid_revision';
+	if ($edid->{monitor_range}) {
+		$edid->{monitor_range}{horizontal_min} && 
+		  $edid->{monitor_range}{horizontal_min} <= $edid->{monitor_range}{horizontal_max} 
+			or return 'bad HorizSync';
+		$edid->{monitor_range}{vertical_min} &&
+		  $edid->{monitor_range}{vertical_min} <= $edid->{monitor_range}{vertical_max} 
+			or return 'bad VertRefresh';
+	}
+	'';
+}
+# new:
+sub _check_parsed_edid {
+	my $edid = shift @_;
+	if (!defined $edid->{edid_version}){
+		_edid_error('edid-version','undefined');
+	}
+	elsif ($edid->{edid_version} < 1 || $edid->{edid_version} > 2){
+		_edid_error('edid-version',$edid->{edid_version});
+	}
+	if (!defined $edid->{edid_revision}){
+		_edid_error('edid-revision','undefined');
+	}
+	elsif ($edid->{edid_revision} == 0xff){
+		_edid_error('edid-revision',$edid->{edid_revision});
+	}
+	if ($edid->{monitor_range}){
+		if (!$edid->{monitor_range}{horizontal_min}){
+			_edid_error('edid-sync','no horizontal');
+		}
+		elsif ($edid->{monitor_range}{horizontal_min} > $edid->{monitor_range}{horizontal_max}){
+			_edid_error('edid-sync', 
+			"bad horizontal values: min: $edid->{monitor_range}{horizontal_min} max: $edid->{monitor_range}{horizontal_max}");
+		}
+		if (!$edid->{monitor_range}{vertical_min}){
+			_edid_error('edid-sync','no vertical');
+		}
+		elsif ($edid->{monitor_range}{vertical_min} > $edid->{monitor_range}{vertical_max}){
+			_edid_error('edid-sync',
+			"bad vertical values: min: $edid->{monitor_range}{vertical_min} max: $edid->{monitor_range}{vertical_max}");
+		}
+	}
+}
+sub _edid_error {
+	my ($edid,$error,$data) = @_;
+	$edid{edid_error} = [] if !$edid{edid_error};
+	push(@{$edid{edid_error}},main::message($error,$data));
+}
+# called here, in parse_edid():
+
+	_check_parsed_edid();
+	\%edid;
+}
+
+
 ## This is a fallback in case we need to use Parse::EDID Perl module again
 
 ## pinxi.1 - about line 1438:

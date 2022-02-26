@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-02-23';
-my $self_patch='02';
+my $self_date='2022-02-26';
+my $self_patch='03';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6659,6 +6659,9 @@ sub message {
 	'dmidecode-dev-mem' => 'dmidecode is not allowed to read /dev/mem',
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
 	'gl-console' => 'No advanced graphics data found on this system in console.',
+	'edid-revision' => "invalid EDID revision: $id",
+	'edid-sync' => "bad sync value: $id",
+	'edid-version' => "invalid EDID version: $id",
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'gl-null' => 'No GL data found on this system.',
 	'gl-root' => 'GL data unavailable in console for root.',
@@ -13932,12 +13935,12 @@ sub monitors_output_full {
 	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (2,3,4);
 	foreach my $key (sort keys %{$monitors}){
 		$j++;
-		if ($monitors->{$key}{'monitor-mapped'} && $monitors->{$key}{'monitor'}){
-			($monitors->{$key}{'monitor-mapped'},$monitors->{$key}{'monitor'}) = ($monitors->{$key}{'monitor'},$monitors->{$key}{'monitor-mapped'});
+		if ($monitors->{$key}{'monitor-sys-id'} && $monitors->{$key}{'monitor'}){
+			($monitors->{$key}{'monitor-sys-id'},$monitors->{$key}{'monitor'}) = ($monitors->{$key}{'monitor'},$monitors->{$key}{'monitor-sys-id'});
 		}
 		$$row[$j]->{main::key($$num++,1,$m1,'Monitor')} = $monitors->{$key}{'monitor'};
-		if ($monitors->{$key}{'monitor-mapped'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
+		if ($monitors->{$key}{'monitor-sys-id'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-sys-id'};
 		}
 		if ($monitors->{$key}{'position'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'pos')} = $monitors->{$key}{'position'};
@@ -14805,7 +14808,7 @@ sub xrandr_data {
 		@xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
 	}
 	else {
-		@xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/svn/branches/inxi-perl/xrandr.txt",'strip');
+		@xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip');
 	}
 	# $graphics{'dimensions'} = (\@dimensions);
 	# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -15047,8 +15050,9 @@ sub display_drivers_x {
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/xorg-multi-driver-1.log";
 		}
 		my @xorg = main::reader($log);
-		# list is from sgfxi plus non-free drivers, plus ARM drivers
-		my $list = join('|', qw(amdgpu apm ark armsoc atimisc ati 
+		# list is from sgfxi plus non-free drivers, plus ARM drivers. 
+		# Don't use ati. It's just a wrapper for: r128, mach64, radeon
+		my $list = join('|', qw(amdgpu apm ark armsoc atimisc
 		chips cirrus cyrix fbdev fbturbo fglrx geode glide glint 
 		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
 		iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
@@ -15265,7 +15269,7 @@ sub monitor_edid_data {
 	}
 	if ($edid->{'ratio_name'}){
 		$edid->{'ratio_name'} =~ s|/|:|g; # this should be changed in ParseEDID
-		$edid->{'ratio_name'} =~ s| or |, |g; # 3/2 or 16/10
+		$edid->{'ratio_name'} =~ s| or |, |g; # "3/2 or 16/10"
 		$monitor_ids->{$port}{'ratio'} = $edid->{'ratio_name'};
 	}
 	if ($edid->{'detailed_timings'}){
@@ -15291,6 +15295,10 @@ sub monitor_edid_data {
 		elsif ($edid->{'serial_number'}){
 			$monitor_ids->{$port}{'serial'} = main::clean_dmi($edid->{'serial_number'}); 
 		}
+	}
+	# this will be an array reference of one or more edid errors
+	if ($edid->{'edid_error'}){
+		$graphics{'edid-errors'}->{$port} = $edid->{'edid_error'};
 	}
 	eval $end if $b_log;
 }
@@ -15321,7 +15329,7 @@ sub advanced_monitor_data {
 	# print Data::Dumper::Dumper \@horiz;
 	# print Data::Dumper::Dumper \@vert;
 	# print Data::Dumper::Dumper $layouts;
-	# print Data::Dumper::Dumper $monitor_map;
+	 print 'mon advanced monitor_map: ', Data::Dumper::Dumper $monitor_map;
 	foreach my $key (keys %$monitors){
 		if (@horiz && @vert){
 			$monitors->{$key}{'position'} ||= '';
@@ -15346,9 +15354,9 @@ sub advanced_monitor_data {
 			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
 			$monitors->{$key}{'ratio'} = $monitor_ids->{$mon_mapped}{'ratio'};
 			$monitors->{$key}{'serial'} = $monitor_ids->{$mon_mapped}{'serial'};
-			if ($mon_mapped ne $monitors->{$key}{'monitor'}){
-				$monitors->{$key}{'monitor-mapped'} = $mon_mapped;
-			}
+		}
+		if ($mon_mapped && $mon_mapped ne $monitors->{$key}{'monitor'}){
+			$monitors->{$key}{'monitor-sys-id'} = $mon_mapped;
 		}
 	}
 	# not printing out primary if Screen has only 1 Monitor
@@ -15430,7 +15438,7 @@ sub map_monitor_ids {
 		}
 	}
 	@sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
-	# @sys_ids = ('DP-1-1','DVI-I-1','VGA-1');
+	# @sys_ids = ('DVI-I-1','eDP-1','VGA-1');
 	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
 	main::log_data('dump','$xrandr_ids ref',$display_ids) if $b_log;
 	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
@@ -15439,10 +15447,11 @@ sub map_monitor_ids {
 	$monitor_map = {};
 	# known patterns: s: DP-1, d: DisplayPort-0; s: HDMI-A-2, d: HDMI-A-1
 	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
-	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1
+	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1;
+	# s: eDP-1, d: eDP-1-1 (yes, reversed from normal deviation!); s: eDP-1, d: eDP
 	my ($d_1,$d_2,$d_3,$d_4,$s_1,$s_2,$s_3,$s_4);
 	for (my $i=0; $i < scalar @$display_ids; $i++){
-		print "s: $sys_ids[$i] x: $display_ids->[$i]\n" if $dbg[45];
+		print "s: $sys_ids[$i] d: $display_ids->[$i]\n" if $dbg[45];
 		if ($display_ids->[$i] =~ /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
 			$d_1 = $1;
 			$d_2 = ($2) ? $2 : '';
@@ -15461,6 +15470,11 @@ sub map_monitor_ids {
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
 				}
 			}
+		}
+		# handle cases like: d: eDP s: eDP-1; d: eDP-1 s: eDP
+		elsif (scalar @$display_ids == 1 && ($sys_ids[0] =~/^$display_ids->[0]/i || 
+		$display_ids->[0] =~ /^$sys_ids[0]/i)){
+			$monitor_map->{$display_ids->[0]} = $sys_ids[0];
 		}
 		if (!$monitor_map->{$display_ids->[$i]}){
 			$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
@@ -28044,20 +28058,6 @@ sub _get_many_bits {
 	}
 	\%h;
 }
-sub check_parsed_edid {
-	my ($edid) = @_;
-	$edid->{edid_version} >= 1 && $edid->{edid_version} <= 2 or return 'bad edid_version';
-	$edid->{edid_revision} != 0xff or return 'bad edid_revision';
-	if ($edid->{monitor_range}) {
-		$edid->{monitor_range}{horizontal_min} && 
-		  $edid->{monitor_range}{horizontal_min} <= $edid->{monitor_range}{horizontal_max} 
-			or return 'bad HorizSync';
-		$edid->{monitor_range}{vertical_min} &&
-		  $edid->{monitor_range}{vertical_min} <= $edid->{monitor_range}{vertical_max} 
-			or return 'bad VertRefresh';
-	}
-	'';
-}
 sub _build_detailed_timing {
 	my ($pixel_clock, $vv) = @_;
 	my $h = _get_many_bits($vv, 'detailed_timing');
@@ -28315,8 +28315,45 @@ sub parse_edid {
 		  $h->{interlaced} ? ' Interlace' : '';
 	}
 	$edid{diagonal_size} = sqrt(_sqr($edid{max_size_horizontal}) + _sqr($edid{max_size_vertical})) / 2.54;
-
+	# we want to use null data found tests so only test if something was found.
+	_check_parsed_edid(\%edid) if %edid;
 	\%edid;
+}
+sub _check_parsed_edid {
+	my $edid = shift @_;
+	if (!defined $edid->{edid_version}){
+		_edid_error('edid-version','undefined');
+	}
+	elsif ($edid->{edid_version} < 1 || $edid->{edid_version} > 2){
+		_edid_error('edid-version',$edid->{edid_version});
+	}
+	if (!defined $edid->{edid_revision}){
+		_edid_error('edid-revision','undefined');
+	}
+	elsif ($edid->{edid_revision} == 0xff){
+		_edid_error('edid-revision',$edid->{edid_revision});
+	}
+	if ($edid->{monitor_range}){
+		if (!$edid->{monitor_range}{horizontal_min}){
+			_edid_error('edid-sync','no horizontal');
+		}
+		elsif ($edid->{monitor_range}{horizontal_min} > $edid->{monitor_range}{horizontal_max}){
+			_edid_error('edid-sync', 
+			"bad horizontal values: min: $edid->{monitor_range}{horizontal_min} max: $edid->{monitor_range}{horizontal_max}");
+		}
+		if (!$edid->{monitor_range}{vertical_min}){
+			_edid_error('edid-sync','no vertical');
+		}
+		elsif ($edid->{monitor_range}{vertical_min} > $edid->{monitor_range}{vertical_max}){
+			_edid_error('edid-sync',
+			"bad vertical values: min: $edid->{monitor_range}{vertical_min} max: $edid->{monitor_range}{vertical_max}");
+		}
+	}
+}
+sub _edid_error {
+	my ($edid,$error,$data) = @_;
+	$edid->{edid_error} = [] if !$edid->{edid_error};
+	push(@{$edid->{edid_error}},main::message($error,$data));
 }
 sub _nearest_ratio {
 	my ($ratio, $max_error) = @_;
