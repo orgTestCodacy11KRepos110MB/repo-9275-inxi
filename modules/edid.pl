@@ -91,6 +91,9 @@ sub _edid_error {
 	\%edid;
 }
 
+# about line 5 of parse_edid, they didn't explicitly make this an integer iterator
+	my $i = 0;
+
 
 ## This is a fallback in case we need to use Parse::EDID Perl module again
 

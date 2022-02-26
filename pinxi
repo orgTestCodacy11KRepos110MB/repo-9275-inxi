@@ -13509,7 +13509,6 @@ sub device_output {
 		next if $row->[3] != 0;
 		# print "$row->[0] $row->[3]\n";
 		$j = scalar @rows;
-		push(@{$graphics{'gpu-drivers'}},$row->[9]) if $row->[9];
 		my $device = main::trimmer($row->[4]);
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
@@ -13523,6 +13522,7 @@ sub device_output {
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
 			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
+		push(@{$graphics{'gpu-drivers'}},$row->[9]) if $row->[9];
 		my $driver = ($row->[9]) ? $row->[9]:'N/A';
 		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
 		if ($row->[9] && !$bsd_type){
@@ -13780,7 +13780,7 @@ sub display_output(){
 				}
 				my $gpu_drivers = gpu_drivers_sys('all');
 				my $drivers;
-				if ($gpu_drivers ){
+				if ($gpu_drivers){
 					$drivers = join(',',@{$gpu_drivers});
 				}
 				else {
@@ -14512,7 +14512,6 @@ sub swaymsg_data {
 					$monitor_ids->{$id}{'model'} = main::clean($mon->{'make'});
 					if ($mon->{'model'}){
 						$monitor_ids->{$id}{'model'} .= ' ' . main::clean($mon->{'model'});
-						
 					}
 					$monitor_ids->{$id}{'model'} = main::remove_duplicates($monitor_ids->{$id}{'model'});
 				}
@@ -15252,7 +15251,7 @@ sub monitor_edid_data {
 	if ($edid->{'gamma'}){
 		$monitor_ids->{$port}{'gamma'} = ($edid->{'gamma'}/100 + 0);
 	}
-	if ($edid->{'monitor_name'} || $edid->{'manufacturer_name_nice'}){
+	if ($edid->{'monitor_namess'} || $edid->{'manufacturer_name_nicess'}){
 		my $model = '';
 		if ($edid->{'manufacturer_name_nice'}){
 			$model = $edid->{'manufacturer_name_nice'};
@@ -15262,6 +15261,10 @@ sub monitor_edid_data {
 			$model .= $edid->{'monitor_name'};
 		}
 		$monitor_ids->{$port}{'model'} = main::remove_duplicates(main::clean($model));
+	}
+	elsif ($edid->{'manufacturer_name'} && $edid->{'product_code'}){
+		$monitor_ids->{$port}{'model'} = '[ID] ' . $edid->{'manufacturer_name'} . ' ';
+		$monitor_ids->{$port}{'model'} .= sprintf('0x%04x',$edid->{'product_code'});
 	}
 	if ($edid->{'diagonal_size'}){
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
@@ -15329,7 +15332,7 @@ sub advanced_monitor_data {
 	# print Data::Dumper::Dumper \@horiz;
 	# print Data::Dumper::Dumper \@vert;
 	# print Data::Dumper::Dumper $layouts;
-	 print 'mon advanced monitor_map: ', Data::Dumper::Dumper $monitor_map;
+	# print 'mon advanced monitor_map: ', Data::Dumper::Dumper $monitor_map;
 	foreach my $key (keys %$monitors){
 		if (@horiz && @vert){
 			$monitors->{$key}{'position'} ||= '';
@@ -27917,6 +27920,19 @@ my %subfields = (
 		[1, 'native'],
 		[7, 'mode'],
 	],
+	# not supported yet
+	_color_characteristics => [
+		[1, 'red_green_low_order'],
+		[1, 'blue_white_low_order'],
+		[1, 'red_x_high_order'],
+		[1, 'red_y_high_order'],
+		[1, 'green_x_high_order'],
+		[1, 'green_y_high_order'],
+		[1, 'blue_x_high_order'],
+		[1, 'blue_y_high_order'],
+		[1, 'white_x_high_order'],
+		[1, 'white_y_high_order'],
+	],
 );
 my @cea_video_mode_to_detailed_timing = (
 	'pixel_clock',
@@ -28003,8 +28019,8 @@ my @cea_video_modes = (
 	[ 297.000, 1920, 1080, "16/9",  720,  528,  44,  45,  4, 10, 1, 1, 0 ], # 64: 1920x1080@100.00
 );
 # Exist but IDs Unknown: Pixio, AOpen (AON?), AORUS [probably GBT], Deco Gear, 
-# Eyoyo, GAEMS, GeChic, KOORUI, Lilliput, Mobile Pixels, Nexanic,
-# SunFounder, TECNII, TPEKKA, V7/VSEVEN, 
+# Eyoyo, GAEMS, GeChic, KOORUI, Lilliput, Mobile Pixels, Nexanic, SunFounder,
+# TECNII, TPEKKA, V7/VSEVEN, 
 # Guesses: KYY=KYY, MSI=MSI,  
 # PGS: Princeton Graphic Systems; SDC: Samsung Display Co; 
 # SIS: Silicon Integrated Systems; STN: Samsung Electronics America; 
@@ -28033,7 +28049,7 @@ my %vendors = (
 'OQI' => 'ViewSonic Optiquest', 'ORN' => 'Orion',
 'PBN' => 'Packard Bell', 'PCK' => 'Daewoo', 'PDC' => 'Polaroid', 'PGS' => 'Princeton', 
 'PHL' => 'Philips', 'PIO' => 'Pioneer', 'PNR' => 'Planar', 'PRT' => 'Princeton', 
-'QDI' => 'Quahtum Data', 'QDS' => 'Quanta Display', 'REL' => 'Relisys', 
+'QDI' => 'Quantum Data', 'QDS' => 'Quanta Display', 'REL' => 'Relisys', 
 'SAM' => 'Samsung', 'SAN' => 'Sanyo', 'SDC' => 'Samsung', 'SEC' => 'Seiko Epson', 
 'SEN' => 'Sensics', 'SHP' => 'Sharp', 'SII' => 'Silicon Image', 'SIS' => 'SIS', 
 'SMC' => 'Samtron', 'SMI' => 'Smile', 'SNI' => 'Siemens Nixdorf', 'SNY' => 'Sony', 
@@ -28095,7 +28111,7 @@ sub parse_edid {
 	my %edid;
 	my ($main_edid, @eedid_blocks) = unpack("a128" x (length($raw_edid) / 128), $raw_edid);
 	my @vals = unpack(join('', map { $_->[0] } @edid_info), $main_edid);
-	my $i;
+	my $i = 0;
 	foreach (@edid_info) {
 		my ($field, $v) = ($_->[1], $vals[$i++]);
 		if ($field eq 'year') {
