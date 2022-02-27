@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-02-26';
-my $self_patch='03';
+my $self_date='2022-02-27';
+my $self_patch='04';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13948,6 +13948,9 @@ sub monitors_output_full {
 		if ($monitors->{$key}{'model'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'model')} = $monitors->{$key}{'model'};
 		}
+		elsif ($monitors->{$key}{'model-id'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'model-id')} = $monitors->{$key}{'model-id'};
+		}
 		if ($extra > 2 && $monitors->{$key}{'serial'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
 		}
@@ -15263,8 +15266,8 @@ sub monitor_edid_data {
 		$monitor_ids->{$port}{'model'} = main::remove_duplicates(main::clean($model));
 	}
 	elsif ($edid->{'manufacturer_name'} && $edid->{'product_code'}){
-		$monitor_ids->{$port}{'model'} = '[id] ' . $edid->{'manufacturer_name'} . ' ';
-		$monitor_ids->{$port}{'model'} .= sprintf('0x%04x',$edid->{'product_code'});
+		$monitor_ids->{$port}{'model-id'} = $edid->{'manufacturer_name'} . ' ';
+		$monitor_ids->{$port}{'model-id'} .= sprintf('0x%04x',$edid->{'product_code'});
 	}
 	if ($edid->{'diagonal_size'}){
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
@@ -15355,6 +15358,9 @@ sub advanced_monitor_data {
 			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
 			$monitors->{$key}{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
 			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
+			if ($monitor_ids->{$mon_mapped}{'model-id'}){
+				$monitors->{$key}{'model-id'} = $monitor_ids->{$mon_mapped}{'model-id'};
+			}
 			$monitors->{$key}{'ratio'} = $monitor_ids->{$mon_mapped}{'ratio'};
 			$monitors->{$key}{'serial'} = $monitor_ids->{$mon_mapped}{'serial'};
 		}
@@ -15452,32 +15458,29 @@ sub map_monitor_ids {
 	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
 	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1;
 	# s: eDP-1, d: eDP-1-1 (yes, reversed from normal deviation!); s: eDP-1, d: eDP
-	my ($d_1,$d_2,$d_3,$d_4,$s_1,$s_2,$s_3,$s_4);
+	my ($d_1,$d_2,$d_3,$s_1,$s_2,$s_3);
+	my $pattern = '([A-Z]+)(-[A-Z]-\d+-\d+|-[A-Z]-\d+|-\d+-\d+|-?\d+|)';
 	for (my $i=0; $i < scalar @$display_ids; $i++){
 		print "s: $sys_ids[$i] d: $display_ids->[$i]\n" if $dbg[45];
-		if ($display_ids->[$i] =~ /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
+		# try 1: /^([A-Z]+)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i
+		if ($display_ids->[$i] =~ /^$pattern$/i){
 			$d_1 = $1;
 			$d_2 = ($2) ? $2 : '';
-			$d_3 = ($3) ? $3 : '';
-			$d_4 = $4;
+			$d_2 =~ /(\d+)?$/;
+			$d_3 = ($1) ? $1 : 0;
 			$d_1 =~ s/^DisplayPort/DP/i; # amdgpu...
-			print " d1: $d_1 d2: $d_2 d3: $d_3 d4: $d_4\n" if $dbg[45];
-			if ($sys_ids[$i] =~ /^([A-Z]+?)(-[AB]|-[ADI]|-[ADI]-\d+?|-\d+?)?(-)?(\d+)$/i){
+			print " d1: $d_1 d2: $d_2 d3: $d_3\n" if $dbg[45];
+			if ($sys_ids[$i] =~ /^$pattern$/i){
 				$s_1 = $1;
 				$s_2 = ($2) ? $2 : '';
-				$s_3 = ($3) ? $3 : '';
-				$s_4 = $4;
+				$s_2 =~ /(\d+)?$/;
+				$s_3 = ($1) ? $1 : 0;
 				$d_1 = $s_1 if uc($d_1) eq 'XWAYLAND';
-				print " d1: $d_1 s1: $s_1 s2: $s_2 s3: $s_3 s4: $s_4\n" if $dbg[45];
-				if ($d_1 eq $s_1 && ($d_4 == $s_4 || $d_4 == ($s_4 - 1))){
+				print " d1: $d_1 s1: $s_1 d3: $d_3 s3: $s_3 \n" if $dbg[45];
+				if ($d_1 eq $s_1 && ($d_3 == $s_3 || $d_3 == ($s_3 - 1))){
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
 				}
 			}
-		}
-		# handle cases like: d: eDP s: eDP-1; d: eDP-1 s: eDP
-		elsif (scalar @$display_ids == 1 && ($sys_ids[0] =~/^$display_ids->[0]/i || 
-		$display_ids->[0] =~ /^$sys_ids[0]/i)){
-			$monitor_map->{$display_ids->[0]} = $sys_ids[0];
 		}
 		if (!$monitor_map->{$display_ids->[$i]}){
 			$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
