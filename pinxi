@@ -13652,6 +13652,8 @@ sub display_output(){
 	my ($num,$j) = (0,0);
 	# note: these may not always be set, they won't be out of X, for example
 	display_protocol();
+	# get rid of all inactive or disabled monitor port ids
+	set_active_monitors() if $monitor_ids;
 	$graphics{'protocol'} = 'wayland' if $force{'wayland'};
 	# note, since the compositor is the server with wayland, always show it
 	if ($extra > 1 || $graphics{'protocol'} eq 'wayland'){
@@ -13669,8 +13671,6 @@ sub display_output(){
 	else {
 		$graphics{'tty'} = tty_data();
 	}
-	# get rid of all inactive or disabled monitor port ids
-	set_active_monitors() if $monitor_ids;
 	# no xdpyinfo installed
 	# undef $graphics{'x-server'};
 	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1] || 
@@ -15379,27 +15379,12 @@ sub advanced_monitor_data {
 # clear out all disabled or not connected monitor ports
 sub set_active_monitors {
 	eval $start if $b_log;
-	my @ids;
-	if ($graphics{'screens'} && @{$graphics{'screens'}}){
-		foreach my $screen (@{$graphics{'screens'}}){
-			if ($screen->{'monitors'} && %{$screen->{'monitors'}}){
-				# these are the matched mapped IDs, ideally.
-				foreach my $key (keys %{$screen->{'monitors'}}){
-					push(@ids,$screen->{'monitors'}{$key}{'monitor'});
-				}
-			}
-		}
-	}
 	foreach my $key (keys %$monitor_ids){
 		if (!$monitor_ids->{$key}{'status'} ||
-		$monitor_ids->{$key}{'status'} ne 'connected'){
-			# we have to work around an nvidia non free driver bug that sets enabled 
-			# to disabled, sigh, when it's connected and enabled
-			if ((!@ids || !(grep {$key eq $_} @ids)) && 
-			(!$monitor_ids->{$key}{'enabled'} || 
-			$monitor_ids->{$key}{'enabled'} ne 'enabled')){
-				delete $monitor_ids->{$key};
-			}
+		$monitor_ids->{$key}{'status'} ne 'connected' ||
+		!$monitor_ids->{$key}{'enabled'} || 
+		$monitor_ids->{$key}{'enabled'} ne 'enabled'){
+			delete $monitor_ids->{$key};
 		}
 	}
 	# print 'active monitors: ', Data::Dumper::Dumper $monitor_ids;
@@ -15447,7 +15432,7 @@ sub set_monitor_layouts {
 	 '2-1' => 'middle-l','2-2' => 'middle-c','2-3' => 'middle-r',
 	 '3-1' => 'bottom-l','3-2' => 'bottom-c','3-3' => 'bottom-r'};
 }
-# this is required to resolve the insane situation where some xorg drivers change 
+# this is required to resolve the situation where some xorg drivers change 
 # the kernel ID for the port to something slightly different, amdgpu in particular.
 sub map_monitor_ids {
 	eval $start if $b_log;
