@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-02-27';
-my $self_patch='04';
+my $self_date='2022-03-01';
+my $self_patch='05';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13653,8 +13653,6 @@ sub display_output(){
 	# note: these may not always be set, they won't be out of X, for example
 	display_protocol();
 	$graphics{'protocol'} = 'wayland' if $force{'wayland'};
-	# get rid of all inactive or disabled monitor port ids
-	set_active_monitors() if $monitor_ids;
 	# note, since the compositor is the server with wayland, always show it
 	if ($extra > 1 || $graphics{'protocol'} eq 'wayland'){
 		set_compositor_data();
@@ -13671,6 +13669,8 @@ sub display_output(){
 	else {
 		$graphics{'tty'} = tty_data();
 	}
+	# get rid of all inactive or disabled monitor port ids
+	set_active_monitors() if $monitor_ids;
 	# no xdpyinfo installed
 	# undef $graphics{'x-server'};
 	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1] || 
@@ -13933,14 +13933,12 @@ sub monitors_output_full {
 	my ($type,$monitors,$j,$row,$num) = @_;
 	my ($b_no_size,$resolution);
 	my ($m1,$m2,$m3) = ($type eq 'screen') ? (3,4,5) : (2,3,4);
+	# note: in case where mapped id != sys id, the key will not match 'monitor'
 	foreach my $key (sort keys %{$monitors}){
 		$j++;
-		if ($monitors->{$key}{'monitor-sys-id'} && $monitors->{$key}{'monitor'}){
-			($monitors->{$key}{'monitor-sys-id'},$monitors->{$key}{'monitor'}) = ($monitors->{$key}{'monitor'},$monitors->{$key}{'monitor-sys-id'});
-		}
 		$$row[$j]->{main::key($$num++,1,$m1,'Monitor')} = $monitors->{$key}{'monitor'};
-		if ($monitors->{$key}{'monitor-sys-id'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-sys-id'};
+		if ($monitors->{$key}{'monitor-mapped'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
 		}
 		if ($monitors->{$key}{'position'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'pos')} = $monitors->{$key}{'position'};
@@ -15055,7 +15053,7 @@ sub display_drivers_x {
 		# list is from sgfxi plus non-free drivers, plus ARM drivers. 
 		# Don't use ati. It's just a wrapper for: r128, mach64, radeon
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc
-		chips cirrus cyrix fbdev fbturbo fglrx geode glide glint 
+		chips cirrus cyrix etnaviv fbdev fbturbo fglrx geode glide glint 
 		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
 		iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
 		nouveau nsc nvidia nv openchrome r128 radeonhd radeon rendition 
@@ -15364,8 +15362,10 @@ sub advanced_monitor_data {
 			$monitors->{$key}{'ratio'} = $monitor_ids->{$mon_mapped}{'ratio'};
 			$monitors->{$key}{'serial'} = $monitor_ids->{$mon_mapped}{'serial'};
 		}
+		# now swap the drm id for the display server id if they don't match
 		if ($mon_mapped && $mon_mapped ne $monitors->{$key}{'monitor'}){
-			$monitors->{$key}{'monitor-sys-id'} = $mon_mapped;
+			$monitors->{$key}{'monitor-mapped'} = $monitors->{$key}{'monitor'};
+			$monitors->{$key}{'monitor'} = $mon_mapped;
 		}
 	}
 	# not printing out primary if Screen has only 1 Monitor
@@ -15379,12 +15379,27 @@ sub advanced_monitor_data {
 # clear out all disabled or not connected monitor ports
 sub set_active_monitors {
 	eval $start if $b_log;
+	my @ids;
+	if ($graphics{'screens'} && @{$graphics{'screens'}}){
+		foreach my $screen (@{$graphics{'screens'}}){
+			if ($screen->{'monitors'} && %{$screen->{'monitors'}}){
+				# these are the matched mapped IDs, ideally.
+				foreach my $key (keys %{$screen->{'monitors'}}){
+					push(@ids,$screen->{'monitors'}{$key}{'monitor'});
+				}
+			}
+		}
+	}
 	foreach my $key (keys %$monitor_ids){
-		if (!$monitor_ids->{$key}{'enabled'} || 
-		$monitor_ids->{$key}{'enabled'} ne 'enabled' ||
-		!$monitor_ids->{$key}{'status'} ||
+		if (!$monitor_ids->{$key}{'status'} ||
 		$monitor_ids->{$key}{'status'} ne 'connected'){
-			delete $monitor_ids->{$key};
+			# we have to work around an nvidia non free driver bug that sets enabled 
+			# to disabled, sigh, when it's connected and enabled
+			if ((!@ids || !(grep {$key eq $_} @ids)) && 
+			(!$monitor_ids->{$key}{'enabled'} || 
+			$monitor_ids->{$key}{'enabled'} ne 'enabled')){
+				delete $monitor_ids->{$key};
+			}
 		}
 	}
 	# print 'active monitors: ', Data::Dumper::Dumper $monitor_ids;
