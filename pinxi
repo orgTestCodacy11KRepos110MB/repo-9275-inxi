@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-01';
-my $self_patch='05';
+my $self_date='2022-03-03';
+my $self_patch='06';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -15461,7 +15461,8 @@ sub map_monitor_ids {
 	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
 	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1;
 	# s: eDP-1, d: eDP-1-1 (yes, reversed from normal deviation!); s: eDP-1, d: eDP
-	my ($d_1,$d_2,$d_3,$s_1,$s_2,$s_3);
+	# worst: s: DP-6, d: DP-2-3 (2 banks of 3 according to X)
+	my ($d_1,$d_2,$d_m,$s_1,$s_2,$s_m);
 	my $pattern = '([A-Z]+)(-[A-Z]-\d+-\d+|-[A-Z]-\d+|-\d+-\d+|-?\d+|)';
 	for (my $i=0; $i < scalar @$display_ids; $i++){
 		print "s: $sys_ids[$i] d: $display_ids->[$i]\n" if $dbg[45];
@@ -15470,17 +15471,17 @@ sub map_monitor_ids {
 			$d_1 = $1;
 			$d_2 = ($2) ? $2 : '';
 			$d_2 =~ /(\d+)?$/;
-			$d_3 = ($1) ? $1 : 0;
+			$d_m = ($1) ? $1 : 0;
 			$d_1 =~ s/^DisplayPort/DP/i; # amdgpu...
-			print " d1: $d_1 d2: $d_2 d3: $d_3\n" if $dbg[45];
+			print " d1: $d_1 d2: $d_2 d3: $d_m\n" if $dbg[45];
 			if ($sys_ids[$i] =~ /^$pattern$/i){
 				$s_1 = $1;
 				$s_2 = ($2) ? $2 : '';
 				$s_2 =~ /(\d+)?$/;
-				$s_3 = ($1) ? $1 : 0;
+				$s_m = ($1) ? $1 : 0;
 				$d_1 = $s_1 if uc($d_1) eq 'XWAYLAND';
-				print " d1: $d_1 s1: $s_1 d3: $d_3 s3: $s_3 \n" if $dbg[45];
-				if ($d_1 eq $s_1 && ($d_3 == $s_3 || $d_3 == ($s_3 - 1))){
+				print " d1: $d_1 s1: $s_1 dm: $d_m sm: $s_m \n" if $dbg[45];
+				if ($d_1 eq $s_1 && ($d_m == $s_m || $d_m == ($s_m - 1))){
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
 				}
 			}
@@ -28474,8 +28475,10 @@ sub get_pci_vendor {
 	# when using strings in patterns for regex have to escape them
 	foreach (@data){
 		$temp = $_;
+		# AMD Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
+		# PC Partner Limited / Sapphire Technology Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
 		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
-		if ($device !~ m|\b$temp\b|){
+		if (length($temp) == 1 || $device !~ m|\b$temp\b|){
 			$vendor .= $sep . $_;
 			$sep = ' ';
 		}
