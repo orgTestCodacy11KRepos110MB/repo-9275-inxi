@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.13';
 my $self_date='2022-03-03';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13940,6 +13940,9 @@ sub monitors_output_full {
 		if ($monitors->{$key}{'monitor-mapped'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
 		}
+		if ($monitors->{$key}{'disabled'}){
+			$$row[$j]->{main::key($$num++,0,$m2,'note')} = $monitors->{$key}{'disabled'};
+		}
 		if ($monitors->{$key}{'position'}){
 			$$row[$j]->{main::key($$num++,0,$m2,'pos')} = $monitors->{$key}{'position'};
 		}
@@ -14848,25 +14851,31 @@ sub xrandr_data {
 		# HDMI-2 connected 1920x1200+1080+0 (normal left inverted right x axis y axis) 519mm x 324mm
 		# DP-1 connected primary 2560x1440+1080+1200 (normal left inverted right x axis y axis) 598mm x 336mm
 		# HDMI-1 connected 1080x1920+0+0 left (normal left inverted right x axis y axis) 160mm x 90mm
-		elsif (/^([^\s]+)\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+([0-9]+)\+([0-9]+)(\s[^(]*\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+		# disabled but connected: VGA-1 connected (normal left inverted right x axis y axis)
+		elsif (/^([^\s]+)\s+connected\s(primary\s)?/){
 			$monitor_id = $1;
 			$set_as = $2;
-			$res_x = $3;
-			$res_y = $4;
-			$pos_x = $5;
-			$pos_y = $6;
-			$size_x = $9;
-			$size_y = $10;
-			# flip size x,y if don't roughly  match res x/y ratio
-			if ($size_x && $size_y && $res_y){
-				flip_size_x_y(\$size_x,\$size_y,\$res_x,\$res_y);
+			if (/^[^\s]+\s+connected\s(primary\s)?([0-9]+)\s*x\s*([0-9]+)\+([0-9]+)\+([0-9]+)(\s[^(]*\([^)]+\))?(\s([0-9]+)mm\sx\s([0-9]+)mm)?/){
+				$res_x = $2;
+				$res_y = $3;
+				$pos_x = $4;
+				$pos_y = $5;
+				$size_x = $8;
+				$size_y = $9;
+				# flip size x,y if don't roughly  match res x/y ratio
+				if ($size_x && $size_y && $res_y){
+					flip_size_x_y(\$size_x,\$size_y,\$res_x,\$res_y);
+				}
+				$size_x_i = ($size_x) ? sprintf("%.1f", ($size_x/25.4)) : 0;
+				$size_y_i = ($size_y) ? sprintf("%.1f", ($size_y/25.4)) : 0;
+				$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
+				$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
+				$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
+				$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 			}
-			$size_x_i = ($size_x) ? sprintf("%.1f", ($size_x/25.4)) : 0;
-			$size_y_i = ($size_y) ? sprintf("%.1f", ($size_y/25.4)) : 0;
-			$dpi = ($res_x && $size_x) ? sprintf("%.0f", $res_x * 25.4 / $size_x) : '';
-			$diagonal = ($res_x && $size_x) ? sprintf("%.1f", (sqrt($size_x**2 + $size_y**2)/25.4)) : '';
-			$diagonal += 0 if $diagonal; # trick to get rid of decimal 0
-			$diagonal_m = ($res_x && $size_x) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
+			else {
+				($res_x,$res_y,$pos_x,$pos_y,$size_x,$size_x_i,$size_y,$size_y_i,$dpi,$diagonal,$diagonal_m) = ()
+			}
 			undef $primary;
 			push(@ids,$monitor_id);
 			if ($set_as){
@@ -15316,7 +15325,7 @@ sub advanced_monitor_data {
 	my $position = '';
 	# then see if we can locate a default position primary monitor
 	foreach my $key (keys %$monitors){
-		next if !defined $monitors->{$key}{'pos-x'};
+		next if !defined $monitors->{$key}{'pos-x'} || !defined $monitors->{$key}{'pos-y'};
 		# this is the only scenario we can guess at if no primary detected
 		if (!$monitors->{$key}{'primary'} &&
 		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
@@ -15338,7 +15347,7 @@ sub advanced_monitor_data {
 	# print Data::Dumper::Dumper $layouts;
 	# print 'mon advanced monitor_map: ', Data::Dumper::Dumper $monitor_map;
 	foreach my $key (keys %$monitors){
-		if (@horiz && @vert){
+		if (@horiz && @vert && (scalar @horiz > 1 || scalar @vert > 1)){
 			$monitors->{$key}{'position'} ||= '';
 			$position = '';
 			$position = get_monitor_position($monitors->{$key},\@horiz,\@vert);
@@ -15359,8 +15368,23 @@ sub advanced_monitor_data {
 			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
 			$monitors->{$key}{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
 			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
+			if (!defined $monitors->{$key}{'size-x'} && $monitor_ids->{$mon_mapped}{'size-x'}){
+				$monitors->{$key}{'size-x'} = $monitor_ids->{$mon_mapped}{'size-x'};
+				$monitors->{$key}{'size-x-i'} = $monitor_ids->{$mon_mapped}{'size-x-i'};
+			}
+			if (!defined $monitors->{$key}{'size-y'} && $monitor_ids->{$mon_mapped}{'size-y'}){
+				$monitors->{$key}{'size-y'} = $monitor_ids->{$mon_mapped}{'size-y'};
+				$monitors->{$key}{'size-y-i'} = $monitor_ids->{$mon_mapped}{'size-y-i'};
+			}
+			if (!defined $monitors->{$key}{'dpi'} && $monitor_ids->{$mon_mapped}{'dpi'}){
+				$monitors->{$key}{'dpi'} = $monitor_ids->{$mon_mapped}{'dpi'};
+			}
 			if ($monitor_ids->{$mon_mapped}{'model-id'}){
 				$monitors->{$key}{'model-id'} = $monitor_ids->{$mon_mapped}{'model-id'};
+			}
+			if ($monitor_ids->{$mon_mapped}{'enabled'} && 
+			$monitor_ids->{$mon_mapped}{'enabled'} eq 'disabled'){
+				$monitors->{$key}{'disabled'} = $monitor_ids->{$mon_mapped}{'enabled'};
 			}
 			$monitors->{$key}{'ratio'} = $monitor_ids->{$mon_mapped}{'ratio'};
 			$monitors->{$key}{'serial'} = $monitor_ids->{$mon_mapped}{'serial'};
@@ -15384,9 +15408,7 @@ sub set_active_monitors {
 	eval $start if $b_log;
 	foreach my $key (keys %$monitor_ids){
 		if (!$monitor_ids->{$key}{'status'} ||
-		$monitor_ids->{$key}{'status'} ne 'connected' ||
-		!$monitor_ids->{$key}{'enabled'} || 
-		$monitor_ids->{$key}{'enabled'} ne 'enabled'){
+		$monitor_ids->{$key}{'status'} ne 'connected'){
 			delete $monitor_ids->{$key};
 		}
 	}
@@ -15444,8 +15466,7 @@ sub map_monitor_ids {
 	@$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
 	my @sys_ids;
 	foreach my $key (keys %$monitor_ids){
-		if ($monitor_ids->{$key}{'status'} eq 'connected' && 
-		 $monitor_ids->{$key}{'enabled'} eq 'enabled'){
+		if ($monitor_ids->{$key}{'status'} eq 'connected'){
 			push(@sys_ids,$key);
 		}
 	}
@@ -28472,13 +28493,12 @@ sub get_pci_vendor {
 	# and similar matches show as non-match
 	$subsystem = clean_regex($subsystem);
 	my @data = split(/\s+/, $subsystem);
-	# when using strings in patterns for regex have to escape them
 	foreach (@data){
 		$temp = $_;
 		# AMD Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
 		# PC Partner Limited / Sapphire Technology Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
-		$temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
-		if (length($temp) == 1 || $device !~ m|\b$temp\b|){
+		# $temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
+		if (length($temp) == 1 || $device !~ m|\b\Q$temp\E\b|i){
 			$vendor .= $sep . $_;
 			$sep = ' ';
 		}
@@ -28486,6 +28506,8 @@ sub get_pci_vendor {
 			last;
 		}
 	}
+	# just in case we had a standalone last character after done
+	$vendor =~ s| [/\(\[\{a\.,-]$|| if $vendor;
 	eval $end if $b_log;
 	return $vendor;
 }
