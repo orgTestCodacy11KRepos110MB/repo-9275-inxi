@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-03';
-my $self_patch='07';
+my $self_date='2022-03-04';
+my $self_patch='08';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -4653,6 +4653,11 @@ sub get {
 		$show{'short'} = 0;
 		$show{'bluetooth'} = 1; 
 		$show{'bluetooth-forced'} = 1;},
+	'edid' => sub {
+		$show{'short'} = 0;
+		$show{'edid'} = 1;
+		$show{'graphic'} = 1;
+		$show{'graphic-full'} = 1;},
 	'f|flags|flag' => sub {
 		$show{'short'} = 0;
 		$show{'cpu'} = 1;
@@ -15314,7 +15319,10 @@ sub monitor_edid_data {
 	}
 	# this will be an array reference of one or more edid errors
 	if ($edid->{'edid_error'}){
-		$graphics{'edid-errors'}->{$port} = $edid->{'edid_error'};
+		$monitor_ids->{$port}{'edid-error'} = $edid->{'edid_error'};
+	}
+	if ($edid->{'color_characteristics'}){
+		$monitor_ids->{$port}{'color-characteristics'} = $edid->{'color_characteristics'};
 	}
 	eval $end if $b_log;
 }
@@ -15368,6 +15376,7 @@ sub advanced_monitor_data {
 			$monitors->{$key}{'modes-max'} = $monitor_ids->{$mon_mapped}{'modes-max'};
 			$monitors->{$key}{'modes-min'} = $monitor_ids->{$mon_mapped}{'modes-min'};
 			$monitors->{$key}{'model'} = $monitor_ids->{$mon_mapped}{'model'};
+			$monitors->{$key}{'color-characteristics'} = $monitor_ids->{$mon_mapped}{'color-characteristics'};
 			if (!defined $monitors->{$key}{'size-x'} && $monitor_ids->{$mon_mapped}{'size-x'}){
 				$monitors->{$key}{'size-x'} = $monitor_ids->{$mon_mapped}{'size-x'};
 				$monitors->{$key}{'size-x-i'} = $monitor_ids->{$mon_mapped}{'size-x-i'};
@@ -27819,7 +27828,7 @@ my @edid_info = (
 	['C',   'max_size_vertical'], # in cm, 0 on projectors
 	['C',   'gamma'],
 	['a',   'feature_support'],
-	['a10', '_color_characteristics'],
+	['a10', 'color_characteristics'],
 	['a3' , 'established_timings'],
 	['a16', 'standard_timings'],
 	['a72', 'monitor_details'],
@@ -27948,18 +27957,19 @@ my %subfields = (
 		[1, 'native'],
 		[7, 'mode'],
 	],
-	# not supported yet
-	_color_characteristics => [
-		[1, 'red_green_low_order'],
-		[1, 'blue_white_low_order'],
-		[1, 'red_x_high_order'],
-		[1, 'red_y_high_order'],
-		[1, 'green_x_high_order'],
-		[1, 'green_y_high_order'],
-		[1, 'blue_x_high_order'],
-		[1, 'blue_y_high_order'],
-		[1, 'white_x_high_order'],
-		[1, 'white_y_high_order'],
+	color_characteristics => [
+		# Rx1 Rx0 Ry1 Ry0 Gx1 Gx0 Gy1 Gy0
+		[8, 'white_point_red_green'],
+		# Bx1 Bx0 By1 By0 Wx1 Wx0 Wy1 Wy0
+		[8, 'white_point_blue_white'],
+		[8, 'red_x'],
+		[8, 'red_y'],
+		[8, 'green_x'],
+		[8, 'green_y'],
+		[8, 'blue_x'],
+		[8, 'blue_y'],
+		[8, 'white_x'],
+		[8, 'white_y'],
 	],
 );
 my @cea_video_mode_to_detailed_timing = (
@@ -28098,6 +28108,7 @@ sub _within_limit {
 	my ($value, $type, $limit) = @_;
 	$type eq 'min' ? $value >= $limit : $value <= $limit;
 }
+
 sub _get_many_bits {
 	my ($s, $field_name) = @_;
 	my @bits = split('', unpack('B*', $s));
@@ -28105,7 +28116,13 @@ sub _get_many_bits {
 	foreach (@{$subfields{$field_name}}) {
 		my ($size, $field) = @$_;
 		my @l = ('0' x (8 - $size), splice(@bits, 0, $size));
-		$h{$field} = unpack("C", pack('B*', join('', @l))) if $field && $field !~ /^_/;
+		if ($field && $field !~ /^_/){
+			$h{$field} = unpack("C", pack('B*', join('', @l)));
+			# spec: chromacity: 0.xyz: white_point see color_characteristics
+			if ($h{$field} && $field_name eq 'color_characteristics'){
+				$h{$field} = ($field =~ /_[xy]$/) ? sprintf('%0.3f',$h{$field}/255) : [@l[1..8]];
+			}
+		}
 	}
 	\%h;
 }
@@ -28160,6 +28177,8 @@ sub parse_edid {
 			$v = _get_many_bits($v, 'video_input_definition');
 		} elsif ($field eq 'feature_support') {
 			$v = _get_many_bits($v, 'feature_support');
+		} elsif ($field eq 'color_characteristics') {
+			$v = _get_many_bits($v, 'color_characteristics');
 		} elsif ($field eq 'established_timings') {
 			my $h = _get_many_bits($v, 'established_timings');
 			$v = [
@@ -28495,7 +28514,7 @@ sub get_pci_vendor {
 	foreach my $word (@data){
 		# AMD Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
 		# PC Partner Limited / Sapphire Technology Tahiti PRO [Radeon HD 7950/8950 OEM / R9 280]
-		# $temp =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
+		# $word =~ s/(\+|\$|\?|\^|\*)/\\$1/g;
 		if (length($word) == 1 || $device !~ m|\b\Q$word\E\b|i){
 			$vendor .= $sep . $word;
 			$sep = ' ';
