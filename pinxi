@@ -22789,12 +22789,12 @@ sub slot_output {
 	foreach my $entry (@dmi){
 		$num = 1;
 		if ($entry->[0] == 9){
-			my ($designation,$id,$length,$type,$usage) = ('','','','','');
+			my ($bus_address,$designation,$id,$length,$type,$usage) = ('','','','','','');
 			# skip first two row, we don't need that data
 			my $j = scalar @rows;
 			foreach my $item (@$entry[2 .. $#$entry]){
 				if ($item !~ /^~/){ # skip the indented rows
-					my @value = split(/:\s+/, $item);
+					my @value = split(/:\s+/, $item, 2);
 					if ($value[0] eq 'Type'){
 						$type = $value[1];
 					}
@@ -22803,7 +22803,6 @@ sub slot_output {
 					}
 					if ($value[0] eq 'Current Usage'){
 						$usage = $value[1];
-						
 					}
 					if ($value[0] eq 'ID'){
 						$id = $value[1];
@@ -22811,23 +22810,33 @@ sub slot_output {
 					if ($extra > 1 && $value[0] eq 'Length'){
 						$length = $value[1];
 					}
+					if ($extra > 1 && $value[0] eq 'Bus Address'){
+						$value[1] =~ s/^0000://;
+						$bus_address = $value[1];
+					}
 				}
 			}
 			if ($type){
-				$id = 'N/A' if ($id eq '');
+				$id ||= 'N/A';
 				if ($type eq 'Other' && $designation){
 					$type = $designation;
 				}
 				elsif ($type && $designation){
 					$type = "$type $designation";
 				}
+				$type = main::remove_duplicates($type) if $type;
 				push(@rows, {
 				main::key($num++,1,1,'Slot') => $id,
 				main::key($num++,0,2,'type') => $type,
 				main::key($num++,0,2,'status') => $usage,
 				},);
 				if ($extra > 1){
+					$length ||= 'N/A';
 					$rows[$j]->{main::key($num++,0,2,'length')} = $length;
+				}
+				if ($extra > 0){
+					$bus_address ||= 'N/A';
+					$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_address;
 				}
 			}
 		}
