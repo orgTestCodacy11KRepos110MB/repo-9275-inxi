@@ -1,0 +1,198 @@
+Changes from Parse::EDID 1.0.7
+
+--------------------------------------------------------------------------------
+
+These changes are based on using the code from Parse::EDID in inxi system 
+information tool ( https://github.com/smxi/inxi ). Given inxi's heavy use in
+the *nix (mainly GNU/Linux) world, I would guess the realworld userbase of the
+Parse::EDID logic is increased by probably an order of magnitude, or more, 
+probably much more since inxi is used heavily and ships with many major distros.
+
+I ended up including the code in inxi because as I did the early beta testing of 
+using the Parse::EDID module, I realized that several major distros don't 
+package Parse::EDID at all (the Arch Linux family of distros did not seem to 
+have it, not even in AUR), and given it's not in Perl Core Modules, I basically 
+had to directly import the code into inxi if I wanted EDID parsing to be a 
+native feature. Trying to install it from CPAN directly was sufficiently 
+complicated to where I determined that basically no inxi user would ever do 
+that, so I had to give up on importing the module, and just implement the code 
+directly.
+
+Note that inxi is also GPL 3 or later, so there is no license issue.
+
+Due to necessity of not breaking existing useages of Parse::EDID, I left in 
+place some items that would be best changed, but I just added new field 
+names/items instead. I tried to preserve the indentation style in the 1.0.8 
+file, even though it's not consistent and quite awkward to work with.
+
+I also realized that some of the output of Parse::EDID actually isn't really 
+correct if you follow the specifications of EDID, but also understand that 
+sometimes you have to keep things that were technically not right, or 
+incomplete, since they might be used in production. So 1.0.8 would be a drop in
+replacement and should not break any existing uses of Parse::EDID. I'm sensitive
+to that type of regression issue, and try to avoid it whenever I can.
+
+Ideally I'd like to preserve everything that Parse::EDID does, while extending 
+it, so that the code in the inxi package Parse::EDID does not drift off from the 
+code in the Parse::EDID Perl module. I would anticipate once I get some more 
+user feedback and data (mainly around matching monitor vendor codes to actual 
+vendor names, which can only be done by someone empirically verifying the 
+monitor vendor name by looking at it) there will be a few more vendor matches.
+
+Note that I removed 2 public methods from inxi ParseEDID package that inxi 
+doesn't need, but those are just 3 methods, 2 public, so it's easy for me to 
+keep the code synced more or less.
+
+I did not change the extremely sparse help pod stuff, mainly because I don't 
+like doing documentation, and inxi doesn't use that at all anyway, but both the 
+module home page and help could use some more information, a lot of this stuff 
+is not intuitive at all, nor is it easy for people to implement Parse::EDID, I 
+know I had a lot of trouble getting the binary data into a form that was correct 
+for Parse::EDID because there was no good examples on the cpan module page. I 
+suspect this module is not used very much because it's not easy to implement.
+
+If you want, I can give you a few example implementation code lines that would 
+massively help users who are trying to use the perl module, since what it was 
+missing was meaningful real examples, like how to get the binary blob and send 
+it to the module. I found a one liner that does it cleanly, but it wasn't easy 
+or obvious to me.
+
+I went through the EDID specs and didn't find anything in the top data of 
+Parse::EDID that seemed out of date or invalid, though I'm not good at this 
+binary reading stuff, but the specs are pretty easy to read and understand, and 
+there are afterall only 128 bytes of primary EDID data to deal with.
+
+I would expect in the future that the list of monitor timings will be updated or 
+changed at some point, but they probably will never change the core 128 byte 
+logic, which suggests that the only changes once the parsing is completed, which 
+1.0.8 basically achieves, there will be very few updates needed beyond adding to 
+the vendor match list.
+
+I'm not an expert by any means at binary stuff, this is the first real time I've
+tried dealing with it, but the EDID specification documentation was quite well
+done and it wasn't too hard to figure out the core logic of this module based on
+that.
+
+--------------------------------------------------------------------------------
+List of changes:
+
+1. Replaced completely pointless and redundant _group_by2(...) with in place 
+array references. _group_by2 served absolutely no purpose, and simply obfuscated 
+the code, as well as adding completely unnecessary cpu cycles to initialize the 
+arrays of array references. Getting rid of that extra step also made the top 
+initialization blocks match each other, since they are all basically lists of 
+array references of [key,value] pairs, that's how the data is used internally, 
+so there's no reason to hide that fact or make it unnecessarily complicated.
+
+1a. At the top, this completely pointless @CVT_ratios was replaced:
+
+my @CVT_ratios = qw(5/4 4/3 3/2 16/10 15/9 16/9);
+my @known_ratios = @CVT_ratios;
+
+with: 
+
+# CVT_ratios:
+my @known_ratios = qw(5/4 4/3 3/2 16/10 15/9 16/9);
+
+I added the comment just to preserve that it's CVT_ratios. No idea why that 
+extra array was used, it served no purpose, and was just extra copying work for 
+no benefit for the logic.
+
+1b. Note that the use of the x/y ratio syntax is also incorrect, it makes sense 
+internally in the logic since that is used for math, but when I looked up all
+docs on monitor ratios, the syntax is always x:y, not x/y. Since x/y was also
+used as a shortcut for using this in math operations, I can see why this was
+used internally, but it shouldn't have been used as the public output. 
+
+'ratio_name' should have been the standard format x:y, not x/y, but that can't 
+be changed since people might for some reason be using that for math, though I
+doubt it.
+
+I added a field name 'ratios' that returns an array of ratios, 1 or more, in the 
+correct ratio syntax. The ratio_names uses the somewhat unfortunate return of 
+a string, each ratio separated by ' or ', which may or may not be what the users
+wanted. I know in my case, it's not what I wanted for the output format.
+
+Technically ratio_name I think should have been ratio_string, or something, 
+since it's not really a name, it's a string representation of 1 or more math 
+syntax ratios. I looked for a single instance of anywhere that documented 
+monitor display ratios that used the x/y format, and couldn't find a single 
+place that does that, but once these choices are made, to me it's best to stick 
+to them in order to not break existing uses of Parse::EDID. ratios will return 
+an array of 1 or more ratios.
+
+2. Removed unneeded sub _group_by2.
+
+3. Initialized my $i = 0 in parse_edid(). Around line 408. Don't want to rely on
+Perl allowing an iterator to be undefined prior to ++ action. Undefined scalars
+always end up biting me with Perl so I'm careful with those.
+
+4. Added %vendors matching table for vendor 3 letter codes. Technically the 
+'manufacturer_name' should have been called 'manufacturer_code', since that is 
+what the EDID specs refer to it as, and it's not a name, it's a code. But to 
+preserve backward compatibility, if a match is made, a new field name 
+'manufacturer_name_nice' is added, with a human readable string value for the 
+name. Note that this is not the legal full company name of the vendor, but shows 
+enough to be useful without being overly verbose.
+
+This list is not complete, but it's very hard to get this data in any reliable 
+form. There are a handful of incomplete data sources for the monitor vendor 
+codes > real company name online, most of which have at least some of the 
+matches wrong. I've done as many as practical, but this list is not complete for 
+all users for all purposes. Particularly in the case of industrial type 
+monitors, which don't meet any need or purpose inxi might have, in general those 
+were left off. My estimate is that of current realworld consumer monitor 
+vendors, there are probably around 20 to 30 more that need to be added, 
+including the difficult to determine laptop screen oems. But it's not bad as a 
+start. Certainly much better than nothing.
+
+5. Added new output field 'edid_errors', which is more useful than the default 
+check_parsed_edid public method, which I left in place since someone might be 
+using that. The new field returns an array of errors if > 0 found. I also 
+extended the types of errors that might get handled. This makes for more 
+intuitive use of the output, since you can simply check for return field 
+'edid_errors' being defined to see if there was anything wrong with the EDID data 
+structures. I'll probably extend this a bit over time. The external method 
+check_parsed_edid failed to return all possible errors, and only returned the 
+first one found, which is not very useful.
+
+Since this return data is much better quality than the existing public method,
+technically it should replace it, but for backward compatibility, I left the old
+method and it's return values in place just in case anyone is using it in 
+production. Personally I would dump the old method and replace the return of 
+the public function name with the _edid_errors return, which would drop in, but
+the output would be null or an array refernce, not a string, empty or full. 
+
+6. Completed missing primary data type 'color_characteristics', which for some 
+reason had never been completed. This returns the EDID specification of 
+chromaticity values in correct format (0.xxx) per red/green/blue/white x/y and 
+the default monitor white points:
+ white_point_red_green = Rx1 Rx0 Ry1 Ry0 Gx1 Gx0 Gy1 Gy0
+ white_point_blue_white = Bx1 Bx0 By1 By0 Wx1 Wx0 Wy1 Wy0
+ 
+This required modifying _get_many_bits to handle this custom case, since 
+color_characteristics is supposed to return an array of 8 values for each of the 
+first two bytes in that section, and the 3 decimal value for the last 8 bytes of 
+the color characteristics block.
+
+I was surprised to see this core feature left uncompleted as a stub, using the
+test for if field name starts with '_' don't use it, I left that test in place,
+but all field names are used now, so it's not really required.
+ 
+7. Added output type 'product_code_h' to return the standard 4 character hex 
+value in format '0xhhhh'. I've never seen a product or vendor 4 digit hex value 
+be used in its integer equivalent format, technically I'd call that use in 
+Parse::EDID a bug but given existing users who may have translating of the 
+return value in place, best to just leave the existing syntax in place and add a 
+proper hex return. 
+
+8. I integrated the product_code_h change into the EISA_ID generation. 
+
+9. While preserving the existing verbosity triggered warn, they are now also
+added to the new field 'edid_warnings', like 'edid_errors'.
+
+10. In detailed display, added imperial monitor horizontal/vertical image size:
+horizontal_image_size_i vertical_image_size_i
+These are to 2 decimal accuracy.
+Note that while Parse::EDID returned the diagonal in inches, it did not offer
+imperial size for vertical / horizontal. Now it does.
