@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-16';
-my $self_patch='11';
+my $self_date='2022-03-17';
+my $self_patch='12';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -15314,6 +15314,11 @@ sub monitor_edid_data {
 		$monitor_ids->{$port}{'model-id'} = $edid->{'manufacturer_name'} . ' ';
 		$monitor_ids->{$port}{'model-id'} .= $edid->{'product_code_h'};
 	}
+	# construct to match xorg values
+	if ($edid->{'manufacturer_name'} && $edid->{'product_code'}){
+		my $id = $edid->{'manufacturer_name'} . sprintf('%x',$edid->{'product_code'});
+		$monitor_ids->{$port}{$id} = ($edid->{'serial_number'}) ? $edid->{'serial_number'}: '';
+	}
 	if ($edid->{'diagonal_size'}){
 		$monitor_ids->{$port}{'diagonal-m'} = sprintf('%.0f',($edid->{'diagonal_size'}*25.4)) + 0;
 		$monitor_ids->{$port}{'diagonal'} = sprintf('%.1f',$edid->{'diagonal_size'}) + 0;
@@ -15525,8 +15530,9 @@ sub map_monitor_ids {
 	# s: HDMI-A-2, d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1, d: HDMI1 
 	# s: DVI-I-1, d: DVI0; s: VGA-1, d: VGA1; s: DP-1-1; d: DP-1-1;
 	# s: eDP-1, d: eDP-1-1 (yes, reversed from normal deviation!); s: eDP-1, d: eDP
-	# worst: s: DP-6, d: DP-2-3 (2 banks of 3 according to X)
+	# worst: s: DP-6, d: DP-2-3 (2 banks of 3 according to X); s: eDP-1, d: DP-4;
 	my ($d_1,$d_2,$d_m,$s_1,$s_2,$s_m);
+	my $b_single = (scalar @sys_ids == 1) ? 1 : 0;
 	my $pattern = '([A-Z]+)(-[A-Z]-\d+-\d+|-[A-Z]-\d+|-\d+-\d+|-?\d+|)';
 	for (my $i=0; $i < scalar @$display_ids; $i++){
 		print "s: $sys_ids[$i] d: $display_ids->[$i]\n" if $dbg[45];
@@ -15551,7 +15557,8 @@ sub map_monitor_ids {
 			}
 		}
 		if (!$monitor_map->{$display_ids->[$i]}){
-			$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
+			# we're not even going to try, if there's 1 sys and 1 display, just use it!
+			$monitor_map->{$display_ids->[$i]} = ($b_single) ? $sys_ids[$i] : main::message('monitor-id');
 		}
 	}
 	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
