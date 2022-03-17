@@ -14,9 +14,15 @@ KNOWN ISSUES:
 4-4. I'm not sure what structure those are really arranged in, but might be 
 worth adding in the x+y pos values along with the row-col values.
 
-2. For monitors, nvidia has a long standing bug that sets monitor enabled to
-disabled, which then makes inxi unable to use it. Tried working around this, but
-it's a bad idea, it's a bug, not a feature, and nvidia should fix it.
+2. For Monitors and graphics Device ports, if using non free nvidia driver and:
+nvidia-drm.modeset=1 not set in grub kernel boot parameters, there will be no
+/sys/class/drm data for the nvidia device, and thus no ports data, and no 
+monitor data. 
+
+3. A class of high count DP or DVI port IDs are changed by Xorg drivers to for
+example: DP-6 > DP-2-3. This is very difficult to handle and will in general 
+probably fail unfortunately because that level of port ID abstraction is just
+reazlly hard to deal with dynamically.
 
 --------------------------------------------------------------------------------
 BUGS:
@@ -34,10 +40,13 @@ the X.org ID when different from the kernel ID. So mapped should be the Xorg
 version when they are different from the kernel version.
 
 3. In Graphics, monitors can show > 1 ratio, failed to set all to :, resulting
-in: ratio: 3:2 or 16/10 modes:...
+in: ratio: 3:2 or 16/10 modes:. Also fixed ParseEDID to output an array of 
+ratios, which can then be processed as wanted.
 
 4. Handle case in monitors where display ID: eDP and sys ID: eDP-1, this only 
-works if 1 monitor in array.
+works if 1 monitor in array. There's a variety of this type of failure, when 
+X.org or its drivers decide to call the port ID XYZ with no number at all. All
+those possible cases are now handled, like eDP > eDP-1, VGA > VGA-1, and so on.
 
 5. Removed 'ati' driver from xorg drivers list, it's simply a wrapper for r128, 
 mach64, or radeon (and maybe amdgpu), and shows as failed, unloaded, or loaded, 
@@ -47,17 +56,16 @@ itself a driver. Thanks mrmazda for spotting this issue.
 6. Typo on QDI => Quantum Data.
 
 7. Added fallback for monitor model, now using vendor code plus product code 
-if nothing found for vendor nice name or model.
+if nothing found for vendor nice name or model. This will show as 'model-id:'
+instead of model: to help differentiate the two.
 
-8. Fixed failures to map certain odd monitor IDs for Xorg, like eDP / eDP-1 / 
-eDP-1-1, all variants seen.
+8. Added Monitor product_code to manufacturer if no model name is found.
 
-9. Added product_code to manufacturer if no model name is found.
+9. get_pci_vendor was trimming at ' / ' if the product string also contained 
+' / '. Fix is to ignore 1 character 'words' in the logic.
 
-10. get_pci_vendor was trimming at ' / ' if the product string also contained 
-' / '.
-
-11. In Slots, failed to remove_duplicates, leading to redundant output strings.
+10. In Slots, failed to remove_duplicates in the slot info field, leading to 
+redundant output strings.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -70,7 +78,11 @@ advanced EDID data than is appropriate for most users cases. Ihcludes errors,
 color characteristics chroma: (chromacity), full modes, not just min/max.
 
 3. In --slots, added bus-ID. Note that I was hoping this bus id would be related
-to the device bus ID, but it isn't, at least not in any obvious way.
+to the device bus ID, but it isn't, at least not in any obvious way. When a 
+pci match is made, will show the children of that as well.
+
+Also extended report quality, made more granular, got rid of single blob from
+Type and Designation and now get more accurate and useful data. 
 
 --------------------------------------------------------------------------------
 CHANGES:
@@ -107,6 +119,10 @@ to catch things like s: eDP-1 d: eDP or eDP-1-1, both have been seen.
 
 3. get_pci_vendor() added test for using anything that is 1 character length,
 to not break on 1 character length string matches.
+
+4. Fully refactored --slots, that was originally written purely as a proof of
+concept in terms of adding a new feature during the original inxi 2.9 rewrite,
+and was never actually touched after that.
 
 --------------------------------------------------------------------------------
 -- Harald Hope - Tue, 22 Feb 2022 15:59:50 -0800

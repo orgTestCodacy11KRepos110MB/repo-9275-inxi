@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-07';
-my $self_patch='10';
+my $self_date='2022-03-16';
+my $self_patch='11';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -22762,11 +22762,18 @@ sub gpu_data {
 package SlotItem;
 sub get {
 	eval $start if $b_log;
-	my (@rows,$key1,$val1);
+	my ($data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($fake{'dmidecode'} || ($alerts{'dmidecode'}->{'action'} eq 'use' && 
 	 (!%risc || $use{'slot-tool'}))){
-		@rows = slot_output();
+		$data = slot_data_dmi();
+		@rows = slot_output($data) if $data;
+		if (!@rows){
+			my $key = 'Message';
+			push(@rows, {
+			main::key($num++,0,1,$key) => main::message('pci-slot-data',''),
+			},);
+		}
 	}
 	elsif (%risc && !$use{'slot-tool'}){
 		$key1 = 'Message';
@@ -22784,71 +22791,159 @@ sub get {
 }
 sub slot_output {
 	eval $start if $b_log;
+	my $data = $_[0];
 	my (@rows);
-	my $num = 0;
-	foreach my $entry (@dmi){
+	my $num = 1;
+	foreach my $slot_data (@$data){
 		$num = 1;
-		if ($entry->[0] == 9){
-			my ($bus_address,$designation,$id,$length,$type,$usage) = ('','','','','','');
-			# skip first two row, we don't need that data
-			my $j = scalar @rows;
-			foreach my $item (@$entry[2 .. $#$entry]){
-				if ($item !~ /^~/){ # skip the indented rows
-					my @value = split(/:\s+/, $item, 2);
-					if ($value[0] eq 'Type'){
-						$type = $value[1];
-					}
-					if ($value[0] eq 'Designation'){
-						$designation = $value[1];
-					}
-					if ($value[0] eq 'Current Usage'){
-						$usage = $value[1];
-					}
-					if ($value[0] eq 'ID'){
-						$id = $value[1];
-					}
-					if ($extra > 1 && $value[0] eq 'Length'){
-						$length = $value[1];
-					}
-					if ($extra > 1 && $value[0] eq 'Bus Address'){
-						$value[1] =~ s/^0000://;
-						$bus_address = $value[1];
-					}
-				}
+		my $j = scalar @rows;
+		next if !$slot_data || ref $slot_data ne 'HASH';
+		$slot_data->{'id'} = 'N/A' if !defined $slot_data->{'id'}; # can be 0
+		$slot_data->{'pci'} ||= 'N/A';
+		push(@rows, {
+		main::key($num++,1,1,'Slot') => $slot_data->{'id'},
+		main::key($num++,0,2,'type') => $slot_data->{'pci'},
+		},);
+		# PCIe only
+		if ($extra > 1 && $slot_data->{'gen'}){
+			$rows[$j]->{main::key($num++,0,2,'gen')} = $slot_data->{'gen'};
+		}
+		# PCI-X only
+		if ($extra > 1 && $slot_data->{'bits'}){
+			$rows[$j]->{main::key($num++,0,2,'bits')} = $slot_data->{'bits'};
+		}
+		if ($extra > 1 && $slot_data->{'mhz'}){
+			$rows[$j]->{main::key($num++,0,2,'MHz')} = $slot_data->{'mhz'};
+		}
+		if ($slot_data->{'lanes-phys'} && $slot_data->{'lanes-active'}){
+			$rows[$j]->{main::key($num++,1,2,'lanes')} = '';
+			$rows[$j]->{main::key($num++,0,3,'phys')} = $slot_data->{'lanes-phys'};
+			$rows[$j]->{main::key($num++,0,3,'active')} = $slot_data->{'lanes-active'};
+		}
+		elsif ($slot_data->{'lanes-phys'}){
+			$rows[$j]->{main::key($num++,0,2,'lanes')} = $slot_data->{'lanes-phys'};
+		}
+		$rows[$j]->{main::key($num++,0,2,'status')} = $slot_data->{'usage'};
+		if ($slot_data->{'j'} || $slot_data->{'m2'}){
+			my $info = ($slot_data->{'m2'}) ? $slot_data->{'m2'} : '';
+			if ($slot_data->{'j'}){
+				$info .= ' ' if $info;
+				$info .= $slot_data->{'j'};
 			}
-			if ($type){
-				$id ||= 'N/A';
-				if ($type eq 'Other' && $designation){
-					$type = $designation;
-				}
-				elsif ($type && $designation){
-					$type = "$type $designation";
-				}
-				$type = main::remove_duplicates($type) if $type;
-				push(@rows, {
-				main::key($num++,1,1,'Slot') => $id,
-				main::key($num++,0,2,'type') => $type,
-				main::key($num++,0,2,'status') => $usage,
-				},);
-				if ($extra > 1){
-					$length ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,2,'length')} = $length;
-				}
-				if ($extra > 0){
-					$bus_address ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_address;
-				}
+			$rows[$j]->{main::key($num++,0,2,'info')} = $info;
+		}
+		if ($extra > 1){
+			$slot_data->{'length'} ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,2,'length')} = $slot_data->{'length'};
+			if ($slot_data->{'cpu'}){
+				$rows[$j]->{main::key($num++,0,2,'cpu')} = $slot_data->{'cpu'};
 			}
 		}
-	}
-	if (!@rows){
-		my $key = 'Message';
-		push(@rows, {
-		main::key($num++,0,1,$key) => main::message('pci-slot-data',''),
-		},);
+		if ($extra > 0){
+			$slot_data->{'bus_address'} ||= 'N/A';
+			$rows[$j]->{main::key($num++,0,2,'bus-ID')} =$slot_data->{'bus_address'};
+		}
 	}
 	eval $end if $b_log;
 	return @rows;
+}
+sub slot_children {
+	eval $start if $b_log;
+	
+	eval $end if $b_log;
+}
+sub slot_data_dmi {
+	eval $start if $b_log;
+	my $i = 0;
+	my @slots;
+	foreach my $slot_data (@dmi){
+		next if $slot_data->[0] != 9;
+		my %data;
+		# skip first two row, we don't need that data
+		foreach my $item (@$slot_data[2 .. $#$slot_data]){
+			if ($item !~ /^~/){ # skip the indented rows
+				my @value = split(/:\s+/, $item, 2);
+				if ($value[0] eq 'Type'){
+					$data{'type'} = $value[1];
+				}
+				if ($value[0] eq 'Designation'){
+					$data{'designation'} = $value[1];
+				}
+				if ($value[0] eq 'Current Usage'){
+					$data{'usage'} = $value[1];
+				}
+				if ($value[0] eq 'ID'){
+					$data{'id'} = $value[1];
+				}
+				if ($extra > 1 && $value[0] eq 'Length'){
+					$data{'length'} = $value[1];
+				}
+				if ($extra > 1 && $value[0] eq 'Bus Address'){
+					$value[1] =~ s/^0000://;
+					$data{'bus_address'} = $value[1];
+				}
+			}
+		}
+		if ($data{'type'} eq 'Other' && $data{'designation'}){
+			$data{'type'} = $data{'designation'};
+			undef $data{'designation'};
+		}
+		foreach my $string (($data{'type'},$data{'designation'})){
+			next if !$string;
+			print "st: $string\n" if $dbg[48];
+			$string =~ s/(PCI[\s_-]?Express|Pci[_-]?e)/PCIe /ig;
+			$string =~ s/PCI[\s_-]?X/PCIX /ig;
+			$string =~ s/Mini[\s_-]?PCI/MiniPCI /ig;
+			$string =~ s/PCMCIA/PCMCIA /ig;
+			if (!$data{'pci'} && $string =~ /(AGP|ISA|MiniPCI|PCIe|PCIX|PCMCIA|PCI)/){
+				$data{'pci'} = $1;
+				# print "pci: $data{'pci'}\n";
+			}
+			if ($string =~ /(MiniPCI|PCMCIA)/){
+				$data{'pci'} = $1;
+				# print "pci: $data{'pci'}\n";
+			}
+			# legacy format: PCIE#3-x8 
+			if (!$data{'lanes-phys'} && $string =~ /(^x|#\d+-x)(\d+)/){
+				$data{'lanes-phys'} = $2;
+			}
+			if (!$data{'lanes-active'} && $string =~ /^x\d+ .*? x(\d+)/){
+				$data{'lanes-active'} = $1;
+			}
+			if (!defined $data{'slot'} && $string =~ s/SLOT-?(\d+)?\b//){
+				$data{'slot'} = $1 if defined $1;
+			}
+			# legacy format, seens with PCI-X/PCIe mobos: PCIX#2-100MHz,  PCIE#3-x8
+			if (!defined $data{'id'} && $string =~ /(#|PCI)(\d+)\b/){
+				$data{'id'} = $2;
+			}
+			if (!$data{'j'} && $string =~ s/\bJ-?(\S+)\b//){
+				$data{'j'} = 'J' . $1;
+			}
+			if (!$data{'m2'} && $string =~ s/\bM\.?2\b//){
+				$data{'m2'} = 'M.2';
+			}
+			if (!$data{'cpu'} && $string =~ s/CPU-?(\d+)\b//){
+				$data{'cpu'} = $1;
+			}
+			if (!$data{'gen'} && $data{'pci'} && $data{'pci'} eq 'PCIe' && 
+			$string =~ /PCIe[\s_-]*([\d.]+)/){
+				$data{'gen'} = $1 + 0;
+			}
+			if (!$data{'mhz'} && $data{'pci'} && $string =~ /(\d+)[\s_-]?MHz/){
+				$data{'mhz'} = $1;
+			}
+			if (!$data{'bits'} && $data{'pci'} && $string =~ /\b(\d+)[\s_-]?bit/){
+				$data{'bits'} = $1;
+			}
+			$i++;
+		}
+		push(@slots,\%data) if %data;
+	}
+	print '@slots: ',  Data::Dumper::Dumper \@slots if $dbg[48];
+	main::log_data('dump','@slots final',\@slots) if $b_log;
+	eval $end if $b_log;
+	return \@slots if @slots;
 }
 }
 
@@ -26091,6 +26186,7 @@ sub get_display_manager {
 		}
 	}
 	@dms = @temp;
+	my (@dm_info);
 	# print Data::Dumper::Dumper \@dms;
 	# we know the files or directories exist so no need for further checks here
 	foreach my $dm (@dms){
@@ -26099,27 +26195,34 @@ sub get_display_manager {
 		 ($path = check_program($dm))){}
 		else {$path = $dm}
 		# print "$path $extra\n";
+		@dm_info = ();
 		@data = program_data($dm,$path,3);
-		$dm = $data[0];
-		$dm .= ' ' . $data[1] if $data[1];
-		push(@found,$dm);
+		$dm_info[0] = $data[0];
+		push(@dm_info,$data[1]) if $data[1];
+		if (scalar @dms > 1 && (my $temp = ServiceData::get('status',$dm))){
+			push (@dm_info,'(stopped)') if $temp && $temp =~ /stopped|disabled/;
+		}
+		push(@found,\@dm_info);
 	}
 	if (!@found){
 		# ly does not have a run/pid file
 		if (grep {$_ eq 'ly'} @ps_gui){
 			@data = program_data('ly','ly',3);
-			$found[0] = $data[0];
-			$found[0] .= ' ' . $data[1] if $data[1];
+			$dm_info[0] = $data[0];
+			push(@dm_info,$data[1]) if $data[1];
+			$found[0] = \@dm_info;
 		}
 		elsif (grep {/startx$/} @ps_gui){
-			$found[0] = 'startx';
+			$found[0] = ['startx'];
 		}
 		elsif (grep {$_ eq 'xinit'} @ps_gui){
-			$found[0] = 'xinit';
+			$found[0] = ['xinit'];
 		}
 	}
+	@found = map {join(' ',@{$_})} @found if @found;
 	# might add this in, but the rate of new dm's makes it more likely it's an 
 	# unknown dm, so we'll keep output to N/A
+	# print Data::Dumper::Dumper \@found;
 	log_data('dump','display manager: @found',\@found) if $b_log;
 	eval $end if $b_log;
 	return join(', ', @found) if @found;
@@ -26806,6 +26909,7 @@ sub generate_data {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/00srv-dmidecode-mushkin-1.txt";
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-slots-pcix-pcie-1.txt";
 		# open(my $fh, '<', $file) or die "can't open $file: $!";
 		# chomp(@data = <$fh>);
 	}
