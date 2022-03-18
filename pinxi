@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-17';
-my $self_patch='12';
+my $self_date='2022-03-18';
+my $self_patch='13';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6731,6 +6731,7 @@ sub message {
 	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
 	'smartctl-udma-crc' => 'Bad cable/connection?',
 	'smartctl-usb' => 'Unknown USB bridge. Flash drive/Unsupported enclosure?',
+	'stopped' => 'stopped',
 	'swap-admin' => 'No admin swap data available.',
 	'swap-data' => 'No swap data was found.',
 	'tool-missing-basic' => "<missing: $id>",
@@ -26207,9 +26208,9 @@ sub get_display_manager {
 		@dm_info = ();
 		@data = program_data($dm,$path,3);
 		$dm_info[0] = $data[0];
-		push(@dm_info,$data[1]) if $data[1];
+		$dm_info[1] = $data[1];
 		if (scalar @dms > 1 && (my $temp = ServiceData::get('status',$dm))){
-			push (@dm_info,'(stopped)') if $temp && $temp =~ /stopped|disabled/;
+			$dm_info[2] = message('stopped') if $temp && $temp =~ /stopped|disabled/;
 		}
 		push(@found,[@dm_info]);
 	}
@@ -26218,8 +26219,8 @@ sub get_display_manager {
 		if (grep {$_ eq 'ly'} @ps_gui){
 			@data = program_data('ly','ly',3);
 			$dm_info[0] = $data[0];
-			push(@dm_info,$data[1]) if $data[1];
-			$found[0] = \@dm_info;
+			$dm_info[1] = $data[1];
+			$found[0] = [@dm_info];
 		}
 		elsif (grep {/startx$/} @ps_gui){
 			$found[0] = ['startx'];
@@ -26228,13 +26229,12 @@ sub get_display_manager {
 			$found[0] = ['xinit'];
 		}
 	}
-	@found = map {join(' ',@{$_})} @found if @found;
 	# might add this in, but the rate of new dm's makes it more likely it's an 
 	# unknown dm, so we'll keep output to N/A
 	# print Data::Dumper::Dumper \@found;
 	log_data('dump','display manager: @found',\@found) if $b_log;
 	eval $end if $b_log;
-	return join(', ', @found) if @found;
+	return \@found if @found;
 }
 
 ## DistroData
@@ -27379,24 +27379,26 @@ sub get_kernel_bits {
 
 sub get_kernel_data {
 	eval $start if $b_log;
-	my ($kernel,$ksplice) = ('','');
+	my ($ksplice) = ('');
+	my @kernel;
 	# Linux; yawn; 4.9.0-3.1-liquorix-686-pae; #1 ZEN SMP PREEMPT liquorix 4.9-4 (2017-01-14); i686
 	# FreeBSD; siwi.pair.com; 8.2-STABLE; FreeBSD 8.2-STABLE #0: Tue May 31 14:36:14 EDT 2016     erik5@iddhi.pair.com:/usr/obj/usr/src/sys/82PAIRx-AMD64; amd64
 	if (@uname){
-		$kernel = $uname[2];
-		if ((my $program = check_program('uptrack-uname')) && $kernel){
+		$kernel[0] = $uname[2];
+		if ((my $program = check_program('uptrack-uname')) && $kernel[0]){
 			$ksplice = qx($program -rm);
 			$ksplice = trimmer($ksplice);
-			$kernel = ($ksplice) ? $ksplice . ' (ksplice)' : $kernel;
+			$kernel[0] = $ksplice . ' (ksplice)' if $ksplice;
 		}
-		$kernel .= ' ' . $uname[-1];
-		$kernel = ($bsd_type) ? $uname[0] . ' ' . $kernel : $kernel;
+		$kernel[1] = $uname[-1];
 	}
-	$kernel ||= 'N/A';
-	log_data('data',"kernel: $kernel ksplice: $ksplice") if $b_log;
+	# we want these to have values to save validation checks for output
+	$kernel[0] ||= 'N/A';
+	$kernel[1] ||= 'N/A';
+	log_data('data',"kernel: " . join('; ', @kernel) . " ksplice: $ksplice") if $b_log;
 	log_data('dump','perl @uname', \@uname) if $b_log;
 	eval $end if $b_log;
-	return $kernel;
+	return \@kernel;
 }
 
 ## KernelParameters
@@ -30714,7 +30716,7 @@ sub short_output {
 	my @data = ({
 		main::key($num++,0,0,'CPU') => $cpu_string,
 		main::key($num++,0,0,$speed_key) => $speed,
-		main::key($num++,0,0,$kernel_os) => main::get_kernel_data(),
+		main::key($num++,0,0,$kernel_os) => join(' ', @{main::get_kernel_data()}),
 		main::key($num++,0,0,'Up') => main::get_uptime(),
 		main::key($num++,0,0,'Mem') => $memory,
 		main::key($num++,0,0,'Storage') => $disk_string,
@@ -30885,7 +30887,7 @@ sub system_item {
 	my ($index);
 	my $data_name = main::key($prefix++,1,0,'System');
 	my ($desktop,$desktop_info,$desktop_key,$dm_key,$toolkit,$wm) = ('','','Desktop','dm','','');
-	my (@desktop_data,$desktop_version);
+	my (@desktop_data,$desktop_version,$tk_version,$wm_version);
 	my %data = (
 	$data_name => [{}],
 	);
@@ -30893,7 +30895,9 @@ sub system_item {
 	if ($show{'host'}){
 		$data{$data_name}->[$index]{main::key($num++,0,1,'Host')} = main::get_hostname();
 	}
-	$data{$data_name}->[$index]{main::key($num++,1,1,'Kernel')} = main::get_kernel_data();
+	my $kernel_data = main::get_kernel_data();
+	$data{$data_name}->[$index]{main::key($num++,1,1,'Kernel')} = $kernel_data->[0];
+	$data{$data_name}->[$index]{main::key($num++,0,2,'arch')} = $kernel_data->[1];
 	$data{$data_name}->[$index]{main::key($num++,0,2,'bits')} = main::get_kernel_bits();
 	if ($extra > 0){
 		my @compiler = CompilerVersion::get(); # get compiler data
@@ -30925,11 +30929,9 @@ sub system_item {
 		my @desktop_data = DesktopEnvironment::get();
 		$desktop = $desktop_data[0] if $desktop_data[0];
 		$desktop_version = $desktop_data[1] if $desktop_data[1];
-		$desktop .= ' ' . $desktop_version if $desktop_version;
 		if ($extra > 0 && $desktop_data[3]){
-			# $desktop .= ' (' . $desktop_data[2];
-			# $desktop .= ($desktop_data[3]) ? ' ' . $desktop_data[3] . ')' : ')';
-			$toolkit = "$desktop_data[2] $desktop_data[3]";
+			$toolkit = $desktop_data[2];
+			$tk_version = $desktop_data[3];
 		}
 		if ($extra > 2 && $desktop_data[4]){
 			$desktop_info = $desktop_data[4];
@@ -30939,7 +30941,7 @@ sub system_item {
 		(!$desktop_data[0] || $desktop_data[5] =~ /^(deepin.+|gnome[\s_-]shell|budgie.+)$/i || 
 		index(lc($desktop_data[5]),lc($desktop_data[0])) == -1)){
 			$wm = $desktop_data[5];
-			$wm .= ' ' . $desktop_data[6] if $extra > 2 && $desktop_data[6];
+			$wm_version = $desktop_data[6] if $extra > 2 && $desktop_data[6];
 		}
 	}
 	if (!$b_display || (!$desktop && $b_root)){
@@ -30970,8 +30972,14 @@ sub system_item {
 	}
 	$desktop ||= 'N/A';
 	$data{$data_name}->[$index]{main::key($num++,$cont_desk,1,$desktop_key)} = $desktop;
+	if ($desktop_version){
+		$data{$data_name}->[$index]{main::key($num++,0,2,'v')} = $desktop_version;
+	}
 	if ($toolkit){
-		$data{$data_name}->[$index]{main::key($num++,0,2,'tk')} = $toolkit;
+		$data{$data_name}->[$index]{main::key($num++,1,2,'tk')} = $toolkit;
+	}
+	if ($tk_version){
+		$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $tk_version;
 	}
 	if ($extra > 2){
 		if ($desktop_info){
@@ -30979,14 +30987,40 @@ sub system_item {
 		}
 	}
 	if ($extra > 1){
-		$data{$data_name}->[$index]{main::key($num++,0,2,'wm')} = $wm if $wm;
+		if ($wm){
+			$data{$data_name}->[$index]{main::key($num++,1,2,'wm')} = $wm;
+			if ($wm_version){
+				$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $wm_version;
+			}
+		}
 		if ($extra > 2 && $b_display && defined $ENV{'XDG_VTNR'}){
 			$data{$data_name}->[$index]{main::key($num++,0,2,'vt')} = $ENV{'XDG_VTNR'};
 		}
 		my $dms = main::get_display_manager();
+		# note: version only present if proper extra level so no need to test again
 		if ($dms || $desktop_key ne 'Console'){
-			$dms ||= 'N/A';
-			$data{$data_name}->[$index]{main::key($num++,0,$ind_dm,$dm_key)} = $dms;
+			if ($dms && scalar @{$dms} > 1){
+				my $i = 0;
+				$data{$data_name}->[$index]{main::key($num++,1,$ind_dm,$dm_key)} = '';
+				foreach my $dm_data (@{$dms}){
+					$i++;
+					$data{$data_name}->[$index]{main::key($num++,1,($ind_dm + 1),$i)} = $dm_data->[0];
+					if ($dm_data->[1]){
+						$data{$data_name}->[$index]{main::key($num++,0,($ind_dm + 2),'v')} = $dm_data->[1];
+					}
+					if ($dm_data->[2]){
+						$data{$data_name}->[$index]{main::key($num++,0,($ind_dm + 2),'note')} = $dm_data->[2];
+					}
+				}
+			}
+			else {
+				my $dm = ($dms && $dms->[0][0]) ? $dms->[0][0] : 'N/A';
+				$data{$data_name}->[$index]{main::key($num++,1,$ind_dm,$dm_key)} = $dm;
+				if ($dms->[0][1]){
+					$data{$data_name}->[$index]{main::key($num++,0,($ind_dm + 1),'v')} = $dms->[0][1];
+				}
+			}
+			
 		}
 	}
 	# if ($extra > 2 && $desktop_key ne 'Console'){
