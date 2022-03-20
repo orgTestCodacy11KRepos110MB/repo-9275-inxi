@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.13';
-my $self_date='2022-03-18';
-my $self_patch='13';
+my $self_date='2022-03-20';
+my $self_patch='14';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -25832,6 +25832,7 @@ sub pci_class {
 	'11' => 'signal-processing',
 	'12' => 'processing-accelerators',
 	'13' => 'non-essential-instrumentation',
+	# 14 - fe reserved
 	'40' => 'coprocessor',
 	'ff' => 'unassigned',
 	);
@@ -26321,12 +26322,12 @@ sub get_linux_distro {
 	# note, pclinuxos has all these mandrake/mandriva files, careful!
 	my $lsb_good_s = 'mandrake-release|mandriva-release|mandrakelinux-release|';
 	$lsb_good_s .= 'manjaro-release';
-	my $os_release_good_s = 'altlinux-release|arch-release|pclinuxos-release|';
-	$os_release_good_s .= 'rpi-issue|SuSE-release';
+	my $os_release_good_s = 'altlinux-release|arch-release|mageia-release|';
+	$os_release_good_s .= 'pclinuxos-release|rpi-issue|SuSE-release';
 	# we need these empirically verified one by one as they appear, but always remember
 	# that stuff changes, legacy, deprecated, but these ideally are going to be right
-	my $osr_good = 'manjaro|antergos|chakra|guix|pclinuxos|raspberry pi os|slint|';
-	$osr_good .= 'zorin';
+	my $osr_good = 'manjaro|antergos|chakra|guix|mageia|pclinuxos|raspberry pi os|';
+	$osr_good .= 'slint|zorin';
  	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
 	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
 	$b_issue = 1 if -f $issue;
@@ -26388,13 +26389,15 @@ sub get_linux_distro {
 			@working = (@derived,@primary);
 			foreach my $file (@working){
 				if ("/etc/$file" =~ /($distro_files_s)$/){
-					# Now lets see if the distro file is in the known-good working-lsb-list
-					# if so, use lsb-release, if not, then just use the found file
-					# this is for only those distro's with self named release/version files
+					# These is for only those distro's with self named release/version files
 					# because Mint does not use such, it must be done as below 
+					# Force use of os-release file in cases where there might be conflict 
+					# between lsb-release rules and os-release priorities.
 					if (@osr && $file =~ /($os_release_good_s)$/){
 						$distro_file = $os_release;
 					}
+					# Now lets see if the distro file is in the known-good working-lsb-list
+					# if so, use lsb-release, if not, then just use the found file
 					elsif ($b_lsb && $file =~ /$lsb_good_s/){
 						$distro_file = $lsb_release;
 					}
@@ -26723,8 +26726,12 @@ sub get_lsb_release {
 	else {
 		# avoid duplicates
 		$distro = $id;
-		$distro .= " $release" if $distro !~ /$release/;
-		$distro .= " $codename" if $distro !~ /$codename/;
+		$distro .= " $release" if $release && $distro !~ /$release/;
+		# eg: release: 9 codename: mga9
+		if ($codename && $distro !~ /$codename/i && 
+		(!$release || $codename !~ /$release/)){
+			$distro .= " $codename";
+		}
 		$distro =~ s/^\s+|\s\s+|\s+$//g; # get rid of double and trailing spaces 
 	}
 	eval $end if $b_log;
