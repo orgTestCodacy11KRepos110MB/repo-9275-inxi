@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.14';
-my $self_date='2022-03-25';
-my $self_patch='02';
+my $self_date='2022-04-04';
+my $self_patch='03';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5562,7 +5562,7 @@ sub show_options {
 	LUKS, Crypto, bcache, etc. Shows components/devices, sizes, etc."],
 	['1', '-m', '--memory', "Memory (RAM) data. Requires root. Numbers of 
 	devices (slots) supported and individual memory devices (sticks of memory etc). 
-	For devices, shows device locator, size, speed, type (e.g. DDR3). 
+	For devices, shows device locator, type (e.g. DDR3), size, speed. 
 	If neither -I nor -tm are selected, also shows RAM used/total."],
 	['1', '', '--memory-modules', "Memory (RAM) data. Exclude empty module slots."],
 	['1', '', '--memory-short', "Memory (RAM) data. Show only short Memory RAM 
@@ -5765,8 +5765,7 @@ sub show_options {
 	['2', '-j', '', "Add mapped: name if partition mapped."],
 	['2', '-J', '', "For Device: driver."],
 	['2', '-L', '', "For VG > LV, and other Devices, dm:"],
-	['2', '-m,--memory-modules', '', "Max memory module size (if available), 
-	device type."],
+	['2', '-m,--memory-modules', '', "Max memory module size (if available)."],
 	['2', '-N', '', "Specific vendor/product information (if relevant); 
 	PCI/USB ID of device; Version/port(s)/driver version (if available)."],
 	['2', '-o,-p,-P', '', "Add mapped: name if partition mapped."],
@@ -5814,7 +5813,8 @@ sub show_options {
 	for LVM RAID, adds RAID report line (if not -R); show all components >
 	devices, number of 'c' or 'p' indicate depth of device."],
 	['2', '-m,--memory-modules', '', "Manufacturer, part number; single/double 
-	bank (if found)."],
+	bank (if found); memory array voltage (legacy, rare); module voltage (if 
+	available)."],
 	['2', '-M', '', "Chassis info, BIOS ROM size (dmidecode only), if available."],
 	['2', '-N', '', "Chip vendor:product ID; PCIe speed, lanes (if found)."],
 	['2', '-r', '', "Packages, see -Ixx."],
@@ -5851,8 +5851,8 @@ sub show_options {
 	['2', '-J', '', "If present: Devices: serial number, interface count; USB 
 	speed; max power."],
 	['2', '-m,--memory-modules', '', "Width of memory bus, data and total (if 
-	present and greater than data); Detail for Type, if present; module voltage,
-	if available; serial number."],
+	present and greater than data); Detail for Type, if present; module current,
+	min, max voltages (if present and different from each other); serial number."],
 	['2', '-N', '', "Serial number, class ID."],
 	['2', '-R', '', "zfs-raid: portion allocated (used) by RAID devices/arrays. 
 	md-raid: system md-raid support types (kernel support, read ahead, RAID 
@@ -18023,7 +18023,7 @@ sub set_partitions {
 				$fs = ($b_fs) ? $row[1]: get_mounts_fs($row[0],\@mount);
 			}
 			# assuming that all null/nullfs are parts of a logical fs
-			$b_logical = 1 if $fs && $fs =~ /^(btrfs|hammer|null|zfs)/; 
+			$b_logical = 1 if $fs && $fs =~ /^(btrfs|hammer|null|wekafs|zfs)/; 
 			$id = join(' ', @row[$cols .. $#row]);
 			$size = $row[$cols - $back_size];
 			if ($b_admin && -e "/sys/block/"){
@@ -19955,7 +19955,7 @@ sub ram_output {
 					$rows[$j]->{main::key($num++,0,3,'note')} = $item->{'mod-qualifier'};
 				}
 			}
-			if ($extra > 2 && $item->{'voltage'}){
+			if ($extra > 1 && $item->{'voltage'}){
 				$rows[$j]->{main::key($num++,0,2,'voltage')} = $item->{'voltage'};
 			}
 		}
@@ -19980,12 +19980,22 @@ sub ram_output {
 				$mod->{'locator'} ||= 'N/A';
 				push(@rows, {
 				main::key($num++,1,2,'Device') => $mod->{'locator'},
-				main::key($num++,0,3,'size') => process_size($mod->{'size'}),
 				});
-				next if ($mod->{'size'} =~ /\D/);
+				# this will contain the no module string
+				if ($mod->{'size'} =~ /\D/){
+					$rows[$j]->{main::key($num++,0,3,'type')} = lc($mod->{'size'});
+					next;
+				}
 				if ($extra > 1 && $mod->{'type'}){
 					$rows[$j]->{main::key($num++,0,3,'info')} = $mod->{'type'};
 				}
+				$mod->{'device-type'} ||= 'N/A';
+				$rows[$j]->{main::key($num++,1,3,'type')} = $mod->{'device-type'};
+				if ($extra > 2 && $mod->{'device-type'} ne 'N/A'){
+					$mod->{'device-type-detail'} ||= 'N/A';
+					$rows[$j]->{main::key($num++,0,4,'detail')} = $mod->{'device-type-detail'};
+				}
+				$rows[$j]->{main::key($num++,0,3,'size')} = process_size($mod->{'size'});
 				if ($mod->{'speed'} && $mod->{'configured-clock-speed'} && 
 				$mod->{'speed'} ne $mod->{'configured-clock-speed'}){
 					$rows[$j]->{main::key($num++,1,3,'speed')} = '';
@@ -20006,19 +20016,39 @@ sub ram_output {
 					$rows[$j]->{main::key($num++,1,3,'speed')} = $mod->{'speed'};
 					$rows[$j]->{main::key($num++,0,4,'note')} = $mod->{'speed-note'} if $mod->{'speed-note'};
 				}
-				if ($extra > 0){
-					$mod->{'device-type'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,3,'type')} = $mod->{'device-type'};
-					if ($extra > 2 && $mod->{'device-type'} ne 'N/A'){
-						$mod->{'device-type-detail'} ||= 'N/A';
-						$rows[$j]->{main::key($num++,0,3,'detail')} = $mod->{'device-type-detail'};
+				# handle cases where -xx or -xxx and no voltage data (common) or voltages
+				# are all the same.
+				if ($extra == 2 || ($extra > 2 && (
+				(!$mod->{'voltage-config'} && !$mod->{'voltage-max'} && !$mod->{'voltage-min'}) ||
+				($mod->{'voltage-config'} && $mod->{'voltage-max'} && $mod->{'voltage-min'} && 
+				$mod->{'voltage-config'} eq $mod->{'voltage-max'} && 
+				$mod->{'voltage-max'} eq $mod->{'voltage-min'}) ))){
+					$mod->{'voltage-config'} ||= 'N/A';
+					$rows[$j]->{main::key($num++,0,3,'volts')} = $mod->{'voltage-config'};
+				}
+				elsif ($extra > 2){
+					$rows[$j]->{main::key($num++,1,3,'volts')} = '';
+					if ($mod->{'voltage-config'}){
+						$rows[$j]->{main::key($num++,0,4,'curr')} = $mod->{'voltage-config'};
+					}
+					if ($mod->{'voltage-min'}){
+						$rows[$j]->{main::key($num++,0,4,'min')} = $mod->{'voltage-min'};
+					}
+					if ($mod->{'voltage-max'}){
+						$rows[$j]->{main::key($num++,0,4,'max')} = $mod->{'voltage-max'};
 					}
 				}
 				if ($source ne 'dboot' && $extra > 2){
-					$mod->{'data-width'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,3,'bus-width')} = $mod->{'data-width'};
-					$mod->{'total-width'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,3,'total')} = $mod->{'total-width'};
+					if (!$mod->{'data-width'} && !$mod->{'total-width'}){
+						$rows[$j]->{main::key($num++,0,3,'bandwidth')} = 'N/A';
+					}
+					else {
+						$rows[$j]->{main::key($num++,1,3,'bandwidth')} = '';
+						$mod->{'data-width'} ||= 'N/A';
+						$rows[$j]->{main::key($num++,0,4,'data')} = $mod->{'data-width'};
+						$mod->{'total-width'} ||= 'N/A';
+						$rows[$j]->{main::key($num++,0,4,'total')} = $mod->{'total-width'};
+					}
 				}
 				if ($source ne 'dboot' && $extra > 1){
 					$mod->{'manufacturer'} ||= 'N/A';
@@ -20072,6 +20102,7 @@ sub dmidecode_data {
 				}
 				elsif ($temp[0] eq 'Memory Module Voltage'){
 					$temp[1] =~ s/\s*V.*$//;
+					# unknown if current or min/max/current, but type 5 is so old is rare.
 					$ram[$k]->{'voltage'} = $temp[1];
 				}
 				elsif ($temp[0] eq 'Associated Memory Slots'){
@@ -20181,6 +20212,7 @@ sub dmidecode_data {
 			$main_locator) = ('','','','','');
 			my ($manufacturer,$vendor_id,$part_number,$serial,$speed,$speed_note,
 			$total_width) = ('','','','','','','');
+			my ($voltage_config,$voltage_max,$voltage_min);
 			my ($device_size,$i_data,$i_total,$working_size) = (0,0,0,0);
 			foreach my $item (@$entry){
 				@temp = split(/:\s*/, $item, 2);
@@ -20240,6 +20272,21 @@ sub dmidecode_data {
 				elsif ($temp[0] eq 'Serial Number'){
 					$serial = main::clean_unset($temp[1],'^[0]+$|SerNum.*');
 				}
+				elsif ($temp[0] eq 'Configured Voltage'){
+					if ($temp[1] =~ /^([\d\.]+)/){
+						$voltage_config = $1;
+					}
+				}
+				elsif ($temp[0] eq 'Maximum Voltage'){
+					if ($temp[1] =~ /^([\d\.]+)/){
+						$voltage_max = $1;
+					}
+				}
+				elsif ($temp[0] eq 'Minimum Voltage'){
+					if ($temp[1] =~ /^([\d\.]+)/){
+						$voltage_min = $1;
+					}
+				}
 			}
 			# because of the wide range of bank/slot type data, we will just use
 			# the one that seems most likely to be right. Some have: Bank: SO DIMM 0 slot: J6A
@@ -20298,6 +20345,9 @@ sub dmidecode_data {
 			$ram[$handle]->{'modules'}[$i]{'speed'} = $speed;
 			$ram[$handle]->{'modules'}[$i]{'speed-note'} = $speed_note if $speed_note;
 			$ram[$handle]->{'modules'}[$i]{'total-width'} = $total_width;
+			$ram[$handle]->{'modules'}[$i]{'voltage-config'} = $voltage_config;
+			$ram[$handle]->{'modules'}[$i]{'voltage-max'} = $voltage_max;
+			$ram[$handle]->{'modules'}[$i]{'voltage-min'} = $voltage_min;
 			$i++
 		}
 		elsif ($entry->[0] < 17){
@@ -20568,7 +20618,9 @@ sub process_data {
 		'slots' => $item->{'slots-16'},
 		'slots-qualifier' => $est_slots,
 		'use' => $item->{'use'},
-		'voltage' => $item->{'voltage'},
+		'voltage-config' => $item->{'voltage-config'},
+		'voltage-max' => $item->{'voltage-max'},
+		'voltage-min' => $item->{'voltage-min'},
 		});
 	}
 	eval $end if $b_log;
