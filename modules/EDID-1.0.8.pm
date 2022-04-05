@@ -692,30 +692,30 @@ sub parse_edid {
 sub _edid_errors {
     my $edid = shift @_;
     if (!defined $edid->{edid_version}){
-        _edid_error('edid-version','undefined');
+        _edid_error($edid,'edid-version','undefined');
     }
     elsif ($edid->{edid_version} < 1 || $edid->{edid_version} > 2){
-        _edid_error('edid-version',$edid->{edid_version});
+        _edid_error($edid,'edid-version',$edid->{edid_version});
     }
     if (!defined $edid->{edid_revision}){
-        _edid_error('edid-revision','undefined');
+        _edid_error($edid,'edid-revision','undefined');
     }
     elsif ($edid->{edid_revision} == 0xff){
-        _edid_error('edid-revision',$edid->{edid_revision});
+        _edid_error($edid,'edid-revision',$edid->{edid_revision});
     }
     if ($edid->{monitor_range}){
         if (!$edid->{monitor_range}{horizontal_min}){
-            _edid_error('edid-sync','no horizontal');
+            _edid_error($edid,'edid-sync','no horizontal');
         }
         elsif ($edid->{monitor_range}{horizontal_min} > $edid->{monitor_range}{horizontal_max}){
-            _edid_error('edid-sync', 
+            _edid_error($edid,'edid-sync', 
             "bad horizontal values: min: $edid->{monitor_range}{horizontal_min} max: $edid->{monitor_range}{horizontal_max}");
         }
         if (!$edid->{monitor_range}{vertical_min}){
-            _edid_error('edid-sync','no vertical');
+            _edid_error($edid,'edid-sync','no vertical');
         }
         elsif ($edid->{monitor_range}{vertical_min} > $edid->{monitor_range}{vertical_max}){
-            _edid_error('edid-sync',
+            _edid_error($edid,'edid-sync',
             "bad vertical values: min: $edid->{monitor_range}{vertical_min} max: $edid->{monitor_range}{vertical_max}");
         }
     }
@@ -723,7 +723,7 @@ sub _edid_errors {
 
 sub _edid_error {
     my ($edid,$error,$data) = @_;
-    $edid->{edid_errors} = [] if !$edid->{edid_error};
+    $edid->{edid_errors} = [] if !$edid->{edid_errors};
     push(@{$edid->{edid_errors}},_edid_message($error,$data));
 }
 
