@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.14';
 my $self_date='2022-04-05';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5723,6 +5723,8 @@ sub show_options {
 	pressure, and if values are default or not."],
 	['2', '-L', '', "LV, Crypto, devices, components: add maj:min; show
 	full device/components report (speed, mapped names)."],
+	['2', '-m', '', "Show full volts report, current, min, max, even if 
+	identical."],
 	['2', '-n,-N', '', "If available: list of alternate kernel modules/drivers 
 	for device(s); PCIe lanes-max: gen, speed, lanes (if relevant)."],
 	['2', '-o', '', "If available: maj:min of device."],
@@ -5777,6 +5779,7 @@ sub show_options {
 	vbat."],
 	['2', '-S', '', "Kernel gcc version; system base of distro (if relevant 
 	and detected)"],
+	['2', '', '--slots', "Adds BusID for slot."],
 	['2', '-t', '', "Adds memory use output to CPU (-xt c), and CPU use to 
 	memory (-xt m)."],
 	);
@@ -14051,8 +14054,7 @@ sub monitors_output_full {
 				$$row[$j]->{main::key($$num++,0,$m3,'min')} = ${$monitors->{$key}{'modes'}}[-1];
 			}
 		}
-		if ($show{'edid'} && ($monitors->{$key}{'edid-errors'} || 
-		$monitors->{$key}{'edid-warnings'})){
+		if ($show{'edid'}){
 			if ($monitors->{$key}{'edid-errors'}){
 				$j++;
 				my $cnt = 1;
@@ -20029,24 +20031,30 @@ sub ram_output {
 				}
 				# handle cases where -xx or -xxx and no voltage data (common) or voltages
 				# are all the same.
-				if ($extra == 2 || ($extra > 2 && (
-				(!$mod->{'voltage-config'} && !$mod->{'voltage-max'} && !$mod->{'voltage-min'}) ||
-				($mod->{'voltage-config'} && $mod->{'voltage-max'} && $mod->{'voltage-min'} && 
-				$mod->{'voltage-config'} eq $mod->{'voltage-max'} && 
-				$mod->{'voltage-max'} eq $mod->{'voltage-min'}) ))){
-					$mod->{'voltage-config'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,0,3,'volts')} = $mod->{'voltage-config'};
-				}
-				elsif ($extra > 2){
-					$rows[$j]->{main::key($num++,1,3,'volts')} = '';
-					if ($mod->{'voltage-config'}){
-						$rows[$j]->{main::key($num++,0,4,'curr')} = $mod->{'voltage-config'};
+				if ($extra > 1){
+					if (($mod->{'voltage-config'} || $mod->{'voltage-max'} || $mod->{'voltage-min'}) && 
+					($b_admin || (
+					($mod->{'voltage-config'} && $mod->{'voltage-max'} && 
+					$mod->{'voltage-config'} ne $mod->{'voltage-max'}) || 
+					($mod->{'voltage-config'} && $mod->{'voltage-min'} && 
+					$mod->{'voltage-config'} ne $mod->{'voltage-min'}) || 
+					($mod->{'voltage-min'} && $mod->{'voltage-max'} && 
+					$mod->{'voltage-max'} ne $mod->{'voltage-min'})
+					))){
+						$rows[$j]->{main::key($num++,1,3,'volts')} = '';
+						if ($mod->{'voltage-config'}){
+							$rows[$j]->{main::key($num++,0,4,'curr')} = $mod->{'voltage-config'};
+						}
+						if ($mod->{'voltage-min'}){
+							$rows[$j]->{main::key($num++,0,4,'min')} = $mod->{'voltage-min'};
+						}
+						if ($mod->{'voltage-max'}){
+							$rows[$j]->{main::key($num++,0,4,'max')} = $mod->{'voltage-max'};
+						}
 					}
-					if ($mod->{'voltage-min'}){
-						$rows[$j]->{main::key($num++,0,4,'min')} = $mod->{'voltage-min'};
-					}
-					if ($mod->{'voltage-max'}){
-						$rows[$j]->{main::key($num++,0,4,'max')} = $mod->{'voltage-max'};
+					else {
+						$mod->{'voltage-config'} ||= 'N/A';
+						$rows[$j]->{main::key($num++,0,3,'volts')} = $mod->{'voltage-config'};
 					}
 				}
 				if ($source ne 'dboot' && $extra > 2){
@@ -22921,7 +22929,7 @@ sub slot_output {
 		}
 		if ($extra > 0){
 			$slot_data->{'bus_address'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} =$slot_data->{'bus_address'};
+			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $slot_data->{'bus_address'};
 		}
 	}
 	eval $end if $b_log;
@@ -22955,10 +22963,10 @@ sub slot_data_dmi {
 				if ($value[0] eq 'ID'){
 					$data{'id'} = $value[1];
 				}
-				if ($extra > 1 && $value[0] eq 'Length'){
+				if ($value[0] eq 'Length'){
 					$data{'length'} = lc($value[1]);
 				}
-				if ($extra > 1 && $value[0] eq 'Bus Address'){
+				if ($value[0] eq 'Bus Address'){
 					$value[1] =~ s/^0000://;
 					$data{'bus_address'} = $value[1];
 				}
