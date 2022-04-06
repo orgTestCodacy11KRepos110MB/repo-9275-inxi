@@ -444,6 +444,7 @@ sub set_basics {
 	$client{'name-print'} = '';
 	$client{'su-start'} = ''; # shows sudo/su
 	$client{'version'} = '';
+	$client{'whoami'} = getpwuid($<) || '';
 	$colors{'default'} = 2;
 	$show{'partition-sort'} = 'id'; # sort order for partitions
 	@raw_logical = (0,0,0);
@@ -1852,6 +1853,7 @@ sub display_data {
 	print "Collecting X, xprop, glxinfo, xrandr, xdpyinfo data, Wayland info...\n";
 	%data = (
 	'desktop-session' => $ENV{'DESKTOP_SESSION'},
+	'display' => $ENV{'DISPLAY'},
 	'gdmsession' => $ENV{'GDMSESSION'},
 	'gnome-desktop-session-id' => $ENV{'GNOME_DESKTOP_SESSION_ID'},
 	'kde-full-session' => $ENV{'KDE_FULL_SESSION'},
@@ -1861,8 +1863,8 @@ sub display_data {
 	'xdg-session-desktop' => $ENV{'XDG_SESSION_DESKTOP'},
 	'xdg-vtnr' => $ENV{'XDG_VTNR'},
 	# wayland data collectors:
-	'xdg-session-type' => $ENV{'XDG_SESSION_TYPE'},
 	'wayland-display' =>  $ENV{'WAYLAND_DISPLAY'},
+	'xdg-session-type' => $ENV{'XDG_SESSION_TYPE'},
 	'gdk-backend' => $ENV{'GDK_BACKEND'},
 	'qt-qpa-platform' => $ENV{'QT_QPA_PLATFORM'},
 	'clutter-backend' => $ENV{'CLUTTER_BACKEND'},
@@ -15222,17 +15224,20 @@ sub display_protocol {
 	elsif ($graphics{'protocol'} eq 'tty'){
 		$graphics{'protocol'} = '';
 	}
-	# need to confirm that there's a point to this test, I believe no, fails out of x
+	# If no other source, get user session id, then grab session type.
 	# loginctl also results in the session id
-	if (!$graphics{'protocol'} && $b_display && $force{'display'}){
+	# loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type
+	# undef $graphics{'protocol'};
+	if (!$graphics{'protocol'}){
 		if (my $program = main::check_program('loginctl')){
 			my $id = '';
 			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
 			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
 			foreach (@data){
-				next if /tty[v]?[0-6]$/; # freebsd: ttyv3
+				next if /(ttyv?\d|pts\/)/; # freebsd: ttyv3
+				next if $client{'whoami'} && !/\b$client{'whoami'}\b/;
 				$id = (split(/\s+/, $_))[0];
-				last; # multiuser? too bad, we'll go for the first one
+				last; # multiuser? too bad, we'll go for the first one that isn't a tty/pts
 			}
 			if ($id){
 				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
