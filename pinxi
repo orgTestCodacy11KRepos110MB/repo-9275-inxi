@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.14';
 my $self_date='2022-04-05';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -13779,7 +13779,7 @@ sub display_output(){
 			}
 			# if xvesa, will always have display-driver set
 			if ($graphics{'xvesa'} && $graphics{'display-driver'}){
-				$row[0]->{main::key($num++,1,2,'driver')} = join(',',@{$graphics{'display-driver'}});;
+				$row[0]->{main::key($num++,0,2,'driver')} = join(',',@{$graphics{'display-driver'}});
 			}
 			else {
 				$row[0]->{main::key($num++,1,2,'driver')} = '';
@@ -20120,8 +20120,7 @@ sub dmidecode_data {
 					$ram[$k]->{'max-capacity-5'} = $max_cap_5;
 				}
 				elsif ($temp[0] eq 'Memory Module Voltage'){
-					$temp[1] =~ s/\s*V.*$//;
-					# unknown if current or min/max/current, but type 5 is so old is rare.
+					$temp[1] =~ s/\s*V.*$//; # seen: 5.0 V 3.3 V
 					$ram[$k]->{'voltage'} = $temp[1];
 				}
 				elsif ($temp[0] eq 'Associated Memory Slots'){
@@ -20166,7 +20165,7 @@ sub dmidecode_data {
 					$bank_locator = $temp[1];
 				}
 				elsif ($temp[0] eq 'Type'){
-					$device_type = $temp[1];
+					$device_type = main::clean_dmi($temp[1]);
 				}
 			}
 			# because of the wide range of bank/slot type data, we will just use
@@ -20239,11 +20238,12 @@ sub dmidecode_data {
 				if ($temp[0] eq 'Array Handle'){
 					$handle = hex($temp[1]);
 				}
+				# these two can have 'none' or 'unknown' value
 				elsif ($temp[0] eq 'Data Width'){
-					$data_width = $temp[1];
+					$data_width = main::clean_dmi($temp[1]);
 				}
 				elsif ($temp[0] eq 'Total Width'){
-					$total_width = $temp[1];
+					$total_width = main::clean_dmi($temp[1]);
 				}
 				# do not try to guess from installed modules, only use this to correct type 5 data
 				elsif ($temp[0] eq 'Size'){
@@ -20267,11 +20267,12 @@ sub dmidecode_data {
 				elsif ($temp[0] eq 'Form Factor'){
 					$form_factor = $temp[1];
 				}
+				# these two can have 'none' or 'unknown' value
 				elsif ($temp[0] eq 'Type'){
-					$device_type = $temp[1];
+					$device_type = main::clean_dmi($temp[1]);
 				}
 				elsif ($temp[0] eq 'Type Detail'){
-					$device_type_detail = $temp[1];
+					$device_type_detail = main::clean_dmi($temp[1]);
 				}
 				elsif ($temp[0] eq 'Speed'){
 					($speed,$speed_note) = process_speed($temp[1],$device_type,$check);
