@@ -15226,7 +15226,6 @@ sub display_protocol {
 	}
 	# If no other source, get user session id, then grab session type.
 	# loginctl also results in the session id
-	# loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type
 	# undef $graphics{'protocol'};
 	if (!$graphics{'protocol'}){
 		if (my $program = main::check_program('loginctl')){
@@ -15234,10 +15233,13 @@ sub display_protocol {
 			# $id = $ENV{'XDG_SESSION_ID'}; # returns tty session in console
 			my @data = main::grabber("$program --no-pager --no-legend 2>/dev/null",'','strip');
 			foreach (@data){
+				# some systems show empty or ??? for TTY field, but whoami should do ok
 				next if /(ttyv?\d|pts\/)/; # freebsd: ttyv3
-				next if $client{'whoami'} && !/\b$client{'whoami'}\b/;
+				# in display, root doesn't show in the logins
+				next if $client{'whoami'} && $client{'whoami'} ne 'root' && !/\b$client{'whoami'}\b/;
 				$id = (split(/\s+/, $_))[0];
-				last; # multiuser? too bad, we'll go for the first one that isn't a tty/pts
+				# multiuser? too bad, we'll go for the first one that isn't a tty/pts
+				last; 
 			}
 			if ($id){
 				my $temp = (main::grabber("$program show-session $id -p Type --no-pager --no-legend 2>/dev/null"))[0];
@@ -27024,9 +27026,9 @@ sub generate_data {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/00srv-dmidecode-mushkin-1.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-slots-pcix-pcie-1.txt";
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-Microknopix-pci-vga-types-5-6-16-17.txt";
-		 open(my $fh, '<', $file) or die "can't open $file: $!";
-		 chomp(@data = <$fh>);
+		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-Microknopix-pci-vga-types-5-6-16-17.txt";
+		# open(my $fh, '<', $file) or die "can't open $file: $!";
+		# chomp(@data = <$fh>);
 	}
 	else {
 		$content = qx($alerts{'dmidecode'}->{'path'} 2>/dev/null);
