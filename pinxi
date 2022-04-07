@@ -22930,13 +22930,8 @@ sub slot_output {
 			$rows[$j]->{main::key($num++,0,2,'MHz')} = $slot_data->{'mhz'};
 		}
 		$rows[$j]->{main::key($num++,0,2,'status')} = $slot_data->{'usage'};
-		if ($slot_data->{'j'} || $slot_data->{'m2'}){
-			my $info = ($slot_data->{'m2'}) ? $slot_data->{'m2'} : '';
-			if ($slot_data->{'j'}){
-				$info .= ' ' if $info;
-				$info .= $slot_data->{'j'};
-			}
-			$rows[$j]->{main::key($num++,0,2,'info')} = $info;
+		if ($slot_data->{'extra'}){
+			$rows[$j]->{main::key($num++,0,2,'info')} = join(', ', @{$slot_data->{'extra'}});
 		}
 		if ($extra > 1){
 			$slot_data->{'length'} ||= 'N/A';
@@ -22985,7 +22980,7 @@ sub slot_data_dmi {
 	my @slots;
 	foreach my $slot_data (@dmi){
 		next if $slot_data->[0] != 9;
-		my %data;
+		my (%data,@extra);
 		# skip first two row, we don't need that data
 		foreach my $item (@$slot_data[2 .. $#$slot_data]){
 			if ($item !~ /^~/){ # skip the indented rows
@@ -23027,6 +23022,9 @@ sub slot_data_dmi {
 			$string =~ s/(PCI[\s_-]?Express|Pci[_-]?e)/PCIe /ig;
 			$string =~ s/PCI[\s_-]?X/PCIX /ig;
 			$string =~ s/Mini[\s_-]?PCI/MiniPCI /ig;
+			$string =~ s/Media[\s_-]?Card/MediaCard/ig;
+			$string =~ s/Express[\s_-]?Card/ExpressCard/ig;
+			$string =~ s/Card[\s_-]?Bus/CardBus/ig;
 			$string =~ s/PCMCIA/PCMCIA /ig;
 			if (!$data{'pci'} && $string =~ /(AGP|ISA|MiniPCI|PCIe|PCIX|PCMCIA|PCI)/){
 				$data{'pci'} = $1;
@@ -23043,18 +23041,21 @@ sub slot_data_dmi {
 			if (!$data{'lanes-active'} && $string =~ /^x\d+ .*? x(\d+)/){
 				$data{'lanes-active'} = $1;
 			}
-			if (!defined $data{'slot'} && $string =~ s/SLOT-?(\d+)?\b//){
-				$data{'slot'} = $1 if defined $1;
-			}
 			# legacy format, seens with PCI-X/PCIe mobos: PCIX#2-100MHz,  PCIE#3-x8
 			if (!defined $data{'id'} && $string =~ /(#|PCI)(\d+)\b/){
 				$data{'id'} = $2;
 			}
-			if (!$data{'j'} && $string =~ s/\bJ-?(\S+)\b//){
-				$data{'j'} = 'J' . $1;
+			if (!defined $data{'id'} && $string =~ /SLOT[\s-]?(\d+)\b/i){
+				$data{'id'} = $1;
 			}
-			if (!$data{'m2'} && $string =~ s/\bM\.?2\b//){
-				$data{'m2'} = 'M.2';
+			if ($string =~ s/\bJ-?(\S+)\b//){
+				push(@extra,'J' . $1) if ! grep {$_ eq 'J' . $1} @extra;
+			}
+			if ($string =~ s/\bM\.?2\b//){
+				push(@extra,'M.2') if ! grep {$_ eq 'M.2'} @extra;
+			}
+			if ($string =~ /(ExpressCard|MediaCard|CardBus)/){
+				push(@extra,$1) if ! grep {$_ eq $1} @extra;
 			}
 			if (!$data{'cpu'} && $string =~ s/CPU-?(\d+)\b//){
 				$data{'cpu'} = $1;
@@ -23071,6 +23072,12 @@ sub slot_data_dmi {
 			}
 			$i++;
 		}
+		if (!$data{'pci'} && $data{'type'} && 
+		$data{'type'} =~ /(ExpressCard|MediaCard|CardBus)/){
+			$data{'pci'} = $1;
+			@extra = grep {$_ ne $data{'pci'}} @extra;
+		}
+		$data{'extra'} = [@extra] if @extra;
 		push(@slots,{%data}) if %data;
 	}
 	print '@slots: ',  Data::Dumper::Dumper \@slots if $dbg[48];
