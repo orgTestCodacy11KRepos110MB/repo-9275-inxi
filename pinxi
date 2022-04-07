@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.14';
-my $self_date='2022-04-06';
-my $self_patch='07';
+my $self_date='2022-04-07';
+my $self_patch='08';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -22859,12 +22859,16 @@ sub gpu_data {
 ## SlotItem
 {
 package SlotItem;
+my ($sys_slots);
 sub get {
 	eval $start if $b_log;
 	my ($data,@rows,$key1,$val1);
 	my $num = 0;
 	if ($fake{'dmidecode'} || ($alerts{'dmidecode'}->{'action'} eq 'use' && 
 	 (!%risc || $use{'slot-tool'}))){
+		if ($b_admin && -e '/sys/devices/pci0000:00'){
+			slot_data_sys();
+		}
 		$data = slot_data_dmi();
 		@rows = slot_output($data) if $data;
 		if (!@rows){
@@ -22945,16 +22949,34 @@ sub slot_output {
 		}
 		if ($extra > 0){
 			$slot_data->{'bus_address'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $slot_data->{'bus_address'};
+			$rows[$j]->{main::key($num++,1,2,'bus-ID')} = $slot_data->{'bus_address'};
+			if ($b_admin && $slot_data->{'children'}){
+				children_output(\@rows,$j,\$num,$slot_data->{'children'},3);
+			}
 		}
 	}
 	eval $end if $b_log;
 	return @rows;
 }
-sub slot_children {
-	eval $start if $b_log;
-	
-	eval $end if $b_log;
+sub children_output {
+	my ($rows,$j,$num,$children,$ind) = @_;
+	my $cnt = 0;
+	$rows->[$j]{main::key($$num++,1,$ind,'children')} = '';
+	$ind++;
+	foreach my $id (sort keys %{$children}){
+		$cnt++;
+		$rows->[$j]{main::key($$num++,1,$ind,$cnt)} = $id;
+		if ($children->{$id}{'class-id'} && $children->{$id}{'class-id-sub'}){
+			my $class = $children->{$id}{'class-id'} . $children->{$id}{'class-id-sub'};
+			$rows->[$j]{main::key($$num++,1,($ind + 1),'class-ID')} = $class;
+			if ($children->{$id}{'class'}){
+				$rows->[$j]{main::key($$num++,1,($ind + 1),'type')} = $children->{$id}{'class'};
+			}
+		}
+		if ($children->{$id}{'children'}){
+			children_output($rows,$j,$num,$children->{$id}{'children'},$ind + 1);
+		}
+	}
 }
 sub slot_data_dmi {
 	eval $start if $b_log;
@@ -22985,6 +23007,9 @@ sub slot_data_dmi {
 				if ($value[0] eq 'Bus Address'){
 					$value[1] =~ s/^0000://;
 					$data{'bus_address'} = $value[1];
+					if ($b_admin && $sys_slots){
+						$data{'children'} = slot_children($data{'bus_address'},$sys_slots);
+					}
 				}
 			}
 			elsif ($item =~ /^~([\d.]+)[\s-]?V is provided/){
@@ -23051,6 +23076,78 @@ sub slot_data_dmi {
 	main::log_data('dump','@slots final',\@slots) if $b_log;
 	eval $end if $b_log;
 	return \@slots if @slots;
+}
+sub slot_data_sys {
+	eval $start if $b_log;
+	my $path = '/sys/devices/pci0000:*/00*';
+	my @data = main::globber($path);
+	my ($full,$id);
+	foreach $full (@data){
+		$id = $full;
+		$id =~ s/^.*\/\S+:([0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]+)$/$1/;
+		$sys_slots->{$id} = slot_data_recursive($full);
+	}
+	print 'sys_slots: ', Data::Dumper::Dumper $sys_slots if $dbg[49];
+	main::log_data('dump','$sys_slots',$sys_slots) if $b_log;
+	eval $end if $b_log;
+}
+sub slot_data_recursive {
+	eval $start if $b_log;
+	my $path = shift @_;
+	my $info = {};
+	my $id = $path;
+	$id =~ s/^.*\/\S+:(\S{2}:\S{2}\.\S+)$/$1/;
+	my ($content,$id2,@files);
+	#@files = main::globber("$full/{class,current_link_speed,current_link_width,max_link_speed,max_link_width,00*}");
+	if (-e "$path/class" && ($content = main::reader("$path/class",'strip',0))){
+		if ($content =~ /^0x(\S{2})(\S{2})/){
+			$info->{'class-id'} = $1;
+			$info->{'class'} = DeviceData::pci_class($1);
+			$info->{'class-id-sub'} = $2;
+			if ($info->{'class-id'} eq '06'){
+				my @files = main::globber("$path/00*:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f].[0-9a-f]");
+				foreach my $item (@files){
+					$id = $item;
+					$id =~ s/^.*\/[0-9a-f]+:([0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]+)$/$1/;
+					$info->{'children'}{$id} = slot_data_recursive($item);
+				}
+			}
+		}
+	}
+	if (-e "$path/current_link_speed" && ($content = main::reader("$path/current_link_speed",'strip',0))){
+		$content =~ s/\sPCIe//i;
+		$info->{'current-link-speed'} = main::clean_dmi($content);
+	}
+	if (-e "$path/current_link_width" && ($content = main::reader("$path/current_link_width",'strip',0))){
+		$info->{'current-link-width'} = $content;
+	}
+	eval $end if $b_log;
+	return $info;
+}
+sub slot_children {
+	eval $start if $b_log;
+	my ($bus_id,$slots) = @_;
+	my $children = slot_children_recursive($bus_id,$slots);
+	print $bus_id, ' children: ', Data::Dumper::Dumper $children if $dbg[49];
+	# $children->{'0a:00.0'}{'children'} = {'3423' => {
+	# 'class' => 'test','class-id' => '05','class-id-sub' => '10'}};
+	main::log_data('dump','$children',$children) if $b_log;
+	eval $end if $b_log;
+	return $children;
+}
+sub slot_children_recursive {
+	my ($bus_id,$slots) = @_;
+	my $children;
+	foreach my $key (keys %{$slots}){
+		if ($key eq $bus_id){
+			$children = $slots->{$key}{'children'} if $slots->{$key}{'children'};
+			last;
+		}
+		elsif ($slots->{$key}{'children'}){
+			slot_children_recursive($bus_id,$slots->{$key}{'children'});
+		}
+	}
+	return $children;
 }
 }
 
