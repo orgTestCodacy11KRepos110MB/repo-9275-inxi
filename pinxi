@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.15';
-my $self_date='2022-04-11';
-my $self_patch='02';
+my $self_date='2022-04-25';
+my $self_patch='03';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -17942,6 +17942,7 @@ sub set_partitions {
 	my $filters = partition_filters();
 	# push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
 	# push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
+	# push(@partitions_working,'/dev/loop0p1                  iso9660         3424256   3424256           0     100% /media/jason/d-live nf 11.3.0 gn 6555 9555 amd64');
 	foreach (@partitions_working){
 		($dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
 		$maj_min,$type,$uuid) = ('','','','','','','','','');
@@ -17951,8 +17952,8 @@ sub set_partitions {
 		# apple crap, maybe also freebsd?
 		$_ =~ s/^map\s+([\S]+)/map:\/$1/ if $b_fake_map;
 		# handle spaces in remote filesystem names
-		# busybox df shows KM, sigh; note: GoogleDrive Hogne: fuse.rclone  15728640
-		if (/^(.*)(\s[\S]+)\s+[a-z][a-z0-9\.]+\s+[0-9]+/){
+		# busybox df shows KM, sigh; note: GoogleDrive Hogne: fuse.rclone 15728640 316339304 120276888 73%
+		if (/^(.*?)(\s[\S]+)\s+[a-z][a-z0-9\.]+(\s+[0-9]+){3}\s+[0-9]+%\s/){
 			$replace = $test = "$1$2";
 			if ($test =~ /\s/){ # paranoid test, but better safe than sorry
 				$b_space = 1;
@@ -17963,6 +17964,7 @@ sub set_partitions {
 			}
 		}
 		my @row = split(/\s+/, $_);
+		print Data::Dumper::Dumper \@row;
 		$row[0] =~ s/\^\^/ /g if $b_space; # reset spaces in > 1 word fs name
 		# autofs is a bsd thing, has size 0
 		if ($row[0] =~ /^($filters)$/ || $row[0] =~ /^ROOT/i || 
