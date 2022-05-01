@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.15';
-my $self_date='2022-04-30';
-my $self_patch='04';
+my $self_date='2022-05-01';
+my $self_patch='05';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -15543,26 +15543,27 @@ sub map_monitor_ids {
 	eval $start if $b_log;
 	my ($display_ids) = @_;
 	return if !$monitor_ids;
-	@$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
-	my @sys_ids;
+	my (@display_ids_temp,@sys_ids,@sys_ids_temp);
+	@display_ids_temp = @$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
 	foreach my $key (keys %$monitor_ids){
 		if ($monitor_ids->{$key}{'status'} eq 'connected'){
 			push(@sys_ids,$key);
 		}
 	}
-	@sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
 	# @sys_ids = ('DVI-I-1','eDP-1','VGA-1');
 	main::log_data('dump','@sys_ids',\@sys_ids) if $b_log;
 	main::log_data('dump','$xrandr_ids ref',$display_ids) if $b_log;
 	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
 	print 'display: ', Data::Dumper::Dumper $display_ids if $dbg[45];
 	return if scalar @sys_ids != scalar @$display_ids;
+	@sys_ids_temp = @sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
 	$monitor_map = {};
 	# known patterns: s: DP-1 d: DisplayPort-0; s: DP-1 d: DP1-1; s: DP-2 d: DP1-2;
 	# s: HDMI-A-2 d: HDMI-A-1; s: HDMI-A-2 d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1 d: HDMI1 
 	# s: DVI-I-1 d: DVI0; s: VGA-1 d: VGA1; s: DP-1-1; d: DP-1-1;
 	# s: eDP-1 d: eDP-1-1 (yes, reversed from normal deviation!); s: eDP-1 d: eDP
 	# worst: s: DP-6 d: DP-2-3 (2 banks of 3 according to X); s: eDP-1 d: DP-4;
+	# s: DP-3 d: DP-4 [yes, +1, not -]; 
 	my ($d_1,$d_2,$d_m,$s_1,$s_2,$s_m);
 	my $b_single = (scalar @sys_ids == 1) ? 1 : 0;
 	my $pattern = '([A-Z]+)(-[A-Z]-\d+-\d+|-[A-Z]-\d+|-?\d+-\d+|-?\d+|)';
@@ -15585,13 +15586,29 @@ sub map_monitor_ids {
 				print " d1: $d_1 s1: $s_1 dm: $d_m sm: $s_m \n" if $dbg[45];
 				if ($d_1 eq $s_1 && ($d_m == $s_m || $d_m == ($s_m - 1))){
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
+					@display_ids_temp = grep {$_ ne $display_ids->[$i]} @display_ids_temp;
+					@sys_ids_temp = grep {$_ ne $sys_ids[$i]} @sys_ids_temp;
 				}
 			}
 		}
+		# in case of one unmatched, we'll dump this, and use the actual unmatched
 		if (!$monitor_map->{$display_ids->[$i]}){
 			# we're not even going to try, if there's 1 sys and 1 display, just use it!
-			$monitor_map->{$display_ids->[$i]} = ($b_single) ? $sys_ids[$i] : main::message('monitor-id');
+			if ($b_single){
+				$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
+				@display_ids_temp = grep {$_ ne $display_ids->[$i]} @display_ids_temp;
+				@sys_ids_temp = grep {$_ ne $sys_ids[$i]} @sys_ids_temp;
+			}
+			else {
+				main::message('monitor-id');
+			}
 		}
+	}
+	# we don't care at all what the pattern is, if there is 1 unmatched display 
+	# out of 1 sys ids, we'll assume that is the one. This can only be assumed in
+	# cases where only 1 monitor was not matched, otherwise it's just a guess.
+	if (scalar @sys_ids_temp == 1){
+		$monitor_map->{$display_ids->[0]} = $sys_ids_temp[0];
 	}
 	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
