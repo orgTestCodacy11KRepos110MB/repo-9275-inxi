@@ -15543,8 +15543,8 @@ sub map_monitor_ids {
 	eval $start if $b_log;
 	my ($display_ids) = @_;
 	return if !$monitor_ids;
-	my (@display_ids_temp,@sys_ids,@sys_ids_temp);
-	@display_ids_temp = @$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
+	my (@sys_ids,@unmatched_display,@unmatched_sys);
+	@unmatched_display = @$display_ids = sort { lc($a) cmp lc($b) } @$display_ids;
 	foreach my $key (keys %$monitor_ids){
 		if ($monitor_ids->{$key}{'status'} eq 'connected'){
 			push(@sys_ids,$key);
@@ -15556,7 +15556,7 @@ sub map_monitor_ids {
 	print 'sys: ', Data::Dumper::Dumper \@sys_ids if $dbg[45];
 	print 'display: ', Data::Dumper::Dumper $display_ids if $dbg[45];
 	return if scalar @sys_ids != scalar @$display_ids;
-	@sys_ids_temp = @sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
+	@unmatched_sys = @sys_ids = sort { lc($a) cmp lc($b) } @sys_ids;
 	$monitor_map = {};
 	# known patterns: s: DP-1 d: DisplayPort-0; s: DP-1 d: DP1-1; s: DP-2 d: DP1-2;
 	# s: HDMI-A-2 d: HDMI-A-1; s: HDMI-A-2 d: HDMI-2; s: DVI-1 d: DVI1; s: HDMI-1 d: HDMI1 
@@ -15586,8 +15586,8 @@ sub map_monitor_ids {
 				print " d1: $d_1 s1: $s_1 dm: $d_m sm: $s_m \n" if $dbg[45];
 				if ($d_1 eq $s_1 && ($d_m == $s_m || $d_m == ($s_m - 1))){
 					$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
-					@display_ids_temp = grep {$_ ne $display_ids->[$i]} @display_ids_temp;
-					@sys_ids_temp = grep {$_ ne $sys_ids[$i]} @sys_ids_temp;
+					@unmatched_display = grep {$_ ne $display_ids->[$i]} @unmatched_display;
+					@unmatched_sys = grep {$_ ne $sys_ids[$i]} @unmatched_sys;
 				}
 			}
 		}
@@ -15596,8 +15596,8 @@ sub map_monitor_ids {
 			# we're not even going to try, if there's 1 sys and 1 display, just use it!
 			if ($b_single){
 				$monitor_map->{$display_ids->[$i]} = $sys_ids[$i];
-				@display_ids_temp = grep {$_ ne $display_ids->[$i]} @display_ids_temp;
-				@sys_ids_temp = grep {$_ ne $sys_ids[$i]} @sys_ids_temp;
+				@unmatched_display = grep {$_ ne $display_ids->[$i]} @unmatched_display;
+				@unmatched_sys = grep {$_ ne $sys_ids[$i]} @unmatched_sys;
 			}
 			else {
 				$monitor_map->{$display_ids->[$i]} = main::message('monitor-id');
@@ -15609,8 +15609,8 @@ sub map_monitor_ids {
 	# cases where only 1 monitor was not matched, otherwise it's just a guess.
 	# obviously, if one of the matches was wrong, this will also be wrong, but 
 	# thats' life when dealing with irrational data. DP is a particular problem.
-	if (scalar @sys_ids_temp == 1){
-		$monitor_map->{$display_ids_temp[0]} = $sys_ids_temp[0];
+	if (scalar @unmatched_sys == 1){
+		$monitor_map->{$unmatched_display[0]} = $unmatched_sys[0];
 	}
 	main::log_data('dump','$monitor_map ref',$monitor_map) if $b_log;
 	print Data::Dumper::Dumper $monitor_map if $dbg[45];
