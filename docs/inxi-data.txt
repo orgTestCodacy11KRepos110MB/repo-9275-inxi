@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE: inxi-data.txt
-VERSION: 2.2
-DATE: 2022-02-14
+VERSION: 2.3
+DATE: 2022-05-09
 
 ----------------------------------------
 Docs:
@@ -56,6 +56,9 @@ Sections:
   DISTRO DATA
    DistroData::get()
   GRAPHIC DATA
+   DRIVERS
+    Nvidia
+   KMS/DRM/DRI
    WAYLAND DATA 
     EGL/GBM
     WLROOTS
@@ -2072,6 +2075,375 @@ ubuntu-distro-info --devel --fullname
 ================================================================================
 GRAPHIC DATA
 --------------------------------------------------------------------------------
+
+========================================
+DRIVERS
+----------------------------------------
+
+----------------------------------------
+Nvidia
+----------------------------------------
+
+https://www.nvidia.com/en-us/drivers/unix/legacy-gpu/
+
+list of supported product IDs for each legacy version. This is often out of date
+and doesn't get updated often, so if newer legacy release, go to a release page
+for that driver and get the device product ids there.
+
+To get the items, highlight the list of device products, then paste into 
+terminal:
+echo [device/id list] | awk -F "\t" '{a = a " "  tolower($2)} END {print a}' | tr ' ' "\n" | sort | uniq | tr "\n" '|' 
+
+sample url: 
+https://download.nvidia.com/XFree86/Linux-x86_64/495.46/README/supportedchips.
+html#legacy_96.43.xx
+
+Note, these pages don't get updated in general, so go to latest driver page to 
+see the full list for all legacy types!
+
+----------------------------------------
+https://nvidia.custhelp.com/app/answers/detail/a_id/3142
+
+Support timeframes for Unix legacy GPU releases
+Updated 04/22/2022 09:05 AM
+Support timeframes for Unix legacy GPU releases
+
+The Linux 470.* legacy driver series is the last to support GKxxx ("Kepler") 
+GPUs. Support for new Linux kernels and X servers, as well as fixes for critical 
+bugs, will be included in 470.* legacy releases for the remainder of the 
+relevant product support lifetime. See the knowledgebase articles for support of 
+Kepler-series [GeForce see 
+https://nvidia.custhelp.com/app/answers/detail/a_id/5202 ] and [Quadro see 
+https://nvidia.custhelp.com/app/answers/detail/a_id/5210 ] for more information.
+
+The Linux 390.* legacy driver series is the last to support GF1xx ("Fermi") 
+GPUs. Support for new Linux kernels and X servers, as well as fixes for critical 
+bugs, will be included in 390.* legacy releases through the end of 2022.
+
+The Linux 340.* legacy driver series is the last to support the G8x, G9x, and 
+GT2xx GPUs, and motherboard chipsets based on them. Support for X.Org xserver 
+version 1.20 was added to the 340.* legacy driver series with version 340.107, 
+and support for Linux kernels up to Linux 5.4 was added with version 340.108. No 
+further releases from the 340.* series are planned.
+
+The Linux 304.* legacy driver series is the last to support the NV4x and G7x 
+GPUs and motherboard chipsets based on them. Support for X.Org xserver version 
+1.19 was added to the 304.* legacy driver series with version 304.134, and 
+support for Linux kernels up to Linux 4.13 was added with version 304.137. No 
+further releases from the 304.* series are planned.
+
+Support for X.Org xserver version 1.15 was added to the 173.14.* legacy driver 
+series with version 173.14.39. No further releases from the 173.14.* series are 
+planned.
+
+Support for X.Org xserver version 1.12 was added to the 96.43.* legacy driver 
+series with version 96.43.23. No further releases from the 96.43.* series are 
+planned.
+
+No further releases from the 71.86.* legacy driver series are planned.
+
+For more information about the GPUs supported by each Legacy GPU driver series, 
+please see: http://www.nvidia.com/object/IO_32667.html [ which redirects now to: 
+https://www.nvidia.com/en-us/drivers/unix/legacy-gpu/ ]
+
+
+========================================
+KMS/DRM/DRI
+----------------------------------------
+Complicated to understand, these resources may help:
+
+----------------------------------------
+
+https://dri.freedesktop.org/wiki/DRM/
+----------------------------------------
+Direct Rendering Manager (DRM)
+
+The DRM is a kernel module that gives direct hardware access to DRI clients.
+
+This module deals with DMA, AGP memory management, resource locking, and secure 
+hardware access. In order to support multiple, simultaneous 3D applications the 
+3D graphics hardware must be treated as a shared resource. Locking is required 
+to provide mutual exclusion. DMA transfers and the AGP interface are used to 
+send buffers of graphics commands to the hardware. Finally, there must be 
+security to prevent clients from escalating privilege using the graphics 
+hardware. Where does the DRM reside?
+
+Since internal Linux kernel interfaces and data structures may be changed at any 
+time, DRI kernel modules must be specially compiled for a particular kernel 
+version. The DRI kernel modules reside in the 
+/lib/modules/.../kernel/drivers/gpu/drm directory. (The kernel modules were in 
+the /lib/modules/.../kernel/drivers/char/drm directory before version 2.6.26.) 
+Normally, the X server automatically loads whatever DRI kernel modules are 
+needed.
+
+For each 3D hardware driver there is a kernel module, each of which requires the 
+generic DRM support code.
+
+The source code is at git://anongit.freedesktop.org/git/mesa/drm In what way 
+does the DRM support the DRI?
+
+The DRM supports the DRI in three major ways:
+
+1. The DRM provides synchronized access to the graphics hardware. The direct 
+rendering system has multiple entities (i.e., the X server, multiple 
+direct-rendering clients, and the kernel) competing for direct access to the 
+graphics hardware. Hardware that is currently available for PC-class machines 
+will lock up if more than one entity is accessing the hardware (e.g., if two 
+clients intermingle requests in the command FIFO or (on some hardware) if one 
+client reads the framebuffer while another writes the command FIFO). The DRM 
+provides a single per-device hardware lock to synchronize access to the 
+hardware. The hardware lock may be required when the X server performs 2D 
+rendering, when a direct-rendering client is performing a software fallback that 
+must read or write the frame buffer, or when the kernel is dispatching DMA 
+buffers. This hardware lock may not be required for all hardware (e.g., high-end 
+hardware may be able to intermingle command requests from multiple clients) or 
+for all implementations (e.g., one that uses a page fault mechanism instead of 
+an explicit lock). In the later case, the DRM would be extended to provide 
+support for this mechanism. For more details on the hardware lock requirements 
+and a discussion of the performance implications and implementation details, 
+please see [FOM99].
+    
+2. The DRM enforces the DRI security policy for access to the graphics hardware. 
+The X server, running as root, usually obtains access to the frame buffer and 
+MMIO regions on the graphics hardware by mapping these regions using /dev/mem. 
+The direct-rendering clients, however, do not run as root, but still require 
+similar mappings. Like /dev/mem, the DRM device interface allows clients to 
+create these mappings, but with the following restrictions: 
+
+* The client may only map regions if it has a current connection to the X 
+server. This forces direct-rendering clients to obey the normal X server 
+security policy (e.g., using xauth). 
+
+* The client may only map regions if it can open /dev/drm?, which is only 
+accessible by root and by a group specified in the XF86Config file (a file that 
+only root can edit). This allows the system administrator to restrict direct 
+rendering access to a group of trusted users. 
+
+* The client may only map regions that the X server allows to be mapped. The X 
+server may also restrict those mappings to be read-only. This allows regions 
+with security implications (e.g., those containing registers that can start DMA) 
+to be restricted.
+    
+3. The DRM provides a generic DMA engine. Most modern PC-class graphics hardware 
+provides for DMA access to the command FIFO. Often, DMA access has been 
+optimized so that it provides significantly better throughput than does MMIO 
+access. For these cards, the DRM provides a DMA engine with the following 
+features: 
+
+* The X server can specify multiple pools of different sized buffers which are 
+allocated and locked down. 
+
+* The direct-rendering client maps these buffers into its virtual address space, 
+using the DRM API. 
+
+* The direct-rendering client reserves some of these buffers from the DRM, fills 
+the buffers with commands, and requests that the DRM send the buffers to the 
+graphics hardware. Small buffers are used to ensure that the X server can get 
+the lock between buffer dispatches, thereby providing X server interactivity. 
+Typical 40MB/s PCI transfer rates may require 10000 4kB buffer dispatches per 
+second. 
+
+* The DRM manages a queue of DMA buffers for each OpenGL GLXContext, and detects 
+when a GLXContext switch is necessary. Hooks are provided so that a 
+device-specific driver can perform the GLXContext switch in kernel-space, and a 
+callback to the X server is provided when a device-specific driver is not 
+available (for the sample implementation, the callback mechanism is used because 
+it provides an example of the most generic method for GLXContext switching). The 
+DRM also performs simple scheduling of DMA buffer requests to prevent GLXContext 
+thrashing. When a DMA is swapped a significant amount of data must be read from 
+and/or written to the graphics device (between 4kB and 64kB for typical 
+hardware). 
+
+* The DMA engine is generic in the sense that the X server provides information 
+at run-time on how to perform DMA operations for the specific hardware installed 
+on the machine. The X server does all of the hardware detection and setup. This 
+allows easy bootstrapping for new graphics hardware under the DRI, while 
+providing for later performance and capability enhancements through the use of a 
+device-specific kernel driver.
+
+Is it possible to make a DRI driver without a DRM driver in a piece of hardware 
+whereby we do all accelerations in PIO mode?
+
+The kernel provides three main things:
+
+1. the ability to wait on a contended lock (the waiting process is put to 
+sleep), and to free the lock of a dead process;
+    
+2. the ability to mmap areas of memory that non-root processes can't usually 
+map;
+    
+3. the ability to handle hardware interruptions and a DMA queue. 
+    
+All of these are hard to do outside the kernel, but they aren't required 
+components of a DRM driver. For example, the tdfx driver doesn't use hardware 
+interrupts at all -- it is one of the simplest DRM drivers, and would be a good 
+model for the hardware you are thinking about (in it's current form, it is quite 
+generic).
+
+Note: DRI was designed with a very wide range of hardware in mind, ranging from 
+very low-end PC graphics cards through very high-end SGI-like hardware (which 
+may not even need the lock). The DRI is an infrastructure or framework that is 
+very flexible -- most of the example drivers we have use hardware interrupts, 
+but that isn't a requirement. 
+
+Has the DRM driver support for or loading sub-drivers?
+
+Although the [Faith99] states that the DRM driver has support for loading 
+sub-drivers by calling drmCreateSub, Linus didn't like that approach. He wanted 
+all drivers to be independent, so the top-level "DRM" module no longer exists 
+and each DRM module is independent. Is it possible to use floating point on the 
+kernel?
+
+You can use FP, but you have to jump through hoops to do so, especially if 
+you're in an asynchronous context (i.e. interrupt or similar).
+
+In process context (i.e. ioctl code) you could just decide that part of the 
+calling convention of the ioctl is that the FP register state is corrupted, and 
+use FP fairly freely - but realizing that FP usage is basically the same as 
+"access to user mode" and can cause traps.
+
+Oh, and getting an FP exception in the kernel is definitely illegal, and can 
+(and does) cause a hung box. The FP exception handling depends on a signal 
+handler cleaning the thing up.
+
+In general, the rule would be: don't do it. It's possible, but there are a lot 
+of cases you have to worry about, and it would be a lot better to do the FP 
+(including any coordinate snapping) in mesa in user mode, and maybe just verify 
+the values in the kernel (which can be done with fairly simple integer 
+arithmetic). 
+
+----------------------------------------
+Excellent article explains it:
+
+https://www.bitwiz.org.uk/s/how-dri-and-drm-work.html
+----------------------------------------
+Historical Situation
+
+Previously, all applications which used hardware acceleration would contain a 
+full implementation of the code required to allocate VRAM for the command queue, 
+program the command queue processor (part of the GPU) to read commands from the 
+newly allocated buffer, and to keep updating its configuration every time new 
+commands were written.  There'd also be a lot of error-checking to be done to 
+make sure everything went smoothly.  In addition, it'd have to handle memory 
+management if it wanted to allocate more buffers in VRAM - for instance, to hold 
+the contents of offscreen windows ready to be quickly copied onto the screen.  
+This is a lot of programming, but is the situation we currently have with the 
+Glamo chip.  The X server (both the old Kdrive-based server (Xglamo) and the 
+more recent X.org driver xf86-video-glamo) contains command queue handling code, 
+as does the accelerated version of mplayer.
+
+It's pretty clear that multiple applications can't simultaneously use the 
+acceleration - they'd both be trying to manage a single command queue and pool 
+of VRAM in their own ways, and the results could range from instability to 
+outright catastrophe.  This is one of the things DRI is here to fix.
+
+DRM - Kernel Level Support
+
+The Direct Rendering Manager, DRM, is the kernel part of the wider Direct 
+Rendering Infrastructure (DRI).  With DRM, all the command queue and VRAM 
+handling is done by the kernel, and there's an ioctl interface through which 
+userspace programs can ask it to do things.  For example, a program might ask to 
+allocate some VRAM, and the DRM will return a unique handle by which the program 
+can refer to the newly allocated VRAM.  The kernel, aware of the requests from 
+the multiple programs, can coordinate memory management across them all.  If the 
+program needed to read or write its VRAM, it could ask the kernel to map the 
+memory into the program's address space.  The subset of the DRM ioctl interface 
+which takes care of memory is called GEM [2].
+
+Command queue handling is similar.  If the program wanted to submit a sequence 
+of commands, it could call another ioctl with its commands, and the kernel would 
+add it to the command queue.  Part of the beauty of all this is that only the 
+kernel has to know where the objects in VRAM actually reside at any point, and 
+it can move some of them out of VRAM if space becomes tight.  Userspace programs 
+just use their unique handles to refer to memory, and let the kernel take care 
+of making sure that the correct buffers are in the right places at the right 
+times.
+
+Finally, there's a library ("libDRM") which exists to make handling DRM's ioctls 
+a little easier. .... DRI - X Server Support
+
+"DRI" could be taken to mean the overall infrastructure which makes accelerated 
+rendering possible.  The DRI interface, which is what this section is about, is 
+specific to X.  It consists of a handful of X requests by which X clients can 
+request that the X server allows it to carry out accelerated rendering to a 
+particular window.  The client asks for a handle for the window, and uses that 
+handle to tell the kernel to draw things, for instance using the 3D engine of 
+the graphics hardware.  When it's finished drawing a frame, the client asks the 
+X server to swap the buffers (assuming, say, a double-buffered OpenGL context) 
+so that the contents are visible on the screen.
+
+DRI is just one way to use the underlying DRM framework.  For instance, there 
+are other graphics systems (such as Wayland) which also use DRM to access the 
+hardware.
+
+KMS - Kernel Modesetting
+
+There's just one more piece to the puzzle, which is called KMS.  This could be 
+the subject of a whole new article, but here's a short overview.  Previously, 
+the X driver would directly program the hardware, just as it had to program the 
+command queue engine itself.  With KMS, it can ask the kernel to set a certain 
+display resolution, colour depth, or whatever.  At the same time, the X driver 
+can send the kernel its handle for a memory buffer which should be used as the 
+contents of the screen.  Since the kernel is in complete control of the actual 
+programming of the hardware, it can switch back in the case of, say, a kernel 
+panic or X server crash.
+...
+[comments]
+
+To answer the questions from "axizhe", the DRM module resides entirely within 
+the kernel, i.e. within the Linux itself. Of course, non-Linux implementations 
+exist as well, e.g. DRM for BSD. The video driver module, which runs in 
+userspace as part of the X server, normally sends commands to it using ioctls. 
+The commands from the X server will normally be pretty dull stuff like "move 
+this rectangle from point A to point B", but other things apart from X can also 
+send their commands to the DRM module - for example, Mesa might send some 3D 
+rendering commands.
+
+So, there are definitely at least two parts of the equation, one in the kernel 
+and at least one in userspace. Only the kernel part is called "DRM", though. 
+DRI, strictly speaking, refers to the X11 protocol which coordinates things in 
+order to allow accelerated rendering to be done by client programs (i.e. 
+anything other than the X server itself) without interfering with the X server's 
+own (accelerated or non-accelerated) rendering. However, it's not too much of a 
+stretch to use the name "DRI" for the overall framework that makes any of it 
+work.
+
+----------------------------------------
+Direct Rendering Infrastructure
+https://en.wikipedia.org/wiki/Direct_Rendering_Infrastructure
+
+The Direct Rendering Infrastructure (DRI) is the framework comprising the modern 
+Linux graphics stack which allows unprivileged user-space programs to issue 
+commands to graphics hardware without conflicting with other programs.[6] The 
+main use of DRI is to provide hardware acceleration for the Mesa implementation 
+of OpenGL. DRI has also been adapted to provide OpenGL acceleration on a 
+framebuffer console without a display server running.[7]
+
+DRI implementation is scattered through the X Server and its associated client 
+libraries, Mesa 3D and the Direct Rendering Manager kernel subsystem.
+
+----------------------------------------
+Direct Rendering Manager + KMS
+https://en.wikipedia.org/wiki/Direct_Rendering_Manager
+
+The Direct Rendering Manager (DRM) is a subsystem of the Linux kernel 
+responsible for interfacing with GPUs of modern video cards. DRM exposes an API 
+that user-space programs can use to send commands and data to the GPU and 
+perform operations such as configuring the mode setting of the display. DRM was 
+first developed as the kernel-space component of the X Server Direct Rendering 
+Infrastructure,[1] but since then it has been used by other graphic stack 
+alternatives such as Wayland. 
+...
+The Direct Rendering Manager resides in kernel space, so user-space programs 
+must use kernel system calls to request its services. However, DRM doesn't 
+define its own customized system calls. Instead, it follows the Unix principle 
+of "everything is a file" to expose the GPUs through the filesystem name space, 
+using device files under the /dev hierarchy. Each GPU detected by DRM is 
+referred to as a DRM device, and a device file /dev/dri/cardX (where X is a 
+sequential number) is created to interface with it.[8][9] User-space programs 
+that want to talk to the GPU must open this file and use ioctl calls to 
+communicate with DRM. Different ioctls correspond to different functions of the 
+DRM API. 
 
 ========================================
 WAYLAND DATA
