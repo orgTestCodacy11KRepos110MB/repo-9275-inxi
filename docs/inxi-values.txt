@@ -2,8 +2,8 @@
 INXI VALUES
 ================================================================================
 FILE:    inxi-values.txt
-VERSION: 5.1
-DATE:    2022-03-24
+VERSION: 5.2
+DATE:    2022-05-12
 
 ----------------------------------------
 Docs:
@@ -147,16 +147,16 @@ Advanced options to trigger certain behaviors.
 44: don't use curl, fetch, or wget as downloader options
 
 ----------------------------------------
---dmidecode - Set $b_dmidecode_force = 1
+--dmidecode/--force dmidecode - Set $b_dmidecode_force = 1
 
 ----------------------------------------
 --host - Set $show{'host'} = 1
 
 ----------------------------------------
---no-host - Set no check ssl options for downloaders 
+--no-host - disable showing hostname, default for -z
 
 ----------------------------------------
---no-ssl - Set $show{'host'} = 0
+--no-ssl - Set $use{'no-ssl'} = 1, used for downloaders.
 
 ================================================================================
 DEBUGGING SWITCHES
@@ -416,7 +416,7 @@ warnings, if any. pointless, it's already output by --edid, but keep it.
 48. Dumper --slots data, dmi, working data structures
 
 ========================================
-SYNTHETID DATA SWITCHES
+SYNTHETIC DATA SWITCHES
 ----------------------------------------
 
 ----------------------------------------
@@ -434,10 +434,10 @@ Used in conjuction with other switches to emulate as far as
 possible the os type.
 
 ----------------------------------------
---arm - Set $b_arm = 1
+--arm - Set $risc{'id'} = 'arm', $risc{'arm'} = 1.
 
 ----------------------------------------
---bsd [variant] - Force $bsd_type
+--bsd [variant] - Force $bsd_type to variant 
 
 Values: [darwin|dragonfly|freebsd|openbsd|netbsd]
 
@@ -446,10 +446,10 @@ Sets: $fake{'bsd'} = 1
 See --fake for specific fake bsd tools
 
 ----------------------------------------
---mips - Set $b_mips = 1
+--mips - Set $risc{'id'} = 'mips', $risc{'mips'} = 1.
 
 ----------------------------------------
---ppc - Set $b_ppc = 1
+--ppc - Set $risc{'id'} = 'ppc', $risc{'ppc'} = 1.
 
 ========================================
 FAKE DATA SWITCHES
@@ -467,6 +467,8 @@ loads boolean trigger in corresponding %fake hash key
 
 See also: --bsd and FAKE OS SWITCHES
 
+grep -o "fake{'[^}]*'}" pinxi | sort | uniq
+
 ----------------------------------------
 Fake BSD Data
 ----------------------------------------
@@ -481,6 +483,9 @@ source be the dev data file, not the host system actual data.
 --fake dboot - Sets system file dmesg.boot
 
 ----------------------------------------
+--fake disklabel - Fake disklabel output
+
+----------------------------------------
 --fake pciconf - Sets alerts pciconf use; sets lspci to missing.
 
 ----------------------------------------
@@ -488,10 +493,6 @@ source be the dev data file, not the host system actual data.
 
 ----------------------------------------
 --fake pcidump - Sets alerts pcidump use; sets lspci to missing.
-
-----------------------------------------
---fake swaymsg - forces wayland swaymsg. Use with --wayland to emulate wayland
-environment.
 
 ----------------------------------------
 --fake sysctl - Sets alerts sysctl use
@@ -534,7 +535,15 @@ dmidecode debugger data.
 and any other logical type volume data
 
 ----------------------------------------
+--fake lspci - Use fake lspci data
+
+----------------------------------------
+--fake partitions - use fake df.. partition data
+
+----------------------------------------
 Fake RAID DATA
+
+--fake raid-btrfs - use fake btrfs data. btrfs is a stub, only for dev.
 
 --fake raid-hw - Use debugger data files.
 
@@ -542,13 +551,16 @@ Fake RAID DATA
 
 --fake raid-md - Debugger data files instead of /proc/mdstat.
 
+--fake raid-soft - Use Debugger data files for OpenBSD softraid.
+
 --fake raid-zfs - Debugger data files instead of zfs debugger data.
 
 ----------------------------------------
 --fake sensors - Use debugger data file based lm-sensors sensors output file
 
 ----------------------------------------
---fake swaymsg - fake wayland swaymsg compositor data
+--fake swaymsg - forces wayland swaymsg. Use with --wayland to emulate wayland
+environment.
 
 ----------------------------------------
 --fake uptime - Fake uptime strings to debug regex
@@ -588,12 +600,13 @@ See --fake for debugger tool forcings.
 FORCE --force [action]
 ----------------------------------------
 
+grep -o "force{'[^}]*'}" pinxi | sort | uniq
+
 %force = (
 'colors'             => [01], # same as -Y -2, do not remove colors from piped output
 'cpuinfo'            => [01], # force use of cpuinfo over sys for cpu data
 'display'            => [01], # force $b_display even if root or out of X
 'dmidecode'          => [01], # force override use of dmidecode everywhere
-'edid'               => [01], # force use of binary string read of monitor edid file
 'hddtemp'            => [01], # override /sys drive temps
 'lsusb'              => [01], # linux, override USB_SYS config setting, restore default
 'man'                => [01], # same as --man, force install of man file
@@ -602,13 +615,11 @@ FORCE --force [action]
 'no-doas'            => [01], # --no-doas: don't use doas internally
 'no-html-wan'        => [01], # --no-html-wan: force dig or nothing for WAN IP
 'no-sudo'            => [01], # --no-sudo: don't use sudo internally
+'pkg'                => [01], # --pkg/--force pkg - force package counts for rpm
 'usb-sys'            => [01], # linux, skip lsusb for vendor/product data
 'vmstat'             => [01], # override /proc/meminfo if present
 'wayland'            => [01], # -G, disable all X tools, protocol = wayland
 'wmctrl'             => [01], # use wmctrl as wm source always
-
-''            => [01],
-''            => [01],
 );
 
 ----------------------------------------
@@ -621,21 +632,29 @@ flags for loads of features we only want to run once.
 
 local in generate_lines(), passed by reference
 
+grep -o "checks{'[^}]*'}" pinxi | sort | uniq
+
 %checks = (
 'device'                => [01], # DeviceData loaded
-'dmesg-boot'            => [01], # set_dmesg_boot_data loaded
-'dmidecode'             => [01], # set_dmidecode_data loaded
+'dmi'                   => [01], # set_dmidecode_data loaded
 'usb'                   => [01], # USBData loaded
 );
 
 ----------------------------------------
 global:
 
+These make sure certain shared features are only run once, they store their
+data globally for reuse.
+
+grep -o "loaded{'[^}]*'}" pinxi | sort | uniq
+
 %loaded = (
 'build-prop'            => [01], # android build.prop loaded
 'con-irc-tty'           => [01], # ShellData::console_irc_tty loaded 
+'cpuinfo'               => [01], # Cpuinfo read loaded
+'dboot'                 => [01], # bsd dboot processor
+'disk-data-bsd'         => [01], # bsd disk data
 'glabel'                => [01], # GlabelData loaded
-'gpart'                 => [01], # GpartData loaded
 'gpu-data'              => [01], # cpu sensors data, global in case used elsewhere
 'json'                  => [01], # for load_json(), test/load 1 of 3 possible modules.
 'label-uuid'            => [01], # linux label/uuid fallback data
@@ -644,17 +663,16 @@ global:
 'lvm-data'              => [01], # lvm data loaded, for -L or -R
 'mapper'                => [01], # set_mapper loaded
 'memory'                => [01], # MemoryData loaded
-'partitions'            => [01], # many places
-'pkg'                   => [01], # PackageData run/loaded
+'package-data'          => [01], # global package data, for -r or -I lines
+'partition-data'        => [01], # many places
 'ps-aux'                => [01], # set_ps_aux_data() loaded
+'ps-gui'                => [01], # set ps_gui data
 'raid'                  => [01], # -R, -D raid tests, raid_data() loaded
 'service-tool'          => [01], # ServiceData::set() loaded
+'set-partitions'        => [01], # Block partitions data set 
+'set-swap'              => [01], # partition swap data loaded
 'shell-data'            => [01], # ShellData::set() loaded
-'swaps'                 => [01], # partition swap data loaded
 'tty-number'            => [01], # ShellData::tty_number loaded
-'usb'                   => [01], # USBData loaded
-
-''            => [01],
 );
 
 ----------------------------------------
@@ -667,18 +685,24 @@ This is a global that assigns print row boolean values.
 
 These are set in the get_options function.
 
+grep -o "show{'[^}]*'}" pinxi | sort | uniq
+
 %show = (
 'audio'            # -A/--audio
 'battery'          # -b/-F battery only if present
-'battery-forced    # -B/--battery
+'battery-forced    # -B/--battery even if none detected
 'bluetooth'        # -E/--bluetooth
+'bluetooth-forced' # -E/--bluetooth show even if no bluetooth data
 'cpu'              # -C/--cpu - cpu overrides cpu-basic
 'cpu-basic'        # -b/--basic/-v 1 cpu line
 'cpu-flag'         # -C/--cpu/-f/--flags and full flags
 'disk'             # -D/--disk - disk overrides disk-basic/disk-total
 'disk-basic'       # -v 2 Disk data
 'disk-total'       # -b/--basic/ -v 1 Disk
+'edid'             # --edid, full edid report, trips -Ga also
 'graphic'          # -G/--graphics
+'graphic-basic'    # -b type graphics
+'help'             # -h/--help
 'host'             # -S/--system. Default: true. --alt 31/32 disable/enable
 'info'             # -I/--info
 'ip'               # -i/--internet
@@ -687,10 +711,12 @@ These are set in the get_options function.
 'machine'          # -M/--machine
 'network'          # -N/--network
 'network-advanced' # -n/--network-advanced/ -v 3
+'no-host'          # -z/--no-host turn off host in -S
 'optical'          # -d/--disk-all/--optical/ -v 6
 'optical-basic'    # -F, -v5 - basic optical output
 'partition'        # -P/--partition basic
 'partition-full'   # -p/--partition-full
+'partition-sort'   # -p/-P with custom sort type
 'process'          # -t/--processes with c or m
 'ps-cpu'           # -t/--processes with c [count]. Sets: $configs{'PS_COUNT'}
 'ps-mem'           # -t/--processes with m [count]. Sets: $configs{'PS_COUNT'}
@@ -698,17 +724,21 @@ These are set in the get_options function.
 'raid-basic'       # -b / -F / -v 2 raid, only show if data is there
 'raid-forced'      # -R/--raid, show if raid there or not
 'ram'              # -m/--memory
+'ram-modules'      # --memory-modules empty slots excluded
+'ram-short'        # --memory-short short form: array counts, slots, modules, type
+'recommends'       # --recomnmends
 'repo'             # -r / --repos
 'sensor'           # -s/--sensors
 'short'            # inxi short form, no args
 'slot'             # --slots
+'swap'             # --swap/-F
 'system'           # -S/--system
 'unmounted'        # -o/--unmounted
 'usb'              # --usb
 'uuid'             # -p/-P/-u/--uuid with UUID
+'version'          # --version/-V
 'weather'          # -w / --weather, distro override with $use{'weather'} false
 'weather-location' # -W / --weather-location, contains location string or is null
-'width'            # -y/--width 80-130
 );
 
 $extra   # -x, -xx, -xxx, --extra [0-3]. Repeat or integer arg.
@@ -719,22 +749,48 @@ $b_admin # --admin/-a [-a sets -xxx as well]
 USE SWITCHES - INTERNAL/OPTIONS
 ----------------------------------------
 
-These trip specific behaviors, mostly around filtering or distro maintainer blocks of features.
+These trip specific behaviors, various, which tools to test for, filtering or 
+distro maintainer blocks of features, etc.
+
+grep -o "use{'[^}]*'}" pinxi | sort | uniq
 
 %use = (
 'block-tool'       # run lsblk/blockdev alerts tests
+'bsd-audio'        # bsd audio tools
+'bsd-battery'      # bsd battery data 
+'bsd-cpu'          # bsd cpu tools/data
+'bsd-disk'         # bsd disk tools/data
+'bsd-kernel'       # bsd kernel tools/data
+'bsd-machine'      # bsd machine tools/data
+'bsd-memory'       # bsd memory tools/data
+'bsd-optical'      # bsd optical tools/data
+'bsd-partition'    # bsd partition tools/data
+'bsd-pci'          # bsd pci tools/data
+'bsd-raid'         # bsd raid tools/data
+'bsd-ram'          # bsd ram tools/data
+'bsd-sensor'       # bsd sensor tools/data
+'bsd-sleep'        # bsd sleep tools/data
+'btrfs'            # btrfs data
 'dmidecode'        # run dmidecode alerts tests; set_dmesg_boot_data() triggers
 'filter'           # -z/--filter: all, filters output. $filter_string Auto on in IRC unless disabled by -Z
-'filter-label'     # --filter-label: filter partition labels.
+'filter-label'     # --filter-label/--zl: filter partition labels.
 'filter-override'  # -Z/--filter-override: overrides IRC filter
-'filter-uuid'      # --filter-uuid: filter partition UUIDs
+'filter-uuid'      # --filter-uuid/--zu: filter partition UUIDs
+'filter-vulnerabilities' # --filter-vulnerabilities/--zv don't show cpu vuln report
 'hardware-raid'    # for -R, hw raid detected
+'json'             # if json data type is to be used
+'logical'          # 
+'logical-general'  # 
+'logica-lvm'       # run lvs alerts test
 'man'              # --man -U 3/-U: force update man page for -U/-U 3
-'lvm'              # run lvs alerts test
 'mdadm'            # run mdadm alert tests
+'no-ssl'           # --no-ssl, for downloaders
+'output-block'     # -Y output option, show in blocks, boolean
+'pci'              # 
 'pci-tool'         # DeviceData found one of the pci tools: lspci/pcidump/pciconf/pcictl
-'smartctl'         # run smartctl alerts test
+'sensors-default'  # 
 'slot-tool'        # found slots in dmidecode, show slot data
+'smartctl'         # run smartctl alerts test
 'soc-audio'        # soc data found for this type
 'soc-bluetooth'    # soc data found for this type
 'soc-gfx'          # soc data found for this type
@@ -744,7 +800,9 @@ These trip specific behaviors, mostly around filtering or distro maintainer bloc
 'sysctl'           # run sysctl alerts test
 'update'           # allow -U updater, default true, distro maintainers can set in configs to false
 'usb'              # run lsusb/usbdevs/usbconfig alerts tests
+'usb-tool'         # --usb-tool/--force lsusb - both force lsusb, over /sys, for linux
 'weather'          # allow -w/W weather, default true, distro maintainers can set in configs to false
+'yes-man'          # --man force man page install for pinxi
 );
 
 ========================================
@@ -781,8 +839,10 @@ out messages to user, if required.
 CLIENT
 ----------------------------------------
 
+grep -o "client{'[^}]*'}" pinxi | sort | uniq
+
 %client = (
-'console'          => [01],
+'con-irc-tty'      => [01],
 'console-irc'      => [01],
 'dcop'             => [01],
 'default-shell'    => [shell name],
@@ -795,11 +855,13 @@ CLIENT
 'name'             => [lower case client name]
 'name-print'       => [Display version of name]
 'native'           => [01], # konvi: /cmd = 0; /pinxi = 1
-'ppid'             => [ppid],
+'pppid'            => [pppid],
 'qdbus'            => [01],
 'su-start'         => [01],
 'test-konvi'       => [01], # debugging switch
+'tty-number'       => [tty nu]
 'version'          => [client version],
+'whoami'           => [session user name]
 );
 
 ========================================
@@ -808,18 +870,20 @@ DOWNLOADER
 
 See also --no-ssl
 
+grep -o "dl{'[^}]*'}" pinxi | sort | uniq
+
 %dl = (
 # switches to use specific downloader
 'curl'       => [01],
 'fetch'      => [01],
 'ftp'        => [01],
-'perl'       => [01],
+'tiny'       => [01],
 'wget'       => [01],
 # options
 'dl'         => [|curl|fetch|ftp|perl|wget] null means no downloader found or used.
 'file'       => [arguments for downloader type for file download]
-'no-ssl'     => [argument for no ssl checks: set by downloader type]
-'no-ssl-opt' => [assigns no-ssl: set by --alt 34]
+'no-ssl'     => [argument for no ssl checks: set by downloader type. 
+                If --no-ssl not used, set to ''.]
 'null'       => [ftp only: sets send output to /dev/null if required]
 'spider'     => [wget/tiny only: spider the file to test if it's there]
 'stdout'     => [arguments for downloader type for stdout output]
@@ -891,11 +955,13 @@ These hashes contain the settings for colors, separators, and sizes
 COLORS: %colors
 ----------------------------------------
 
+grep -o "colors{'[^}]*'}" pinxi | sort | uniq
+
 %colors = (
 'c1'            => [irc/console color]
 'c2'            => [irc/console color]
-'console'       => [0-42]
 'cn'            => [reset normal irc/console color]
+'console'       => [0-42]
 'default'       => 2 - set in set_basics()
 'global'        => [0-12]
 'irc-console'   => [0-12]
@@ -912,6 +978,8 @@ COLORS: %colors
 SEPARATOR: %sep 
 ----------------------------------------
 
+grep -o "sep{'[^}]*'}" pinxi | sort | uniq
+
 $sep{'s1'}='~';        # dynamic from irc/console: primary category separator, like: Info:
 $sep{'s2'}=' ';        # dynamic from irc/console: secondary separator, like: Card-1:
 $sep{'s1-irc'}='';     # long form irc
@@ -923,16 +991,19 @@ $sep{'s2-console'}=':' # long form console
 SIZE: %size
 ----------------------------------------
 
+grep -o "size{'[^}]*'}" pinxi | sort | uniq
+
 $size{'console'} 
 $size{'indent'} = 10;
-# to change default of < indent-cols triggering start line wrap and 2 indent
-$size{'indent-min'}=90; 
+$size{'indents'} = 2; 
 $size{'irc'}
-$size{'max'}=0;
+$size{'lines'}
+$size{'max-cols'};
+$size{'max-lines'};
+$size{'max-wrap'};
 $size{'no-display'}
-
 # these will be set dynamically in set_display_width()
-$size{'term'}=80;
+$size{'term-cols'}=80;
 $size{'term-lines'}=100;
  
 ================================================================================

@@ -1295,7 +1295,7 @@ sub process_item {
 			if ($val == 0){
 				$size{'max-lines'} = $size{'term-lines'};}
 			elsif ($val == -1){
-				$size{'output-block'} = 1;}
+				$use{'output-block'} = 1;}
 			else {
 				$size{'max-lines'} = $val;}
 		}}
@@ -2559,7 +2559,7 @@ sub download_file {
 	my $debug_data = '';
 	my $result = 1;
 	$ua = ($ua && $dl{'ua'}) ? $dl{'ua'} . $ua : '';
-	$dl{'no-ssl-opt'} ||= '';
+	$dl{'no-ssl'} ||= '';
 	$dl{'spider'} ||= '';
 	$file ||= 'N/A'; # to avoid debug error
 	if (!$dl{'dl'}){
@@ -2568,7 +2568,7 @@ sub download_file {
 	if ($dl{'timeout'}){
 		$timeout = "$dl{'timeout'}$dl_timeout";
 	}
-	# print "$dl{'no-ssl-opt'}\n";
+	# print "$dl{'no-ssl'}\n";
 	# print "$dl{'dl'}\n";
 	# tiny supports spider sort of
 	## NOTE: 1 is success, 0 false for Perl
@@ -2583,19 +2583,19 @@ sub download_file {
 	else {
 		if ($type eq 'stdout'){
 			$args = $dl{'stdout'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $args \"$url\" $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl'} $ua $timeout $args \"$url\" $dl{'null'}";
 			$result = qx($cmd);
 			$debug_data = ($result) ? 'Success: stdout data not null.' : 'Download resulted in null data!';
 		}
 		elsif ($type eq 'file'){
 			$args = $dl{'file'};
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $args $file \"$url\" $dl{'null'}";
+			$cmd = "$dl{'dl'} $dl{'no-ssl'} $ua $timeout $args $file \"$url\" $dl{'null'}";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
 		}
 		elsif ($dl{'dl'} eq 'wget' && $type eq 'spider'){
-			$cmd = "$dl{'dl'} $dl{'no-ssl-opt'} $ua $timeout $dl{'spider'} \"$url\"";
+			$cmd = "$dl{'dl'} $dl{'no-ssl'} $ua $timeout $dl{'spider'} \"$url\"";
 			system($cmd);
 			$result = ($?) ? 0 : 1; # reverse these into Perl t/f
 			$debug_data = $result;
@@ -2610,7 +2610,7 @@ sub get_file {
 	my ($type, $url, $file) = @_;
 	my $tiny = HTTP::Tiny->new;
 	# note: default is no verify, so default here actually is to verify unless overridden
-	$tiny->verify_SSL => 1 if !$dl{'no-ssl-opt'};
+	$tiny->verify_SSL => 1 if !$use{'no-ssl'};
 	my $response = $tiny->get($url);
 	my $return = 1;
 	my $debug = 0;
@@ -2716,8 +2716,8 @@ sub set_downloader {
 	else {
 		$dl{'dl'} = '';
 	}
-	# no-ssl-opt is set to 1 with --no-ssl, so it is true, then assign
-	$dl{'no-ssl-opt'} = $dl{'no-ssl'} if $dl{'no-ssl-opt'};
+	# $use{'no-ssl' is set to 1 with --no-ssl, when false, unset to ''
+	$dl{'no-ssl'} = '' if !$use{'no-ssl'};
 	eval $end if $b_log;
 }
 
@@ -5247,7 +5247,7 @@ sub get {
 	'no-man' => sub {
 		$use{'no-man'} = 0;},
 	'no-ssl' => sub {
-		$dl{'no-ssl-opt'} = 1;},
+		$use{'no-ssl'} = 1;},
 	'no-sudo' => sub {
 		$force{'no-sudo'} = 1;},
 	'output-file:s' => sub {
@@ -28169,7 +28169,7 @@ sub get {
 	eval $start if $b_log;
 	# $num passed by reference to maintain incrementing where requested
 	($type,$num) = @_;
-	$loaded{'packages'} = 1;
+	$loaded{'package-data'} = 1;
 	package_counts();
 	appimage_counts();
 	create_output();
@@ -31198,7 +31198,7 @@ sub info_item{
 			$data{$data_name}->[$index]{main::key($num++,0,2,'clang')} = $clang_version;
 		}
 	}
-	if ($extra > 0 && !$loaded{'packages'}){
+	if ($extra > 0 && !$loaded{'package-data'}){
 		my %packages = PackageData::get('inner',\$num);
 		for (keys %packages){
 			$data{$data_name}->[$index]{$_} = $packages{$_};
