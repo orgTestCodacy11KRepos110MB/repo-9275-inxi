@@ -2,8 +2,8 @@
 INTERNAL DATA
 ================================================================================
 FILE: inxi-data.txt
-VERSION: 2.3
-DATE: 2022-05-09
+VERSION: 2.4
+DATE: 2022-05-12
 
 ----------------------------------------
 Docs:
@@ -2145,7 +2145,14 @@ No further releases from the 71.86.* legacy driver series are planned.
 For more information about the GPUs supported by each Legacy GPU driver series, 
 please see: http://www.nvidia.com/object/IO_32667.html [ which redirects now to: 
 https://www.nvidia.com/en-us/drivers/unix/legacy-gpu/ ]
+---------------------------------------
+Read about the new open sourcing of the 515 nvidia module:
 
+https://developer.nvidia.com/blog/nvidia-releases-open-source-gpu-kernel-modules/
+https://us.download.nvidia.com/XFree86/Linux-x86_64/515.43.04/README/kernel_open.html
+https://github.com/NVIDIA/open-gpu-kernel-modules
+https://www.phoronix.com/scan.php?page=article&item=nvidia-open-kernel&num=1
+https://blogs.gnome.org/uraeus/2022/05/11/why-is-the-open-source-driver-release-from-nvidia-so-important-for-linux/
 
 ========================================
 KMS/DRM/DRI
@@ -2448,6 +2455,73 @@ sequential number) is created to interface with it.[8][9] User-space programs
 that want to talk to the GPU must open this file and use ioctl calls to 
 communicate with DRM. Different ioctls correspond to different functions of the 
 DRM API. 
+
+----------------------------------------
+How do I check what drivers / layers of code are being used for my GPU?
+https://unix.stackexchange.com/questions/415152/how-do-i-check-what-drivers-layers-of-code-are-being-used-for-my-gpu
+
+I've seen this question asked a lot but it seems to always be answered wrong. 
+You can simply look at the documentation of your respective distribution and 
+find out which based on package names. But this runs into problems. Namely 
+because the open source drivers are usually distributed with Linux and if you're 
+using wayland you can't even rely on looking at the x11 video packages.
+
+Nvidia Optimus is a type of runtime GPU switching technology and is intended at 
+switching the dedicated GPU on and off on demand to save power.
+
+DRM is the subsystem of Linux that exposes your GPU through a common interface 
+to other modules and userspace applications. A driver must exist for each GPU 
+family.
+
+Further KMS is used to control displays and buffers video to and between output 
+devices. This subsystem is common among gpus.
+
+Ultimately both of these subsystems are used by the 3d graphics driver in the 
+case of the X Window System. The graphics driver actually has several pieces 
+including the DRI driver, the X Window driver (for 2d acceleration and mode 
+setting) and OpenGL. Wayland uses EGL for 2d and 3d rendering on the display 
+server and does mode setting itself and clients need extra 2d libraries for 
+acceleration. This gets complicated when talking about older versions of Linux 
+as the proprietary driver provides a "black box" of functionality simply 
+providing its own OpenGL library and X Window as dependencies.
+
+With most modern Linux you can simply look at which DRI driver is loaded but the 
+OpenGL implementations needs to be arbitrated through what is called a GLX 
+provider. Most proprietary drivers provide their own hiding the architecture 
+behind it. The open source drivers use Mesa. Which one gets loaded could easily 
+be broken in the past. These days libglvnd is used which provides a way to 
+choose which one to use.
+
+So your 3d driver actually consists of several different kernel modules and 
+libraries. Multiple drivers may co-exist and be running at the same time.
+
+So to see which dri drivers are installed:
+
+ls /lib/modules/[linux version]/kernel/drivers/gpu/drm/
+
+And to see which x11 2d drivers are installed:
+
+ls /lib/xorg/modules/drivers/
+
+(one hopes those directories don't vary much between distributions)
+
+And to see which ones are loaded you can look at which modules require drm.
+
+lsmod | grep drm
+
+If a module is required by drm_kms_helper as well that it fits with most modern 
+graphics drivers. Then to find out the path to the module:
+
+modinfo -F filename [module name]
+
+Then you can use your respective package manager to find the package that 
+provides it. With apt-get/dpkg you can do:
+
+dpkg -S <path to module>
+
+Finally your GPU driver may provide its own proprietary interfaces. For example 
+nvidia provides vdpau for video encoding and decoding.
+
 
 ========================================
 WAYLAND DATA
