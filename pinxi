@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.15';
-my $self_date='2022-05-14';
-my $self_patch='11';
+my $self_date='2022-05-15';
+my $self_patch='12';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -5584,7 +5584,7 @@ sub show_options {
 	['1', '-n', '--network-advanced', "Advanced Network device info. Triggers -N. 
 	Shows interface, speed, MAC id, state, etc. "],
 	['1', '-N', '--network', "Network device(s), driver."],
-	['1', '', '--nvidia,--nv', "Show advanced nvidia driver info; triggers -Ga."],
+	['1', '', '--nvidia,--nv', "Show advanced nvidia device info; triggers -Ga."],
 	['1', '-o', '--unmounted', "Unmounted $partition_string info (includes UUID 
 	and Label if available). Shows file system type if you have lsblk installed 
 	(Linux) or, for BSD/GNU Linux, if 'file' installed and you are root or if 
@@ -5768,9 +5768,9 @@ sub show_options {
 	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp"],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
 	LMP version."],
-	['2', '-G', '', "Specific vendor/product information (if relevant); PCI/USB ID 
-	of device; Direct rendering status (in X); Screen number GPU is running on 
-	(Nvidia only)."],
+	['2', '-G', '', "GPU arch (Nvidia only); Specific vendor/product information 
+	(if relevant); PCI/USB ID of device; Direct rendering status (in X); Screen 
+	number GPU is running on (Nvidia only)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
 	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
@@ -5813,12 +5813,12 @@ sub show_options {
 	['2', '-E', '', "Chip vendor:product ID, LMP subversion; PCIe speed, lanes 
 	(if found)."],
 	['2', '-G', '', "Chip vendor:product ID for each video device; Output ports, 
-	used and empty; PCIe speed, lanes (if found); Xorg: OpenGL compatibility 
-	version, if free drivers and available; Xorg compositor; alternate Xorg 
-	drivers (if available. Alternate means driver is on automatic driver check 
-	list of Xorg for the device vendor, but is not installed on system); Xorg 
-	Screen data: ID, s-res, dpi;  Monitors: ID, position (if > 1), resolution, 
-	dpi, model, diagonal."],
+	used and empty; PCIe speed, lanes (if found); Xorg: 
+	OpenGL compatibility version, if free drivers and available; Xorg compositor; 
+	alternate Xorg drivers (if available. Alternate means driver is on automatic 
+	driver check list of Xorg for the device vendor, but is not installed on 
+	system); Xorg Screen data: ID, s-res, dpi;  Monitors: ID, position (if > 1), 
+	resolution, dpi, model, diagonal."],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
 	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
 	IRC. Adds Init version number, RC (if found). Adds per package manager
@@ -13574,29 +13574,36 @@ sub device_output {
 			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
 			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
-		if (!$bsd_type && $b_admin && $row->[5] && $row->[6] && 
+		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(10de|12d2)$/){
 			my $nv_info = nvidia_data($row->[6]);
-			if ($nv_info->{'legacy'} && $show{'nvidia'}){
-				$rows[$j]->{main::key($num++,1,3,'non-free')} = '';
-				$rows[$j]->{main::key($num++,0,4,'series')} = $nv_info->{'series'};
-				$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
-				if ($nv_info->{'xorg'}){
-					$rows[$j]->{main::key($num++,1,4,'last')} = '';
-					$rows[$j]->{main::key($num++,0,5,'release')} = $nv_info->{'release'};
-					$rows[$j]->{main::key($num++,0,5,'kernel')} = $nv_info->{'kernel'};
-					$rows[$j]->{main::key($num++,0,5,'xorg')} = $nv_info->{'xorg'};
+			if (!$bsd_type && $b_admin){
+				if ($nv_info->{'legacy'} && $show{'nvidia'}){
+					$rows[$j]->{main::key($num++,1,3,'non-free')} = '';
+					$rows[$j]->{main::key($num++,0,4,'series')} = $nv_info->{'series'};
+					$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
+					if ($nv_info->{'xorg'}){
+						$rows[$j]->{main::key($num++,1,4,'last')} = '';
+						$rows[$j]->{main::key($num++,0,5,'release')} = $nv_info->{'release'};
+						$rows[$j]->{main::key($num++,0,5,'kernel')} = $nv_info->{'kernel'};
+						$rows[$j]->{main::key($num++,0,5,'xorg')} = $nv_info->{'xorg'};
+					}
 				}
-			}
-			else {
-				$nv_info->{'series'} ||= 'N/A';
-				$rows[$j]->{main::key($num++,1,3,'non-free')} = $nv_info->{'series'};
-				$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
+				else {
+					$nv_info->{'series'} ||= 'N/A';
+					$rows[$j]->{main::key($num++,1,3,'non-free')} = $nv_info->{'series'};
+					$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
+				}
 			}
 			if ($nv_info->{'arch'}){
 				$rows[$j]->{main::key($num++,1,2,'arch')} = $nv_info->{'arch'};
-				if ($show{'nvidia'} && $nv_info->{'process'}){
-					$rows[$j]->{main::key($num++,0,3,'process')} = $nv_info->{'process'};
+				if ($show{'nvidia'}){
+					if ($nv_info->{'code'}){
+						$rows[$j]->{main::key($num++,0,3,'code')} = $nv_info->{'code'};
+					}
+					if ($nv_info->{'process'}){
+						$rows[$j]->{main::key($num++,0,3,'process')} = $nv_info->{'process'};
+					}
 				}
 			}
 		}
@@ -15354,76 +15361,89 @@ sub set_nvidia_data {
 	'1292|1293|1295|1296|1298|1299|129a|12b9|12ba';
 	# load microarch data
 	%nv_arch = (
-	'Maxwell' => {
-	'ids' => '06a3|1025|1028|103c|1043|107a|10de|1198|1199|11c9|11dd|137a|137b|' .
-	'1380|1381|1382|1391|1392|139a|139b|139d|13b0|13b1|13b2|13b4|13b6|13c0|13c2|13d8|' .
-	'13da|13f0|13f1|13f8|13f9|13fa|13fb|1401|1402|1406|1407|1427|1430|1436|1458|1462|' .
-	'161a|174d|174e|17aa|17c8|17f0|17f1|19da|2232|2b4c|362c|362f|363f|3640|3647|36b9|' .
-	'36bf|505a|861e|86d9|b282|b284|b286|c248|d003',
+		'Maxwell' => {
+	'ids' => '06a3|1025|1028|103c|1043|107a|10de|1173|1198|1199|11c9|11dd|1340|' .
+	'1341|1344|1346|1347|1348|1349|134b|134d|134e|134f|137a|137b|1380|1381|1382|' .
+	'1390|1391|1392|1393|1398|1399|139a|139b|139c|139d|13b0|13b1|13b2|13b3|13b4|' .
+	'13b6|13b9|13ba|13bb|13bc|13c0|13c2|13d7|13d8|13d9|13da|13f0|13f1|13f2|13f3|' .
+	'13f8|13f9|13fa|13fb|1401|1402|1406|1407|1427|1430|1431|1436|1458|1462|1617|' .
+	'1618|1619|161a|1667|174d|174e|179c|17aa|17c8|17f0|17f1|17fd|19da|1afa|1c8c|' .
+	'1c8d|1c90|1c91|1d10|1d12|1e91|1ed1|1ed3|1f14|1f54|2225|2232|2b2b|2b4c|2b5c|' .
+	'30ba|3124|362c|362f|3636|363f|3640|3647|3649|364b|3697|3699|369c|36af|36b9|' .
+	'36ba|36bf|36c3|36d1|36d8|505a|856a|861e|86d9|878a|8a75|b282|b284|b286|c248|' .
+	'd003',
 	'code' => 'GMxxx',
-	'process' => 'TSMC-28nm',
+	'process' => 'TSMC 28nm',
 	'series' => '515.xx+',
 	},
 	'Pascal' => {
 	'ids' => '07c0|0802|0803|0825|0827|0876|087c|0885|0886|0887|088b|08a1|08a2|' .
-	'09c1|1025|1028|1031|1032|103c|1043|1059|10de|114f|11e8|11e9|1217|1221|1225|1226|' .
-	'1227|1232|123c|123e|123f|1244|1245|126c|126d|1284|1297|1341|1351|1458|1462|1481|' .
-	'149f|14a1|152d|1558|15f7|15f8|15f9|1651|1653|16f0|1707|17aa|17c2|18c1|1a58|1b00|' .
-	'1b02|1b06|1b31|1b5e|1b80|1b81|1b82|1b83|1b84|1ba0|1ba1|1ba2|1be0|1be1|1bf0|1c02|' .
-	'1c03|1c04|1c06|1c20|1c21|1c22|1c23|1c60|1c61|1c62|1c81|1c82|1c83|1c8c|1c8d|1c8f|' .
-	'1c90|1c91|1c92|1c94|1c96|1cce|1d05|1d11|1d13|1d16|1d52|1d72|2000|2001|2009|2266|' .
-	'2267|355b|3842|39b9|39ff|8390|8467|8478|84db|84e9|84eb|8519|856a|8581|86e3|9501|' .
-	'95e1|95e5',
+	'09c1|1025|1028|1031|1032|103c|1043|1059|10de|114f|11e8|11e9|1217|1221|1225|' .
+	'1226|1227|1232|123c|123e|123f|1244|1245|126c|126d|1284|1297|1341|1351|1458|' .
+	'1462|1481|149f|14a1|152d|1558|15f0|15f7|15f8|15f9|1651|1653|16f0|1707|17aa|' .
+	'17c2|18c1|1a58|1b00|1b02|1b06|1b30|1b31|1b38|1b5e|1b80|1b81|1b82|1b83|1b84|' .
+	'1b87|1ba0|1ba1|1ba2|1bb0|1bb1|1bb4|1bb5|1bb6|1bb7|1bb8|1bb9|1bbb|1bc7|1be0|' .
+	'1be1|1bf0|1c02|1c03|1c04|1c06|1c07|1c09|1c20|1c21|1c22|1c23|1c30|1c31|1c60|' .
+	'1c61|1c62|1c81|1c82|1c83|1c8c|1c8d|1c8f|1c90|1c91|1c92|1c94|1c96|1cb1|1cb2|' .
+	'1cb3|1cb6|1cba|1cbb|1cbc|1cbd|1cce|1cfa|1cfb|1d01|1d02|1d05|1d11|1d13|1d16|' .
+	'1d33|1d34|1d52|1d72|2000|2001|2009|225f|2262|2266|2267|2268|2269|355b|3842|' .
+	'39b9|39ff|8390|8467|8478|84db|84e9|84eb|8519|8581|86e3|9501|95e1|95e5',
 	'code' => 'GP10x',
-	'process' => 'TSMC-16nm',
+	'process' => 'TSMC 16nm',
 	'series' => '515.xx+',
 	},
 	'Volta' => {
-	'ids' => '10de|12eb|1d81|1dba',
+	'ids' => '10de|12eb|1306|1307|1308|131d|1450|1485|1492|14a7|14a8|1d81|1db1|' .
+	'1db3|1db4|1db5|1db6|1db7|1db8|1dba|1df0|1df2|1df6|1fb0|20b0|20b3|20b6',
 	'code' => 'GV1xx',
-	'process' => 'TSMC-12nm',
+	'process' => 'TSMC 12nm',
 	'series' => '515.xx+',
 	},
 	'Turing' => {
-	'ids' => '0032|08a1|08a2|08ea|08eb|08ec|08ed|08ee|08ef|093b|093c|0949|098f|' .
-	'0990|09c3|09d1|09d2|09e2|09f3|1001|1003|1006|1007|1025|1028|103c|1043|105e|1069|' .
-	'1070|1089|10de|1220|1274|1277|127e|1281|1284|1285|128a|128b|128d|1297|129c|12ae|' .
-	'12b0|12b4|12bd|12c5|12c6|12cb|12cc|12cf|12d2|12d9|12f4|1302|130d|131b|131f|1326|' .
-	'132a|132d|132e|132f|1342|136f|1375|137f|138f|13b2|13cf|13d9|1401|1402|1414|141f|' .
-	'1432|1442|1446|144d|1458|1462|1479|147a|147b|147c|147d|149c|1511|1512|152d|1558|' .
-	'156f|15c1|1658|165f|1660|1661|1662|1663|1664|171f|174f|1751|17aa|17ef|185c|1881|' .
-	'189c|18d1|1902|1a58|1d05|1d61|1dd1|1dff|1e04|1e07|1e11|1e1f|1e30|1e36|1e51|1e61|' .
-	'1e6e|1e78|1e81|1e82|1e83|1e84|1e87|1e89|1e90|1e91|1e93|1eb0|1eb1|1eb5|1eb6|1ec2|' .
-	'1ec7|1ed0|1ed1|1ed3|1ef5|1f01|1f02|1f03|1f06|1f07|1f08|1f0a|1f10|1f11|1f12|1f14|' .
-	'1f15|1f36|1f42|1f47|1f50|1f51|1f54|1f55|1f76|1f82|1f91|1f95|1f96|1f97|1f98|1f99|' .
-	'1f9c|1f9d|1f9f|1fa0|1fdd|2002|2005|2007|2008|2009|200a|200c|2011|2087|2182|2184|' .
-	'2187|2188|2191|2192|21c4|21d1|229f|22b8|22ba|22c0|22c1|22c3|22c5|22da|25a6|25a7|' .
-	'25a9|25aa|3000|3001|3002|3012|3801|3802|3803|3806|380c|381d|381e|3837|3e30|3f1a|' .
-	'3f93|3f95|3fce|3fcf|3fd0|3fee|3ffe|50d3|70d1|75a4|75a5|75a6|75a7|75b1|75b2|75b3|' .
-	'75b4|75b5|75b6|76b0|76b1|76b2|76b3|76b4|76b5|78a0|78a1|78a2|78a3|78a4|78a5|8086|' .
-	'8572|8573|8574|85fb|85fe|8600|8602|8605|8606|8607|863e|86a4|86a5|86a6|86a7|86b0|' .
-	'86b1|86b2|86b3|86b4|86b5|86c6|86c7|86d6|86e7|86e8|8736|8738|8741|8744|8746|8772|' .
-	'8780|8782|8783|8785|878a|878b|878d|878e|87a6|87a7|87af|87b3|880e|8815|95e1|97e1|' .
-	'c192|c822|c838',
+	'ids' => '0032|08a1|08a2|08ea|08eb|08ec|08ed|08ee|08ef|093b|093c|0949|097e|' .
+	'098f|0990|09c3|09d1|09d2|09e2|09f3|1001|1003|1006|1007|1025|1028|103c|1043|' .
+	'105e|1069|1070|1089|10de|1220|1274|1277|127e|1281|1284|1285|128a|128b|128d|' .
+	'1297|129c|129e|12ae|12b0|12b4|12bd|12c5|12c6|12cb|12cc|12cf|12d2|12d9|12db|' .
+	'12f4|1302|130d|131b|131f|1326|132a|132d|132e|132f|1342|136f|1375|137f|138f|' .
+	'13b2|13cf|13d8|13d9|1401|1402|1414|141f|1432|1442|1446|144d|1458|1462|1479|' .
+	'147a|147b|147c|147d|1488|1489|149c|1511|1512|152d|1558|156f|15c1|1612|1613|' .
+	'1658|165f|1660|1661|1662|1663|1664|171f|174f|1751|17aa|17ef|185c|1881|189c|' .
+	'18d1|1902|1a58|1d05|1d61|1dd1|1dff|1e02|1e04|1e07|1e09|1e11|1e1f|1e30|1e36|' .
+	'1e51|1e61|1e6e|1e78|1e81|1e82|1e83|1e84|1e87|1e89|1e90|1e91|1e93|1eb0|1eb1|' .
+	'1eb5|1eb6|1ec2|1ec7|1ed0|1ed1|1ed3|1ef5|1f01|1f02|1f03|1f06|1f07|1f08|1f0a|' .
+	'1f0b|1f10|1f11|1f12|1f14|1f15|1f36|1f42|1f47|1f50|1f51|1f54|1f55|1f76|1f82|' .
+	'1f91|1f95|1f96|1f97|1f98|1f99|1f9c|1f9d|1f9f|1fa0|1fb0|1fb1|1fb2|1fb6|1fb7|' .
+	'1fb8|1fb9|1fba|1fbb|1fbc|1fdd|1ff0|1ff2|1ff9|2002|2005|2007|2008|2009|200a|' .
+	'200c|2011|2087|2182|2184|2187|2188|2189|2191|2192|21c4|21d1|229f|22b8|22ba|' .
+	'22c0|22c1|22c3|22c5|22da|25a6|25a7|25a9|25aa|3000|3001|3002|3012|3801|3802|' .
+	'3803|3806|380c|381d|381e|3837|3e30|3f1a|3f93|3f95|3fce|3fcf|3fd0|3fee|3ffe|' .
+	'50d3|70d1|75a4|75a5|75a6|75a7|75b1|75b2|75b3|75b4|75b5|75b6|76b0|76b1|76b2|' .
+	'76b3|76b4|76b5|78a0|78a1|78a2|78a3|78a4|78a5|8086|8572|8573|8574|85fb|85fe|' .
+	'8600|8602|8605|8606|8607|863e|86a4|86a5|86a6|86a7|86b0|86b1|86b2|86b3|86b4|' .
+	'86b5|86c6|86c7|86d6|86e7|86e8|8736|8738|8741|8744|8746|8772|8780|8782|8783|' .
+	'8785|878b|878d|878e|87a6|87a7|87af|87b3|87f0|880e|8815|8a80|95e1|97e1|c192|' .
+	'c822|c838',
 	'code' => 'TUxxx',
-	'process' => 'TSMC-12nm',
+	'process' => 'TSMC 12nm',
 	'series' => '515.xx+',
 	},
 	'Ampere' => {
-	'ids' => '0032|0990|0baf|1028|103c|1043|10de|1192|1194|1195|1196|13cf|1414|' .
-	'1450|145a|145f|1463|147f|1532|1533|157e|1d05|1f36|1f76|20b0|20b2|20b5|20b7|20f1|' . 
-	'2203|2204|2206|2208|220a|2216|2235|2414|2420|2460|2482|2484|2486|2487|2488|2489|' .
-	'249c|249d|24a0|24dc|24dd|24e0|2503|2504|2507|2508|2520|2523|2560|2563|25a0|25a2|' .
-	'25a5|25b6|25bb|25e0|25e2|25e5|8736|8738|8772',
+	'ids' => '0baf|1028|103c|10de|1192|1194|1195|1196|1459|145a|145f|1463|147e|' .
+	'147f|1482|14a9|14ad|151d|152f|1532|1533|157e|1611|163c|1658|165a|1677|17aa|' .
+	'1d05|20b0|20b2|20b5|20b7|20f1|2203|2204|2206|2208|220a|220d|2216|2230|2231|' .
+	'2232|2233|2235|2236|2237|2238|2414|2420|2438|2460|2482|2484|2486|2487|2488|' .
+	'2489|248a|249c|249d|24a0|24b0|24b1|24b6|24b7|24b8|24b9|24ba|24bb|24dc|24dd|' .
+	'24e0|24fa|2503|2504|2507|2508|2520|2523|2531|2560|2563|2571|25a0|25a2|25a5|' .
+	'25b6|25b8|25b9|25ba|25bb|25e0|25e2|25e5|25f9|25fa|8928|89f9',
 	'code' => 'GAxxx',
-	'process' => 'TSMC-7nm',
+	'process' => 'TSMC 7nm',
 	'series' => '515.xx+',
 	},
 	# no ids yet
 	# 'Hopper' => {
 	# 'ids' => '',
 	# 'code' => 'GH1xx',
-	# 'process' => 'TSMC-n4',
+	# 'process' => 'TSMC n4',
 	# },
 	# 'Lovelace' => {
 	# 'ids' => '',
@@ -15435,17 +15455,31 @@ sub set_nvidia_data {
 sub nvidia_data {
 	eval $start if $b_log;
 	my ($product_id) = @_;
-	my ($arch,%info);
+	my ($arch,$code,%info,$process,$status_eol);
 	set_nvidia_data() if !@nv_legacy;
 	# kernel/last/xorg support either from nvidia or sgfxi
-	my $status_eol = ($show{'nvidia'}) ? main::message('nv-legacy-eol'): main::message('nv-legacy-eol-try');
+	if (($show{'nvidia'})){
+		$status_eol = main::message('nv-legacy-eol');
+	}
+	else {
+		$status_eol = main::message('nv-legacy-eol-try');
+	}
 	if ($product_id =~ /^($nv_legacy[0])$/ || $product_id =~ /^($nv_legacy[1])$/){
-		$arch = ($product_id =~ /^(0100|0101|0103|0150|0151|0153|0153)$/) ? 'Celsius' : 'Fahrenheit';
+		if ($product_id =~ /^(0100|0101|0103|0150|0151|0153|0153)$/){
+			$arch = 'Celsius';
+			$code = 'NV1x';
+			$process = 'TSMC 150-220nm';
+		}
+		else {
+			$arch = 'Fahrenheit';
+			$code = 'NVx';
+			$process = 'TSMC 220-350nm';
+		}
 		%info = (
 		'arch' => $arch,
-		'code' => '',
+		'code' => $code,
 		'kernel' => '2.6.38',
-		'process' => '',
+		'process' => $process,
 		'release' => '71.86.15',
 		'series' => '71.86.xx',
 		'status' => $status_eol,
@@ -15453,12 +15487,21 @@ sub nvidia_data {
 		);
 	}
 	elsif ($product_id =~ /^($nv_legacy[2])$/) {
-		$arch = ($product_id =~ /^(0110|0111|0112|0113|01a3)$/) ?'Celsius' : 'Kelvin';
+		if ($product_id =~ /^(0110|0111|0112|0113|01a3)$/){
+			$arch = 'Celsius';
+			$code = 'NV1x';
+			$process = 'TSMC 150-220nm';
+		}
+		else {
+			$arch = 'Kelvin';
+			$code = 'NV[12]x';
+			$process = 'TSMC 150nm';
+		}
 		%info = (
 		'arch' => $arch,
-		'code' => '',
+		'code' => $code,
 		'kernel' => '3.6',
-		'process' => '',
+		'process' => $process,
 		'release' => '96.43.23',
 		'series' => '96.43.xx',
 		'status' => $status_eol,
@@ -15468,9 +15511,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[3])$/) {
 		%info = (
 		'arch' => 'Rankine',
-		'code' => '',
+		'code' => 'NV3x',
 		'kernel' => '3.12',
-		'process' => '',
+		'process' => '130-150nm', # IBM 130, TSMC 130-150
 		'release' => '173.14.39',
 		'series' => '173.14.xx',
 		'status' => $status_eol,
@@ -15480,9 +15523,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[4])$/) {
 		%info = (
 		'arch' => 'Curie',
-		'code' => '',
+		'code' => '', # hard to get these, roughly MCP[567]x/NV4x/G7x
 		'kernel' => '4.13',
-		'process' => '',
+		'process' => '90-130nm', # IBM 130, TSMC 90-110
 		'release' => '304.137',
 		'series' => '304.xx',
 		'status' => $status_eol,
@@ -15492,9 +15535,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[5])$/) {
 		%info = (
 		'arch' => 'Tesla',
-		'code' => '',
+		'code' => '', # not clear, 8800/GT2xx/maybe G7x
 		'kernel' => '5.4',
-		'process' => '',
+		'process' => '40-50nm',
 		'release' => '340.108',
 		'series' => '340.xx',
 		'status' => $status_eol,
@@ -15504,9 +15547,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[6])$/) {
 		%info = (
 		'arch' => 'Kepler',
-		'code' => '',
+		'code' => 'GKxxx',
 		'kernel' => '',
-		'process' => 'TSMC-28nm',
+		'process' => 'TSMC 28nm',
 		'release' => '',
 		'series' => '367.xx',
 		'status' => main::message('nv-legacy-active','late 2022'),
@@ -15516,7 +15559,7 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[7])$/) {
 		%info = (
 		'arch' => 'Fermi',
-		'code' => '',
+		'code' => 'GF1xx',
 		'kernel' => '',
 		'process' => '40/28nm',
 		'release' => '',
@@ -15528,9 +15571,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[8])$/) {
 		%info = (
 		'arch' => 'Kepler',
-		'code' => '',
+		'code' => 'GKxxx',
 		'kernel' => '',
-		'process' => 'TSMC-28nm',
+		'process' => 'TSMC 28nm',
 		'release' => '',
 		'series' => '470.xx+',
 		'status' => main::message('nv-legacy-active','~2023/24'),
