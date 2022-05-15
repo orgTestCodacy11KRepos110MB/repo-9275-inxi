@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.15';
-my $self_date='2022-05-13';
-my $self_patch='10';
+my $self_date='2022-05-14';
+my $self_patch='11';
 ## END INXI INFO ##
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
@@ -6693,7 +6693,6 @@ sub message {
 	'edid-revision' => "invalid EDID revision: $id",
 	'edid-sync' => "bad sync value: $id",
 	'edid-version' => "invalid EDID version: $id",
-	'eol' => 'EOL',
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'gl-null' => 'No GL data found on this system.',
 	'gl-root' => 'GL data unavailable in console for root.',
@@ -6717,9 +6716,10 @@ sub message {
 	'monitor-wayland' => 'no compositor data',
 	'note-check' => 'check',
 	'note-est' => 'est.',
-	'nv-current' => "supported (as of $id)",
-	'nv-legacy-active' => "active (EOL $id)",
-	'nv-legacy-eol' => 'EOL (try --nv)',
+	'nv-current' => "current active (as of $id)",
+	'nv-legacy-active' => "legacy active (EOL $id)",
+	'nv-legacy-eol' => 'legacy (EOL)',
+	'nv-legacy-eol-try' => 'legacy (EOL, try --nv)',
 	'optical-data' => 'No optical or floppy data found.',
 	'optical-data-bsd' => 'No optical or floppy data found.',
 	'output-control' => "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:",
@@ -13496,7 +13496,7 @@ sub device_speed {
 ## GraphicItem 
 {
 package GraphicItem;
-my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map,@nv_legacy);
+my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map,%nv_arch,@nv_legacy);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13509,6 +13509,7 @@ sub get {
 	}
 	else {
 		push(@rows,device_output());
+		(%nv_arch,@nv_legacy) = ();
 		if (!@rows){
 			my $key = 'Message';
 			my $type = 'pci-card-data';
@@ -13595,7 +13596,12 @@ sub device_output {
 			elsif ($show{'nvidia'}) {
 				$rows[$j]->{main::key($num++,0,3,'current-nonfree')} = $nv_info->{'status'};
 			}
-			$rows[$j]->{main::key($num++,0,2,'arch')} = $nv_info->{'arch'} if $nv_info->{'arch'};
+			if ($nv_info->{'arch'}){
+				$rows[$j]->{main::key($num++,1,2,'arch')} = $nv_info->{'arch'};
+				if ($show{'nvidia'} && $nv_info->{'process'}){
+					$rows[$j]->{main::key($num++,0,3,'process')} = $nv_info->{'process'};
+				}
+			}
 		}
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
@@ -15301,79 +15307,143 @@ sub set_nvidia_data {
 	$nv_legacy[0] = '0008|0009|0010|0018|0019';
 	# and these are vendor id: 10de, all subsequent cards
 	$nv_legacy[1] = '0020|0028|0029|002c|002d|00a0|0100|0101|0103|0150|0151|0152|0153';
-	$nv_legacy[2] = '0110|0111|0112|0113|0170|0171|0172|0173|0174|0175|0176|0177|';
-	$nv_legacy[2] .= '0178|0179|017a|017c|017d|0181|0182|0183|0185|0188|018a|018b|';
-	$nv_legacy[2] .= '018c|01a0|01f0|0200|0201|0202|0203|0250|0251|0253|0258|0259|';
-	$nv_legacy[2] .= '025b|0280|0281|0282|0286|0288|0289|028c';
-	$nv_legacy[3] = '00fa|00fb|00fc|00fd|00fe|0301|0302|0308|0309|0311|0312|0314|';
-	$nv_legacy[3] .= '031a|031b|031c|0320|0321|0322|0323|0324|0325|0326|0327|0328|';
-	$nv_legacy[3] .= '032a|032b|032c|032d|0330|0331|0332|0333|0334|0338|033f|0341|';
-	$nv_legacy[3] .= '0342|0343|0344|0347|0348|034c|034e';
-	$nv_legacy[4] = '0040|0041|0042|0043|0044|0045|0046|0047|0048|004e|0090|0091|';
-	$nv_legacy[4] .= '0092|0093|0095|0098|0099|009d|00c0|00c1|00c2|00c3|00c8|00c9|';
-	$nv_legacy[4] .= '00cc|00cd|00ce|00f1|00f2|00f3|00f4|00f5|00f6|00f8|00f9|0140|';
-	$nv_legacy[4] .= '0141|0142|0143|0144|0145|0146|0147|0148|0149|014a|014c|014d|';
-	$nv_legacy[4] .= '014e|014f|0160|0161|0162|0163|0164|0165|0166|0167|0168|0169|';
-	$nv_legacy[4] .= '016a|01d0|01d1|01d2|01d3|01d6|01d7|01d8|01da|01db|01dc|01dd|';
-	$nv_legacy[4] .= '01de|01df|0211|0212|0215|0218|0221|0222|0240|0241|0242|0244|';
-	$nv_legacy[4] .= '0245|0247|0290|0291|0292|0293|0294|0295|0297|0298|0299|029a|';
-	$nv_legacy[4] .= '029b|029c|029d|029e|029f|02e0|02e1|02e2|02e3|02e4|038b|0390|';
-	$nv_legacy[4] .= '0391|0392|0393|0394|0395|0397|0398|0399|039c|039e|03d0|03d1|';
-	$nv_legacy[4] .= '03d2|03d5|03d6|0531|0533|053a|053b|053e|07e0|07e1|07e2|07e3|07e5';
-	$nv_legacy[5] = '0191|0193|0194|0197|019d|019e|0400|0401|0402|0403|0404|0405|';
-	$nv_legacy[5] .= '0406|0407|0408|0409|040a|040b|040c|040d|040e|040f|0410|0420|';
-	$nv_legacy[5] .= '0421|0422|0423|0424|0425|0426|0427|0428|0429|042a|042b|042c|';
-	$nv_legacy[5] .= '042d|042e|042f|05e0|05e1|05e2|05e3|05e6|05e7|05ea|05eb|05ed|';
-	$nv_legacy[5] .= '05f8|05f9|05fd|05fe|05ff|0600|0601|0602|0603|0604|0605|0606|';
-	$nv_legacy[5] .= '0607|0608|0609|060a|060b|060c|060d|060f|0610|0611|0612|0613|';
-	$nv_legacy[5] .= '0614|0615|0617|0618|0619|061a|061b|061c|061d|061e|061f|0621|';
-	$nv_legacy[5] .= '0622|0623|0625|0626|0627|0628|062a|062b|062c|062d|062e|0630|';
-	$nv_legacy[5] .= '0631|0632|0635|0637|0638|063a|0640|0641|0643|0644|0645|0646|';
-	$nv_legacy[5] .= '0647|0648|0649|064a|064b|064c|0651|0652|0653|0654|0655|0656|';
-	$nv_legacy[5] .= '0658|0659|065a|065b|065c|06e0|06e1|06e2|06e3|06e4|06e5|06e6|';
-	$nv_legacy[5] .= '06e7|06e8|06e9|06ea|06eb|06ec|06ef|06f1|06f8|06f9|06fa|06fb|';
-	$nv_legacy[5] .= '06fd|06ff|0840|0844|0845|0846|0847|0848|0849|084a|084b|084c|';
-	$nv_legacy[5] .= '084d|084f|0860|0861|0862|0863|0864|0865|0866|0867|0868|0869|';
-	$nv_legacy[5] .= '086a|086c|086d|086e|086f|0870|0871|0872|0873|0874|0876|087a|';
-	$nv_legacy[5] .= '087d|087e|087f|08a0|08a2|08a3|08a4|08a5|0a20|0a22|0a23|0a26|';
-	$nv_legacy[5] .= '0a27|0a28|0a29|0a2a|0a2b|0a2c|0a2d|0a32|0a34|0a35|0a38|0a3c|';
-	$nv_legacy[5] .= '0a60|0a62|0a63|0a64|0a65|0a66|0a67|0a68|0a69|0a6a|0a6c|0a6e|';
-	$nv_legacy[5] .= '0a6f|0a70|0a71|0a72|0a73|0a74|0a75|0a76|0a78|0a7a|0a7c|0ca0|';
-	$nv_legacy[5] .= '0ca2|0ca3|0ca4|0ca5|0ca7|0ca8|0ca9|0cac|0caf|0cb0|0cb1|0cbc|';
-	$nv_legacy[5] .= '10c0|10c3|10c5|10d8';
+	$nv_legacy[2] = '0110|0111|0112|0113|0170|0171|0172|0173|0174|0175|0176|0177|' .
+	'0178|0179|017a|017c|017d|0181|0182|0183|0185|0188|018a|018b|018c|01a0|01f0|0200|' .
+	'0201|0202|0203|0250|0251|0253|0258|0259|025b|0280|0281|0282|0286|0288|0289|028c';
+	$nv_legacy[3] = '00fa|00fb|00fc|00fd|00fe|0301|0302|0308|0309|0311|0312|0314|' .
+	'031a|031b|031c|0320|0321|0322|0323|0324|0325|0326|0327|0328|032a|032b|032c|032d|' .
+	'0330|0331|0332|0333|0334|0338|033f|0341|0342|0343|0344|0347|0348|034c|034e';
+	$nv_legacy[4] = '0040|0041|0042|0043|0044|0045|0046|0047|0048|004e|0090|0091|' .
+	'0092|0093|0095|0098|0099|009d|00c0|00c1|00c2|00c3|00c8|00c9|00cc|00cd|00ce|00f1|' .
+	'00f2|00f3|00f4|00f5|00f6|00f8|00f9|0140|0141|0142|0143|0144|0145|0146|0147|0148|' .
+	'0149|014a|014c|014d|014e|014f|0160|0161|0162|0163|0164|0165|0166|0167|0168|0169|' .
+	'016a|01d0|01d1|01d2|01d3|01d6|01d7|01d8|01da|01db|01dc|01dd|01de|01df|0211|0212|' .
+	'0215|0218|0221|0222|0240|0241|0242|0244|0245|0247|0290|0291|0292|0293|0294|0295|' .
+	'0297|0298|0299|029a|029b|029c|029d|029e|029f|02e0|02e1|02e2|02e3|02e4|038b|0390|' .
+	'0391|0392|0393|0394|0395|0397|0398|0399|039c|039e|03d0|03d1|03d2|03d5|03d6|0531|' .
+	'0533|053a|053b|053e|07e0|07e1|07e2|07e3|07e5';
+	$nv_legacy[5] = '0191|0193|0194|0197|019d|019e|0400|0401|0402|0403|0404|0405|' .
+	'0406|0407|0408|0409|040a|040b|040c|040d|040e|040f|0410|0420|0421|0422|0423|0424|' .
+	'0425|0426|0427|0428|0429|042a|042b|042c|042d|042e|042f|05e0|05e1|05e2|05e3|05e6|' .
+	'05e7|05ea|05eb|05ed|05f8|05f9|05fd|05fe|05ff|0600|0601|0602|0603|0604|0605|0606|' .
+	'0607|0608|0609|060a|060b|060c|060d|060f|0610|0611|0612|0613|0619|061a|061b|061c|' .
+	'061d|061e|061f|0621|0622|0623|0625|0626|0627|0628|062a|062b|062c|062d|062e|0630|' .
+	'0631|0632|0635|0637|0638|063a|0640|0641|0643|0644|0645|0646|0647|0648|0649|064a|' .
+	'064b|064c|0651|0652|0653|0654|0655|0656|0658|0659|065a|065b|065c|06e0|06e1|06e2|' .
+	'06e3|06e4|06e5|06e6|06e7|06e8|06e9|06ea|06eb|06ec|06ef|06f1|06f8|06f9|06fa|06fb|' .
+	'06fd|06ff|0840|0844|0845|0846|0847|0848|0849|084a|084b|084c|084d|084f|0860|0861|' .
+	'0862|0863|0864|0865|0866|0867|0868|0869|086a|086c|086d|086e|086f|0870|0871|0872|' .
+	'0873|0874|0876|087a|087d|087e|087f|08a0|08a2|08a3|08a4|08a5|0a20|0a22|0a23|0a26|' .
+	'0a27|0a28|0a29|0a2a|0a2b|0a2c|0a2d|0a32|0a34|0a35|0a38|0a3c|0a60|0a62|0a63|0a64|' .
+	'0a65|0a66|0a67|0a68|0a69|0a6a|0a6c|0a6e|0a6f|0a70|0a71|0a72|0a73|0a74|0a75|0a76|' .
+	'0a78|0a7a|0a7c|0ca0|0ca2|0ca3|0ca4|0ca5|0ca7|0ca8|0ca9|0cac|0caf|0cb0|0cb1|0cbc|' .
+	'10c0|10c3|10c5|10d8';
 	$nv_legacy[6] = '0fef|0ff2|11bf';
-	$nv_legacy[7] = '06c0|06c4|06ca|06cd|06d1|06d2|06d8|06d9|06da|06dc|06dd|06de|';
-	$nv_legacy[7] .= '06df|0dc0|0dc4|0dc5|0dc6|0dcd|0dce|0dd1|0dd2|0dd3|0dd6|0dd8|';
-	$nv_legacy[7] .= '0dda|0de0|0de1|0de2|0de3|0de4|0de5|0de7|0de8|0de9|0dea|0deb|';
-	$nv_legacy[7] .= '0dec|0ded|0dee|0def|0df0|0df1|0df2|0df3|0df4|0df5|0df6|0df7|';
-	$nv_legacy[7] .= '0df8|0df9|0dfa|0dfc|0e22|0e23|0e24|0e30|0e31|0e3a|0e3b|0f00|';
-	$nv_legacy[7] .= '0f01|0f02|0f03|1040|1042|1048|1049|104a|104b|104c|1050|1051|';
-	$nv_legacy[7] .= '1052|1054|1055|1056|1057|1058|1059|105a|105b|107c|107d|1080|';
-	$nv_legacy[7] .= '1081|1082|1084|1086|1087|1088|1089|108b|1091|1094|1096|109a|';
-	$nv_legacy[7] .= '109b|1140|1200|1201|1203|1205|1206|1207|1208|1210|1211|1212|';
-	$nv_legacy[7] .= '1213|1241|1243|1244|1245|1246|1247|1248|1249|124b|124d|1251';
-	$nv_legacy[8] = '0fc6|0fc8|0fc9|0fcd|0fce|0fd1|0fd2|0fd3|0fd4|0fd5|0fd8|0fd9|';
-	$nv_legacy[8] .= '0fdf|0fe0|0fe1|0fe2|0fe3|0fe4|0fe9|0fea|0fec|0fed|0fee|0ff6|';
-	$nv_legacy[8] .= '0ff8|0ff9|0ffa|0ffb|0ffc|0ffd|0ffe|0fff|1001|1004|1005|1007|';
-	$nv_legacy[8] .= '1008|100a|100c|1021|1022|1023|1024|1026|1027|1028|1029|102a|';
-	$nv_legacy[8] .= '102d|103a|103c|1180|1183|1184|1185|1187|1188|1189|118a|118e|';
-	$nv_legacy[8] .= '118f|1193|1194|1195|1198|1199|119a|119d|119e|119f|11a0|11a1|';
-	$nv_legacy[8] .= '11a2|11a3|11a7|11b4|11b6|11b7|11b8|11ba|11bc|11bd|11be|11c0|';
-	$nv_legacy[8] .= '11c2|11c3|11c4|11c5|11c6|11c8|11cb|11e0|11e1|11e2|11e3|11fa|';
-	$nv_legacy[8] .= '11fc|1280|1281|1282|1284|1286|1287|1288|1289|128b|1290|1291|';
-	$nv_legacy[8] .= '1292|1293|1295|1296|1298|1299|129a|12b9|12ba';
+	$nv_legacy[7] = '06c0|06c4|06ca|06cd|06d1|06d2|06d8|06d9|06da|06dc|06dd|06de|' .
+	'06df|0dc0|0dc4|0dc5|0dc6|0dcd|0dce|0dd1|0dd2|0dd3|0dd6|0dd8|0dda|0de0|0de1|0de2|' .
+	'0de3|0de4|0de5|0de7|0de8|0de9|0dea|0deb|0dec|0ded|0dee|0def|0df0|0df1|0df2|0df3|' .
+	'0df4|0df5|0df6|0df7|0df8|0df9|0dfa|0dfc|0e22|0e23|0e24|0e30|0e31|0e3a|0e3b|0f00|' .
+	'0f01|0f02|0f03|1040|1042|1048|1049|104a|104b|104c|1050|1051|1052|1054|1055|1056|' .
+	'1057|1058|1059|105a|105b|107c|107d|1080|1081|1082|1084|1086|1087|1088|1089|108b|' .
+	'1091|1094|1096|109a|109b|1140|1200|1201|1203|1205|1206|1207|1208|1210|1211|1212|' .
+	'1213|1241|1243|1244|1245|1246|1247|1248|1249|124b|124d|1251';
+	$nv_legacy[8] = '0fc6|0fc8|0fc9|0fcd|0fce|0fd1|0fd2|0fd3|0fd4|0fd5|0fd8|0fd9|' .
+	'0fdf|0fe0|0fe1|0fe2|0fe3|0fe4|0fe9|0fea|0fec|0fed|0fee|0ff6|0ff8|0ff9|0ffa|0ffb|' .
+	'0ffc|0ffd|0ffe|0fff|1001|1004|1005|1007|1008|100a|100c|1021|1022|1023|1024|1026|' .
+	'1027|1028|1029|102a|102d|103a|103c|1180|1183|1184|1185|1187|1188|1189|118a|118e|' .
+	'118f|1193|1194|1195|1198|1199|119a|119d|119e|119f|11a0|11a1|11a2|11a3|11a7|11b4|' .
+	'11b6|11b7|11b8|11ba|11bc|11bd|11be|11c0|11c2|11c3|11c4|11c5|11c6|11c8|11cb|11e0|' .
+	'11e1|11e2|11e3|11fa|11fc|1280|1281|1282|1284|1286|1287|1288|1289|128b|1290|1291|' .
+	'1292|1293|1295|1296|1298|1299|129a|12b9|12ba';
+	# load microarch data
+	%nv_arch = (
+	'Maxwell' => {
+	'ids' => '06a3|1025|1028|103c|1043|107a|10de|1198|1199|11c9|11dd|137a|137b|' .
+	'1380|1381|1382|1391|1392|139a|139b|139d|13b0|13b1|13b2|13b4|13b6|13c0|13c2|13d8|' .
+	'13da|13f0|13f1|13f8|13f9|13fa|13fb|1401|1402|1406|1407|1427|1430|1436|1458|1462|' .
+	'161a|174d|174e|17aa|17c8|17f0|17f1|19da|2232|2b4c|362c|362f|363f|3640|3647|36b9|' .
+	'36bf|505a|861e|86d9|b282|b284|b286|c248|d003',
+	'code' => 'GMxxx',
+	'process' => 'TSMC-28nm',
+	},
+	'Pascal' => {
+	'ids' => '07c0|0802|0803|0825|0827|0876|087c|0885|0886|0887|088b|08a1|08a2|' .
+	'09c1|1025|1028|1031|1032|103c|1043|1059|10de|114f|11e8|11e9|1217|1221|1225|1226|' .
+	'1227|1232|123c|123e|123f|1244|1245|126c|126d|1284|1297|1341|1351|1458|1462|1481|' .
+	'149f|14a1|152d|1558|15f7|15f8|15f9|1651|1653|16f0|1707|17aa|17c2|18c1|1a58|1b00|' .
+	'1b02|1b06|1b31|1b5e|1b80|1b81|1b82|1b83|1b84|1ba0|1ba1|1ba2|1be0|1be1|1bf0|1c02|' .
+	'1c03|1c04|1c06|1c20|1c21|1c22|1c23|1c60|1c61|1c62|1c81|1c82|1c83|1c8c|1c8d|1c8f|' .
+	'1c90|1c91|1c92|1c94|1c96|1cce|1d05|1d11|1d13|1d16|1d52|1d72|2000|2001|2009|2266|' .
+	'2267|355b|3842|39b9|39ff|8390|8467|8478|84db|84e9|84eb|8519|856a|8581|86e3|9501|' .
+	'95e1|95e5',
+	'code' => 'GP10x',
+	'process' => 'TSMC-16nm',
+	},
+	'Volta' => {
+	'ids' => '10de|12eb|1d81|1dba',
+	'code' => 'GV1xx',
+	'process' => 'TSMC-12nm',
+	},
+	'Turing' => {
+	'ids' => '0032|08a1|08a2|08ea|08eb|08ec|08ed|08ee|08ef|093b|093c|0949|098f|' .
+	'0990|09c3|09d1|09d2|09e2|09f3|1001|1003|1006|1007|1025|1028|103c|1043|105e|1069|' .
+	'1070|1089|10de|1220|1274|1277|127e|1281|1284|1285|128a|128b|128d|1297|129c|12ae|' .
+	'12b0|12b4|12bd|12c5|12c6|12cb|12cc|12cf|12d2|12d9|12f4|1302|130d|131b|131f|1326|' .
+	'132a|132d|132e|132f|1342|136f|1375|137f|138f|13b2|13cf|13d9|1401|1402|1414|141f|' .
+	'1432|1442|1446|144d|1458|1462|1479|147a|147b|147c|147d|149c|1511|1512|152d|1558|' .
+	'156f|15c1|1658|165f|1660|1661|1662|1663|1664|171f|174f|1751|17aa|17ef|185c|1881|' .
+	'189c|18d1|1902|1a58|1d05|1d61|1dd1|1dff|1e04|1e07|1e11|1e1f|1e30|1e36|1e51|1e61|' .
+	'1e6e|1e78|1e81|1e82|1e83|1e84|1e87|1e89|1e90|1e91|1e93|1eb0|1eb1|1eb5|1eb6|1ec2|' .
+	'1ec7|1ed0|1ed1|1ed3|1ef5|1f01|1f02|1f03|1f06|1f07|1f08|1f0a|1f10|1f11|1f12|1f14|' .
+	'1f15|1f36|1f42|1f47|1f50|1f51|1f54|1f55|1f76|1f82|1f91|1f95|1f96|1f97|1f98|1f99|' .
+	'1f9c|1f9d|1f9f|1fa0|1fdd|2002|2005|2007|2008|2009|200a|200c|2011|2087|2182|2184|' .
+	'2187|2188|2191|2192|21c4|21d1|229f|22b8|22ba|22c0|22c1|22c3|22c5|22da|25a6|25a7|' .
+	'25a9|25aa|3000|3001|3002|3012|3801|3802|3803|3806|380c|381d|381e|3837|3e30|3f1a|' .
+	'3f93|3f95|3fce|3fcf|3fd0|3fee|3ffe|50d3|70d1|75a4|75a5|75a6|75a7|75b1|75b2|75b3|' .
+	'75b4|75b5|75b6|76b0|76b1|76b2|76b3|76b4|76b5|78a0|78a1|78a2|78a3|78a4|78a5|8086|' .
+	'8572|8573|8574|85fb|85fe|8600|8602|8605|8606|8607|863e|86a4|86a5|86a6|86a7|86b0|' .
+	'86b1|86b2|86b3|86b4|86b5|86c6|86c7|86d6|86e7|86e8|8736|8738|8741|8744|8746|8772|' .
+	'8780|8782|8783|8785|878a|878b|878d|878e|87a6|87a7|87af|87b3|880e|8815|95e1|97e1|' .
+	'c192|c822|c838',
+	'code' => 'TUxxx',
+	'process' => 'TSMC-12nm',
+	},
+	'Ampere' => {
+	'ids' => '0032|0990|0baf|1028|103c|1043|10de|1192|1194|1195|1196|13cf|1414|' .
+	'1450|145a|145f|1463|147f|1532|1533|157e|1d05|1f36|1f76|20b0|20b2|20b5|20b7|20f1|' . 
+	'2203|2204|2206|2208|220a|2216|2235|2414|2420|2460|2482|2484|2486|2487|2488|2489|' .
+	'249c|249d|24a0|24dc|24dd|24e0|2503|2504|2507|2508|2520|2523|2560|2563|25a0|25a2|' .
+	'25a5|25b6|25bb|25e0|25e2|25e5|8736|8738|8772',
+	'code' => 'GAxxx',
+	'process' => 'TSMC-7nm',
+	},
+	# no ids yet
+	# 'Hopper' => {
+	# 'ids' => '',
+	# 'code' => 'GH1xx',
+	# 'process' => 'TSMC-n4',
+	# },
+	# 'Lovelace' => {
+	# 'ids' => '',
+	#	'code' => '',
+	# 'process' => '',
+	# },
+	);
 }
 sub nvidia_data {
 	eval $start if $b_log;
 	my ($product_id) = @_;
-	my (%info);
+	my ($arch,%info);
 	set_nvidia_data() if !@nv_legacy;
 	# kernel/last/xorg support either from nvidia or sgfxi
-	my $status_eol = ($show{'nvidia'}) ? main::message('eol'): main::message('nv-legacy-eol');
+	my $status_eol = ($show{'nvidia'}) ? main::message('nv-legacy-eol'): main::message('nv-legacy-eol-try');
 	if ($product_id =~ /^($nv_legacy[0])$/ || $product_id =~ /^($nv_legacy[1])$/){
+		$arch = ($product_id =~ /^(0100|0101|0103|0150|0151|0153|0153)$/) ? 'Celsius' : 'Fahrenheit';
 		%info = (
-		'arch' => 'Fahrenheit,Celsius',
+		'arch' => $arch,
+		'code' => '',
 		'kernel' => '2.6.38',
+		'process' => '',
 		'release' => '71.86.15',
 		'series' => '71.86.xx',
 		'status' => $status_eol,
@@ -15381,9 +15451,12 @@ sub nvidia_data {
 		);
 	}
 	elsif ($product_id =~ /^($nv_legacy[2])$/) {
+		$arch = ($product_id =~ /^(0110|0111|0112|0113|01a3)$/) ?'Celsius' : 'Kelvin';
 		%info = (
-		'arch' => 'Celsius,Kelvin',
+		'arch' => $arch,
+		'code' => '',
 		'kernel' => '3.6',
+		'process' => '',
 		'release' => '96.43.23',
 		'series' => '96.43.xx',
 		'status' => $status_eol,
@@ -15393,7 +15466,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[3])$/) {
 		%info = (
 		'arch' => 'Rankine',
+		'code' => '',
 		'kernel' => '3.12',
+		'process' => '',
 		'release' => '173.14.39',
 		'series' => '173.14.xx',
 		'status' => $status_eol,
@@ -15403,7 +15478,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[4])$/) {
 		%info = (
 		'arch' => 'Curie',
+		'code' => '',
 		'kernel' => '4.13',
+		'process' => '',
 		'release' => '304.137',
 		'series' => '304.xx',
 		'status' => $status_eol,
@@ -15413,7 +15490,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[5])$/) {
 		%info = (
 		'arch' => 'Tesla',
+		'code' => '',
 		'kernel' => '5.4',
+		'process' => '',
 		'release' => '340.108',
 		'series' => '340.xx',
 		'status' => $status_eol,
@@ -15423,7 +15502,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[6])$/) {
 		%info = (
 		'arch' => 'Kepler',
+		'code' => '',
 		'kernel' => '',
+		'process' => 'TSMC-28nm',
 		'release' => '',
 		'series' => '367.xx',
 		'status' => main::message('nv-legacy-active','late 2022'),
@@ -15433,7 +15514,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[7])$/) {
 		%info = (
 		'arch' => 'Fermi',
+		'code' => '',
 		'kernel' => '',
+		'process' => '40/28nm',
 		'release' => '',
 		'series' => '390.xx',
 		'status' => main::message('nv-legacy-active','late 2022'),
@@ -15443,7 +15526,9 @@ sub nvidia_data {
 	elsif ($product_id =~ /^($nv_legacy[8])$/) {
 		%info = (
 		'arch' => 'Kepler',
+		'code' => '',
 		'kernel' => '',
+		'process' => 'TSMC-28nm',
 		'release' => '',
 		'series' => '470.xx',
 		'status' => main::message('nv-legacy-active','~2023/24'),
@@ -15453,28 +15538,24 @@ sub nvidia_data {
 	if (%info){
 		$info{'legacy'} = 1;
 	}
-	# note: kepler may get foss support in future.
-	# future legacy: Maxwell, Pascal, Volta
-	# Tesla: 
-	# Fermi: GT 4xx/5xx; Kepler: GT 6xx/7xx/8xxM
-	# Maxwell: GTX 9xx/GTX Titan; 
-	# Pascal: GTX 10xx/Nvidia Titan X/Quadro (GP100|P[46]00|P620|P[1245]000)/Tesla P4; 
-	# Volta: Nvidia Titan V
-	# Turing: RTX 16xx/20xx/Titan RTX/Quadro RTX [34568]xxx/Quadro RTX T(4|6|10)xx/
-	# Turing: Tesla T4
-	# Ampere: RTX 30xx/RTX A[2345]000/RTX A[45]500/Nvidia A(2|10|16|30|40|100)
-	# opensource >= 515: turing, ampere
 	else {
 		my $date = $self_date;
 		$date =~ s/-\d+$//;
-		%info = (
-		'arch' => '',
-		'kernel' => '',
-		'release' => '',
-		'series' => '',
-		'status' => main::message('nv-current',$date),
-		'xorg' => '',
-		);
+		foreach my $key (keys %nv_arch){
+			if ($product_id =~ /^($nv_arch{$key}->{'ids'})$/){
+				%info = (
+				'arch' => $key,
+				'code' => $nv_arch{$key}->{'code'},
+				'kernel' => '',
+				'process' => $nv_arch{$key}->{'process'},
+				'release' => '',
+				'series' => '',
+				'status' => main::message('nv-current',$date),
+				'xorg' => '',
+				);
+				last;
+			}
+		}
 	}
 	main::log_data('dump','%info',\%info) if $b_log;
 	eval $end if $b_log;
