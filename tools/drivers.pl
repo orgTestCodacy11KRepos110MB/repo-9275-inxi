@@ -217,23 +217,18 @@ sub reader {
 	if (!$file || ! -r $file){
 		die "$file does not exist, or is not readable!";
 	}
-	my (@rows);
 	open(my $fh, '<', $file) or die "Reading $file failed with error: $!";
-	chomp(@rows = <$fh>);
+	chomp(@data = <$fh>);
 	close $fh;
-	die "\@rows had no data!" if !@rows;
-	if (@rows){
-		my @temp;
-		for (@rows){
-			next if /^\s*(#|$)/;
-			$_ =~ s/^\s+|\s+$//g;
-			push(@temp,$_);
-		}
-		@rows = @temp;
+	die "\@rows had no data!" if !@data;
+	my @temp;
+	for (@data){
+		next if /^\s*(#|$)/;
+		$_ =~ s/^\s+|\s+$//g;
+		push(@temp,$_);
 	}
-	@rows = sort @rows;
-	# note: returns undef scalar value if $rows[index] does not exist
-	return @rows;
+	@data = @temp;
+	@data = sort @data;
 }
 sub uniq {
 	my %seen;
@@ -284,7 +279,7 @@ sub show_options {
 sub main {
 	options();
 	assign();
-	@data = reader();
+	reader();
 	say Dumper \@data if $b_print_raw;
 	die "No \@data returned!" if !@data;
 	process();
