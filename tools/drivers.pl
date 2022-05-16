@@ -27,6 +27,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
+my $self_name = 'drivers.pl';
 my $self_version = '1.0';
 my $self_date = '2022-05-16';
 
@@ -39,6 +40,7 @@ my $tab = "\t";
 my $options = 'current|470|390|367|340|304|173|96|71';
 
 my ($active,@data,$file,%output);
+my $line = '------------------------------------------------------------------';
 
 ## Rules:
 # Confirm patterns if in doubt here: https://www.techpowerup.com/
@@ -237,7 +239,7 @@ sub uniq {
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
-	'j:s' => sub {
+	'j|job:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^($options)$/){
 			$job = $arg;
@@ -246,14 +248,18 @@ sub options {
 			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
 		}
 	},
-	'r' => sub {
+	'r|raw' => sub {
 		$b_print_raw = 1;
 	},
-	't' => sub {
+	't|tabs' => sub {
 		$tab = '';
 	},
-	'h' => sub {
+	'h|help' => sub {
 		show_options();
+		exit 0;
+	},
+	'v|version' => sub {
+		show_version();
 		exit 0;
 	},
 	'<>' => sub {
@@ -264,18 +270,23 @@ sub options {
 	if (@errors){
 		print "Sorry, Options Error:\n* ";
 		say join("\n* ",@errors);
+		say $line;
 		show_options();
 		exit 1;
 	}
 }
 sub show_options {
+	show_version();
 	say "\nAvailable Options:";
-	say "-h - this help option menu";
-	say "-r - show raw data before start of processing.";
-	say "-j - [$options] job to run.";
-	say "-t - disable tab indentation.";
+	say "-h,--help    - this help option menu";
+	say "-r,--raw     - show raw data before start of processing.";
+	say "-j,--job     - [$options] job to run.";
+	say "-t,--tabs    - disable tab indentation.";
+	say "-v,--version - show tool version and date.";
 }
-
+sub show_version {
+	say "$self_name v: $self_version date: $self_date";
+}
 sub main {
 	options();
 	assign();
