@@ -13,7 +13,7 @@
 ## https://www.nvidia.com/Download/driverResults.aspx/187826/en-us
 ## http://us.download.nvidia.com/XFree86/Linux-x86_64/515.43.04/README/supportedchips.html#subsys
 ## Copy with mouse highlight the driver section, then paste that into a text file.
-## Make sure it preserves the tabs \t!!! Otherwise it won't work!!
+## Make sure it preserves the tabs \t!!! Otherwise it won't work!
 use strict;
 use warnings;
 # use diagnostics;
