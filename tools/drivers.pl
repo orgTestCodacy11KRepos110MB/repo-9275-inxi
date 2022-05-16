@@ -280,7 +280,8 @@ sub show_options {
 	say "\nAvailable Options:";
 	say "-h,--help    - this help option menu";
 	say "-r,--raw     - show raw data before start of processing.";
-	say "-j,--job     - [$options] job to run.";
+	say "-j,--job     - [$options] job selector.";
+	say "               Using: $job";
 	say "-t,--tabs    - disable tab indentation.";
 	say "-v,--version - show tool version and date.";
 }
