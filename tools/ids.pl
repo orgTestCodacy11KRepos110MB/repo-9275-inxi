@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## nv.pl: Copyright (C) 2022 Harald Hope
+## Copyright (C) 2022 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
