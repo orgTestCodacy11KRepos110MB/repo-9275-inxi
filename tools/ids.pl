@@ -27,7 +27,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
-my $self_name = 'drivers.pl';
+my $self_name = 'ids.pl';
 my $self_version = '1.0';
 my $self_date = '2022-05-16';
 
