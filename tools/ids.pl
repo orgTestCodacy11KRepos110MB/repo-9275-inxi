@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## Copyright (C) 2022 Harald Hope
+## ids.pl: Copyright (C) 2022 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -28,19 +28,25 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'ids.pl';
-my $self_version = '1.0';
-my $self_date = '2022-05-16';
+my $self_version = '1.1';
+my $self_date = '2022-05-17';
 
 my $b_print_ids = 0;
 my $b_print_output = 1;
 my $b_print_raw = 0;
 my $b_print_remains = 1;
+
 my $job = 'current';
-my $tab = "\t";
 my $options = 'current|470|390|367|340|304|173|96|71';
 
 my ($active,@data,$file,%output);
+my $b_hash = 1;
+my $br = "\n";
 my $line = '------------------------------------------------------------------';
+my $line_end = ' .';
+my $quote = "'";
+my $sep_global = '|';
+my $tab = "\t";
 
 ## Rules:
 # Confirm patterns if in doubt here: https://www.techpowerup.com/
@@ -180,29 +186,37 @@ sub process {
 }
 sub output {
 	foreach my $sort (sort keys %output){
-		say "${tab}'$output{$sort}->{'arch'}' => {" if $b_print_output;
+		if ($b_print_output){
+			if ($b_hash){
+				say $tab . $quote . $output{$sort}->{'arch'} . $quote . ' => {';
+			}
+			else {
+				say $output{$sort}->{'arch'} . ':';
+			}
+		}
 		my $cnt = 4;
 		my $cnt2 = 1;
-		my $line = "$tab\'ids' => '";
+		my $line = ($b_hash) ? $tab . $quote . 'ids => ' . $quote : '';
 		my $start = '';
 		my $total = scalar @{$output{$sort}->{'ids'}};
 		foreach my $id (@{$output{$sort}->{'ids'}}){
-			my $sep = ($cnt2 < $total) ? '|' : '';
+			my $sep = ($cnt2 < $total) ? $sep_global : '';
 			# say "1: $cnt2 $total $id $sep";
 			if ($cnt > 15){
 				$cnt = 1;
 				# say "2: $cnt2 $total";
-				$line .= ($cnt2 != $total) ? "$id$sep' .\n" : $id;
-				$start = "${tab}'";
+				$line .= ($cnt2 != $total) ? $id . $sep . $quote . $line_end . $br : $id;
+				$start = $tab . $quote;
 			}
 			else {
-				$line .= "$start$id$sep";
+				$line .= $start . $id . $sep;
 				$start = '';
 			}
 			$cnt++;
 			$cnt2++;
 		}
-		$line .= "',\n";
+		# we want hardcoded \n here to create spaces between result blocks
+		$line .= ($b_hash) ? "$quote,\n" : "\n";
 		say $line if $b_print_output;
 	}
 }
@@ -248,6 +262,10 @@ sub options {
 			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
 		}
 	},
+	'l|line-end:s' => sub {
+		my ($opt,$arg) = @_;
+		$line_end = $arg;
+	},
 	'r|raw' => sub {
 		$b_print_raw = 1;
 	},
@@ -257,6 +275,25 @@ sub options {
 	'h|help' => sub {
 		show_options();
 		exit 0;
+	},
+	'i|ids' => sub {
+		$b_print_ids = 1;
+	},
+	'p|plain' => sub {
+		$b_hash = 0;
+		$br = '';
+		$line_end = '';
+		$quote = '';
+		$tab = '';
+	},
+	's|sep:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^.+$/){
+			$sep_global = $arg;
+		}
+		else {
+			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
+		}
 	},
 	'v|version' => sub {
 		show_version();
@@ -278,12 +315,17 @@ sub options {
 sub show_options {
 	show_version();
 	say "\nAvailable Options:";
-	say "-h,--help    - this help option menu";
-	say "-r,--raw     - show raw data before start of processing.";
-	say "-j,--job     - [$options] job selector.";
-	say "               Using: $job";
-	say "-t,--tabs    - disable tab indentation.";
-	say "-v,--version - show tool version and date.";
+	say "-h,--help     - This help option menu";
+	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
+	say "-r,--raw      - Print raw driver list data before start of processing.";
+	say "-j,--job      - [$options] job selector.";
+	say "                Using: $job";
+	say "-l,--line-end - [empty|chars] Change line ending per line.";
+	say "                Current: '$line_end'";
+	say "-p,--plain    - Output single line, no breaks, no quotes or tabs";
+	say "-s,--sep      - Separator to use for IDs. Current: $sep_global";
+	say "-t,--tabs     - Disable tab indentation.";
+	say "-v,--version  - Show tool version and date.";
 }
 sub show_version {
 	say "$self_name v: $self_version date: $self_date";
