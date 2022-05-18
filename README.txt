@@ -87,6 +87,24 @@ inxi/pinxi.
 
 ====================================================================
 
+TOOLS:
+
+There are a few backend tools that are used to generate matching tables for 
+various types of data. These are located in inxi-perl/tools/
+
+1. vendors.pl - create new set_vendors() sub for pinxi, use this to add new
+vendor and vendor product matches. Don't touch if you don't know regex quite 
+well!
+
+* lists/ contains the various lists of disk data used, and generated.
+
+2. ids.pl - tool to generate nvidia microarch and legacy driver ids for the
+inxi nvidia graphics architecture and non-free driver information. 
+
+* lists/nv_xxx contains the various text files for arch/legacy matching.
+
+====================================================================
+
 BASIC IDEA:
 
 I was sufficiently impressed switching from xiin python script

@@ -39,7 +39,8 @@ my $b_print_remains = 1;
 my $job = 'current';
 my $options = 'current|470|390|367|340|304|173|96|71';
 
-my ($active,@data,$file,%output);
+my ($active,$file,%output);
+my $data = [];
 my $b_hash = 1;
 my $br = "\n";
 my $line = '------------------------------------------------------------------';
@@ -166,9 +167,9 @@ sub process {
 	foreach my $key (sort keys %$active){
 		# say "$active->{$key}{'pattern'}";
 		my (@ids);
-		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @data){
+		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @$data){
 			foreach my $item (@result){
-				@data = grep {$_ ne $item} @data;
+				@$data = grep {$_ ne $item} @$data;
 				my $temp = lc((split(/\t+/,$item))[1]);
 				# note: if 3 ids, only first 1 product, others are subvendor/product
 				my $product = (split(/\s+/,$temp))[0];
@@ -182,7 +183,7 @@ sub process {
 			$output{$key} = {'arch' => $active->{$key}{'arch'}, 'ids' => [@ids]};
 		}
 	}
-	say join("\n",@data) if @data && $b_print_remains;
+	say join("\n",@$data) if @$data && $b_print_remains;
 }
 sub output {
 	foreach my $sort (sort keys %output){
@@ -229,22 +230,34 @@ sub assign {
 	# say Dumper $active;
 }
 
+sub checks {
+	my @errors;
+	if (! -e $self_name ){
+		push(@errors,"You must start $self_name from the directory it is located in!");
+	}
+	if (@errors){
+		print "The following errors were encountered:\n* ";
+		say join("* ", @errors);
+		exit 1;
+	}
+}
+
 sub reader {
+	my $file = $_[0];
 	if (!$file || ! -r $file){
 		die "$file does not exist, or is not readable!";
 	}
 	open(my $fh, '<', $file) or die "Reading $file failed with error: $!";
-	chomp(@data = <$fh>);
+	chomp(@$data = <$fh>);
 	close $fh;
-	die "\@rows had no data!" if !@data;
+	die "\@data had no data!" if !@$data;
 	my @temp;
-	for (@data){
+	for (@$data){
 		next if /^\s*(#|$)/;
 		$_ =~ s/^\s+|\s+$//g;
 		push(@temp,$_);
 	}
-	@data = @temp;
-	@data = sort @data;
+	@$data = @temp;
 }
 sub uniq {
 	my %seen;
@@ -262,16 +275,6 @@ sub options {
 			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
 		}
 	},
-	'l|line-end:s' => sub {
-		my ($opt,$arg) = @_;
-		$line_end = $arg;
-	},
-	'r|raw' => sub {
-		$b_print_raw = 1;
-	},
-	't|tabs' => sub {
-		$tab = '';
-	},
 	'h|help' => sub {
 		show_options();
 		exit 0;
@@ -279,12 +282,19 @@ sub options {
 	'i|ids' => sub {
 		$b_print_ids = 1;
 	},
+	'l|line-end:s' => sub {
+		my ($opt,$arg) = @_;
+		$line_end = $arg;
+	},
 	'p|plain' => sub {
 		$b_hash = 0;
 		$br = '';
 		$line_end = '';
 		$quote = '';
 		$tab = '';
+	},
+	'r|raw' => sub {
+		$b_print_raw = 1;
 	},
 	's|sep:s' => sub {
 		my ($opt,$arg) = @_;
@@ -294,6 +304,9 @@ sub options {
 		else {
 			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
 		}
+	},
+	't|tabs' => sub {
+		$tab = '';
 	},
 	'v|version' => sub {
 		show_version();
@@ -317,12 +330,12 @@ sub show_options {
 	say "\nAvailable Options:";
 	say "-h,--help     - This help option menu";
 	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
-	say "-r,--raw      - Print raw driver list data before start of processing.";
 	say "-j,--job      - [$options] job selector.";
 	say "                Using: $job";
 	say "-l,--line-end - [empty|chars] Change line ending per line.";
 	say "                Current: '$line_end'";
 	say "-p,--plain    - Output single line, no breaks, no quotes or tabs";
+	say "-r,--raw      - Print raw driver list data before start of processing.";
 	say "-s,--sep      - Separator to use for IDs. Current: $sep_global";
 	say "-t,--tabs     - Disable tab indentation.";
 	say "-v,--version  - Show tool version and date.";
@@ -331,11 +344,12 @@ sub show_version {
 	say "$self_name v: $self_version date: $self_date";
 }
 sub main {
+	checks();
 	options();
 	assign();
-	reader();
-	say Dumper \@data if $b_print_raw;
-	die "No \@data returned!" if !@data;
+	reader($file);
+	say Dumper $data if $b_print_raw;
+	die "No \@data returned!" if !@$data;
 	process();
 	die "No \%output generated!" if !%output;
 	output();
