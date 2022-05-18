@@ -96,7 +96,7 @@ various types of data. These are located in inxi-perl/tools/
 vendor and vendor product matches. Don't touch if you don't know regex quite 
 well!
 
-* lists/ contains the various lists of disk data used, and generated.
+* lists/disks*.txt - the various lists of disk data used, and generated.
 
 2. ids.pl - tool to generate nvidia microarch and legacy driver ids for the
 inxi nvidia graphics architecture and non-free driver information. 
