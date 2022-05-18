@@ -523,9 +523,7 @@ sub device_vendor {
 	# Data URLs: inxi-resources.txt Section: DriveItem device_vendor()
 	# $model = 'H10 HBRPEKNX0202A NVMe INTEL 512GB';
 	# $model = 'Patriot Memory';
-	if (!$vendors){
-		set_vendors();
-	}
+	set_vendors() if !$vendors;
 	foreach my $row (@$vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
@@ -576,7 +574,7 @@ sub process {
 			push(@disks,$disk);
 		}
 	}
-	# note, fc is character set agnostic
+	# note, lc is character set agnostic
 	@disks_standard = sort { lc($a) cmp lc($b) } @disks_standard;
 	@disks_removable = sort { lc($a) cmp lc($b) } @disks_removable;
 	my @disks_unhandled = (@disks_standard, @disks_removable);
