@@ -27,11 +27,12 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'vendors.pl';
-my $self_version = '1.0';
-my $self_date = '2022-05-17';
+my $self_version = '1.1';
+my $self_date = '2022-05-18';
 
 my $disks_raw = 'lists/disks.txt';
 my $disks_unhandled = 'lists/disks-unhandled.txt';
+my $disks_read = $disks_raw;
 
 my ($data,$vendors);
 my $b_print_disks = 0;
@@ -549,8 +550,8 @@ sub device_vendor {
 }
 
 sub process {
-	my (@disks,@disks_removable,@disks_standard);
-	say "Starting processing of disk data in $disks_raw.";
+	my (@disks,@disks_removable,@disks_standard,$holder,@sizes);
+	say "Starting processing of disk data in $disks_read.";
 	say "There are " . scalar @$data . " disk names in the list.";
 	say "This can take a while. Be patient...";
 	@$data = sort @$data;
@@ -559,14 +560,16 @@ sub process {
 		my $usb = ($disk =~ /\s*USB/) ? 'USB: '  : '';
 		my $firewire = ($disk =~ /\s*FireWire/i) ? 'FireWire: ' : '';
 		my $thunderbolt = ($disk =~ /\s*ThunderBolt/i) ? 'Thunderbolt: ' : '' ;
-		$disk =~ s/^\s*((type:\s*)?(FireWire|ThunderBolt|USB)\s+)?model:\s*//i;
+		$disk =~ s/^\s*type:\s*(0-int|FireWire|ThunderBolt|USB)\s+model:\s*//i;
+		my $type = ($1) ? $1 : '';
+		$type = $usb . $firewire . $thunderbolt if !$type;
 		$disk =~ s/_/ /g;
 		my $size = $disk;
 		$size =~ s/^.*\s+size:\s+//;
 		$disk =~ s/\s+size:.+$//;
 		my @result = device_vendor($disk,0);
 		if (!$result[0] && !(grep {/^\Q$disk\E$/} @disks)){
-			my $data = $usb . $firewire . $thunderbolt . $disk . ' size: ' . $size . "\n";
+			my $data = 'type: ' . $type . ' model: ' . $disk . ' size: ' . $size . "\n";
 			if ($usb || $firewire || $thunderbolt){
 				push(@disks_removable,$data);
 			}
@@ -651,7 +654,7 @@ sub options {
 		$b_print_raw = 1;
 	},
 	'u|unhandled' => sub {
-		$disks_raw = $disks_unhandled;
+		$disks_read = $disks_unhandled;
 	},
 	'v|version' => sub {
 		show_version();
@@ -674,10 +677,12 @@ sub options {
 sub show_options {
 	show_version();
 	say "\nAvailable Options:";
-	say "-h,--help    - This help option menu";
-	say "-p,--print   - Print unhandled disks to screen.";
-	say "-r,--raw     - Print raw driver list data before start of processing.";
-	say "-v,--version - Show tool version and date.";
+	say "-h,--help      - This help option menu";
+	say "-p,--print     - Print unhandled disks to screen.";
+	say "-r,--raw       - Print raw driver list data before start of processing.";
+	say "-u,--unhandled - Use unhandled file instead of primary. Use this after ";
+	say "                 the first iteration creating the new master unhandled.";
+	say "-v,--version   - Show tool version and date.";
 }
 sub show_version {
 	say "$self_name v: $self_version date: $self_date";
@@ -686,7 +691,7 @@ sub show_version {
 sub main {
 	checks();
 	options();
-	reader($disks_raw);
+	reader($disks_read);
 	say Dumper $data if $b_print_raw;
 	die 'No @$data present!' if !@$data;
 	process();
