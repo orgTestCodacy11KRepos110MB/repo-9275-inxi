@@ -294,7 +294,7 @@ sub set_vendors {
 	['^Kingrich','^Kingrich','Kingrich',''],
 	['^Kingsand','^Kingsand','Kingsand',''],
 	['KING\s?SHA\s?RE','KING\s?SHA\s?RE','KingShare',''],
-	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P4\b|PA[_-]?(18|25)|T-(3260|64|128)|Z\d\s)','^KingSpec','KingSpec',''],
+	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P4\b|PA[_-]?(18|25)|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
 	['^KingSSD','^KingSSD','KingSSD',''],
 	# kingwin docking, not actual drive
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
@@ -508,6 +508,7 @@ sub set_vendors {
 	['^ZSPEED','^ZSPEED','ZSpeed',''],
 	['^ZTC','^ZTC','ZTC',''],
 	['^ZTE','^ZTE','ZTE',''],
+	['^(ZY|ZhanYao)','^ZhanYao([\s-]?data)','ZhanYao',''],
 	['^(ASMT|2115)','^ASMT','ASMT (case)',''],
 	];
 	eval $end if $b_log;
@@ -550,33 +551,46 @@ sub device_vendor {
 }
 
 sub process {
-	my (@disks,@disks_removable,@disks_standard,$holder,@sizes);
+	my (@disks,@disks_removable,@disks_standard,@sizes);
+	my ($holder,$type_holder) = ('','');
 	say "Starting processing of disk data in $disks_read.";
 	say "There are " . scalar @$data . " disk names in the list.";
 	say "This can take a while. Be patient...";
 	@$data = sort @$data;
 	uniq($data);
-	foreach my $disk (@$data){   
-		my $usb = ($disk =~ /\s*USB/) ? 'USB: '  : '';
-		my $firewire = ($disk =~ /\s*FireWire/i) ? 'FireWire: ' : '';
-		my $thunderbolt = ($disk =~ /\s*ThunderBolt/i) ? 'Thunderbolt: ' : '' ;
-		$disk =~ s/^\s*type:\s*(0-int|FireWire|ThunderBolt|USB)\s+model:\s*//i;
-		my $type = ($1) ? $1 : '';
-		$type = $usb . $firewire . $thunderbolt if !$type;
+	@$data = sort @$data;
+	push(@$data,'#-EOF-#');
+	foreach my $disk (@$data){
+		# it's always going to have type: set in the primary data file
+		$disk =~ s/^\s*type:\s*(0-int|0-na|FireWire|ThunderBolt|USB)\s+model:\s*//i;
+		my $type = ($1) ? $1 : '0-na';
 		$disk =~ s/_/ /g;
 		my $size = $disk;
 		$size =~ s/^.*\s+size:\s+//;
 		$disk =~ s/\s+size:.+$//;
-		my @result = device_vendor($disk,0);
-		if (!$result[0] && !(grep {/^\Q$disk\E$/} @disks)){
-			my $data = 'type: ' . $type . ' model: ' . $disk . ' size: ' . $size . "\n";
-			if ($usb || $firewire || $thunderbolt){
-				push(@disks_removable,$data);
+		if ($type && $type eq '0-int' && $disk =~ /Flash\s?D(isk|rive)/){
+			$type = 'USB';
+		}
+		if (lc($holder) eq lc($disk) && $disk ne '#-EOF-#'){
+			push(@sizes,$size) if $size && !grep {$_ eq $size} @sizes;
+		}
+		if (lc($holder) ne lc($disk)){
+			my @result = ($holder) ? device_vendor($holder,0) : ();
+			# say "$holder :: $disk";
+			if ($holder && !$result[0] && @sizes){
+				my $data = 'type: ' . $type_holder . ' model: ' . $holder . ' size: ' . join('/',@sizes);
+				if ($type_holder eq '0-int' || $type_holder eq '0-na'){
+					push(@disks_standard,$data);
+				}
+				else {
+					push(@disks_removable,$data);
+				}
 			}
-			else {
-				push(@disks_standard,$data);
-			}
-			push(@disks,$disk);
+			last if $disk eq '#-EOF-#';
+			@sizes = ();
+			push(@sizes,$size) if $size;
+			$holder = $disk;
+			$type_holder = $type;
 		}
 	}
 	# note, lc is character set agnostic
@@ -598,7 +612,7 @@ sub write_unhandled {
 	my $unhandled = $_[0];
 	print "Writing unhandled disk names to $disks_unhandled... ";
 	open(my $fh, '>', $disks_unhandled) or die "Could not open file '$disks_unhandled' $!";
-	print $fh @$unhandled;
+	print $fh join("\n",@$unhandled);
 	close $fh;
 	say "Data written.";
 }
