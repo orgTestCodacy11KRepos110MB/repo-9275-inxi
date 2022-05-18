@@ -513,6 +513,8 @@ sub set_vendors {
 }
 # receives space separated string that may or may not contain vendor data
 ## END COPY BLOCK ##
+# You should not need to change device_vendor(), but if you do, make sure to 
+#  also change the version in pinxi at the same time.
 sub device_vendor {
 	eval $start if $b_log;
 	my ($model,$serial) = @_;
