@@ -676,7 +676,7 @@ sub show_options {
 	say "\nAvailable Options:";
 	say "-h,--help    - This help option menu";
 	say "-p,--print   - Print unhandled disks to screen.";
-	say "-r,--raw      - Print raw driver list data before start of processing.";
+	say "-r,--raw     - Print raw driver list data before start of processing.";
 	say "-v,--version - Show tool version and date.";
 }
 sub show_version {
