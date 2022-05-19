@@ -60,7 +60,7 @@ sub set_vendors {
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
 	# HM320II HM320II HM
-	['(SAMSUNG|^(AWMB|[BC]DS20|[BC]WB|BJ[NT]|CJN|[DG]3 Station|DUO\b|DUT|CKT|[GS]2 Portable|GN|HD[0-9]{3}[A-Z]{2}$|(HM|SP)[0-9]{2}|HS\d|M[AB]G[0-9][FG]|MCC|MCBOE|MCG[0-9]+GC|[CD]JN|MZ|^G[CD][1-9][QS]|P[BM]\d|(SSD\s?)?SM\s?841)|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|\bEVO\b|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
+	['(SAMSUNG|^(AWMB|[BC]DS20|[BC]WB|BJ[NT]|CJN|CUT|[DG]3 Station|DUO\b|DUT|CKT|[GS]2 Portable|GN|HD[0-9]{3}[A-Z]{2}$|(HM|SP)[0-9]{2}|HS\d|M[AB]G[0-9][FG]|MCC|MCBOE|MCG[0-9]+GC|[CD]JN|MZ|^G[CD][1-9][QS]|P[BM]\d|(SSD\s?)?SM\s?841)|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|\bEVO\b|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
 	# Android UMS Composite?U1
 	['(SanDisk|^(ABLCD|AFGCE|D[AB]4|DX[1-9]|Extreme|Firebird|S[CD][0-9]{2}G|SD(S[S]?[ADQ]|SDW[1-9]|SEM[1-9]|SL([0-9]+)G|SU[0-9]|U(3\b|1\d0))|\d[STU])|ULTRA\s(FIT|trek|II)|Clip Sport|Cruzer|iXpand|SSD (Plus|U1[01]0) [1-9]|0781|X[1-6]\d{2})','(SanDisk|0781)','SanDisk',''],
 	# these are HP/Sandisk cobranded. DX110064A5xnNMRI ids as HP and Sandisc
@@ -104,7 +104,7 @@ sub set_vendors {
 	['^2[\s-]?Power','^2[\s-]?Power','2-Power',''], 
 	['^(3ware|9650SE)','^3ware','3ware (controller)',''], 
 	['^5ACE','^5ACE','5ACE',''], # could be seagate: ST316021 5ACE
-	['^(Aarvex|AX[0-9]{2})','^AARVEX','AARVEX',''],
+	['^(Aar(vex)?|AX[0-9]{2})','^AARVEX','AARVEX',''],
 	['^(AbonMax|ASU[0-9])','^AbonMax','AbonMax',''],
 	['^Acasis','^Acasis','Acasis (hub)',''],
 	['^Acclamator','^Acclamator','Acclamator',''],
@@ -302,7 +302,7 @@ sub set_vendors {
 	['^Kingrich','^Kingrich','Kingrich',''],
 	['^Kingsand','^Kingsand','Kingsand',''],
 	['KING\s?SHA\s?RE','KING\s?SHA\s?RE','KingShare',''],
-	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P3$|P4\b|PA[_-]?(18|25)|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
+	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P3$|P4\b|PA[_-]?(18|25)|Q-180|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
 	['^KingSSD','^KingSSD','KingSSD',''],
 	# kingwin docking, not actual drive
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
