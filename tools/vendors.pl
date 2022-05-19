@@ -27,8 +27,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'vendors.pl';
-my $self_version = '1.1';
-my $self_date = '2022-05-18';
+my $self_version = '1.2';
+my $self_date = '2022-05-19';
 
 my $disks_raw = 'lists/disks.txt';
 my $disks_unhandled = 'lists/disks-unhandled.txt';
@@ -51,23 +51,23 @@ sub set_vendors {
 	eval $start if $b_log;
 	$vendors = [
 	## MOST LIKELY/COMMON MATCHES ##
-	['(Crucial|^(FC)?CT|-CT|^M4(\b|SSD)|Gizmo!|^((C300-)?CTF[\s-]?)?DDAC)','Crucial','Crucial',''],
+	['(Crucial|^((C300-)?CTF|(FC)?CT|DDAC|M4(\b|SSD))|-CT|Gizmo!)','Crucial','Crucial',''],
 	# H10 HBRPEKNX0202A NVMe INTEL 512GB
-	['(\bINTEL\b|^SSD(PAM|SA2)|^HBR|^(MEM|SSD)PEB?K|^SSD(MCE|S[AC]))','\bINTEL\b','Intel',''], 
+	['(\bINTEL\b|^(SSD(PAM|SA2)|HBR|(MEM|SSD)PEB?K|SSD(MCE|S[AC])))','\bINTEL\b','Intel',''], 
 	# note: S[AV][1-9][0-9] can trigger false positives
-	['(K(ING)?STON|DataTraveler|DT\s?(DUO|Microduo|101)|^(OM8P|RBU|S[HMN]S|SKC|SQ5|SS200|SVP|SS0|SUV|SNV|T52|T[AB]29)|^Ultimate CF|HyperX|^S[AV][1234]00|^SKYMEDI|13fe\b)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
+	['(K(ING)?STON|^(OM8P|RBU|S[AV][1234]00|S[HMN]S|SK[CY]|SQ5|SS200|SVP|SS0|SUV|SNV|T52|T[AB]29|Ultimate CF)|DataTraveler|DT\s?(DUO|Microduo|101)|HyperX|13fe\b)','(KINGSTON|13fe)','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
 	# HM320II HM320II HM
-	['(SAMSUNG|^MCG[0-9]+GC|^CKT|^(SSD\s)?P[BM]\d|^(SSD\s?)?SM\s?841|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|^DUT|^MCC|^MCBOE|\bEVO\b|^[GS]2 Portable|^DS20|^[DG]3 Station|^DUO\b|^P3|^[BC]GN|^[CD]JN|^BJ[NT]|^[BC]WB|^(ATA\\s?)?(HM|SP)[0-9]{2}|^MZ|^HD[0-9]{3}[A-Z]{2}$|^G[CD][1-9][QS]|^HS\d|^M[AB]G[0-9][FG]|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
+	['(SAMSUNG|^(AWMB|[BC]DS20|[BC]WB|BJ[NT]|CJN|[DG]3 Station|DUO\b|DUT|CKT|[GS]2 Portable|GN|HD[0-9]{3}[A-Z]{2}$|(HM|SP)[0-9]{2}|HS\d|M[AB]G[0-9][FG]|MCC|MCBOE|MCG[0-9]+GC|[CD]JN|MZ|^G[CD][1-9][QS]|P[BM]\d|(SSD\s?)?SM\s?841)|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|\bEVO\b|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
 	# Android UMS Composite?U1
-	['(SanDisk|^SD(S[S]?[ADQ]|\d[STU])|^D[AB]4|^SL([0-9]+)G|^AFGCE|^ABLCD|^SDW[1-9]|^SEM[1-9]|^U(3\b|1\d0)|^SU[0-9]|^DX[1-9]|^S[CD][0-9]{2}G|ULTRA\s(FIT|trek|II)|Clip Sport|Cruzer|^Firebird|^Extreme|iXpand|SSD (Plus|U1[01]0) [1-9]|0781|X[1-6]\d{2})','(SanDisk|0781)','SanDisk',''],
+	['(SanDisk|^(ABLCD|AFGCE|D[AB]4|DX[1-9]|Extreme|Firebird|S[CD][0-9]{2}G|SD(S[S]?[ADQ]|SDW[1-9]|SEM[1-9]|SL([0-9]+)G|SU[0-9]|U(3\b|1\d0))|\d[STU])|ULTRA\s(FIT|trek|II)|Clip Sport|Cruzer|iXpand|SSD (Plus|U1[01]0) [1-9]|0781|X[1-6]\d{2})','(SanDisk|0781)','SanDisk',''],
 	# these are HP/Sandisk cobranded. DX110064A5xnNMRI ids as HP and Sandisc
 	['(^DX[1-9])','^(HP\b|SANDDISK)','Sandisk/HP',''], # ssd drive, must come before seagate ST test
 	# real, SSEAGATE Backup+; XP1600HE30002 | 024 HN (spinpoint) ; possible usb: 24AS
 	# ST[numbers] excludes other ST starting devices
-	['(^(ATA\s|HDD\s)?ST[0-9]{2}|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|^(Barra|Fire)Cuda|Expansion Desk|^Expansion|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch|Slim\s? BK)','[S]?SEAGATE','Seagate',''], 
+	['([S]?SEAGATE|^(^(Barra|Fire)Cuda|BUP|Expansion|(ATA\s|HDD\s)?ST[0-9]{2}|5AS|X[AFP])|Expansion Desk|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch|Slim\s?BK)','[S]?SEAGATE','Seagate',''], 
 	['^(WD|WL[0]9]|Western Digital|My (Book|Passport)|\d*LPCX|Elements|easystore|MD0|M000|EARX|EFRX|\d*EAVS|0JD|JP[CV]|[0-9]+(BEV|(00)?AAK|AAV|AZL|EA[CD]S)|PC\sSN|3200[AB]|2500[BJ]|EA[A-Z]S|20G2|5000[AB]|6400[AB]|7500[AB]|i HTS|00[ABL][A-Z]{2}|EZRX|SSC\b)','(^WDC|Western\s?Digital)','Western Digital',''],
 	# rare cases WDC is in middle of string
 	['(\bWDC\b|1002FAEX)','','Western Digital',''],
@@ -87,7 +87,7 @@ sub set_vendors {
 	['^(HGST|Touro|54[15]0|7250|HC[CT]\d)','^HGST','HGST (Hitachi)',''], # HGST HUA
 	['^((ATA\s)?Hitachi|HCS|HD[PST]|DK[0-9]|IC|(HDD\s)?HT|HU|HMS|HDE|0G[0-9]|IHAT)','Hitachi','Hitachi',''], 
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
-	['^(HP\b|[MV]B[0-6]|G[BJ][0-9]|DF[0-9]|F[BK]|0-9]|PSS|XR[0-9]{4}|c350|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$|VK0|HC[CPY]\d|(SSD\s?)?EX9\d\d)','^HP','HP',''], 
+	['^(HP\b|[MV]B[0-6]|G[BJ][0-9]|DF[0-9]|F[BK]|0-9]|MM\d{4}|PSS|XR[0-9]{4}|c350|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$|VK0|HC[CPY]\d|EX9\d\d)','^HP','HP',''], 
 	['^(Lexar|LSD|JumpDrive|JD\s?Firefly|LX[0-9]|WorkFlow)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK|VERTEX|Trion|Onyx|Vector[\s-]?15)','^OCZ[\s-]','OCZ',''],
@@ -122,6 +122,7 @@ sub set_vendors {
 	['^Alfawise','^Alfawise','Alfawise',''],
 	['^Android','^Android','Android',''],
 	['^ANACOMDA','^ANACOMDA','ANACOMDA',''],
+	['^Anucell','^Anucell','Anucell',''],
 	['^Apotop','^Apotop','Apotop',''],
 	# must come before AP|Apacer
 	['^(APPLE|iPod|SSD\sSM\d+[CEGT])','^APPLE','Apple',''],
@@ -158,7 +159,6 @@ sub set_vendors {
 	['^(Centon|DS pro)','^Centon','Centon',''],
 	['^(CFD|CSSD)','^CFD','CFD',''],
 	['^(Chipsbank|CHIPSBNK)','^Chipsbank','Chipsbank',''],
-	['^CHN\b','','Zheino',''],
 	['^Clover','^Clover','Clover',''],
 	['^CODi','^CODi','CODi',''],
 	['^Colorful\b','^Colorful','Colorful',''],
@@ -166,6 +166,7 @@ sub set_vendors {
 	# addlink; colorful; goldenfir; kodkak; maxson; netac; teclast; vaseky
 	['^Corn','^Corn','Corn',''],
 	['^CnMemory|Spaceloop','^CnMemory','CnMemory',''],
+	['^(Creative|(Nomad\s?)?MuVo)','^Creative','Creative',''],
 	['^CSD','^CSD','CSD',''],
 	['^(Dane-?Elec|Z Mate)','^Dane-?Elec','DaneElec',''],
 	['^DATABAR','^DATABAR','DataBar',''],
@@ -227,7 +228,7 @@ sub set_vendors {
 	['^(Garmin|Fenix|Nuvi|Zumo)','^Garmin','Garmin',''],
 	['^Geil','^Geil','Geil',''],
 	['^GelL','^GelL','GelL',''], # typo for Geil? GelL ZENITH R3 120GB
-	['^(Generic|UY[67])','^Generic','Generic',''],
+	['^(Generic|UY[67]|SLD)','^Generic','Generic',''],
 	['^(Genesis(\s?Logic)?|05e3)','(Genesis(\s?Logic)?|05e3)','Genesis Logic',''],
 	['^Geonix','^Geonix','Geonix',''],
 	['^Getrich','^Getrich','Getrich',''],
@@ -242,9 +243,11 @@ sub set_vendors {
 	['^(Goldkey|GKP)','^Goldkey','GoldKey',''],
 	# Wilk Elektronik SA, poland
 	['^(Wilk\s*)?(GOODRAM|GOODDRIVE|IR[\s-]?SSD|IRP|SSDPR|Iridium)','^GOODRAM','GOODRAM',''],
+	['^Gritronix','^Gritronixx?','Gritronix',''],
 	# supertalent also has FM: |FM
 	['^(G[\.]?SKILL)','^G[\.]?SKILL','G.SKILL',''],
 	['^G[\s-]*Tech','^G[\s-]*Technology','G-Technology',''],
+	['^Gaiver','^Gaiver','Gaiver',''],
 	['^(Hajaan|HS[1-9])','^Haajan','Haajan',''],
 	['^Haizhide','^Haizhide','Haizhide',''],
 	['^(Hama|FlashPen\s?Fancy)','^Hama','Hama',''],
@@ -279,6 +282,7 @@ sub set_vendors {
 	['^(INM|Integral|V\s?Series)','^Integral(\s?Memory)?','Integral Memory',''],
 	['^(lntenso|Intenso|(Alu|Basic|Business|Micro|c?Mobile|Premium|Rainbow|Slim|Speed|Twister|Ultra) Line|Rainbow)','^Intenso','Intenso',''],
 	['^(I-?O Data|HDCL)','^I-?O Data','I-O Data',''], 
+	['^(INO-|i\.?norys)','^i\.?norys','i.norys',''], 
 	['^(Integrated[\s-]?Technology|IT[0-9]+)','^Integrated[\s-]?Technology','Integrated Technology',''], 
 	['^(Iomega|ZIP\b|Clik!)','^Iomega','Iomega',''], 
 	['^ISOCOM','^ISOCOM','ISOCOM (Shenzhen Longsys Electronics)',''],
@@ -287,7 +291,7 @@ sub set_vendors {
 	['^Jingyi','^Jingyi','Jingyi',''],
 	# NOTE: ITY2 120GB hard to find
 	['^JMicron','^JMicron(\s?Tech(nology)?)?','JMicron Tech',''], #JMicron H/W raid
-	['^Kazuk','^Kazuk','(SSD\s?)?Kazuk',''],
+	['^Kazuk','^Kazuk','Kazuk',''],
 	['^KimMIDI','^KimMIDI','KimMIDI',''],
 	['^Kimtigo','^Kimtigo','Kimtigo',''],
 	['^Kingbank','^Kingbank','Kingbank',''],
@@ -298,7 +302,7 @@ sub set_vendors {
 	['^Kingrich','^Kingrich','Kingrich',''],
 	['^Kingsand','^Kingsand','Kingsand',''],
 	['KING\s?SHA\s?RE','KING\s?SHA\s?RE','KingShare',''],
-	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P4\b|PA[_-]?(18|25)|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
+	['^(KingSpec|ACSC|KS[DQ]|N[ET]-[0-9]|P3$|P4\b|PA[_-]?(18|25)|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
 	['^KingSSD','^KingSSD','KingSSD',''],
 	# kingwin docking, not actual drive
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
@@ -389,7 +393,7 @@ sub set_vendors {
 	['^(PLEXTOR|PX-)','^PLEXTOR','Plextor',''],
 	['^(PQI|Intelligent\s?Stick|Cool\s?Drive)','^PQI','PQI',''],
 	['^(Premiertek|QSSD|Quaroni)','^Premiertek','Premiertek',''],
-	['^(Pretec|UltimateGuard)','Pretec','Pretec',''],
+	['^(-?Pretec|UltimateGuard)','-?Pretec','Pretec',''],
 	['^(Prolific)','^Prolific( Technolgy Inc\.)?','Prolific',''],
 	# PS3109S9 is the result of an error condition with ssd drive
 	['QEMU','^[0-9]*QEMU( QEMU)?','QEMU',''], # 0QUEMU QEMU HARDDISK
