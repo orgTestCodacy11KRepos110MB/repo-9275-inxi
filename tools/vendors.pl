@@ -92,7 +92,7 @@ sub set_vendors {
 	# these must come before maxtor because STM
 	['^STmagic','^STmagic','STmagic',''],
 	['^(STMicro|SMI|CBA)','^(STMicroelectronics|SMI)','SMI (STMicroelectronics)',''],
-	# note M2 M3 is usually maxtor, but can be samsung: can conflict with Team: TM\d{4}|
+	# note M2 M3 is usually maxtor, but can be samsung. Can conflict with Team: TM\d{4}|
 	['^(MAXTOR|Atlas|L(250|500)|[KL]0[1-9]|Y\d{3}[A-Z]|STM\d|F\d{3}L)','^MAXTOR','Maxtor',''], 
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|Agility|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK|VERTEX|Trion|Onyx|Vector[\s-]?15)','^OCZ[\s-]','OCZ',''],
