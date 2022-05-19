@@ -53,55 +53,54 @@ sub set_vendors {
 	## MOST LIKELY/COMMON MATCHES ##
 	['(Crucial|^(FC)?CT|-CT|^M4(\b|SSD)|Gizmo!|^((C300-)?CTF[\s-]?)?DDAC)','Crucial','Crucial',''],
 	# H10 HBRPEKNX0202A NVMe INTEL 512GB
-	['(\bINTEL\b|^SSD(PAM|SA2)|^HBR|^(MEM|SSD)PEB?K|^SSD(MCE|SC))','\bINTEL\b','Intel',''], 
+	['(\bINTEL\b|^SSD(PAM|SA2)|^HBR|^(MEM|SSD)PEB?K|^SSD(MCE|S[AC]))','\bINTEL\b','Intel',''], 
 	# note: S[AV][1-9][0-9] can trigger false positives
-	['(K(ING)?STON|DataTraveler|DT\s?(DUO|Microduo|101)|^(OM8P|RBU|S[HMN]S|SQ5|SVP|SS0|SUV|SNV|T52|T[AB]29)|^Ultimate CF|HyperX|^S[AV][1234]00|^SKYMEDI|13fe\b)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
+	['(K(ING)?STON|DataTraveler|DT\s?(DUO|Microduo|101)|^(OM8P|RBU|S[HMN]S|SKC|SQ5|SS200|SVP|SS0|SUV|SNV|T52|T[AB]29)|^Ultimate CF|HyperX|^S[AV][1234]00|^SKYMEDI|13fe\b)','KINGSTON','Kingston',''], # maybe SHS: SHSS37A SKC SUV
 	# must come before samsung MU. NOTE: toshiba can have: TOSHIBA_MK6475GSX: mush: MKNSSDCR120GB_
 	['(^MKN|Mushkin)','Mushkin','Mushkin',''], # MKNS
 	# MU = Multiple_Flash_Reader too risky: |M[UZ][^L] HD103SI HD start risky
-	# HM320II HM320II
-	['(SAMSUNG|^MCG[0-9]+GC|^CKT|^(SSD\s)?P[BM]\d|^SM\s?841|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|^DUT|^MCC|^MCBOE|\bEVO\b|^[GS]2 Portable|^DS20|^[DG]3 Station|^DUO\b|^P3|^[BC]GN|^[CD]JN|^BJ[NT]|^[BC]WB|^(HM|SP)[0-9]{2}|^MZ|^HD[0-9]{3}[A-Z]{2}$|^G[CD][1-9][QS]|^HS\d|^M[AB]G[0-9][FG]|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
+	# HM320II HM320II HM
+	['(SAMSUNG|^MCG[0-9]+GC|^CKT|^(SSD\s)?P[BM]\d|^(SSD\s?)?SM\s?841|^SSD\s?[89]\d{2}\s(DCT|PRO|QVD|\d+[GT]B)|^DUT|^MCC|^MCBOE|\bEVO\b|^[GS]2 Portable|^DS20|^[DG]3 Station|^DUO\b|^P3|^[BC]GN|^[CD]JN|^BJ[NT]|^[BC]WB|^(ATA\\s?)?(HM|SP)[0-9]{2}|^MZ|^HD[0-9]{3}[A-Z]{2}$|^G[CD][1-9][QS]|^HS\d|^M[AB]G[0-9][FG]|SV[0-9]|[BE][A-Z][1-9]QT|YP\b|[CH]N-M|MMC[QR]E)','SAMSUNG','Samsung',''], # maybe ^SM, ^HM
 	# Android UMS Composite?U1
-	['(SanDisk|^SD(S[S]?[ADQ]|\d[STU])|^D[AB]4|^SL([0-9]+)G|^AFGCE|^ABLCD|^SDW[1-9]|^SEM[1-9]|^U(3\b|1\d0)|^SU[0-9]|^DX[1-9]|^S[CD][0-9]{2}G|ULTRA\s(FIT|trek|II)|Clip Sport|Cruzer|^Extreme|iXpand|SSD (Plus|U1[01]0) [1-9]|0781|X[1-6]\d{2})','(SanDisk|0781)','SanDisk',''],
+	['(SanDisk|^SD(S[S]?[ADQ]|\d[STU])|^D[AB]4|^SL([0-9]+)G|^AFGCE|^ABLCD|^SDW[1-9]|^SEM[1-9]|^U(3\b|1\d0)|^SU[0-9]|^DX[1-9]|^S[CD][0-9]{2}G|ULTRA\s(FIT|trek|II)|Clip Sport|Cruzer|^Firebird|^Extreme|iXpand|SSD (Plus|U1[01]0) [1-9]|0781|X[1-6]\d{2})','(SanDisk|0781)','SanDisk',''],
 	# these are HP/Sandisk cobranded. DX110064A5xnNMRI ids as HP and Sandisc
 	['(^DX[1-9])','^(HP\b|SANDDISK)','Sandisk/HP',''], # ssd drive, must come before seagate ST test
 	# real, SSEAGATE Backup+; XP1600HE30002 | 024 HN (spinpoint) ; possible usb: 24AS
 	# ST[numbers] excludes other ST starting devices
 	['(^(ATA\s|HDD\s)?ST[0-9]{2}|[S]?SEAGATE|^X[AFP]|^5AS|^BUP|^(Barra|Fire)Cuda|Expansion Desk|^Expansion|FreeAgent|GoFlex|Backup(\+|\s?Plus)\s?(Hub)?|OneTouch|Slim\s? BK)','[S]?SEAGATE','Seagate',''], 
-	['^(WD|WL[0]9]|Western Digital|My (Book|Passport)|\d*LPCX|Elements|easystore|MD0|M000|EARX|EFRX|\d*EAVS|0JD|JP[CV]|[0-9]+(BEV|(00)?AAK|AAV|AZL|EA[CD]S)|PC\sSN|3200[AB]|2500[BJ]|EA[A-Z]S|20G2|5000[AB]|6400[AB]|7500[AB]|i HTS|00[ABL][A-Z]{2}|EZRX)','(^WDC|Western\s?Digital)','Western Digital',''],
+	['^(WD|WL[0]9]|Western Digital|My (Book|Passport)|\d*LPCX|Elements|easystore|MD0|M000|EARX|EFRX|\d*EAVS|0JD|JP[CV]|[0-9]+(BEV|(00)?AAK|AAV|AZL|EA[CD]S)|PC\sSN|3200[AB]|2500[BJ]|EA[A-Z]S|20G2|5000[AB]|6400[AB]|7500[AB]|i HTS|00[ABL][A-Z]{2}|EZRX|SSC\b)','(^WDC|Western\s?Digital)','Western Digital',''],
 	# rare cases WDC is in middle of string
 	['(\bWDC\b|1002FAEX)','','Western Digital',''],
 	## THEN BETTER KNOWN ONESs ##
 	['^Acer','^Acer','Acer',''],
 	# A-Data can be in middle of string
-	['^(.*\bA-?DATA|ASP[0-9]|AX[MN]|CH11|HV[1-9]|IM2|HD[1-9]|HDD\s?CH|IUM|SX\d)','A-?DATA','A-Data',''],
+	['^(.*\bA-?DATA|ASP[0-9]|AX[MN]|CH11|HV[1-9]|IM2|HD[1-9]|HDD\s?CH|IUM|SX\d|Swordfish)','A-?DATA','A-Data',''],
 	['^(ASUS|ROG)','^ASUS','ASUS',''], # ROG ESD-S1C
 	# ATCS05 can be hitachi travelstar but not sure
 	['^ATP','^ATP\b','ATP',''],
 	# Force MP500
-	['^(Corsair|Force\s|(Flash\s*)?(Survivor|Voyager)|Neutron)','^Corsair','Corsair',''],
+	['^(Corsair|Force\s|(Flash\s*)?(Survivor|Voyager)|Neutron|Padlock)','^Corsair','Corsair',''],
 	['^(FUJITSU|MJA|MH[TVWYZ][0-9]|MP|MAP[0-9]|F\d00s?-)','^FUJITSU','Fujitsu',''],
 	# MAB3045SP shows as HP or Fujitsu, probably HP branded fujitsu
 	['^(MAB[0-9])','^(HP\b|FUJITSU)','Fujitsu/HP',''],
 	# note: 2012:  wdc bought hgst
-	['^(HGST|Touro|54[15]0|7250|HCC\d)','^HGST','HGST (Hitachi)',''], # HGST HUA
-	['^((ATA\s)?Hitachi|HCS|HD[PST]|DK[0-9]|IC|(HDD\s)?HT|HU|HMS|HDE|0G[0-9])','Hitachi','Hitachi',''], 
+	['^(HGST|Touro|54[15]0|7250|HC[CT]\d)','^HGST','HGST (Hitachi)',''], # HGST HUA
+	['^((ATA\s)?Hitachi|HCS|HD[PST]|DK[0-9]|IC|(HDD\s)?HT|HU|HMS|HDE|0G[0-9]|IHAT)','Hitachi','Hitachi',''], 
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
-	['^(HP\b|[MV]B[0-6]|G[BJ][0-9]|DF[0-9]|F[BK]|0-9]|PSS|XR[0-9]{4}|c350|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$|VK0|HC[CPY]\d)','^HP','HP',''], 
+	['^(HP\b|[MV]B[0-6]|G[BJ][0-9]|DF[0-9]|F[BK]|0-9]|PSS|XR[0-9]{4}|c350|v[0-9]{3}[bgorw]$|x[0-9]{3}[w]$|VK0|HC[CPY]\d|(SSD\s?)?EX9\d\d)','^HP','HP',''], 
 	['^(Lexar|LSD|JumpDrive|JD\s?Firefly|LX[0-9]|WorkFlow)','^Lexar','Lexar',''], # mmc-LEXAR_0xb016546c; JD Firefly;
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
-	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK|VERTEX|Trion)','^OCZ[\s-]','OCZ',''],
+	['^(OCZ|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK|VERTEX|Trion|Onyx|Vector[\s-]?15)','^OCZ[\s-]','OCZ',''],
 	['^OWC','^OWC\b','OWC',''],
 	['^(Philips|GoGear)','^Philips','Philips',''],
 	['^PIONEER','^PIONEER','Pioneer',''],
-	['^(PNY|Hook\s?Attache|SSD2SC|(SSD7?)?EP7|CS\d{3})','^PNY\s','PNY','','^PNY'],
+	['^(PNY|Hook\s?Attache|SSD2SC|(SSD7?)?EP7|CS\d{3}|Elite\s?P)','^PNY\s','PNY','','^PNY'],
 	# note: get rid of: M[DGK] becasue mushkin starts with MK
 	# note: seen: KXG50ZNV512G NVMe TOSHIBA 512GB | THNSN51T02DUK NVMe TOSHIBA 1024GB 
 	['(^[S]?TOS|^THN|TOSHIBA|TransMemory|^M[GKQ][0-9]|KBG4|^HDW|^SA[0-9]{2}G$|^(008|016|032|064|128)G[379E][0-9A]$|0930|KSG\d)','[S]?(TOSHIBA|0930)','Toshiba',''], # scsi-STOSHIBA_STOR.E_EDITION_
 	## LAST: THEY ARE SHORT AND COULD LEAD TO FALSE ID, OR ARE UNLIKELY ##
 	# unknown: AL25744_12345678; ADP may be usb 2.5" adapter; udisk unknown: Z1E6FTKJ 00AAKS
 	# SSD2SC240G726A10 MRS020A128GTS25C EHSAJM0016GB
-	['^(Alcor(\s?Micro)?|058F)','^(Alcor(\s?Micro)?|058F)','Alcor Micro',''],
 	['^2[\s-]?Power','^2[\s-]?Power','2-Power',''], 
 	['^(3ware|9650SE)','^3ware','3ware (controller)',''], 
 	['^5ACE','^5ACE','5ACE',''], # could be seagate: ST316021 5ACE
@@ -119,6 +118,7 @@ sub set_vendors {
 	['^(Agile|AGI)','^(AGI|Agile\s?Gear\s?Int[a-z]*)','AGI',''],
 	['^Aireye','^Aireye','Aireye',''],
 	['^Alcatel','^Alcatel','Alcatel',''],
+	['^(Alcor(\s?Micro)?|058F)','^(Alcor(\s?Micro)?|058F)','Alcor Micro',''],
 	['^Alfawise','^Alfawise','Alfawise',''],
 	['^Android','^Android','Android',''],
 	['^ANACOMDA','^ANACOMDA','ANACOMDA',''],
@@ -132,6 +132,7 @@ sub set_vendors {
 	['^(Asenno|AS[1-9])','^Asenno','Asenno',''],
 	['^Asgard','^Asgard','Asgard',''],
 	['^(ASM|2115)','^ASM','ASMedia',''],#asm1153e
+	['^ASolid','^ASolid','ASolid',''],
 	['^(AVEXIR|AVSSD)','^AVEXIR','Avexir',''],
 	['^Axiom','^Axiom','Axiom',''],
 	['^(Baititon|BT[0-9])','^Baititon','Baititon',''],
@@ -191,6 +192,7 @@ sub set_vendors {
 	['^(Dynabook|AE[1-3]00)','^Dynabook','Dynabook',''],
 	# DX1100 is probably sandisk, but could be HP, or it could be hp branded sandisk
 	['^(Eaget|V8$)','^Eaget','Eaget',''],
+	['^(Easy[\s-]?Memory)','^Easy[\s-]?Memory','Easy Memory',''],
 	['^EDGE','^EDGE','EDGE Tech',''],
 	['^Elecom','^Elecom','Elecom',''],
 	['^Eluktro','^Eluktronics','Eluktronics',''],
@@ -215,10 +217,11 @@ sub set_vendors {
 	['^FiiO','^FiiO','FiiO',''],
 	['^Fordisk','^Fordisk','Fordisk',''],
 	# FK0032CAAZP/FB160C4081 FK or FV can be HP but can be other things
-	['^(FORESEE|B[123]0)','^FORESEE','Foresee',''],
+	['^(FORESEE|B[123]0)|P900F|S900M','^FORESEE','Foresee',''],
 	['^Founder','^Founder','Founder',''],
 	['^(FOXLINE|FLD)','^FOXLINE','Foxline',''], # russian vendor?
-	['^(GALAX\b|Gamer\s?L)','^GALAX','GALAX',''],
+	['^(GALAX\b|Gamer\s?L|TA\dD|Gamer[\s-]?V)','^GALAX','GALAX',''],
+	['^Freecom','^Freecom(\sFreecom)?','Freecom',''],
 	['^Galaxy\b','^Galaxy','Galaxy',''],
 	['^Gamer[_\s-]?Black','^Gamer[_\s-]?Black','Gamer Black',''],
 	['^(Garmin|Fenix|Nuvi|Zumo)','^Garmin','Garmin',''],
@@ -231,14 +234,14 @@ sub set_vendors {
 	['^(Gigabyte|GP-G)','^Gigabyte','Gigabyte',''], # SSD
 	['^Gigastone','^Gigastone','Gigastone',''],
 	['^Gigaware','^Gigaware','Gigaware',''],
-	['^Gloway','^Gloway','Gloway',''],
+	['^(Gloway|FER\d)','^Gloway','Gloway',''],
 	['^GLOWY','^GLOWY','Glowy',''],
 	['^Goldendisk','^Goldendisk','Goldendisk',''],
 	['^Goldenfir','^Goldenfir','Goldenfir',''],
 	['^Golden[\s_-]?Memory','^Golden[\s_-]?Memory','Golden Memory',''],
 	['^(Goldkey|GKP)','^Goldkey','GoldKey',''],
 	# Wilk Elektronik SA, poland
-	['^(Wilk\s*)?(GOODRAM|GOODDRIVE|IR[\s-]?SSD|IRP|SSDPR)','^GOODRAM','GOODRAM',''],
+	['^(Wilk\s*)?(GOODRAM|GOODDRIVE|IR[\s-]?SSD|IRP|SSDPR|Iridium)','^GOODRAM','GOODRAM',''],
 	# supertalent also has FM: |FM
 	['^(G[\.]?SKILL)','^G[\.]?SKILL','G.SKILL',''],
 	['^G[\s-]*Tech','^G[\s-]*Technology','G-Technology',''],
@@ -254,7 +257,7 @@ sub set_vendors {
 	['^HUAWEI','^HUAWEI','Huawei',''],
 	['^Hypertec','^Hypertec','Hypertec',''],
 	['^HyperX','^HyperX','HyperX',''],
-	['^Hyundai','^Hyundai','Hyundai',''],
+	['^(Hyundai|Sapphire)','^Hyundai','Hyundai',''],
 	['^(IBM|DT|ESA[1-9])','^IBM','IBM',''], 
 	['^IEI Tech','^IEI Tech(\.|nology)?( Corp(\.|oration)?)?','IEI Technology',''],
 	['^(IGEL|UD Pocket)','^IGEL','IGEL',''],
@@ -267,7 +270,7 @@ sub set_vendors {
 	['^(Infokit)','^Infokit','Infokit',''],
 	['^(Initio)','^Initio','Initio',''], 
 	['^Inland','^Inland','Inland',''],
-	['^(InnoDisk|Innolite|SATA\s?Slim)','^InnoDisk( Corp.)?','InnoDisk',''],
+	['^(InnoDisk|Innolite|SATA\s?Slim|DRPS)','^InnoDisk( Corp.)?','InnoDisk',''],
 	['(Innostor|1f75)','(Innostor|1f75)','Innostor',''],
 	['(^Innovation|Innovation\s?IT)','Innovation(\s*IT)?','Innovation IT',''],
 	['^Innovera','^Innovera','Innovera',''],
@@ -284,11 +287,12 @@ sub set_vendors {
 	['^Jingyi','^Jingyi','Jingyi',''],
 	# NOTE: ITY2 120GB hard to find
 	['^JMicron','^JMicron(\s?Tech(nology)?)?','JMicron Tech',''], #JMicron H/W raid
+	['^Kazuk','^Kazuk','(SSD\s?)?Kazuk',''],
 	['^KimMIDI','^KimMIDI','KimMIDI',''],
 	['^Kimtigo','^Kimtigo','Kimtigo',''],
 	['^Kingbank','^Kingbank','Kingbank',''],
 	['^Kingchux[\s-]?ing','^Kingchux[\s-]?ing','Kingchuxing',''],
-	['(KingDian|^NGF)','KingDian','KingDian',''],
+	['(KingDian|^NGF|S(280|400))','KingDian','KingDian',''],
 	['^(Kingfast|TYFS)','^Kingfast','Kingfast',''],
 	['^KingMAX','^KingMAX','KingMAX',''],
 	['^Kingrich','^Kingrich','Kingrich',''],
@@ -300,7 +304,7 @@ sub set_vendors {
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
 	['^Kingwin','^Kingwin','Kingwin',''],
 	['(KIOXIA|^K[BX]G[0-9])','KIOXIA','KIOXIA',''], # company name comes after product ID
-	['^(KLEVV|NEO\sN)','^KLEVV','KLEVV',''],
+	['^(KLEVV|NEO\sN|CRAS)','^KLEVV','KLEVV',''],
 	['^Kodak','^Kodak','Kodak',''],
 	['^(KUAIKAI|MSAM)','^KUAIKAI','KuaKai',''],
 	['(KUIJIA|DAHUA)','^KUIJIA','KUIJIA',''],
@@ -315,9 +319,9 @@ sub set_vendors {
 	['^RPFT','','Lenovo O.E.M.',''],
 	# JAJS300M120C JAJM600M256C JAJS600M1024C JAJS600M256C JAJMS600M128G 
 	['^(Leven|JAJ[MS])','^Leven','Leven',''],
-	['^LG\b','^LG','LG',''],
+	['^(LG\b|Xtick)','^LG','LG',''],
 	['(LITE[-\s]?ON[\s-]?IT)','LITE[-]?ON[\s-]?IT','LITE-ON IT',''], # LITEONIT_LSS-24L6G
-	['(LITE[-\s]?ON|^PH[1-9]|^CV\d-|L(8[HT]|AT|C[HST]|JH|M[HST]|S[ST])-)','LITE[-]?ON','LITE-ON',''], # PH6-CE240-L; CL1-3D256-Q11 NVMe LITEON 256GB
+	['(LITE[-\s]?ON|^PH[1-9]|^DMT|^CV\d-|L(8[HT]|AT|C[HST]|JH|M[HST]|S[ST])-)','LITE[-]?ON','LITE-ON',''], # PH6-CE240-L; CL1-3D256-Q11 NVMe LITEON 256GB
 	['^LONDISK','^LONDISK','LONDISK',''],
 	['^Longline','^Longline','Longline',''],
 	['^LuminouTek','^LuminouTek','LuminouTek',''],
@@ -327,10 +331,10 @@ sub set_vendors {
 	['^Mainic','^Mainic','Mainic',''],
 	['^Maximus','^Maximus','Maximus',''],
 	['^Maxone','^Maxone','Maxone',''],
-	['^(MAXTOR|Atlas|L(250|500)|TM[0-9]{4}|[KL]0[1-9]|Y[0-9]{3}[A-Z]|STM[0-9]|F[0-9]{3}L|6[BEGKLNVY]\d|7L\d)','^MAXTOR','Maxtor',''], # note M2 M3 is usually maxtor, but can be samsung
+	['^(MAXTOR|Atlas|L(250|500)|TM[0-9]{4}|[KL]0[1-9]|Y[0-9]{3}[A-Z]|STM[0-9]|F[0-9]{3}L|6[2[B\d|BEGKLNVY]\d|4[DR]\d|3H\d|2F\d|7L\d)','^MAXTOR','Maxtor',''], # note M2 M3 is usually maxtor, but can be samsung
 	['^(Memorex|TravelDrive|TD\s?Classic)','^Memorex','Memorex',''],
 	# note: C300/400 can be either micron or crucial, but C400 is M4 from crucial
-	['(^MT|^(\d+|M\d+)\sMTF|^M5|^Micron|00-MT|C[34]00)','^Micron','Micron',''],# C400-MTFDDAK128MAM
+	['(^MT|^(\d+|M\d+)\sMTF|^M5|^Micron|00-MT|C[34]00|^2200[SV])','^Micron','Micron',''],# C400-MTFDDAK128MAM
 	['^(MARSHAL\b|MAL[0-9])','^MARSHAL','Marshal',''],
 	['^MARVELL','^MARVELL','Marvell',''],
 	['^Maxsun','^Maxsun','Maxsun',''],
@@ -377,10 +381,11 @@ sub set_vendors {
 	['^Panram','^Panram','Panram',''], # ssd 
 	['^(Parker|TP00)','^Parker','Parker',''],
 	['^(Pasoul|OASD)','^Pasoul','Pasoul',''],
-	['^(Patriot|PS[8F]|VPN|Viper|Burst)','^Patriot([-\s]?Memory)?','Patriot',''],#Viper M.2 VPN100
+	['^(Patriot|PS[8F]|P2\d{2}|PBT|VPN|Viper|Burst|Blast|Blaze|Pyro|Ignite)','^Patriot([-\s]?Memory)?','Patriot',''],#Viper M.2 VPN100
 	['^PERC\b','','Dell PowerEdge RAID Card',''], # ssd 
 	['(PHISON[\s-]?|ESR[0-9])','PHISON[\s-]?','Phison',''],# E12-256G-PHISON-SSD-B3-BB1
 	['^Pioneer','Pioneer','Pioneer',''],
+	['^Platinet','Platinet','Platinet',''],
 	['^(PLEXTOR|PX-)','^PLEXTOR','Plextor',''],
 	['^(PQI|Intelligent\s?Stick|Cool\s?Drive)','^PQI','PQI',''],
 	['^(Premiertek|QSSD|Quaroni)','^Premiertek','Premiertek',''],
@@ -400,7 +405,8 @@ sub set_vendors {
 	['^RIM[\s]','^RIM','RIM',''],
 	 #RTDMA008RAV2BWL comes with lenovo but don't know brand
 	['^Runcore','^Runcore','Runcore',''],
-	['^Sabrent','^Sabrent','Sabrent',''],
+	['^(S3Plus|S3\s?SSD)','^S3Plus','S3Plus',''],
+	['^(Sabrent|Rocket)','^Sabrent','Sabrent',''],
 	['^Sage','^Sage(\s?Micro)?','Sage Micro',''],
 	['^SAMSWEET','^SAMSWEET','Samsweet',''],
 	['^SandForce','^SandForce','SandForce',''],
@@ -444,7 +450,7 @@ sub set_vendors {
 	['^(TC[\s-]*SUNBOW|X3\s\d+[GT])','^TC[\s-]*SUNBOW','TCSunBow',''],
 	['^(TDK|TF[1-9][0-9]|LoR)','^TDK','TDK',''],
 	['^TEAC','^TEAC','TEAC',''],
-	['^(TEAM|T[\s-]?Create|L\d\s?Lite|T\d{3,}[A-Z]|TM\d)','^TEAM(\s*Group)?','TeamGroup',''],
+	['^(TEAM|T[\s-]?Create|L\d\s?Lite|T\d{3,}[A-Z]|TM\d|(Dark\s?)?L3\b)','^TEAM(\s*Group)?','TeamGroup',''],
 	['^(Teclast|CoolFlash)','^Teclast','Teclast',''],
 	['^Teelkoou','^Teelkoou','Teelkoou',''],
 	['^Tele2','^Tele2','Tele2',''],
@@ -556,9 +562,8 @@ sub process {
 	say "Starting processing of disk data in $disks_read.";
 	say "There are " . scalar @$data . " disk names in the list.";
 	say "This can take a while. Be patient...";
-	@$data = sort @$data;
+	@$data = sort { lc($a) cmp lc($b) } @$data;
 	uniq($data);
-	@$data = sort @$data;
 	push(@$data,'#-EOF-#');
 	foreach my $disk (@$data){
 		# it's always going to have type: set in the primary data file
@@ -571,10 +576,10 @@ sub process {
 		if ($type && $type eq '0-int' && $disk =~ /Flash\s?D(isk|rive)/){
 			$type = 'USB';
 		}
-		if (lc($holder) eq lc($disk) && $disk ne '#-EOF-#'){
+		if (lc($holder) eq lc($disk)){
 			push(@sizes,$size) if $size && !grep {$_ eq $size} @sizes;
 		}
-		if (lc($holder) ne lc($disk)){
+		else {
 			my @result = ($holder) ? device_vendor($holder,0) : ();
 			# say "$holder :: $disk";
 			if ($holder && !$result[0] && @sizes){
