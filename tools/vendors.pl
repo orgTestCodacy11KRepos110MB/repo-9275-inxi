@@ -702,6 +702,11 @@ sub show_options {
 	say "-u,--unhandled - Use unhandled file instead of primary. Use this after ";
 	say "                 the first iteration creating the new master unhandled.";
 	say "-v,--version   - Show tool version and date.";
+	say '';
+	say "Note: make sure to run vendors.pl on new datasets 1x, then with -u again";
+	say "to get rid of some duplicates that the first pass doesn't get. Use -u";
+	say "after the first non -u run, after that you will be working only with the";
+	say "unhandled list, which is much faster.";
 }
 sub show_version {
 	say "$self_name v: $self_version date: $self_date";
