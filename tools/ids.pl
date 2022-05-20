@@ -258,7 +258,7 @@ my $amd_data = {
 	},
 	'15' => {
 	'arch' => 'GCN-1',
-	'pattern' => 'Southern Islands|HD\s?77[5-9]{2}|HD\s?79[0-7]\d',
+	'pattern' => 'Southern Islands|Tahiti|HD\s?77[5-9]{2}|HD\s?79[0-7]\d',
 	'code' => 'Southern Islands',
 	'process' => 'TSMC 28',
 	},
@@ -270,7 +270,7 @@ my $amd_data = {
 	},
 	'17' => {
 	'arch' => 'GCN 3',
-	'pattern' => 'Volcanic',
+	'pattern' => 'Volcanic|Tonga',
 	'code' => 'Volcanic Islands',
 	'process' => 'TSMC 28nm',
 	},
