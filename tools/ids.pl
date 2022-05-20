@@ -165,7 +165,7 @@ my $nv_data = {
 };
 my $amd_data = {
 'amd' => {
-'file' => 'amd_products.sort',
+'file' => 'amd.merged.sort',
 '00' => {
 'arch' => 'Wonder',
 'pattern' => 'Color Emulation|Graphics Solution|[EV]GA Wonder',
@@ -196,9 +196,11 @@ my $amd_data = {
 'code' => '',
 'process' => 'TSMC 250nm',
 },
+# vendor 1014 IBM, subvendor: 1092
+# 0172|0173|0174|0184
 '05' => {
 'arch' => 'IBM',
-'pattern' => 'Fire GL[1234]A?',
+'pattern' => 'Fire GL[1234][As]?',
 'code' => 'Fire GL',
 'process' => 'IBM 156-250nm',
 },
