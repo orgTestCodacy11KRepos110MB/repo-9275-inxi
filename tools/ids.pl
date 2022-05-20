@@ -36,10 +36,10 @@ my $b_print_output = 1;
 my $b_print_raw = 0;
 my $b_print_remains = 1;
 
-my $job = 'current';
-my $options = 'current|470|390|367|340|304|173|96|71';
+my $job = 'nv-current';
+my $options = 'amd|nv-urrent|470|390|367|340|304|173|96|71';
 
-my ($active,$file,%output);
+my ($active,$file,$id_data,%output);
 my $data = [];
 my $b_hash = 1;
 my $br = "\n";
@@ -55,7 +55,7 @@ my $tab = "\t";
 # each iteration through the keys
 my $nv_data = {
 # Nvidia GeForce GPU: GeForce GTX 860M
-'current' => {
+'nv-current' => {
 'file' => 'nv_515.xx.sort',
 '00' => {
 'arch' => 'Maxwell',
@@ -98,7 +98,7 @@ my $nv_data = {
 },
 '01' => {
 'arch' => 'Kepler',
-'pattern' => 'K\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720'
+'pattern' => 'K\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720',
 },
 },
 # these are all Fermi/Fermi 2.0
@@ -123,46 +123,160 @@ my $nv_data = {
 '00' => {
 'arch' => 'Tesla',
 # T\d{1,4}|Tesla|[89]\d{3}(M|GS)?|(G|GT[SX]?)?\s?[1234]\d{2}M?|ION|NVS
-'pattern' => '.*'
+'pattern' => '.*',
 },
 },
 '304' => {
 'file' => 'nv_304.xx.sort',
 '00' => {
 'arch' => 'Curie',
-'pattern' => '[67]\d{3}(SE|M)?|Quadro (FX|NVS)'
+'pattern' => '[67]\d{3}(SE|M)?|Quadro (FX|NVS)',
 },
 },
 '173' => {
 'file' => 'nv_173.xx.sort',
 '00' => {
 'arch' => 'Rankine',
-'pattern' => 'FX|PCX|NVS'
+'pattern' => 'FX|PCX|NVS',
 },
 },
 '96' => {
 'file' => 'nv_96.xx.sort',
 '00' => {
 'arch' => 'Celsius',
-'pattern' => 'GeForce2|Quadro2'
+'pattern' => 'GeForce2|Quadro2',
 },
 '01' => {
 'arch' => 'Kelvin',
-'pattern' => 'GeForce[34]|Quadro(4| NVS| DCC)'
+'pattern' => 'GeForce[34]|Quadro(4| NVS| DCC)',
 },
 },
 '71' => {
 'file' => 'nv_71.xx.sort',
 '00' => {
 'arch' => 'Fahrenheit',
-'pattern' => 'TNT2?|Vanta'
+'pattern' => 'TNT2?|Vanta',
 },
 '01' => {
 'arch' => 'Celsius',
-'pattern' => 'Quadro|GeForce2?'
+'pattern' => 'Quadro|GeForce2?',
 },
 },
 };
+my $amd_data = {
+'amd' => {
+'file' => 'amd_products.sort',
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+# '06' => {
+# 'arch' => '',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+	'51' => {
+	'arch' => 'TeraScale-1',
+	'pattern' => 'HD [234]\d{3}',
+	'code' => 'R6xx/RV6xx/RV7xx',
+	'process' => '40-80nm',
+	},
+	'52' => {
+	'arch' => 'TeraScale-2',
+	'pattern' => 'Barts|Caicos|Cedar|Evergreen|Hemlock|Juniper|Redwood|Turks',
+	'code' => 'Evergreen',
+	'process' => 'TSMC 40nm',
+	},
+	'53' => {
+	'arch' => 'TeraScale-3',
+	'pattern' => 'Northern Islands',
+	'code' => 'Northern Islands',
+	'process' => 'TSMC 40nm',
+	},
+	'54' => {
+	'arch' => 'GCN-1',
+	'pattern' => 'Southern Islands|HD\s?77\d{2}|HD\s?79[0-7]\d',
+	'code' => 'Southern Islands',
+	'process' => 'TSMC 28',
+	},
+	'55' => {
+	'arch' => 'GCN-2',
+	'pattern' => 'Sea Islands|HD\s?7790',
+	'code' => 'Sea Islands',
+	'process' => 'TSMC 28nm',
+	},
+	'56' => {
+	'arch' => 'GCN-3',
+	'pattern' => 'Volcanic',
+	'code' => 'Volcanic Islands',
+	'process' => 'TSMC 28nm',
+	},
+	'57' => {
+	'arch' => 'GCN-4',
+	'pattern' => 'Arctic Islands|Polaris',
+	'code' => 'Polaris',
+	'process' => 'TSMC 14nm',
+	},
+	'58' => {
+	'arch' => 'GCN-5',
+	'pattern' => 'Vega',
+	'code' => 'Vega',
+	'process' =>  'TSMC  14nm',
+	},
+	'59' => {
+	'arch' => 'RDNA',
+	'pattern' => 'Navi 1\d\b',
+	'code' => 'Navi',
+	'process' => 'TSMC 7nm',
+	},
+	'60' => {
+	'arch' => 'RDNA-2',
+	'pattern' => 'Navi 2\d\b',
+	'code' => 'Navi 2x',
+	'process' => 'TSMC 7nm',
+	},
+},
+};
+
 sub process {
 	foreach my $key (sort keys %$active){
 		# say "$active->{$key}{'pattern'}";
@@ -197,7 +311,7 @@ sub output {
 		}
 		my $cnt = 4;
 		my $cnt2 = 1;
-		my $line = ($b_hash) ? $tab . $quote . 'ids => ' . $quote : '';
+		my $line = ($b_hash) ? $tab . $quote . "ids$quote => " . $quote : '';
 		my $start = '';
 		my $total = scalar @{$output{$sort}->{'ids'}};
 		foreach my $id (@{$output{$sort}->{'ids'}}){
@@ -223,7 +337,7 @@ sub output {
 }
 
 sub assign {
-	$active = $nv_data->{$job};
+	$active = ($job ne 'amd') ? $nv_data->{$job} : $amd_data->{$job};
 	$file = 'lists/' . $active->{'file'};
 	# say Dumper $active;
 	delete $active->{'file'};

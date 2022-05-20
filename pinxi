@@ -4745,10 +4745,10 @@ sub get {
 	'N|network' => sub {
 		$show{'short'} = 0;
 		$show{'network'} = 1;},
-	'nvidia|nv|non-free' => sub {
+	'amd|nvidia|nv|non-free' => sub {
 		$b_admin = 1;
 		$show{'short'} = 0;
-		$show{'nvidia'} = 1;
+		$show{'gfx-arch'} = 1;
 		$show{'graphic'} = 1;
 		$show{'graphic-full'} = 1;},
 	'o|unmounted' => sub {
@@ -4879,7 +4879,7 @@ sub get {
 				$b_admin = 1;
 				# $use{'downloader'} = 1; # only if weather
 				$show{'edid'} = 1;
-				$show{'nvidia'} = 1;
+				$show{'gfx-arch'} = 1;
 				$show{'process'} = 1;
 				$show{'ps-cpu'} = 1;
 				$show{'ps-mem'} = 1;
@@ -6720,7 +6720,6 @@ sub message {
 	'nv-legacy-active' => "legacy-active (EOL $id)",
 	'nv-legacy-eol' => 'legacy (EOL)',
 	'nv-legacy-eol-try' => 'legacy (EOL, try --nv)',
-	'nv-unknown' => 'unknown device ID',
 	'optical-data' => 'No optical or floppy data found.',
 	'optical-data-bsd' => 'No optical or floppy data found.',
 	'output-control' => "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:",
@@ -6780,6 +6779,7 @@ sub message {
 	'unknown-cpu-topology' => 'ERR-103',
 	'unknown-desktop-version' => 'ERR-101',
 	'unknown-dev' => 'ERR-102',
+	'unknown-device-id' => 'unknown device ID',
 	'unknown-shell' => 'ERR-100',
 	'weather-error' => "Error: $id",
 	'weather-null' => "No $id found. Internet connection working?",
@@ -13511,7 +13511,8 @@ sub device_speed {
 ## GraphicItem 
 {
 package GraphicItem;
-my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map,$nv_arch,$nv_legacy);
+my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
+my ($amd_arch,$nv_arch,$nv_legacy);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13589,35 +13590,36 @@ sub device_output {
 			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
-		$row->[5] =~ /^(10de|12d2)$/){
-			my $nv_info = nvidia_data($row->[6]);
+		$row->[5] =~ /^(1002|10de|12d2)$/){
+			my $b_nv = ($row->[5] eq '1002') ? 0 : 1;
+			my $gfx_info = ($b_nv) ? nvidia_data($row->[6]) : amd_data($row->[6]);
 			# my $nv_info = nvidia_data('1bb5');
-			if (!$bsd_type && $b_admin){
-				if ($nv_info->{'legacy'} && $show{'nvidia'}){
+			if (!$bsd_type && $b_nv && $b_admin){
+				if ($gfx_info->{'legacy'} && $show{'gfx-arch'}){
 					$rows[$j]->{main::key($num++,1,3,'non-free')} = '';
-					$rows[$j]->{main::key($num++,0,4,'series')} = $nv_info->{'series'};
-					$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
-					if ($nv_info->{'xorg'}){
+					$rows[$j]->{main::key($num++,0,4,'series')} = $gfx_info->{'series'};
+					$rows[$j]->{main::key($num++,0,4,'status')} = $gfx_info->{'status'};
+					if ($gfx_info->{'xorg'}){
 						$rows[$j]->{main::key($num++,1,4,'last')} = '';
-						$rows[$j]->{main::key($num++,0,5,'release')} = $nv_info->{'release'};
-						$rows[$j]->{main::key($num++,0,5,'kernel')} = $nv_info->{'kernel'};
-						$rows[$j]->{main::key($num++,0,5,'xorg')} = $nv_info->{'xorg'};
+						$rows[$j]->{main::key($num++,0,5,'release')} = $gfx_info->{'release'};
+						$rows[$j]->{main::key($num++,0,5,'kernel')} = $gfx_info->{'kernel'};
+						$rows[$j]->{main::key($num++,0,5,'xorg')} = $gfx_info->{'xorg'};
 					}
 				}
 				else {
-					$nv_info->{'series'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,1,3,'non-free')} = $nv_info->{'series'};
-					$rows[$j]->{main::key($num++,0,4,'status')} = $nv_info->{'status'};
+					$gfx_info->{'series'} ||= 'N/A';
+					$rows[$j]->{main::key($num++,1,3,'non-free')} = $gfx_info->{'series'};
+					$rows[$j]->{main::key($num++,0,4,'status')} = $gfx_info->{'status'};
 				}
 			}
-			if ($nv_info->{'arch'}){
-				$rows[$j]->{main::key($num++,1,2,'arch')} = $nv_info->{'arch'};
-				if ($show{'nvidia'}){
-					if ($nv_info->{'code'}){
-						$rows[$j]->{main::key($num++,0,3,'code')} = $nv_info->{'code'};
+			if ($gfx_info->{'arch'}){
+				$rows[$j]->{main::key($num++,1,2,'arch')} = $gfx_info->{'arch'};
+				if ($show{'gfx-arch'}){
+					if ($gfx_info->{'code'}){
+						$rows[$j]->{main::key($num++,0,3,'code')} = $gfx_info->{'code'};
 					}
-					if ($nv_info->{'process'}){
-						$rows[$j]->{main::key($num++,0,3,'process')} = $nv_info->{'process'};
+					if ($gfx_info->{'process'}){
+						$rows[$j]->{main::key($num++,0,3,'process')} = $gfx_info->{'process'};
 					}
 				}
 			}
@@ -15321,13 +15323,64 @@ sub display_drivers_x {
 	eval $end if $b_log;
 	@driver_data ? return \@driver_data : return;
 }
+sub set_amd_data {
+	$amd_arch = [
+	{'arch' => 'TeraScale-1',
+	'ids' => '7210|9400|9401|9403|9405|9440|9441|9442|9443|944a|944b|944c|944e|' .
+	'945a|9460|9462|9480|9488|9490|9495|9498|94a0|94a1|94b3|94b4|94c1|94c3|94c4|' .
+	'94c5|94c7|94c8|94c9|94cc|9500|9501|9504|9505|9506|9507|9508|9509|950f|9513|' .
+	'9515|9540|954f|9552|9553|9555|955f|9580|9581|9583|9586|9587|9588|9589|958a|' .
+	'958b|9591|9593|9596|9597|9598|9599|95c0|95c2|95c4|95c5|95c6|95c9|960f|9610|' .
+	'9612|9613|9614|9615|970f|9710|9712|9713|9714|9715|aa00|aa01|aa08|aa10|aa18|' .
+	'aa20|aa28|aa30|aa38',
+	'code' => 'R6xx/RV6xx/RV7xx',
+	'process' => '40-80nm',
+	},
+	{'arch' => 'TeraScale-2',
+	'ids' => '6738|6739|673e|6749|674a|6751|6758|6759|675b|675d|675f|6766|6767|' .
+	'6768|6770|6771|6772|6778|6779|677b|689c|689d|68a9|68b8|68b9|68ba|68be|68bf|' .
+	'68c8|68c9|68d8|68d9|68da|68de|68e8|68e9|68f1|68f2|68f8|68f9|68fa|68fe|aa58|' .
+	'aa60|aa68|aa88|aa90|aa98',
+	'code' => 'Evergreen',
+	'process' => 'TSMC 40nm',
+	},
+	# amdgpu supports GCN and newer
+	{'arch' => 'GCN-1',
+	'ids' => '665c|6798|679a|6837|683d|683f',
+	'code' => 'Southern Islands',
+	'process' => 'TSMC 28',
+	},
+	{'arch' => 'GCN-4',
+	'ids' => '694c|694e|694f|6fdf|ab08',
+	'code' => 'Polaris',
+	'process' => 'TSMC 14nm',
+	},
+	{'arch' => 'GCN-5',
+	'ids' => '66a0|66a1|66a2|66a3|66a7|66af|6860|6861|6862|6863|6864|6867|6868|' .
+	'6869|686a|686b|686c|686d|686e|687f|69a0|69a1|69a2|69a3|69af|aaf8|ab18|ab20',
+	'code' => 'Vega',
+	'process' =>  'TSMC  14nm',
+	},
+	{'arch' => 'RDNA',
+	'ids' => '7310|7312|7314|731f|7340|7341|7347|734f|7360|7362|ab38',
+	'code' => 'Navi',
+	'process' => 'TSMC 7nm',
+	},
+	{'arch' => 'RDNA-2',
+	'ids' => '73a2|73a3|73a4|73a5|73ab|73af|73bf|73c3|73c4|73df|73e0|73e1|73e3|' .
+	'73e4|73ef|73ff|743f|ab28',
+	'code' => 'Navi 2x',
+	'process' => 'TSMC 7nm',
+	},
+	];
+}
 sub set_nvidia_data {
 	my ($status_eol);
 	# this is vendor id: 12d2, nv1/riva/tnt type cards
 	# 0008|0009|0010|0018|0019
 	# and these are vendor id: 10de for 73.14
 	# 0020|0028|0029|002c|002d|00a0|0100|0101|0103|0150|0151|0152|0153
-	if (($show{'nvidia'})){
+	if (($show{'gfx-arch'})){
 		$status_eol = main::message('nv-legacy-eol');
 	}
 	else {
@@ -15558,6 +15611,32 @@ sub set_nvidia_data {
 	# },
 	};
 }
+sub amd_data {
+	eval $start if $b_log;
+	my ($product_id) = @_;
+	my (%info);
+	set_amd_data() if !$amd_arch;
+	my $date = $self_date;
+	$date =~ s/-\d+$//;
+	# Test for current active first, those will be most common, these will be
+	# run in random order, which is fine since user ids will also be random
+	foreach my $item (@$amd_arch){
+		if ($product_id =~ /^($item->{'ids'})$/){
+			%info = (
+			'arch' => $item->{'arch'},
+			'code' => $item->{'code'},
+			'process' => $item->{'process'},
+			);
+			last;
+		}
+	}
+	if (!%info){
+		$info{'status'} = main::message('unknown-device-id');
+	}
+	main::log_data('dump','%info',\%info) if $b_log;
+	eval $end if $b_log;
+	return \%info;
+}
 sub nvidia_data {
 	eval $start if $b_log;
 	my ($product_id) = @_;
@@ -15605,7 +15684,7 @@ sub nvidia_data {
 		}
 	}
 	if (!%info){
-		$info{'status'} = main::message('nv-unknown');
+		$info{'status'} = main::message('unknown-device-id');
 	}
 	main::log_data('dump','%info',\%info) if $b_log;
 	eval $end if $b_log;
