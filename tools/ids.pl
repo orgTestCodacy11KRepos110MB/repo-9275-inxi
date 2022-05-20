@@ -166,110 +166,134 @@ my $nv_data = {
 my $amd_data = {
 'amd' => {
 'file' => 'amd_products.sort',
-# '06' => {
-# 'arch' => '',
+# '00' => {
+# 'arch' => 'Wonder',
+# 'pattern' => '',
+# 'code' => '',
+# 'process' => '',
+# },
+'01' => {
+'arch' => 'Mach',
+'pattern' => 'Mach\s?64',
+'code' => 'Mach64',
+'process' => '600nm',
+},
+# '02' => {
+# 'arch' => 'Rage 2',
+# 'pattern' => 'Rage 2',
+# 'code' => '',
+# 'process' => '500nm',
+# },
+# '03' => {
+# 'arch' => 'Rage 3',
+# 'pattern' => 'Rage 3',
+# 'code' => '',
+# 'process' => '',
+# },
+'04' => {
+'arch' => 'Rage 4',
+'pattern' => 'Rage (4|128)',
+'code' => '',
+'process' => 'TSMC 250nm',
+},
+# '05' => {
+# 'arch' => 'IBM',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
 # '06' => {
-# 'arch' => '',
+# 'arch' => 'Rage 6',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
+# '07' => {
+# 'arch' => 'Rage 7',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
+# '08' => {
+# 'arch' => 'Rage 8',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
+# '09' => {
+# 'arch' => 'Rage 9',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
+# '10' => {
+# 'arch' => 'R400',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
+# '11' => {
+# 'arch' => 'R500',
 # 'pattern' => '',
 # 'code' => '',
 # 'process' => '',
 # },
-# '06' => {
-# 'arch' => '',
-# 'pattern' => '',
-# 'code' => '',
-# 'process' => '',
-# },
-	'51' => {
-	'arch' => 'TeraScale-1',
+	'12' => {
+	'arch' => 'TeraScale',
 	'pattern' => 'HD [234]\d{3}',
 	'code' => 'R6xx/RV6xx/RV7xx',
 	'process' => '40-80nm',
 	},
-	'52' => {
-	'arch' => 'TeraScale-2',
+	'13' => {
+	'arch' => 'TeraScale 2',
 	'pattern' => 'Barts|Caicos|Cedar|Evergreen|Hemlock|Juniper|Redwood|Turks',
 	'code' => 'Evergreen',
 	'process' => 'TSMC 40nm',
 	},
-	'53' => {
-	'arch' => 'TeraScale-3',
-	'pattern' => 'Northern Islands',
+	'14' => {
+	'arch' => 'TeraScale 3',
+	'pattern' => 'Northern Islands|HD\s?69\s{2}|HD\s?7[456]\d{2}',
 	'code' => 'Northern Islands',
 	'process' => 'TSMC 40nm',
 	},
-	'54' => {
+	'15' => {
 	'arch' => 'GCN-1',
-	'pattern' => 'Southern Islands|HD\s?77\d{2}|HD\s?79[0-7]\d',
+	'pattern' => 'Southern Islands|HD\s?77[5-9]{2}|HD\s?79[0-7]\d',
 	'code' => 'Southern Islands',
 	'process' => 'TSMC 28',
 	},
-	'55' => {
-	'arch' => 'GCN-2',
-	'pattern' => 'Sea Islands|HD\s?7790',
+	'16' => {
+	'arch' => 'GCN 2',
+	'pattern' => 'Beema|Bonaire|Emerald|Grenada|Hawaii|Kalindi|Liverpool|Neo|Saturn|Scorpio|Sea Islands|Spectre|Strato|Tobago|Vesuvius|HD\s?7790',
 	'code' => 'Sea Islands',
 	'process' => 'TSMC 28nm',
 	},
-	'56' => {
-	'arch' => 'GCN-3',
+	'17' => {
+	'arch' => 'GCN 3',
 	'pattern' => 'Volcanic',
 	'code' => 'Volcanic Islands',
 	'process' => 'TSMC 28nm',
 	},
-	'57' => {
-	'arch' => 'GCN-4',
+	'18' => {
+	'arch' => 'GCN 4',
 	'pattern' => 'Arctic Islands|Polaris',
-	'code' => 'Polaris',
+	'code' => 'Arctic Islands',
 	'process' => 'TSMC 14nm',
 	},
-	'58' => {
-	'arch' => 'GCN-5',
+	'19' => {
+	'arch' => 'GCN 5',
 	'pattern' => 'Vega',
 	'code' => 'Vega',
 	'process' =>  'TSMC  14nm',
 	},
-	'59' => {
+	'20' => {
 	'arch' => 'RDNA',
 	'pattern' => 'Navi 1\d\b',
 	'code' => 'Navi',
 	'process' => 'TSMC 7nm',
 	},
-	'60' => {
-	'arch' => 'RDNA-2',
+	'21' => {
+	'arch' => 'RDNA 2',
 	'pattern' => 'Navi 2\d\b',
 	'code' => 'Navi 2x',
 	'process' => 'TSMC 7nm',
