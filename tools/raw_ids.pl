@@ -36,6 +36,7 @@ my ($b_print_devices,$b_use_sub_pci);
 my $line = '------------------------------------------------------------------';
 
 my $jobs = {
+# source: check for updated file!: http://pci-ids.ucw.cz/v2.2/pci.ids 
 'amd' => {
 'filters' => 'SMBus|^SB|^RC|IOMMU|host control|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon',
 'file-output' => 'lists/amd.full',
@@ -48,6 +49,7 @@ my $jobs = {
 'start' => '1002',
 'last' => '1003',
 },
+# source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
 {
 'file' => 'lists/amd.raw.ids.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
