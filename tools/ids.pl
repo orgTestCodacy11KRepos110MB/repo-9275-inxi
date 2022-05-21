@@ -28,8 +28,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'ids.pl';
-my $self_version = '1.1';
-my $self_date = '2022-05-17';
+my $self_version = '1.2';
+my $self_date = '2022-05-21';
 
 my $b_print_ids = 0;
 my $b_print_output = 1;
@@ -165,7 +165,7 @@ my $nv_data = {
 };
 my $amd_data = {
 'amd' => {
-'file' => 'amd.merged.sort',
+'file' => 'amd.full.sort',
 	'00' => {
 	'arch' => 'Wonder',
 	'pattern' => 'Color Emulation|Graphics Solution|[EV]GA Wonder',
@@ -220,7 +220,7 @@ my $amd_data = {
 	},
 	'08' => {
 	'arch' => 'Rage 8',
-	'pattern' => 'R3[0-5]0|RC4[01]0|RC410M?|RS400M?|RV350|RS400|M10|Radeon 9[0-5]\d{2}M10',
+	'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10|M10',
 	'code' => 'R300',
 	'process' => 'TSMC 130nm',
 	},
@@ -273,32 +273,33 @@ my $amd_data = {
 	'arch' => 'GCN 2',
 	'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
 	'code' => 'Sea Islands',
-	'process' => '28nm', # both TSMC and GlobalFoundries
+	'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
 	},
 	# carrizo, bristol, prairie, stoney ridge apu
 	'17' => {
 	'arch' => 'GCN 3',
-	'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris 24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
+	'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
 	'code' => 'Volcanic Islands',
 	'process' => 'TSMC 28nm',
 	},
 	'18' => {
 	'arch' => 'GCN 4',
-	'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?\d*',
+	'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?(2[0123]|3[01])*',
 	'code' => 'Arctic Islands',
-	'process' => 'TSMC 14nm',
+	'process' => 'GF 14nm',# s
 	},
 	# needs to go before 5 to catch the vega > 1
+	# cezanne, lucienne, renoir apu
 	'19' => {
 	'arch' => 'GCN 5.1',
-	'pattern' => 'Vega (II|[678])|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
+	'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
 	'code' => 'Vega 2',
 	'process' =>  'TSMC 7nm',
 	},
-	# raven ridge, dali, picasso, renoir, cezanne, kestrel apu
+	# raven ridge, dali, picasso, kestrel apu
 	'20' => {
 	'arch' => 'GCN 5',
-	'pattern' => 'Vega|Cezanne|Dali|Kestrel|Picasso|Raven|Renoir|Instinct MI[12]\d',
+	'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
 	'code' => 'Vega',
 	'process' =>  'TSMC 14nm',
 	},
@@ -308,10 +309,10 @@ my $amd_data = {
 	'code' => 'Navi',
 	'process' => 'TSMC 7nm',
 	},
-	# rembrandt apu
+	# Lockhart, Oberon, Rembrandt, Scarlett, Van Gogh apu
 	'22' => {
 	'arch' => 'RDNA 2',
-	'pattern' => 'Navi\s?2\d\b|Rembrandt|Radeon 680M',
+	'pattern' => 'Navi\s?2\d\b|Lockhart|Oberon|Rembrandt|Scarlett|Van Gogh|Radeon 680M',
 	'code' => 'Navi 2x',
 	'process' => 'TSMC 7nm',
 	},
@@ -476,7 +477,7 @@ sub options {
 			$sep_global = $arg;
 		}
 		else {
-			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
+			push(@errors,"Unsupported option for -$opt:\n  Must be 1 character or more");
 		}
 	},
 	't|tabs' => sub {
