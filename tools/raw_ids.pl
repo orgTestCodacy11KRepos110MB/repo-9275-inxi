@@ -27,7 +27,7 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 
 my $self_name = 'raw_ids.pl';
 my $self_version = '1.0';
-my $self_date = '2022-05-17';
+my $self_date = '2022-05-21';
 
 my $job = 'amd'; # default
 my $options = 'amd'; # expand with |.. if > 1 job used in future
