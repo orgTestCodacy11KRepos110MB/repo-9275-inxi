@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-05-22';
-my $self_patch='04';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5770,7 +5770,7 @@ sub show_options {
 	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp"],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
 	LMP version."],
-	['2', '-G', '', "GPU arch, process node (AMD/Nvidia only); Specific 
+	['2', '-G', '', "GPU arch, process node (AMD/Intel/Nvidia only); Specific 
 	vendor/product information (if relevant); PCI/USB ID of device; Direct 
 	rendering status (in X); Screen number GPU is running on (Nvidia only)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
@@ -13684,7 +13684,7 @@ sub device_speed {
 {
 package GraphicItem;
 my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
-my ($amd_arch,$nv_arch,$nv_legacy);
+my ($gpu_amd,$gpu_intel,$gpu_nv,$gpu_nv_legacy);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13697,7 +13697,7 @@ sub get {
 	}
 	else {
 		push(@rows,device_output());
-		($nv_arch,$nv_legacy) = ();
+		($gpu_amd,$gpu_intel,$gpu_nv,$gpu_nv_legacy) = ();
 		if (!@rows){
 			my $key = 'Message';
 			my $type = 'pci-card-data';
@@ -13762,9 +13762,8 @@ sub device_output {
 			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
-		$row->[5] =~ /^(1002|10de|12d2)$/){
-			my $b_nv = ($row->[5] eq '1002') ? 0 : 1;
-			my $gpu_data = ($b_nv) ? nvidia_data($row->[6]) : amd_data($row->[6]);
+		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
+			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6]);
 			# my $gpu_data = nvidia_data('1bb5');
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
@@ -15494,7 +15493,7 @@ sub display_drivers_x {
 	@driver_data ? return \@driver_data : return;
 }
 sub set_amd_data {
-	$amd_arch = [
+	$gpu_amd = [
 	# no ids
 	# {'arch' => 'Wonder',
 	# 'code' => 'Wonder',
@@ -15675,7 +15674,107 @@ sub set_amd_data {
 	},
 	];
 }
-sub set_nvidia_data {
+sub set_intel_data {
+	$gpu_intel = [
+	{'arch' => 'Gen1',
+	'ids' => '7800',
+	'code' => '',
+	'process' => '',
+	},
+	{'arch' => 'Gen2',
+	'ids' => '0102|0106|010b|010e|0112|0116|0122|0126|2562',
+	'code' => '',
+	'process' => '',
+	},
+	{'arch' => 'Gen3',
+	'ids' => '0152|0156|015e|0166|016a|0172|0176|2780',
+	'code' => '',
+	'process' => '',
+	},
+	{'arch' => 'Gen3.5',
+	'ids' => '',
+	'code' => '',
+	'process' => 'Intel 90nm',
+	},
+	{'arch' => 'Gen4',
+	'ids' => '0402|0412|0416|041e|2a41|2a42|2a43|2e02|2e03|2e12|2e13|2e22|2e23|' .
+	'2e32|2e33|2e42|2e43|2e92|2e93',
+	'code' => '',
+	'process' => 'Intel 65n',
+	},
+	{'arch' => 'Gen5',
+	'ids' => '',
+	'code' => '',
+	'process' => 'Intel 45nm',
+	},
+	{'arch' => 'Gen5.75',
+	'ids' => '',
+	'code' => '',
+	'process' => 'Intel 45nm',
+	},
+	{'arch' => 'Gen6',
+	'ids' => '',
+	'code' => '',
+	'process' => 'Intel 32nm',
+	},
+	{'arch' => 'Gen7',
+	'ids' => '015a|0162',
+	'code' => '',
+	'process' => 'Intel 22nm',
+	},
+	{'arch' => 'Gen7.5',
+	'ids' => '0406|0a06|0a16|0a22|0a26|0a2a|0a2e',
+	'code' => '',
+	'process' => 'Intel 22nm',
+	},
+	{'arch' => 'Gen8',
+	'ids' => '1602|160a|160b|160d|160e|1612|1616|161a|161b|161d|161e|1622|1626|' .
+	'162a|162b|162d|162e|1632|1636|163a|163b|163d|163e',
+	'code' => '',
+	'process' => 'Intel 14nm',
+	},
+	{'arch' => 'Gen9',
+	'ids' => '1902|1906|1912|1916|191b|191d|191e|1921|1926|1927|192b|192d|1932|' .
+	'193a|193b|193d|5a85',
+	'code' => '',
+	'process' => 'Intel 14n',
+	},
+	{'arch' => 'Gen9.5',
+	'ids' => '3184|3185|3e90|3e91|3e92|3e93|3e96|3e98|3e9b|3ea0|3ea5|5902|5912|' .
+	'5916|5917|591b|591c|591d|591e|5923|5926|5927|87c0|9b41|9ba8|9bc4|9bc5|9bc8|' .
+	'9bca',
+	'code' => '',
+	'process' => 'Intel 14nm',
+	},
+	{'arch' => 'Gen10',
+	'ids' => '',
+	'code' => 'Gen10',
+	'process' => 'Intel 10nm',
+	},
+	{'arch' => 'Gen11',
+	'ids' => '0d16|0d26|0d36|4e55|4e61|4e71|8a51|8a52|8a53|8a56|8a5a|8a5c',
+	'code' => '',
+	'process' => 'Intel 10nm',
+	},
+	{'arch' => 'Gen12',
+	'ids' => '4626|46a3|46a6|4c8a|4c8b|4c90|4c9a|9a49|9a60|9a68',
+	'code' => '',
+	'process' => 'Intel 10nm',
+	},
+	{'arch' => 'Arctic Sound',
+	'ids' => '',
+	'code' => 'Xe-HP/Gen12.5',
+	'process' => 'Intel 10nm',
+	},
+	# cancelled?
+	# {'arch' => 'Jupiter Sound',
+	# 'ids' => '',
+	# 'code' => '',
+	# 'process' => '',
+	# },
+	];
+}
+sub set_nv_data {
 	my ($status_eol);
 	# this is vendor id: 12d2, nv1/riva/tnt type cards
 	# 0008|0009|0010|0018|0019
@@ -15689,7 +15788,7 @@ sub set_nvidia_data {
 	}
 	# load legacy data, note, if there are 2 or more arch in 1 legacy, it has 1
 	# item per arch. kernel/last/xorg support either from nvidia or sgfxi
-	$nv_legacy = [
+	$gpu_nv_legacy = [
 	{'arch' => 'Fahrenhei',
 	'ids' => '0008|0009|0010|0018|0019|0020|0028|0029|002c|002d|00a0',
 	'code' => 'NVx',
@@ -15848,7 +15947,7 @@ sub set_nvidia_data {
 	];
 	
 	# load microarch data, as stuff goes legacy, these will form new legacy items.
-	$nv_arch = {
+	$gpu_nv = {
 	'Maxwell' => {
 	'ids' => '1340|1341|1344|1346|1347|1348|1349|134b|134d|134e|134f|137a|137b|' .
 	'1380|1381|1382|1390|1391|1392|1393|1398|1399|139a|139b|139c|139d|13b0|13b1|' .
@@ -15912,16 +16011,36 @@ sub set_nvidia_data {
 	# },
 	};
 }
-sub amd_data {
+sub gpu_data {
 	eval $start if $b_log;
-	my ($product_id) = @_;
-	my (%info);
-	set_amd_data() if !$amd_arch;
-	my $date = $self_date;
-	$date =~ s/-\d+$//;
+	my ($v_id,$p_id) = @_;
+	my ($gpu_data,$b_nv);
+	if ($v_id eq '1002' ||$v_id eq '8086' ){
+		$gpu_data = gpu_generic_data($v_id,$p_id);
+	}
+	else {
+		$gpu_data = gpu_nv_data($p_id);
+		$b_nv = 1;
+	}
+	eval $end if $b_log;
+	return ($gpu_data,$b_nv);
+}
+sub gpu_generic_data {
+	eval $start if $b_log;
+	my ($v_id,$p_id) = @_;
+	my ($gen_gpu,%info);
+	if ($v_id eq '1002'){
+		set_amd_data() if !$gpu_amd;
+		$gen_gpu = $gpu_amd;
+	}
+	elsif ($v_id eq '8086'){
+		set_intel_data() if !$gpu_intel;
+		$gen_gpu = $gpu_intel;
+	}
 	# Reverse, newer will be more common geneerally than older, so save some cpu!
-	foreach my $item (reverse @$amd_arch){
-		if ($product_id =~ /^($item->{'ids'})$/){
+	foreach my $item (reverse @$gen_gpu){
+		next if !$item->{'ids'};
+		if ($p_id =~ /^($item->{'ids'})$/){
 			%info = (
 			'arch' => $item->{'arch'},
 			'code' => $item->{'code'},
@@ -15937,24 +16056,24 @@ sub amd_data {
 	eval $end if $b_log;
 	return \%info;
 }
-sub nvidia_data {
+sub gpu_nv_data {
 	eval $start if $b_log;
 	my ($product_id) = @_;
 	my (%info);
-	set_nvidia_data() if !$nv_legacy;
+	set_nv_data() if !$gpu_nv_legacy;
 	my $date = $self_date;
 	$date =~ s/-\d+$//;
 	# Test for current active first, those will be most common, these will be
 	# run in random order, which is fine since user ids will also be random
-	foreach my $key (keys %$nv_arch){
-		if ($product_id =~ /^($nv_arch->{$key}{'ids'})$/){
+	foreach my $key (keys %$gpu_nv){
+		if ($product_id =~ /^($gpu_nv->{$key}{'ids'})$/){
 			%info = (
 			'arch' => $key,
-			'code' => $nv_arch->{$key}{'code'},
+			'code' => $gpu_nv->{$key}{'code'},
 			'kernel' => '',
-			'process' => $nv_arch->{$key}{'process'},
+			'process' => $gpu_nv->{$key}{'process'},
 			'release' => '',
-			'series' => $nv_arch->{$key}{'series'},
+			'series' => $gpu_nv->{$key}{'series'},
 			'status' => main::message('nv-current',$date),
 			'xorg' => '',
 			);
@@ -15964,7 +16083,7 @@ sub nvidia_data {
 	# then check for legacy
 	if (!%info){
 		# we reverse here since newer is more likely than older
-		foreach my $item (reverse @$nv_legacy){
+		foreach my $item (reverse @$gpu_nv_legacy){
 			if ($product_id =~ /^($item->{'ids'})$/){
 				%info = (
 				'arch' => $item->{'arch'},
