@@ -30,30 +30,54 @@ my $self_version = '1.0';
 my $self_date = '2022-05-21';
 
 my $job = 'amd'; # default
-my $options = 'amd'; # expand with |.. if > 1 job used in future
+my $options = 'amd|intel'; # expand with |.. if > 1 job used in future
 my ($active,$data,$devices,$devices_sub);
 my ($b_print_devices,$b_use_sub_pci);
 my $line = '------------------------------------------------------------------';
 
 my $jobs = {
- 
 'amd' => {
 'filters' => 'SMBus|^SB|^RC|IOMMU|host control|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon',
-'file-output' => 'lists/amd.full',
-'file-output-sorted' => 'lists/amd.full.sort',
+'file-output' => 'lists/gpu.amd.full',
+'file-output-sorted' => 'lists/gpu.amd.full.sort',
 'files' => [
 # source: check for updated file!: http://pci-ids.ucw.cz/v2.2/pci.ids
 {
 'file' => 'lists/pci.ids.v2.2.ucw.cz',
 'id-name' => '\t(\S{4})\s+(.+)',
 'id-name-sub' => '\t\t1002\s+(\S{4})\s+(.+)',
-'start' => '1002',
 'last' => '1003',
+'next' => '^\s*#',
+'start' => '1002',
 },
 # source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
 {
 'file' => 'lists/amd.raw.ids.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
+},
+],
+},
+'intel' => {
+#'filters' => '^\t\t|Aggregat|AUDIO|Bridge|\bbus\b|Centrino|Caching|Channel|Chipset|DMA|DMI\b|DRAM|Driver|Ethernet|GPIO|HECI|Host Controller|\bHUb\b|IDE|Interleave|I2C|I\/O|ISA|Keyboard|LPC|Management|MEI|Memory|Network|Parallel|PCH|PCI Express|PCIe C|\bPort\b|Power|QAT|RAID|Register|SATA|Scalab|SMBus|Sensor|Serial|SPI|SRAM|Thermal|Tuning|UART|USB|Wireless',
+'filters' => '^\t\t',
+#'filters' => '^.*((?!Graphic)).)*',
+'file-output' => 'lists/gpu.intel.full',
+'file-output-sorted' => 'lists/gpu.intel.full.sort',
+'files' => [
+{
+'file' => 'lists/pci.ids.v2.2.ucw.cz',
+'id-name' => '\t(\S{4})\s+(.+)',
+'id-name-sub' => '',
+'last' => '8088',
+'next' => '^\s*#',
+'start' => '8086',
+'unless' => 'Graphic',
+},
+# source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
+{
+'file' => 'lists/intel.raw.ids.dh.com',
+'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
+'unless' => 'Graphic',
 },
 ],
 },
@@ -81,22 +105,6 @@ sub process {
 	say $line;
 	say "All done with processing. Continuing to output stage.";
 }
-# sed '/^#.*|^SB|^RC|IOMMU|host control|SMBus|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon/Id' amd.raw.ids.dh.com | sed -E 's/^[^\t]+\t+[^\t]+\t+[^\t]+\t+([^\t]+)\t+([^\t]+[^\t]+)\t.*/\2\t\1/' > amd.ids
-# 
-# cat amd.ids | sort | uniq > amd.ids.sort
-# 
-# mv -f amd.ids* ../tools/lists/
-# ==================
-# sed -E 's/^\t(\S{4})\s+(.*)/\2\t\1/' ati.raw.ids.ucw | sed '/^\s|^#|^1002|SMBus|^SB|^RC|IOMMU|host control|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon/Id' > ati.ids
-# 
-# cat ati.ids | sort | uniq > ati.ids.sort
-# 
-# mv -f ati.ids* ../tools/lists/
-# 
-# cat ../tools/lists/ati.ids ../tools/lists//amd_products > ../tools/lists/amd.merged
-# 
-# cat ../tools/lists/amd.merged | sort | uniq > ../tools/lists/amd.merged.sort
-
 sub build {
 	my ($info) = @_;
 	say "Building data...";
@@ -105,22 +113,27 @@ sub build {
 	my $start = $info->{'start'};
 	$b_vendor = 1 if !$start;
 	my $last = ($info->{'last'}) ? $info->{'last'} : undef;
+	my $next = ($info->{'next'}) ? $info->{'next'} : undef;
 	my $pci = $info->{'id-name'};
 	my $sub_pci = ($info->{'id-name-sub'}) ? $info->{'id-name-sub'} : undef;
 	my $filters = $active->{'filters'};
+	my $unless = ($info->{'unless'}) ? $info->{'unless'} : undef;
 	foreach my $row (@$data){
-		next if $row =~ /^\s*#/;
+		next if $next && $row =~ /$next/;
 		last if $last && $row =~ /^$last/;
 		$b_vendor = 1 if !$b_vendor && $row =~ /^$start/;
 		if ($b_vendor){
 			next if $row =~ /$filters/i;
+			next if $unless && $row !~ /$unless/i;
 			if ($row =~ /^$pci$/){
 				push(@$devices,[lc($1),$2]);
 			}
 			elsif ($sub_pci && $row =~ /^$sub_pci$/){
 				push(@$devices_sub,[lc($1),$2]);
 			}
+			# say $row;
 		}
+		
 	}
 	if ($devices){
 		@$devices = sort { $a->[0] cmp $b->[0] } @$devices;
@@ -218,13 +231,13 @@ sub options {
 		show_options();
 		exit 0;
 	},
-	'j|job' => sub {
+	'j|job:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^($options)$/){
 			$job = $arg;
 		}
 		else {
-			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$jobs]");
+			push(@errors,"Unsupported option for -$opt: $arg\n  Use [$options]");
 		}
 	},
 	's|subs' => sub {
@@ -251,6 +264,7 @@ sub show_options {
 	show_version();
 	say "\nAvailable Options:";
 	say "-d,--devices  - print raw devices output.";
+	say "-j,--job      - Job to run: [$options]";
 	say "-h,--help     - This help option menu";
 	say "-s,--sub      - Use the sub PCI devices. Careful with this!";
 	say "-v,--version  - Show tool version and date.";

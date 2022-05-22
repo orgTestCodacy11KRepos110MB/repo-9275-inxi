@@ -37,7 +37,7 @@ my $b_print_raw = 0;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|nv-urrent|470|390|367|340|304|173|96|71';
+my $options = 'amd|intel|nv-current|470|390|367|340|304|173|96|71';
 
 my ($active,$file,$id_data,%output);
 my $data = [];
@@ -53,6 +53,297 @@ my $tab = "\t";
 # Confirm patterns if in doubt here: https://www.techpowerup.com/
 # note, order matters here, so sort, since we delete the detected lines after
 # each iteration through the keys
+
+my $amd_data = {
+'amd' => {
+'file' => 'gpu.amd.full.sort',
+'00' => {
+'arch' => 'Wonder',
+'pattern' => 'Color Emulation|Graphics Solution|[EV]GA Wonder',
+'code' => 'Wonder',
+'process' => 'NEC 800nm',
+},
+'01' => {
+'arch' => 'Mach',
+'pattern' => 'Mach\s?64|3D Rage (LT|II)|(ATI\s)?Graphics (Ultra|Vantage)|ATI 8514-Ultra',
+'code' => 'Mach64',
+'process' => 'TSMC 500-600nm',
+},
+'02' => {
+'arch' => 'Rage 2',
+'pattern' => 'Rage 2|3D Rage IIC',
+'code' => 'Rage 2',
+'process' => 'TSMC 500nm',
+},
+'03' => {
+'arch' => 'Rage 3',
+'pattern' => 'Rage (3|XL)|3D Rage (PRO)',
+'code' => 'Rage 3',
+'process' => '350nm',
+},
+'04' => {
+'arch' => 'Rage 4',
+'pattern' => 'Rage[\s-](4|128|Fury|X[CL]|RS[67]\d|RV410|Mobility[\s-]?(128|CL|M[1-4]?|P))|^Rage Mobility|All-In-Wonder 128',
+'code' => 'Rage 4',
+'process' => 'TSMC 250-350nm',
+},
+# vendor 1014 IBM, subvendor: 1092
+# 0172|0173|0174|0184
+'05' => {
+'arch' => 'IBM',
+'pattern' => 'Fire GL[1234][As]?',
+'code' => 'Fire GL',
+'process' => 'IBM 156-250nm',
+},
+# rage 5 was game cube flipper chip
+'06' => {
+'arch' => 'Rage 6',
+'pattern' => 'Rage 6|RV?100|RS2[05]0M?|Radeon 7[02]\d{2}|M6|ES1000',
+'code' => 'R100',
+'process' => 'TSMC 180nm',
+},
+# |Radeon (7[3-9]{2}|8\d{3}|9[5-9]\d{2}
+'07' => {
+'arch' => 'Rage 7',
+'pattern' => 'RV?2\d{2}|RC22\d{2}|RS100|RS3[05]0M?|FireGL 88\d{2}|X1\d{3}|FireGL 9[5-9]\d{2}|Mobility Radeon 9[01]\d{2}|M[79]\+?',
+'code' => 'R200',
+'process' => 'TSMC 150nm',
+},
+'08' => {
+'arch' => 'Rage 8',
+'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10|M10',
+'code' => 'R300',
+'process' => 'TSMC 130nm',
+},
+'09' => {
+'arch' => 'Rage 9',
+'pattern' => 'RV?3[6-9]\d[MX]?|RS48\dM?|M(1[12]2[24])Radeon 9[6-9]\d{2}|X(10|[2356])\d{2}|FireGL V3[12]\d{2}',
+'code' => 'Radeon IGP',
+'process' => 'TSMC 110nm',
+},
+'10' => {
+'arch' => 'R400',
+'pattern' => 'R4[238]\d|RS6[09]\dM?|RS74\dM?|RV410|M(18|26|28)',
+'code' => 'R400',
+'process' => 'TSMC 55-130nm',
+},
+'11' => {
+'arch' => 'R500',
+'pattern' => 'RV?5\d{2}|X[356789]\d{2}|FireGL V[37]\d{3}|FireMV 2\d{3}|X19\d{2}|M[567]\d',
+'code' => 'R500',
+'process' => 'TSMC 90nm',
+},
+'12' => {
+'arch' => 'TeraScale',
+'pattern' => 'Xenos|RV?[67]\d{2}|RS6[09]0M?|RS[76]80[CLM]?|HD [234]\d{3}|M7[246]|8[2468]|M9[23678]',
+'code' => 'R6xx/RV6xx/RV7xx',
+'process' => '40-80nm',
+},
+# llano, ontario, zacate apu
+'13' => {
+'arch' => 'TeraScale 2',
+'pattern' => 'Barts|Blackcomb|Broadway|Caicos|Capilano|Cedar|Cypress|Evergreen|Granville|Hemlock|Juniper|Latte|Lexington|Llano|Loveland|Madison|Onega|Ontario|Park|Pinewood|Redwood|Robson|Seymour|(Super)?Sumo|Thames|Turks|Whistler|Wrestler|Zacate|HD (64|74)\d{2}M|E76\d{2}',
+'code' => 'Evergreen',
+'process' => 'TSMC 32-40nm',
+},
+# trinity, richland apu
+'14' => {
+'arch' => 'TeraScale 3',
+'pattern' => 'Northern Islands|Antilles|Cayman|Devastator|Richland|Scrapper|Trinity|HD\s?69\s{2}|HD\s?[456]\d{2}G?|FirePro A3\d{2}',
+'code' => 'Northern Islands',
+'process' => 'TSMC 32nm',
+},
+'15' => {
+'arch' => 'GCN 1',
+'pattern' => 'Southern Islands|Banks|Cape Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
+'code' => 'Southern Islands',
+'process' => 'TSMC 28',
+},
+# beema, mullins, kabini, kaveri, temash apu
+'16' => {
+'arch' => 'GCN 2',
+'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
+'code' => 'Sea Islands',
+'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
+},
+# carrizo, bristol, prairie, stoney ridge apu
+'17' => {
+'arch' => 'GCN 3',
+'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
+'code' => 'Volcanic Islands',
+'process' => 'TSMC 28nm',
+},
+'18' => {
+'arch' => 'GCN 4',
+'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?(2[0123]|3[01])*',
+'code' => 'Arctic Islands',
+'process' => 'GF 14nm',# s
+},
+# needs to go before 5 to catch the vega > 1
+# cezanne, lucienne, renoir apu
+'19' => {
+'arch' => 'GCN 5.1',
+'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
+'code' => 'Vega 2',
+'process' =>  'TSMC 7nm',
+},
+# raven ridge, dali, picasso, kestrel apu
+'20' => {
+'arch' => 'GCN 5',
+'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
+'code' => 'Vega',
+'process' =>  'TSMC 14nm',
+},
+'21' => {
+'arch' => 'RDNA 1',
+'pattern' => 'Navi\s?1\d\b',
+'code' => 'Navi',
+'process' => 'TSMC 7nm',
+},
+# Lockhart, Oberon, Rembrandt, Scarlett, Van Gogh apu
+'22' => {
+'arch' => 'RDNA 2',
+'pattern' => 'Navi\s?2\d\b|Lockhart|Oberon|Rembrandt|Scarlett|Van Gogh|Radeon 680M',
+'code' => 'Navi 2x',
+'process' => 'TSMC 7nm',
+},
+# phoenix apu
+'23' => {
+'arch' => 'RDNA 3',
+'pattern' => 'Navi\s?3\d\b|Phoenix|RX 7[78]\d{2} XT',
+'code' => 'Navi 3x',
+'process' => 'TSMC 5nm',
+},
+'24' => {
+'arch' => 'CDNA 1',
+'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
+'code' => 'Instinct',
+'process' => 'TSMC 7nm',
+},
+'25' => {
+'arch' => 'CDNA 2',
+'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
+'code' => 'Instinct',
+'process' => 'TSMC 6nm',
+},
+},
+};
+
+my $intel_data = {
+'intel' => {
+'file' => 'gpu.intel.full.sort',
+'00' => {
+'arch' => 'Gen1',
+'pattern' => '1st Generation|i74[02]|Whitney',
+'code' => '',
+'process' => '',
+},
+'01' => {
+'arch' => 'Gen2',
+'pattern' => '2nd Gen(eration)?|Brookdale|Springdale|Extreme Graphics',
+'code' => '',
+'process' => '',
+},
+'02' => {
+'arch' => 'Gen3',
+'pattern' => '3rd Gen(eration)?|Grantsdale|Alviso|GMA\s?900',
+'code' => '',
+'process' => '',
+},
+'03' => {
+'arch' => 'Gen3.5',
+'pattern' => 'Gen 3\.5|GMA\s?950|Lakeport|Calistoga',
+'code' => '',
+'process' => 'Intel 90nm',
+},
+'04' => {
+'arch' => 'Gen4',
+'pattern' => '4th Gen(eration)?|4 Series|Bear\s?Lake|Crestline|Santa\s?Rosa',
+'code' => '',
+'process' => 'Intel 65n',
+},
+'05' => {
+'arch' => 'Gen5',
+'pattern' => '5th Gen(eration)?|Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
+'code' => '',
+'process' => 'Intel 45nm',
+},
+'06' => {
+'arch' => 'Gen5.75',
+'pattern' => 'Gen 5\.75|Iron\s?Lake|Westmere',
+'code' => '',
+'process' => 'Intel 45nm',
+},
+'07' => {
+'arch' => 'Gen6',
+'pattern' => '6th Gen(eration)?|Sandy\s?Bridge',
+'code' => '',
+'process' => 'Intel 32nm',
+},
+'08' => {
+'arch' => 'Gen7',
+'pattern' => '7th Generation|Ivy\s?Bridge',
+'code' => '',
+'process' => 'Intel 22nm',
+},
+'09' => {
+'arch' => 'Gen7.5',
+'pattern' => 'Gen 7\.5|Haswell',
+'code' => '',
+'process' => 'Intel 22nm',
+},
+'10' => {
+'arch' => 'Gen8',
+'pattern' => '8th Generation|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
+'code' => '',
+'process' => 'Intel 14nm',
+},
+'11' => {
+'arch' => 'Gen9',
+'pattern' => '9th Generation|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
+'code' => '',
+'process' => 'Intel 14n',
+},
+'12' => {
+'arch' => 'Gen9.5',
+'pattern' => 'Gen 9\.5|(Kaby|Coffee|Comet|Whiskey)\s?Lake|Goldmont (\+|Plus)|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?6\d{2}',
+'code' => '',
+'process' => 'Intel 14nm',
+},
+'13' => {
+'arch' => 'Gen10',
+'pattern' => '10th Generation|Cannon\s?Lake',
+'code' => 'Gen10',
+'process' => 'Intel 10nm',
+},
+'14' => {
+'arch' => 'Gen11',
+'pattern' => '11th Generation|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
+'code' => '',
+'process' => 'Intel 10nm',
+},
+'15' => {
+'arch' => 'Gen12',
+'pattern' => '12th Generation|(Alder|Rocket)\s?Lake|Tiger\s?Lake',
+'code' => '',
+'process' => 'Intel 10nm',
+},
+'16' => {
+'arch' => 'Arctic Sound',
+'pattern' => 'Arctic',
+'code' => 'Xe-HP/Gen12.5',
+'process' => 'Intel 10nm',
+},
+# cancelled?
+'17' => {
+'arch' => 'Jupiter Sound',
+'pattern' => 'Jupiter',
+'code' => '',
+'process' => '',
+},
+},
+};
+
 my $nv_data = {
 # Nvidia GeForce GPU: GeForce GTX 860M
 'nv-current' => {
@@ -163,180 +454,6 @@ my $nv_data = {
 },
 },
 };
-my $amd_data = {
-'amd' => {
-'file' => 'amd.full.sort',
-	'00' => {
-	'arch' => 'Wonder',
-	'pattern' => 'Color Emulation|Graphics Solution|[EV]GA Wonder',
-	'code' => 'Wonder',
-	'process' => 'NEC 800nm',
-	},
-	'01' => {
-	'arch' => 'Mach',
-	'pattern' => 'Mach\s?64|3D Rage (LT|II)|(ATI\s)?Graphics (Ultra|Vantage)|ATI 8514-Ultra',
-	'code' => 'Mach64',
-	'process' => 'TSMC 500-600nm',
-	},
-	'02' => {
-	'arch' => 'Rage 2',
-	'pattern' => 'Rage 2|3D Rage IIC',
-	'code' => 'Rage 2',
-	'process' => 'TSMC 500nm',
-	},
-	'03' => {
-	'arch' => 'Rage 3',
-	'pattern' => 'Rage (3|XL)|3D Rage (PRO)',
-	'code' => 'Rage 3',
-	'process' => '350nm',
-	},
-	'04' => {
-	'arch' => 'Rage 4',
-	'pattern' => 'Rage[\s-](4|128|Fury|X[CL]|RS[67]\d|RV410|Mobility[\s-]?(128|CL|M[1-4]?|P))|^Rage Mobility|All-In-Wonder 128',
-	'code' => 'Rage 4',
-	'process' => 'TSMC 250-350nm',
-	},
-	# vendor 1014 IBM, subvendor: 1092
-	# 0172|0173|0174|0184
-	'05' => {
-	'arch' => 'IBM',
-	'pattern' => 'Fire GL[1234][As]?',
-	'code' => 'Fire GL',
-	'process' => 'IBM 156-250nm',
-	},
-	# rage 5 was game cube flipper chip
-	'06' => {
-	'arch' => 'Rage 6',
-	'pattern' => 'Rage 6|RV?100|RS2[05]0M?|Radeon 7[02]\d{2}|M6|ES1000',
-	'code' => 'R100',
-	'process' => 'TSMC 180nm',
-	},
-	# |Radeon (7[3-9]{2}|8\d{3}|9[5-9]\d{2}
-	'07' => {
-	'arch' => 'Rage 7',
-	'pattern' => 'RV?2\d{2}|RC22\d{2}|RS100|RS3[05]0M?|FireGL 88\d{2}|X1\d{3}|FireGL 9[5-9]\d{2}|Mobility Radeon 9[01]\d{2}|M[79]\+?',
-	'code' => 'R200',
-	'process' => 'TSMC 150nm',
-	},
-	'08' => {
-	'arch' => 'Rage 8',
-	'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10|M10',
-	'code' => 'R300',
-	'process' => 'TSMC 130nm',
-	},
-	'09' => {
-	'arch' => 'Rage 9',
-	'pattern' => 'RV?3[6-9]\d[MX]?|RS48\dM?|M(1[12]2[24])Radeon 9[6-9]\d{2}|X(10|[2356])\d{2}|FireGL V3[12]\d{2}',
-	'code' => 'Radeon IGP',
-	'process' => 'TSMC 110nm',
-	},
-	'10' => {
-	'arch' => 'R400',
-	'pattern' => 'R4[238]\d|RS6[09]\dM?|RS74\dM?|RV410|M(18|26|28)',
-	'code' => 'R400',
-	'process' => 'TSMC 55-130nm',
-	},
-	'11' => {
-	'arch' => 'R500',
-	'pattern' => 'RV?5\d{2}|X[356789]\d{2}|FireGL V[37]\d{3}|FireMV 2\d{3}|X19\d{2}|M[567]\d',
-	'code' => 'R500',
-	'process' => 'TSMC 90nm',
-	},
-	'12' => {
-	'arch' => 'TeraScale',
-	'pattern' => 'Xenos|RV?[67]\d{2}|RS6[09]0M?|RS[76]80[CLM]?|HD [234]\d{3}|M7[246]|8[2468]|M9[23678]',
-	'code' => 'R6xx/RV6xx/RV7xx',
-	'process' => '40-80nm',
-	},
-	# llano, ontario, zacate apu
-	'13' => {
-	'arch' => 'TeraScale 2',
-	'pattern' => 'Barts|Blackcomb|Broadway|Caicos|Capilano|Cedar|Cypress|Evergreen|Granville|Hemlock|Juniper|Latte|Lexington|Llano|Loveland|Madison|Onega|Ontario|Park|Pinewood|Redwood|Robson|Seymour|(Super)?Sumo|Thames|Turks|Whistler|Wrestler|Zacate|HD (64|74)\d{2}M|E76\d{2}',
-	'code' => 'Evergreen',
-	'process' => 'TSMC 32-40nm',
-	},
-	# trinity, richland apu
-	'14' => {
-	'arch' => 'TeraScale 3',
-	'pattern' => 'Northern Islands|Antilles|Cayman|Devastator|Richland|Scrapper|Trinity|HD\s?69\s{2}|HD\s?[456]\d{2}G?|FirePro A3\d{2}',
-	'code' => 'Northern Islands',
-	'process' => 'TSMC 32nm',
-	},
-	'15' => {
-	'arch' => 'GCN 1',
-	'pattern' => 'Southern Islands|Banks|Cape Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
-	'code' => 'Southern Islands',
-	'process' => 'TSMC 28',
-	},
-	# beema, mullins, kabini, kaveri, temash apu
-	'16' => {
-	'arch' => 'GCN 2',
-	'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
-	'code' => 'Sea Islands',
-	'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
-	},
-	# carrizo, bristol, prairie, stoney ridge apu
-	'17' => {
-	'arch' => 'GCN 3',
-	'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
-	'code' => 'Volcanic Islands',
-	'process' => 'TSMC 28nm',
-	},
-	'18' => {
-	'arch' => 'GCN 4',
-	'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?(2[0123]|3[01])*',
-	'code' => 'Arctic Islands',
-	'process' => 'GF 14nm',# s
-	},
-	# needs to go before 5 to catch the vega > 1
-	# cezanne, lucienne, renoir apu
-	'19' => {
-	'arch' => 'GCN 5.1',
-	'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
-	'code' => 'Vega 2',
-	'process' =>  'TSMC 7nm',
-	},
-	# raven ridge, dali, picasso, kestrel apu
-	'20' => {
-	'arch' => 'GCN 5',
-	'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
-	'code' => 'Vega',
-	'process' =>  'TSMC 14nm',
-	},
-	'21' => {
-	'arch' => 'RDNA 1',
-	'pattern' => 'Navi\s?1\d\b',
-	'code' => 'Navi',
-	'process' => 'TSMC 7nm',
-	},
-	# Lockhart, Oberon, Rembrandt, Scarlett, Van Gogh apu
-	'22' => {
-	'arch' => 'RDNA 2',
-	'pattern' => 'Navi\s?2\d\b|Lockhart|Oberon|Rembrandt|Scarlett|Van Gogh|Radeon 680M',
-	'code' => 'Navi 2x',
-	'process' => 'TSMC 7nm',
-	},
-	# phoenix apu
-	'23' => {
-	'arch' => 'RDNA 3',
-	'pattern' => 'Navi\s?3\d\b|Phoenix|RX 7[78]\d{2} XT',
-	'code' => 'Navi 3x',
-	'process' => 'TSMC 5nm',
-	},
-	'24' => {
-	'arch' => 'CDNA 1',
-	'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
-	'code' => 'Instinct',
-	'process' => 'TSMC 7nm',
-	},
-	'25' => {
-	'arch' => 'CDNA 2',
-	'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
-	'code' => 'Instinct',
-	'process' => 'TSMC 6nm',
-	},
-},
-};
 
 sub process {
 	foreach my $key (sort keys %$active){
@@ -398,7 +515,15 @@ sub output {
 }
 
 sub assign {
-	$active = ($job ne 'amd') ? $nv_data->{$job} : $amd_data->{$job};
+	if ($job eq 'amd'){
+		$active = $amd_data->{$job};
+	}
+	elsif ($job eq 'intel'){
+		$active = $intel_data->{$job};
+	}
+	else {
+		$active = $nv_data->{$job};
+	}
 	$file = 'lists/' . $active->{'file'};
 	# say Dumper $active;
 	delete $active->{'file'};

@@ -49,9 +49,10 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.16';
-my $self_date='2022-05-21';
-my $self_patch='03';
+my $self_date='2022-05-22';
+my $self_patch='04';
 ## END INXI INFO ##
+
 my ($b_pledge,@pledges);
 if (eval {require OpenBSD::Pledge}){
 	OpenBSD::Pledge->import();
@@ -5716,9 +5717,9 @@ sub show_options {
 	also sets --extra=3:"],
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
 	for device(s); PCIe lanes-max: gen, speed, lanes (if relevant)."],
-	['2', '-C', '', "If available: CPU process node; CPU socket type, base/boost 
-	speeds (dmidecode+root/sudo/doas required); Full topology line, with cores, 
-	threads, threads per core, granular cache data, smt status; CPU 
+	['2', '-C', '', "If available: CPU generation, process node; CPU socket type, 
+	base/boost speeds (dmidecode+root/sudo/doas required); Full topology line, 
+	with cores, threads, threads per core, granular cache data, smt status; CPU 
 	vulnerabilities (bugs); family, model-id, stepping - format: hex (decimal) if 
 	greater	than 9; microcode format: hex."],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive 
@@ -5769,9 +5770,9 @@ sub show_options {
 	Example:^<username>^ALL^=^NOPASSWD:^/usr/sbin/hddtemp"],
 	['2', '-E', '', "PCI/USB Bus ID of device, driver version, 
 	LMP version."],
-	['2', '-G', '', "GPU arch (AMD/Nvidia only); Specific vendor/product 
-	information (if relevant); PCI/USB ID of device; Direct rendering status 
-	(in X); Screen number GPU is running on (Nvidia only)."],
+	['2', '-G', '', "GPU arch, process node (AMD/Nvidia only); Specific 
+	vendor/product information (if relevant); PCI/USB ID of device; Direct 
+	rendering status (in X); Screen number GPU is running on (Nvidia only)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
 	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
@@ -6720,7 +6721,7 @@ sub message {
 	'nv-current' => "current (as of $id)",
 	'nv-legacy-active' => "legacy-active (EOL $id)",
 	'nv-legacy-eol' => 'legacy (EOL)',
-	'nv-legacy-eol-try' => 'legacy (EOL, try --nv)',
+	'nv-legacy-eol-try' => 'legacy (EOL, try --gpu)',
 	'optical-data' => 'No optical or floppy data found.',
 	'optical-data-bsd' => 'No optical or floppy data found.',
 	'output-control' => "-:: 'Enter' to continue to next block. Any key + 'Enter' to exit:",
@@ -8669,6 +8670,9 @@ sub full_output {
 	if ($extra > 0){
 		$cpu->{'arch'} ||= 'N/A';
 		$rows[$j]->{main::key($num++,1,2,'arch')} = $cpu->{'arch'};
+		if ($b_admin && $cpu->{'gen'}){
+			$rows[$j]->{main::key($num++,0,3,'gen')} = $cpu->{'gen'};
+		}
 		if ($cpu->{'arch-note'}){
 			$rows[$j]->{main::key($num++,0,3,'note')} = $cpu->{'arch-note'};
 		}
@@ -10186,11 +10190,12 @@ sub cpu_properties {
 	$cpu->{'type'},
 	$cpu->{'family'},
 	$cpu->{'model-id'},
-	$cpu->{'stepping'}
+	$cpu->{'stepping'},
+	$cpu->{'model-name'},
 	);
 	# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
 	if ($arch->[0] && !$cpu->{'arch'}){
-		($cpu->{'arch'},$cpu->{'arch-note'},$cpu->{'process'}) = @{$arch};
+		($cpu->{'arch'},$cpu->{'arch-note'},$cpu->{'process'},$cpu->{'gen'}) = @{$arch};
 	}
 	# cpu_arch comes from set_os()
 	if (!$cpu->{'arch'} && $cpu_arch && %risc){
@@ -10676,7 +10681,7 @@ sub cp_caches_fallback {
 }
 sub cp_cpu_arch {
 	eval $start if $b_log;
-	my ($type,$family,$model,$stepping) = @_;
+	my ($type,$family,$model,$stepping,$name) = @_;
 	# we can get various random strings for rev/stepping, particularly for arm,ppc
 	# but we want stepping to be integer for math comparisons, so convert, or set
 	# to 0 so it won't break anything.
@@ -10688,7 +10693,7 @@ sub cp_cpu_arch {
 	}
 	$family ||= '';
 	$model = '' if !defined $model; # model can be 0
-	my ($arch,$note,$process) = ('','','');
+	my ($arch,$note,$process,$gen);
 	my $check = main::message('note-check');
 	# See: docs/inxi-resources.txt 
 	# print "type:$type fam:$family model:$model step:$stepping\n";
@@ -10820,17 +10825,20 @@ sub cp_cpu_arch {
 			# Unknown if stepping 0 is Zen or either.
 			elsif ($model =~ /^(18)$/){
 				$arch = 'Zen/Zen+';
+				$gen = '1';
 				$process = 'GF 12nm';
 				$note = $check;
 			}
 			# shares model 8 with zen, stepping unknown
 			elsif ($model =~ /^(8)$/){
 				$arch = 'Zen+';
+				$gen = '2';
 				$process = 'GF 12nm';
 			}
 			# used this but it didn't age well:  ^(2[0123456789ABCDEF]|
 			elsif ($model =~ /^(31|47|60|68|71|90)$/){
 				$arch = 'Zen 2';
+				$gen = '3';
 				$process = 'TSMC 7nm'; # some consumer maybe GF 14nm
 			}
 			else {
@@ -10842,6 +10850,7 @@ sub cp_cpu_arch {
 		elsif ($family eq '18'){
 			# model 0, zen 1 
 			$arch = 'Zen (Hygon Dhyana)';
+			$gen = '1';
 			$process = 'GF 14nm';
 		}
 		elsif ($family eq '19'){
@@ -10849,15 +10858,18 @@ sub cp_cpu_arch {
 			# 10 engineering sample
 			if ($model =~ /^(10|7\d|8\d)$/){
 				$arch = 'Zen 4';
+				$gen = '5';
 				$process = 'TSMC 5nm';
 			}
 			# double check 40, 44
 			elsif ($model =~ /^(40|44)$/){
 				$arch = 'Zen 3+';
+				$gen = '4';
 				$process = 'TSMC 6nm';
 			}
 			elsif ($model =~ /^(0|1|8|21|50)$/){
 				$arch = 'Zen 3';
+				$gen = '4';
 				$process = 'TSMC 7nm';
 			}
 			else {
@@ -10865,6 +10877,7 @@ sub cp_cpu_arch {
 				$note = $check;
 				$process = 'TSMC 5-7nm';
 			}
+			# Zen 5: TSCM 3nm
 		}
 	}
 	elsif ($type eq 'arm'){
@@ -11038,10 +11051,10 @@ sub cp_cpu_arch {
 				$arch = 'M Tolapai';
 				$process = 'Intel 90nm';} # pentium M system on chip
 			elsif ($model =~ /^(1D)$/){
-				$arch = 'Core 2 Penryn';
+				$arch = 'Penryn';
 				$process = 'Intel 45nm';}
 			elsif ($model =~ /^(17)$/){
-				$arch = 'Core 2 Yorkfield';
+				$arch = 'Yorkfield';
 				$process = 'Intel 45nm';}
 			# had 25 also, but that's westmere, at least for stepping 2
 			elsif ($model =~ /^(1A|1E|1F|2C|2E|2F)$/){
@@ -11145,14 +11158,20 @@ sub cp_cpu_arch {
 					$process = 'Intel 14nm';} 
 			}
 			elsif ($model =~ /^(8F)$/){
-				$arch = 'Saphire Rapids'} # server
+				$arch = 'Sapphire Rapids';
+				$process = '10nm ESF';} # server
 			elsif ($model =~ /^(97|9A)$/){
-				$arch = 'Alder Lake';;
-				$process = 'Intel 7';}
+				$arch = 'Alder Lake';
+				$gen = '12';
+				$process = 'Intel 7 (10nm ESF)';}
 			## IDS UNKNOWN, release late 2022
 			# elsif ($model =~ /^()$/){
-			#	$arch = 'Raptor Lake';;
-			#	$process = 'Intel 7';}
+			#	$arch = 'Raptor Lake'; #
+			#	$process = 'Intel 7 (10nm)';}
+			# elsif ($model =~ /^()$/){
+			#	$arch = 'Meteor Lake';
+			#	$process = 'Intel 4';}
+			# Granite Rapids: INtel 3 (7nm)
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';
@@ -11214,10 +11233,21 @@ sub cp_cpu_arch {
 		# than nothing result. This is intel only
 		# This is probably the gcc/clang -march/-mtune value, which is not 
 		# necessarily the same as actual microarch, and varies between gcc/clang versions
-		if (!$model){
+		if (!$arch){
 			my $file = '/sys/devices/cpu/caps/pmu_name';
-			$model = main::reader($file,'strip',0) if -r $file;
-			$note = $check if $model;
+			$arch = main::reader($file,'strip',0) if -r $file;
+			$note = $check if $arch;
+		}
+		# gen 1 had no gen, only 3 digits: Core i5-661 Core i5-655K 
+		# EXCEPT gen 1: Core i7-720QM Core i7-740QM Core i7-840QM
+		# 2nd: Core i5-2390T Core i7-11700F Core i5-8400
+		if (!$gen && $name){
+			if ($name =~ /\bi[357]-(\d{3}([^\d]|\b)|[78][24]00M)/){
+				$gen = "core 1";
+			}
+			elsif ($name =~ /\bi[3579]-([2-9]|1[0-4])\d{3}/){
+				$gen = "core $1";
+			}
 		}
 	}
 	eval $end if $b_log;
@@ -13756,13 +13786,11 @@ sub device_output {
 			}
 			if ($gpu_data->{'arch'}){
 				$rows[$j]->{main::key($num++,1,2,'arch')} = $gpu_data->{'arch'};
-				if ($show{'gpu-data'}){
-					if ($gpu_data->{'code'}){
-						$rows[$j]->{main::key($num++,0,3,'code')} = $gpu_data->{'code'};
-					}
-					if ($gpu_data->{'process'}){
-						$rows[$j]->{main::key($num++,0,3,'process')} = $gpu_data->{'process'};
-					}
+				if ($show{'gpu-data'} && $gpu_data->{'code'}){
+					$rows[$j]->{main::key($num++,0,3,'code')} = $gpu_data->{'code'};
+				}
+				if ($b_admin && $gpu_data->{'process'}){
+					$rows[$j]->{main::key($num++,0,3,'process')} = $gpu_data->{'process'};
 				}
 			}
 		}
