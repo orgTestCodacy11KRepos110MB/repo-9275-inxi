@@ -36,12 +36,13 @@ my ($b_print_devices,$b_use_sub_pci);
 my $line = '------------------------------------------------------------------';
 
 my $jobs = {
-# source: check for updated file!: http://pci-ids.ucw.cz/v2.2/pci.ids 
+ 
 'amd' => {
 'filters' => 'SMBus|^SB|^RC|IOMMU|host control|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon',
 'file-output' => 'lists/amd.full',
 'file-output-sorted' => 'lists/amd.full.sort',
 'files' => [
+# source: check for updated file!: http://pci-ids.ucw.cz/v2.2/pci.ids
 {
 'file' => 'lists/pci.ids.v2.2.ucw.cz',
 'id-name' => '\t(\S{4})\s+(.+)',
