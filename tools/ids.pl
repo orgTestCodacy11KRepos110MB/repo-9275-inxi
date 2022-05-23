@@ -255,7 +255,6 @@ my $intel_data = {
 'code' => '',
 'process' => 'Intel 90nm',
 },
-
 '04' => {
 'arch' => 'Gen4',
 'pattern' => '4 Series|82[GQ]96[35]|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
@@ -358,7 +357,7 @@ my $intel_data = {
 my $nv_data = {
 # Nvidia GeForce GPU: GeForce GTX 860M
 'nv-current' => {
-'file' => 'nv_515.xx.sort',
+'file' => 'gpu.nv.515.xx.sort',
 '00' => {
 'arch' => 'Maxwell',
 'pattern' => 'G?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
@@ -393,7 +392,7 @@ my $nv_data = {
 # },
 },
 'nv-470' => {
-'file' => 'nv_470.xx.sort',
+'file' => 'gpu.nv.470.xx.sort',
 '00' => {
 'arch' => 'Fermi 2',
 'pattern' => '7[1]\d[AM]?|GT 720M',
@@ -406,14 +405,14 @@ my $nv_data = {
 },
 # these are all Fermi/Fermi 2.0
 'nv-390' => {
-'file' => 'nv_390.xx.sort',
+'file' => 'gpu.nv.390.xx.sort',
 '00' => {
 'arch' => 'Fermi',
 'pattern' => '.*',
 },
 },
 'nv-367' => {
-'file' => 'nv_367.xx',
+'file' => 'gpu.nv.367.xx',
 '00' => {
 'arch' => 'Kepler',
 'pattern' => '.*',
@@ -422,7 +421,7 @@ my $nv_data = {
 # these are both Tesla and Tesla 2.0, if we want more granular, make 2 full 
 # rulesets, otherwise they are all Tesla
 'nv-340' => {
-'file' => 'nv_340.xx.sort',
+'file' => 'gpu.nv.340.xx.sort',
 '00' => {
 'arch' => 'Tesla',
 # T\d{1,4}|Tesla|[89]\d{3}(M|GS)?|(G|GT[SX]?)?\s?[1234]\d{2}M?|ION|NVS
@@ -430,21 +429,21 @@ my $nv_data = {
 },
 },
 'nv-304' => {
-'file' => 'nv_304.xx.sort',
+'file' => 'gpu.nv.304.xx.sort',
 '00' => {
 'arch' => 'Curie',
 'pattern' => '[67]\d{3}(SE|M)?|Quadro (FX|NVS)',
 },
 },
 'nv-173' => {
-'file' => 'nv_173.xx.sort',
+'file' => 'gpu.nv.173.xx.sort',
 '00' => {
 'arch' => 'Rankine',
 'pattern' => 'FX|PCX|NVS',
 },
 },
 'nv-96' => {
-'file' => 'nv_96.xx.sort',
+'file' => 'gpu.nv.96.xx.sort',
 '00' => {
 'arch' => 'Celsius',
 'pattern' => 'GeForce2|Quadro2',
@@ -455,7 +454,7 @@ my $nv_data = {
 },
 },
 'nv-71' => {
-'file' => 'nv_71.xx.sort',
+'file' => 'gpu.nv.71.xx.sort',
 '00' => {
 'arch' => 'Fahrenheit',
 'pattern' => 'TNT2?|Vanta',
@@ -472,6 +471,8 @@ sub process {
 		# say "$active->{$key}{'pattern'}";
 		my (@ids);
 		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @$data){
+			# remove what we found from the main array to avoid possible dual detections.
+			# we want first found, first used, always.
 			my $res_regex = join('|',@result);
 			@$data = grep {!/^\Q($res_regex)\E$/} @$data;
 			say "$line\n$active->{$key}{'arch'}:\n", Dumper $data if $dbg->[3];

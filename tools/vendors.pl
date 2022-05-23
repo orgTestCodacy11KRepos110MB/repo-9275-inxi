@@ -30,8 +30,8 @@ my $self_name = 'vendors.pl';
 my $self_version = '1.3';
 my $self_date = '2022-05-22';
 
-my $disks_raw = 'lists/disks.txt';
-my $disks_unhandled = 'lists/disks-unhandled.txt';
+my $disks_raw = 'lists/disks.full';
+my $disks_unhandled = 'lists/disks.unhandled';
 my $disks_read = $disks_raw;
 
 my ($data,$vendors);

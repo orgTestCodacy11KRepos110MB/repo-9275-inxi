@@ -54,8 +54,13 @@ my $jobs = {
 },
 # source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
 {
-'file' => 'lists/amd.raw.ids.dh.com',
+'file' => 'lists/pci.ids.amd.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
+},
+# use this if you want to add manual id tab name / string lists 
+{
+'file' => 'lists/pci.ids.amd.manual',
+'id-name' => '(\S{4})\t+(.+)',
 },
 ],
 },
@@ -77,9 +82,14 @@ my $jobs = {
 },
 # source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
 {
-'file' => 'lists/intel.raw.ids.dh.com',
+'file' => 'lists/pci.ids.intel.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
 'unless' => 'Graphic',
+},
+# use this if you want to add manual id tab name / string lists 
+{
+'file' => 'lists/pci.ids.amd.manual',
+'id-name' => '(\S{4})\t+(.+)',
 },
 ],
 },
@@ -102,6 +112,7 @@ sub process {
 		say $line;
 		say "Processing $info->{'file'}...";
 		die "$info->{'file'} is not readable!!" if ! -r $info->{'file'};
+		next if -s $info->{'file'};
 		build($info);
 	}
 	say $line;
