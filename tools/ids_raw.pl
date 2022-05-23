@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## raw_ids.pl: Copyright (C) 2022 Harald Hope
+## ids_raw.pl: Copyright (C) 2022 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -25,7 +25,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
-my $self_name = 'raw_ids.pl';
+my $self_name = 'ids_raw.pl';
 my $self_version = '1.1';
 my $self_date = '2022-05-22';
 
@@ -112,7 +112,10 @@ sub process {
 		say $line;
 		say "Processing $info->{'file'}...";
 		die "$info->{'file'} is not readable!!" if ! -r $info->{'file'};
-		next if -s $info->{'file'};
+		if (-z $info->{'file'}){
+			say "File $info->{'file'} is empty. Skipping.";
+			next;
+		}
 		build($info);
 	}
 	say $line;
