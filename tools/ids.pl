@@ -35,7 +35,7 @@ my $b_print_output = 1;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|intel|nv-current|470|390|367|340|304|173|96|71';
+my $options = 'amd|intel|nv-(current|470|390|367|340|304|173|96|71)';
 
 my ($active,$file,$id_data,%output);
 my $data = [];
@@ -392,26 +392,27 @@ my $nv_data = {
 # 'pattern' => 'G?H\d{1,4}',
 # },
 },
-'470' => {
+'nv-470' => {
 'file' => 'nv_470.xx.sort',
 '00' => {
 'arch' => 'Fermi 2',
 'pattern' => '7[1]\d[AM]?|GT 720M',
 },
+# GT 720M and 805A/810A are the same cpu id.
 '01' => {
 'arch' => 'Kepler',
 'pattern' => 'K\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720',
 },
 },
 # these are all Fermi/Fermi 2.0
-'390' => {
+'nv-390' => {
 'file' => 'nv_390.xx.sort',
 '00' => {
 'arch' => 'Fermi',
 'pattern' => '.*',
 },
 },
-'367' => {
+'nv-367' => {
 'file' => 'nv_367.xx',
 '00' => {
 'arch' => 'Kepler',
@@ -420,7 +421,7 @@ my $nv_data = {
 },
 # these are both Tesla and Tesla 2.0, if we want more granular, make 2 full 
 # rulesets, otherwise they are all Tesla
-'340' => {
+'nv-340' => {
 'file' => 'nv_340.xx.sort',
 '00' => {
 'arch' => 'Tesla',
@@ -428,21 +429,21 @@ my $nv_data = {
 'pattern' => '.*',
 },
 },
-'304' => {
+'nv-304' => {
 'file' => 'nv_304.xx.sort',
 '00' => {
 'arch' => 'Curie',
 'pattern' => '[67]\d{3}(SE|M)?|Quadro (FX|NVS)',
 },
 },
-'173' => {
+'nv-173' => {
 'file' => 'nv_173.xx.sort',
 '00' => {
 'arch' => 'Rankine',
 'pattern' => 'FX|PCX|NVS',
 },
 },
-'96' => {
+'nv-96' => {
 'file' => 'nv_96.xx.sort',
 '00' => {
 'arch' => 'Celsius',
@@ -453,7 +454,7 @@ my $nv_data = {
 'pattern' => 'GeForce[34]|Quadro(4| NVS| DCC)',
 },
 },
-'71' => {
+'nv-71' => {
 'file' => 'nv_71.xx.sort',
 '00' => {
 'arch' => 'Fahrenheit',
@@ -471,6 +472,10 @@ sub process {
 		# say "$active->{$key}{'pattern'}";
 		my (@ids);
 		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @$data){
+			my $res_regex = join('|',@result);
+			@$data = grep {!/^\Q($res_regex)\E$/} @$data;
+			say "$line\n$active->{$key}{'arch'}:\n", Dumper $data if $dbg->[3];
+			say "$line\n$active->{$key}{'arch'}:\n", Dumper \@result if $dbg->[4];
 			foreach my $item (@result){
 				# say $item;
 				@$data = grep {$_ ne $item} @$data;
@@ -648,6 +653,8 @@ sub show_options {
 	say "--dbg [nums]  - comma separated list of debugger triggers:";
 	say "                1: Print pci ids list raw before formatted id lists.";
 	say "                2: Print raw driver list data before start of processing.";
+	say "                3: Print contents of \$data after each iteration.";
+	say "                4: Print \@result each iteration. Good to confirm matches.";
 	say "-h,--help     - This help option menu";
 	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
 	say "-j,--job      - [$options] job selector.";
