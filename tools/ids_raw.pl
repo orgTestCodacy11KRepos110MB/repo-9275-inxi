@@ -119,7 +119,7 @@ sub process {
 		build($info);
 	}
 	say $line;
-	say "All done with processing. Continuing to output stage.";
+	say "All done with building. Continuing to output stage.";
 }
 sub build {
 	my ($info) = @_;
@@ -168,7 +168,7 @@ sub build {
 }
 sub output {
 	say $line;
-	say "Creating PCI ID sorted output...";
+	say "Writing PCI ID sorted output to: $active->{'file-output'}";
 	my $output;
 	foreach my $item (@$devices){
 		push(@$output,"$item->[1]\t$item->[0]");
@@ -176,15 +176,16 @@ sub output {
 	uniq($output);
 	writer($active->{'file-output'},$output);
 	$output = undef;
-	say "Creating device name sorted output...";
+	say "Writing device name sorted output to: $active->{'file-output-sorted'}";
 	@$devices = sort { $a->[1] cmp $b->[1] } @$devices;
 	foreach my $item (@$devices){
 		push(@$output,"$item->[1]\t$item->[0]");
 	}
 	uniq($output);
 	writer($active->{'file-output-sorted'},$output);
-	say "Finished creating output";
-	
+	say "Finished generating output.";
+	say $line;
+	say "Completed processing of $job item.";
 }
 
 sub assign {
