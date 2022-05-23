@@ -234,20 +234,19 @@ my $intel_data = {
 'file' => 'gpu.intel.full.sort',
 '00' => {
 'arch' => 'Gen1',
-'pattern' => '827\d{2}|8281[05]\S?|82830M|i74[02]|i815|i830|Whitney',
+'pattern' => '827\d{2}|8281[05]\S?|i74[02]|i815|i830|Whitney',
 'code' => '',
 'process' => 'Intel 150nm',
 },
 '01' => {
 'arch' => 'Gen2',
-# 2nd Gen(eration)? in gfx string, but that's actually sandy bridge
-'pattern' => '(82)?865G|Brookdale|Springdale|Extreme Graphics',
+'pattern' => '(82)?865G|828[34]\dM|Brookdale|Springdale|Extreme Graphics',
 'code' => '',
 'process' => 'Intel 130nm',
 },
 '02' => {
 'arch' => 'Gen3',
-'pattern' => '(82)?915GM?|82[GQ]3[35]|Grantsdale|Alviso|GMA\s?900',
+'pattern' => '(82)?91[05]GM?|82[GQ]3[35]|Grantsdale|Alviso|GMA\s?900',
 'code' => '',
 'process' => 'Intel 130nm',
 },
@@ -257,6 +256,7 @@ my $intel_data = {
 'code' => '',
 'process' => 'Intel 90nm',
 },
+
 '04' => {
 'arch' => 'Gen4',
 'pattern' => '4 Series|82[GQ]96[35]|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
