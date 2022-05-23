@@ -610,6 +610,7 @@ sub process {
 	my @disks_unhandled = (@disks_standard, @disks_removable);
 	if ($dbg->[1]){
 		say $line;
+		say "Unhandled Disks:\n$line";
 		say join("\n",@disks_unhandled);
 	}
 	say $line;
