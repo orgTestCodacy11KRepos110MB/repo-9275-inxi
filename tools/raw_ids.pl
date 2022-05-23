@@ -26,8 +26,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'raw_ids.pl';
-my $self_version = '1.0';
-my $self_date = '2022-05-21';
+my $self_version = '1.1';
+my $self_date = '2022-05-22';
 
 my $job = 'amd'; # default
 my $options = 'amd|intel'; # expand with |.. if > 1 job used in future
@@ -125,6 +125,7 @@ sub build {
 		if ($b_vendor){
 			next if $row =~ /$filters/i;
 			next if $unless && $row !~ /$unless/i;
+			# say $row;
 			if ($row =~ /^$pci$/){
 				push(@$devices,[lc($1),$2]);
 			}
@@ -191,13 +192,15 @@ sub checks {
 
 sub reader {
 	my $file = $_[0];
+	my @result;
 	if (!$file || ! -r $file){
 		die "$file does not exist, or is not readable!";
 	}
 	open(my $fh, '<', $file) or die "Reading $file failed with error: $!";
-	chomp(@$data = <$fh>);
+	chomp(@result = <$fh>);
 	close $fh;
-	die "\@data had no data!" if !@$data;
+	die "\@result had no data!" if !@result;
+	push(@$data,@result);
 }
 sub uniq {
 	my %seen;

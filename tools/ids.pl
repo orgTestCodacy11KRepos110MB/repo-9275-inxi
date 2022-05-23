@@ -234,108 +234,120 @@ my $intel_data = {
 'file' => 'gpu.intel.full.sort',
 '00' => {
 'arch' => 'Gen1',
-'pattern' => '1st Generation|i74[02]|Whitney',
+'pattern' => '827\d{2}|8281[05]\S?|82830M|i74[02]|i815|i830|Whitney',
 'code' => '',
-'process' => '',
+'process' => 'Intel 150nm',
 },
 '01' => {
 'arch' => 'Gen2',
-'pattern' => '2nd Gen(eration)?|Brookdale|Springdale|Extreme Graphics',
+# 2nd Gen(eration)? in gfx string, but that's actually sandy bridge
+'pattern' => '(82)?865G|Brookdale|Springdale|Extreme Graphics',
 'code' => '',
-'process' => '',
+'process' => 'Intel 130nm',
 },
 '02' => {
 'arch' => 'Gen3',
-'pattern' => '3rd Gen(eration)?|Grantsdale|Alviso|GMA\s?900',
+'pattern' => '(82)?915GM?|82[GQ]3[35]|Grantsdale|Alviso|GMA\s?900',
 'code' => '',
-'process' => '',
+'process' => 'Intel 130nm',
 },
 '03' => {
 'arch' => 'Gen3.5',
-'pattern' => 'Gen 3\.5|GMA\s?950|Lakeport|Calistoga',
+'pattern' => '(82)?94[56]G[A-Z]*|Lakeport|Calistoga|GMA\s?950',
 'code' => '',
 'process' => 'Intel 90nm',
 },
 '04' => {
 'arch' => 'Gen4',
-'pattern' => '4th Gen(eration)?|4 Series|Bear\s?Lake|Crestline|Santa\s?Rosa',
+'pattern' => '4 Series|82[GQ]96[35]|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
 'code' => '',
 'process' => 'Intel 65n',
 },
 '05' => {
 'arch' => 'Gen5',
-'pattern' => '5th Gen(eration)?|Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
+'pattern' => 'Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
 'code' => '',
 'process' => 'Intel 45nm',
 },
 '06' => {
 'arch' => 'Gen5.75',
-'pattern' => 'Gen 5\.75|Iron\s?Lake|Westmere',
+'pattern' => '1st Generation|Iron\s?Lake|Westmere',
 'code' => '',
 'process' => 'Intel 45nm',
 },
+# atom d2xxx/n2xxxx released 2012, assuming d2550 at 32nm is this
 '07' => {
 'arch' => 'Gen6',
-'pattern' => '6th Gen(eration)?|Sandy\s?Bridge',
+'pattern' => '2nd Gen(eration)?|Atom (Processor\s)?(D2\S{3}/N2\S{3}|Z2760)|Sandy\s?Bridge',
 'code' => '',
 'process' => 'Intel 32nm',
 },
 '08' => {
 'arch' => 'Gen7',
-'pattern' => '7th Generation|Ivy\s?Bridge',
+'pattern' => '3rd Gen(eration)?|Ivy\s?Bridge',
 'code' => '',
 'process' => 'Intel 22nm',
 },
 '09' => {
 'arch' => 'Gen7.5',
-'pattern' => 'Gen 7\.5|Haswell',
+'pattern' => '4th Gen(eration)?|Haswell',
 'code' => '',
 'process' => 'Intel 22nm',
 },
 '10' => {
 'arch' => 'Gen8',
-'pattern' => '8th Generation|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
+'pattern' => '5th Generation|E8000|J3xxx/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
 'code' => '',
 'process' => 'Intel 14nm',
 },
+#  kaby/coffee lake had early and refresh, refresh is 9.5
 '11' => {
 'arch' => 'Gen9',
-'pattern' => '9th Generation|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
+'pattern' => '6th Generation|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
 'code' => '',
 'process' => 'Intel 14n',
 },
 '12' => {
 'arch' => 'Gen9.5',
-'pattern' => 'Gen 9\.5|(Kaby|Coffee|Comet|Whiskey)\s?Lake|Goldmont (\+|Plus)|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?6\d{2}',
+'pattern' => '7th Gen(eration)?|(Kaby|Coffee|Comet|Whiskey)\s?Lake|Goldmont (\+|Plus)|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?6\d{2}',
 'code' => '',
 'process' => 'Intel 14nm',
 },
+
 '13' => {
 'arch' => 'Gen10',
-'pattern' => '10th Generation|Cannon\s?Lake',
+'pattern' => '8th Generation|Cannon\s?Lake',
 'code' => 'Gen10',
 'process' => 'Intel 10nm',
 },
+# Intel Xe-LP
 '14' => {
 'arch' => 'Gen11',
-'pattern' => '11th Generation|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
+'pattern' => '9th Generation|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
 'code' => '',
 'process' => 'Intel 10nm',
 },
 '15' => {
-'arch' => 'Gen12',
-'pattern' => '12th Generation|(Alder|Rocket)\s?Lake|Tiger\s?Lake',
+'arch' => 'Gen12.1',
+'pattern' => 'DG1|Iris Xe (MAX\s)?Graphics|(Rocket|Tiger)\s?Lake',
 'code' => '',
 'process' => 'Intel 10nm',
 },
+# Intel Xe 
 '16' => {
+'arch' => 'Gen12.2',
+'pattern' => '10th Generation|(Alder)\s?Lake',
+'code' => '',
+'process' => 'Intel 10nm',
+},
+'17' => {
 'arch' => 'Arctic Sound',
 'pattern' => 'Arctic',
 'code' => 'Xe-HP/Gen12.5',
 'process' => 'Intel 10nm',
 },
 # cancelled?
-'17' => {
+'18' => {
 'arch' => 'Jupiter Sound',
 'pattern' => 'Jupiter',
 'code' => '',
@@ -461,6 +473,7 @@ sub process {
 		my (@ids);
 		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @$data){
 			foreach my $item (@result){
+				# say $item;
 				@$data = grep {$_ ne $item} @$data;
 				my $temp = lc((split(/\t+/,$item))[1]);
 				# note: if 3 ids, only first 1 product, others are subvendor/product
@@ -471,11 +484,11 @@ sub process {
 			# $arch =~ s/^\d+-//;
 			@ids = sort @ids;
 			uniq(\@ids);
-			say "\n$active->{$key}{'arch'}:\n", join("\n",@ids) if $b_print_ids;
+			say "\n$line\n$active->{$key}{'arch'}:\n", join("\n",@ids) if $b_print_ids;
 			$output{$key} = {'arch' => $active->{$key}{'arch'}, 'ids' => [@ids]};
 		}
 	}
-	say join("\n",@$data) if @$data && $b_print_remains;
+	say $line,"\n",join("\n",@$data) if @$data && $b_print_remains;
 }
 sub output {
 	foreach my $sort (sort keys %output){
