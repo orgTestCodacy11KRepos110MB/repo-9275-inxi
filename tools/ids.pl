@@ -31,9 +31,7 @@ my $self_name = 'ids.pl';
 my $self_version = '1.3';
 my $self_date = '2022-05-22';
 
-my $b_print_ids = 0;
 my $b_print_output = 1;
-my $b_print_raw = 0;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
@@ -48,6 +46,7 @@ my $line_end = ' .';
 my $quote = "'";
 my $sep_global = '|';
 my $tab = "\t";
+my $dbg = [];
 
 ## Rules:
 # Confirm patterns if in doubt here: https://www.techpowerup.com/
@@ -484,7 +483,7 @@ sub process {
 			# $arch =~ s/^\d+-//;
 			@ids = sort @ids;
 			uniq(\@ids);
-			say "\n$line\n$active->{$key}{'arch'}:\n", join("\n",@ids) if $b_print_ids;
+			say "\n$line\n$active->{$key}{'arch'}:\n", join("\n",@ids) if $dbg->[1];
 			$output{$key} = {'arch' => $active->{$key}{'arch'}, 'ids' => [@ids]};
 		}
 	}
@@ -579,6 +578,17 @@ sub uniq {
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
+	'dbg:s' => sub {
+		my ($opt,$arg) = @_;
+		if ( $arg !~ /^\d+(,\d+)*$/){
+			push(@errors,"Unsupported option for $opt: $arg");
+		}
+		else {
+			foreach (split(/,/,$arg)){
+				$dbg->[$_] = 1;
+			}
+		}
+	},
 	'j|job:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg =~ /^($options)$/){
@@ -592,9 +602,6 @@ sub options {
 		show_options();
 		exit 0;
 	},
-	'i|ids' => sub {
-		$b_print_ids = 1;
-	},
 	'l|line-end:s' => sub {
 		my ($opt,$arg) = @_;
 		$line_end = $arg;
@@ -605,9 +612,6 @@ sub options {
 		$line_end = '';
 		$quote = '';
 		$tab = '';
-	},
-	'r|raw' => sub {
-		$b_print_raw = 1;
 	},
 	's|sep:s' => sub {
 		my ($opt,$arg) = @_;
@@ -641,6 +645,9 @@ sub options {
 sub show_options {
 	show_version();
 	say "\nAvailable Options:";
+	say "--dbg [nums]  - comma separated list of debugger triggers:";
+	say "                1: Print pci ids list raw before formatted id lists.";
+	say "                2: Print raw driver list data before start of processing.";
 	say "-h,--help     - This help option menu";
 	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
 	say "-j,--job      - [$options] job selector.";
@@ -648,7 +655,6 @@ sub show_options {
 	say "-l,--line-end - [empty|chars] Change line ending per line.";
 	say "                Current: '$line_end'";
 	say "-p,--plain    - Output single line, no breaks, no quotes or tabs";
-	say "-r,--raw      - Print raw driver list data before start of processing.";
 	say "-s,--sep      - Separator to use for IDs. Current: $sep_global";
 	say "-t,--tabs     - Disable tab indentation.";
 	say "-v,--version  - Show tool version and date.";
@@ -661,7 +667,7 @@ sub main {
 	options();
 	assign();
 	reader($file);
-	say Dumper $data if $b_print_raw;
+	say Dumper $data if $dbg->[2];
 	die "No \@data returned!" if !@$data;
 	process();
 	die "No \%output generated!" if !%output;

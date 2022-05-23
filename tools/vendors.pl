@@ -27,19 +27,18 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'vendors.pl';
-my $self_version = '1.2';
-my $self_date = '2022-05-19';
+my $self_version = '1.3';
+my $self_date = '2022-05-22';
 
 my $disks_raw = 'lists/disks.txt';
 my $disks_unhandled = 'lists/disks-unhandled.txt';
 my $disks_read = $disks_raw;
 
 my ($data,$vendors);
-my $b_print_disks = 0;
-my $b_print_raw = 0;
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
+my $dbg = [];
 
 ## Copy everything between start/end copy block comments. These are the rules
 ## you need to update to add unmatched vendors or vendor products. Always make
@@ -597,8 +596,7 @@ sub process {
 				}
 				else {
 					push(@disks_removable,$data);
-				}
-			}
+				}}
 			last if $disk eq '#-EOF-#';
 			@sizes = ();
 			push(@sizes,$size) if $size;
@@ -610,9 +608,9 @@ sub process {
 	@disks_standard = sort { lc($a) cmp lc($b) } @disks_standard;
 	@disks_removable = sort { lc($a) cmp lc($b) } @disks_removable;
 	my @disks_unhandled = (@disks_standard, @disks_removable);
-	if ($b_print_disks){
+	if ($dbg->[1]){
 		say $line;
-		say join("",@disks_unhandled);
+		say join("\n",@disks_unhandled);
 	}
 	say $line;
 	say "There are " . scalar(@disks_unhandled) . " unhandled disks.";
@@ -670,15 +668,20 @@ sub checks {
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
+	'dbg:s' => sub {
+		my ($opt,$arg) = @_;
+		if ( $arg !~ /^\d+(,\d+)*$/){
+			push(@errors,"Unsupported option for $opt: $arg");
+		}
+		else {
+			foreach (split(/,/,$arg)){
+				$dbg->[$_] = 1;
+			}
+		}
+	},
 	'h|help' => sub {
 		show_options();
 		exit 0;
-	},
-	'p|print' => sub {
-		$b_print_disks = 1;
-	},
-	'r|raw' => sub {
-		$b_print_raw = 1;
 	},
 	'u|unhandled' => sub {
 		$disks_read = $disks_unhandled;
@@ -704,9 +707,10 @@ sub options {
 sub show_options {
 	show_version();
 	say "\nAvailable Options:";
+	say "--dbg [nums]  - comma separated list of debugger triggers:";
+	say "                1: Print unhandled disks to screen.";
+	say "                2: Print raw driver list data before start of processing.";
 	say "-h,--help      - This help option menu";
-	say "-p,--print     - Print unhandled disks to screen.";
-	say "-r,--raw       - Print raw driver list data before start of processing.";
 	say "-u,--unhandled - Use unhandled file instead of primary. Use this after ";
 	say "                 the first iteration creating the new master unhandled.";
 	say "-v,--version   - Show tool version and date.";
@@ -724,7 +728,7 @@ sub main {
 	checks();
 	options();
 	reader($disks_read);
-	say Dumper $data if $b_print_raw;
+	say Dumper $data if $dbg->[2];
 	die 'No @$data present!' if !@$data;
 	process();
 }

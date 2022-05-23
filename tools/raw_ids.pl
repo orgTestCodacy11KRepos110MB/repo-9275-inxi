@@ -32,8 +32,9 @@ my $self_date = '2022-05-22';
 my $job = 'amd'; # default
 my $options = 'amd|intel'; # expand with |.. if > 1 job used in future
 my ($active,$data,$devices,$devices_sub);
-my ($b_print_devices,$b_use_sub_pci);
+my ($b_use_pci_sub);
 my $line = '------------------------------------------------------------------';
+my $dbg = [];
 
 # note: currently v.2.2 pci.ids, only update pci.ids.ucw.cz on change.
 my $jobs = {
@@ -146,11 +147,9 @@ sub build {
 	if ($devices_sub){
 		@$devices_sub = sort { $a->[0] cmp $b->[0] } @$devices_sub;
 	}
-	if ($b_print_devices){
-		say "$line\nDevices:\n", Dumper $devices;
-		say "$line\nSub Devices:\n", Dumper $devices_sub if $devices_sub ;
-		say $line;
-	}
+	say "$line\nDevices:\n", Dumper $devices if $dbg->[1];
+	say "$line\nSub Devices:\n", Dumper $devices_sub if $dbg->[2] && $devices_sub;
+	say $line if $dbg->[1] || $dbg->[2];
 	say "Done building data for $info->{'file'}.";
 }
 sub output {
@@ -201,6 +200,7 @@ sub reader {
 	chomp(@result = <$fh>);
 	close $fh;
 	die "\@result had no data!" if !@result;
+	say "File: $file data:\n" . Dumper \@result if $dbg->[2];
 	push(@$data,@result);
 }
 sub uniq {
@@ -228,8 +228,16 @@ sub writer {
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
-	'd|devices' => sub {
-		$b_print_devices = 1;
+	'dbg:s' => sub {
+		my ($opt,$arg) = @_;
+		if ( $arg !~ /^\d+(,\d+)*$/){
+			push(@errors,"Unsupported option for $opt: $arg");
+		}
+		else {
+			foreach (split(/,/,$arg)){
+				$dbg->[$_] = 1;
+			}
+		}
 	},
 	'h|help' => sub {
 		show_options();
@@ -245,7 +253,7 @@ sub options {
 		}
 	},
 	's|subs' => sub {
-		$b_use_sub_pci = 1;
+		$b_use_pci_sub = 1;
 	},
 	'v|version' => sub {
 		show_version();
@@ -267,7 +275,10 @@ sub options {
 sub show_options {
 	show_version();
 	say "\nAvailable Options:";
-	say "-d,--devices  - print raw devices output.";
+	say "--dbg [nums]  - comma separated list of debugger triggers:";
+	say "                1: Print initial device array.";
+	say "                2: Print initial device sub pci array.";
+	say "                3: Print raw data for reads to screen.";
 	say "-j,--job      - Job to run: [$options]";
 	say "-h,--help     - This help option menu";
 	say "-s,--sub      - Use the sub PCI devices. Careful with this!";
