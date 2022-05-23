@@ -295,14 +295,14 @@ my $intel_data = {
 },
 '10' => {
 'arch' => 'Gen8',
-'pattern' => '5th Generation|E8000|J3xxx/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
+'pattern' => '5th Gen(eration)?|E8000|J3xxx/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
 'code' => '',
 'process' => 'Intel 14nm',
 },
 #  kaby/coffee lake had early and refresh, refresh is 9.5
 '11' => {
 'arch' => 'Gen9',
-'pattern' => '6th Generation|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
+'pattern' => '6th Gen(eration)?|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
 'code' => '',
 'process' => 'Intel 14n',
 },
@@ -315,14 +315,14 @@ my $intel_data = {
 
 '13' => {
 'arch' => 'Gen10',
-'pattern' => '8th Generation|Cannon\s?Lake',
+'pattern' => '8th Gen(eration)?|Cannon\s?Lake',
 'code' => 'Gen10',
 'process' => 'Intel 10nm',
 },
 # Intel Xe-LP
 '14' => {
 'arch' => 'Gen11',
-'pattern' => '9th Generation|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
+'pattern' => '9th Gen(eration)?|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
 'code' => '',
 'process' => 'Intel 10nm',
 },
@@ -335,7 +335,7 @@ my $intel_data = {
 # Intel Xe 
 '16' => {
 'arch' => 'Gen12.2',
-'pattern' => '10th Generation|(Alder)\s?Lake',
+'pattern' => '10th Gen(eration)?|(Alder)\s?Lake',
 'code' => '',
 'process' => 'Intel 10nm',
 },
