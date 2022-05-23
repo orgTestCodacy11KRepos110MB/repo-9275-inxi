@@ -28,8 +28,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'ids.pl';
-my $self_version = '1.3';
-my $self_date = '2022-05-22';
+my $self_version = '1.4';
+my $self_date = '2022-05-23';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
@@ -467,6 +467,7 @@ my $nv_data = {
 };
 
 sub process {
+	say "Running job: $job";
 	foreach my $key (sort keys %$active){
 		# say "$active->{$key}{'pattern'}";
 		my (@ids);
@@ -475,8 +476,18 @@ sub process {
 			# we want first found, first used, always.
 			my $res_regex = join('|',@result);
 			@$data = grep {!/^\Q($res_regex)\E$/} @$data;
-			say "$line\n$active->{$key}{'arch'}:\n", Dumper $data if $dbg->[3];
-			say "$line\n$active->{$key}{'arch'}:\n", Dumper \@result if $dbg->[4];
+			if ($dbg->[3]){
+				say $line;
+				say "Remaining \$data: $active->{$key}{'arch'}:";
+				say $line;
+				say Dumper $data;
+			}
+			if ($dbg->[4]){
+				say $line;
+				say "\@result for: $active->{$key}{'arch'}:";
+				say $line;
+				say Dumper \@result;
+			}
 			foreach my $item (@result){
 				# say $item;
 				@$data = grep {$_ ne $item} @$data;
@@ -489,13 +500,25 @@ sub process {
 			# $arch =~ s/^\d+-//;
 			@ids = sort @ids;
 			uniq(\@ids);
-			say "\n$line\n$active->{$key}{'arch'}:\n", join("\n",@ids) if $dbg->[1];
+			if ($dbg->[1]){
+				say "\n$line";
+				say "IDs for: $active->{$key}{'arch'}:\n$line";
+				say join("\n",@ids);
+			}
 			$output{$key} = {'arch' => $active->{$key}{'arch'}, 'ids' => [@ids]};
 		}
 	}
-	say $line,"\n",join("\n",@$data) if @$data && $b_print_remains;
+	if ($b_print_remains && @$data){
+		say $line;
+		say "Undetected devices:\n$line";
+		say join("\n",@$data);
+	}
 }
 sub output {
+	if ($b_print_output){
+		say $line;
+		say "Final IDs output for $job:\n$line\n";
+	}
 	foreach my $sort (sort keys %output){
 		if ($b_print_output){
 			if ($b_hash){
@@ -507,7 +530,7 @@ sub output {
 		}
 		my $cnt = 4;
 		my $cnt2 = 1;
-		my $line = ($b_hash) ? $tab . $quote . "ids$quote => " . $quote : '';
+		my $item = ($b_hash) ? $tab . $quote . "ids$quote => " . $quote : '';
 		my $start = '';
 		my $total = scalar @{$output{$sort}->{'ids'}};
 		foreach my $id (@{$output{$sort}->{'ids'}}){
@@ -516,19 +539,19 @@ sub output {
 			if ($cnt > 15){
 				$cnt = 1;
 				# say "2: $cnt2 $total";
-				$line .= ($cnt2 != $total) ? $id . $sep . $quote . $line_end . $br : $id;
+				$item .= ($cnt2 != $total) ? $id . $sep . $quote . $line_end . $br : $id;
 				$start = $tab . $quote;
 			}
 			else {
-				$line .= $start . $id . $sep;
+				$item .= $start . $id . $sep;
 				$start = '';
 			}
 			$cnt++;
 			$cnt2++;
 		}
 		# we want hardcoded \n here to create spaces between result blocks
-		$line .= ($b_hash) ? "$quote,\n" : "\n";
-		say $line if $b_print_output;
+		$item .= ($b_hash) ? "$quote,\n" : "\n";
+		say $item if $b_print_output;
 	}
 }
 
