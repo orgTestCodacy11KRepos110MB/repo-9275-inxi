@@ -35,6 +35,7 @@ my ($active,$data,$devices,$devices_sub);
 my ($b_print_devices,$b_use_sub_pci);
 my $line = '------------------------------------------------------------------';
 
+# note: currently v.2.2 pci.ids, only update pci.ids.ucw.cz on change.
 my $jobs = {
 'amd' => {
 'filters' => 'SMBus|^SB|^RC|IOMMU|host control|TV|Decoder|Theater|Bridge|Serial ATA|SATA|USB|IDE Con|Audio|Modem|Xilleon',
@@ -43,7 +44,7 @@ my $jobs = {
 'files' => [
 # source: check for updated file!: http://pci-ids.ucw.cz/v2.2/pci.ids
 {
-'file' => 'lists/pci.ids.v2.2.ucw.cz',
+'file' => 'lists/pci.ids.ucw.cz',
 'id-name' => '\t(\S{4})\s+(.+)',
 'id-name-sub' => '\t\t1002\s+(\S{4})\s+(.+)',
 'last' => '1003',
@@ -65,7 +66,7 @@ my $jobs = {
 'file-output-sorted' => 'lists/gpu.intel.full.sort',
 'files' => [
 {
-'file' => 'lists/pci.ids.v2.2.ucw.cz',
+'file' => 'lists/pci.ids.ucw.cz',
 'id-name' => '\t(\S{4})\s+(.+)',
 'id-name-sub' => '',
 'last' => '8088',
