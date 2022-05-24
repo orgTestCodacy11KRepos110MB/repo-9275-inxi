@@ -272,10 +272,10 @@ my $intel_data = {
 	},
 	'02' => {
 	'arch' => 'Gen2',
-	'pattern' => '(82)?865G|828[34]\dM|Brookdale|Springdale|Extreme Graphics',
+	'pattern' => '(82)?865G|828[34]\dM|i85\d(GM?)?|Brookdale|Springdale|Extreme Graphics',
 	'code' => '',
 	'process' => 'Intel 130nm',
-	'years' => '2002-3',
+	'years' => '2002-03',
 	},
 	'03' => {
 	'arch' => 'Gen3',
@@ -293,7 +293,7 @@ my $intel_data = {
 	},
 	'05' => {
 	'arch' => 'Gen4',
-	'pattern' => '4 Series|82[GQ]96[35]|(82)?(G3[135]|Q3[35])|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
+	'pattern' => '82[GQ]96[35]|(82)?(G3[135]|Q3[35])|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
 	'code' => '',
 	'process' => 'Intel 65n',
 	'years' => '2006-07',
@@ -308,7 +308,7 @@ my $intel_data = {
 	},
 	'07' => {
 	'arch' => 'Gen5',
-	'pattern' => 'Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
+	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
 	'code' => '',
 	'process' => 'Intel 45nm',
 	'years' => '2008',
