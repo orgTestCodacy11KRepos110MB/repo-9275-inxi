@@ -228,7 +228,7 @@ my $amd_data = {
 	'pattern' => 'Navi\s?2\d\b|Lockhart|Oberon|Rembrandt|Scarlett|Van Gogh|Radeon 680M',
 	'code' => 'Navi 2x',
 	'process' => 'TSMC 7nm',
-	'years' => '2020-22+',
+	'years' => '2020-22',
 	},
 	# phoenix apu
 	'23' => {
@@ -243,14 +243,14 @@ my $amd_data = {
 	'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
 	'code' => 'Instinct',
 	'process' => 'TSMC 7nm',
-	'years' => '2020+',
+	'years' => '2020',
 	},
 	'25' => {
 	'arch' => 'CDNA 2',
 	'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
 	'code' => 'Instinct',
 	'process' => 'TSMC 6nm',
-	'years' => '2021+',
+	'years' => '2021',
 	},
 },
 };
@@ -468,15 +468,15 @@ my $nv_data = {
 	'arch' => 'Turing',
 	'pattern' => 'T\d{1,4}|MX[45]\d{2}|GTX 16\d{2}|RTX 20\d{2}|Quadro RTX [34568]\d{3}|Titan RTX|CMP [345]\dHX|D-Series D24\d{2}',
 	'code' => 'TUxxx',
-	'process' => 'TSMC 12nm',
-	'years' => '2018-22+',
+	'process' => 'TSMC 12nm FF',
+	'years' => '2018-22',
 	},
 	'04' => {
 	'arch' => 'Ampere',
 	'pattern' => 'G?A\d{1,4}[GMH]?|RTX 30\d{2}(Ti)?|CMP [789]\dHX',
 	'code' => 'GAxxx',
 	'process' => 'TSMC 7nm',
-	'years' => '2020-22+',
+	'years' => '2020-22',
 	},
 	'05' => {
 	'arch' => 'Hopper',
