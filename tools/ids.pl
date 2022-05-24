@@ -193,7 +193,7 @@ my $amd_data = {
 	},
 	'18' => {
 	'arch' => 'GCN 4',
-	'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?(2[0123]|3[01])*',
+	'pattern' => 'Arctic Islands|Baffin|Ellesmere|Lexa|Polaris\s?(1\d|2[0123]|3[01])*|Gladius|Arlene',
 	'code' => 'Arctic Islands',
 	'process' => 'GF 14nm',# 
 	'years' => '2016-20',
@@ -216,9 +216,10 @@ my $amd_data = {
 	'years' => '2017-20',
 	},
 	# rdna gaming
+	# Cyan Skillfish apu
 	'21' => {
 	'arch' => 'RDNA 1',
-	'pattern' => 'Navi\s?1\d\b',
+	'pattern' => 'Navi\s?1\d|Cyan\s?Skillfish|Ariel|Arden',
 	'code' => 'Navi',
 	'process' => 'TSMC 7nm',
 	'years' => '2019-20',
@@ -226,7 +227,7 @@ my $amd_data = {
 	# Lockhart, Oberon, Rembrandt, Scarlett, Van Gogh apu
 	'22' => {
 	'arch' => 'RDNA 2',
-	'pattern' => 'Navi\s?2\d\b|Lockhart|Oberon|Rembrandt|Scarlett|Van Gogh|Radeon 680M',
+	'pattern' => 'Navi\s?2\d|Lockhart|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 	'code' => 'Navi 2x',
 	'process' => 'TSMC 7nm',
 	'years' => '2020-22',
