@@ -245,7 +245,7 @@ my $intel_data = {
 },
 '02' => {
 'arch' => 'Gen3',
-'pattern' => '(82)?91[05]GM?|82[GQ]3[35]|Grantsdale|Alviso|GMA\s?900',
+'pattern' => '(82)?91[05]GM?|Grantsdale|Alviso|GMA\s?900',
 'code' => '',
 'process' => 'Intel 130nm',
 },
@@ -257,7 +257,7 @@ my $intel_data = {
 },
 '04' => {
 'arch' => 'Gen4',
-'pattern' => '4 Series|82[GQ]96[35]|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
+'pattern' => '4 Series|82[GQ]96[35]|(82)?G3[135]|Q3[35]|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
 'code' => '',
 'process' => 'Intel 65n',
 },
@@ -471,6 +471,7 @@ sub process {
 	foreach my $key (sort keys %$active){
 		# say "$active->{$key}{'pattern'}";
 		my (@ids);
+		say "$line\nUsing pattern: $active->{$key}{'pattern'}" if $dbg->[5];
 		if (my @result = grep {/\b($active->{$key}{'pattern'})\b/i} @$data){
 			# remove what we found from the main array to avoid possible dual detections.
 			# we want first found, first used, always.
@@ -488,6 +489,7 @@ sub process {
 				say $line;
 				say Dumper \@result;
 			}
+			
 			foreach my $item (@result){
 				# say $item;
 				@$data = grep {$_ ne $item} @$data;
@@ -679,6 +681,7 @@ sub show_options {
 	say "                2: Print raw driver list data before start of processing.";
 	say "                3: Print contents of \$data after each iteration.";
 	say "                4: Print \@result each iteration. Good to confirm matches.";
+	say "                5: Print regex pattern used per item.";
 	say "-h,--help     - This help option menu";
 	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
 	say "-j,--job      - [$options] job selector.";
