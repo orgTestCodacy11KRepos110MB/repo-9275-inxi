@@ -215,6 +215,7 @@ my $amd_data = {
 	'process' =>  'TSMC 14nm',
 	'years' => '2017-20',
 	},
+	# rdna gaming
 	'21' => {
 	'arch' => 'RDNA 1',
 	'pattern' => 'Navi\s?1\d\b',
@@ -238,6 +239,7 @@ my $amd_data = {
 	'process' => 'TSMC 5nm',
 	'years' => '2022+',
 	},
+	# cdna data center
 	'24' => {
 	'arch' => 'CDNA 1',
 	'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
@@ -250,7 +252,7 @@ my $amd_data = {
 	'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
 	'code' => 'Instinct',
 	'process' => 'TSMC 6nm',
-	'years' => '2021',
+	'years' => '2021-22+',
 	},
 },
 };
