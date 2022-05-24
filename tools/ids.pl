@@ -191,9 +191,10 @@ my $amd_data = {
 	'process' => 'TSMC 28nm',
 	'years' => '2014-19',
 	},
+	# Anubis, Arlene, Gladius, Pooky apu
 	'18' => {
 	'arch' => 'GCN 4',
-	'pattern' => 'Arctic Islands|Arlene|Baffin|Ellesmere|Gladius|Lexa|Polaris\s?(1\d|2[0123]|3[01])*',
+	'pattern' => 'Arctic Islands|Arlene|Anubis|Baffin|Ellesmere|Garfield|Gladius|Lexa|Polaris\s?(1\d|2[0123]|3[01])*|Pooky',
 	'code' => 'Arctic Islands',
 	'process' => 'GF 14nm',# 
 	'years' => '2016-20',
@@ -224,10 +225,10 @@ my $amd_data = {
 	'process' => 'TSMC 7nm',
 	'years' => '2019-20',
 	},
-	# Barcelo, Lockhart, Oberon, Rembrandt, Scarlett, Van Gogh apu
+	# Barcelo, Lockhart, Mendocino, Oberon, Rembrandt, Scarlett, Van Gogh apu
 	'22' => {
 	'arch' => 'RDNA 2',
-	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
+	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 	'code' => 'Navi 2x',
 	'process' => 'TSMC 7nm',
 	'years' => '2020-22',
