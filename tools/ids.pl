@@ -308,7 +308,7 @@ my $intel_data = {
 	},
 	'07' => {
 	'arch' => 'Gen5',
-	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA 4500',
+	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA X?4500',
 	'code' => '',
 	'process' => 'Intel 45nm',
 	'years' => '2008',
