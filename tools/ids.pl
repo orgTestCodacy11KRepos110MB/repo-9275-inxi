@@ -20,6 +20,7 @@ use warnings;
 use 5.024;
 
 use Data::Dumper qw(Dumper); 
+$Data::Dumper::Sortkeys = 1;
 use JSON::PP; # if we ever get the data in json! sigh. 
 # JSON::PP::encode_json
 # JSON::PP::decode_json
@@ -709,7 +710,7 @@ sub assign {
 		$active = $nv_data->{$job};
 	}
 	$file = 'lists/' . $active->{'file'};
-	# say Dumper $active;
+	say "\$active data:\n", Dumper $active if $dbg->[5];
 	delete $active->{'file'};
 	# say Dumper $active;
 }
@@ -822,6 +823,7 @@ sub show_options {
 	say "                2: Print raw driver list data before start of processing.";
 	say "                3: Print pattern + contents of \$data after each iteration.";
 	say "                4: Print pattern + \@result each iteration. Good to confirm matches.";
+	say "                5: Print \$active data structure.";
 	say "-h,--help     - This help option menu";
 	say "-i,--ids      - Print product/pci ids list raw before formatted id lists.";
 	say "-j,--job      - [$options] job selector.";
