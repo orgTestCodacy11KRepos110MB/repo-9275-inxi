@@ -272,7 +272,7 @@ my $intel_data = {
 	},
 	'02' => {
 	'arch' => 'Gen2',
-	'pattern' => '(82)?865G|828[34]\dM|i85\d(GM?)?|Brookdale|Springdale|Extreme Graphics',
+	'pattern' => '(82)?865G|828[34]\dM|8285\d|i85\d(GM?)?|Brookdale|Springdale|Extreme Graphics',
 	'code' => '',
 	'process' => 'Intel 130nm',
 	'years' => '2002-03',
