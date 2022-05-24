@@ -35,7 +35,7 @@ my $b_print_output = 1;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|intel|nv-(current|470|390|367|340|304|173|96|71)';
+my $options = 'amd|intel|nv-(current|510|470|390|367|340|304|173|96|71)';
 
 my ($active,$file,$id_data,%output);
 my $data = [];
@@ -389,14 +389,14 @@ my $intel_data = {
 	# Intel Xe-LP
 	'18' => {
 	'arch' => 'Gen11',
-	'pattern' => '9th Gen(eration)?|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G7',
+	'pattern' => '9th Gen(eration)?|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G[77]',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2019-21',
 	},
 	'19' => {
 	'arch' => 'Gen12.1',
-	'pattern' => 'DG1|Iris Xe (MAX\s)?Graphics|(Rocket|Tiger)\s?Lake',
+	'pattern' => 'DG1|Iris Xe Graphics G[47]|Iris Xe Max Graphics|(Rocket|Tiger)\s?Lake',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2020-21',
@@ -404,7 +404,7 @@ my $intel_data = {
 	# Intel Xe 
 	'20' => {
 	'arch' => 'Gen12.2',
-	'pattern' => '10th Gen(eration)?|(Alder)\s?Lake',
+	'pattern' => '10th Gen(eration)?|(Alder)\s?Lake|Iris Xe Graphics 80EU',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2021-22+',
@@ -599,6 +599,8 @@ my $nv_data = {
 	},
 },
 };
+$nv_data->{'nv-510'} = $nv_data->{'nv-current'};
+$nv_data->{'nv-510'}{'file'} = 'gpu.nv.510.xx.sort';
 
 sub process {
 	say "Running job: $job";
