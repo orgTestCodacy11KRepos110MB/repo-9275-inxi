@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-05-24';
-my $self_patch='11';
+my $self_patch='12';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -13764,7 +13764,7 @@ sub device_output {
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
-			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6]);
+			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6],$row->[4]);
 			# my $gpu_data = nvidia_data('1bb5');
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
@@ -15841,6 +15841,7 @@ sub set_intel_data {
 	{'arch' => '12.5',
 	'ids' => '',
 	'code' => 'Arctic Sound',
+	'pattern' => 'Arctic',
 	'process' => 'Intel 10nm',
 	'years' => '2021-22+',
 	},
@@ -15848,6 +15849,7 @@ sub set_intel_data {
 	{'arch' => 'Gen12.7',
 	'ids' => '',
 	'code' => 'Alchemist',
+	'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
 	'process' => 'Intel 6nm',
 	'years' => '2022+',
 	},
@@ -16096,12 +16098,14 @@ sub set_nv_data {
 	'Hopper' => {
 	'ids' => '',
 	'code' => 'GH1xx',
+	'pattern' => 'G?H\d{1,4}',
 	'process' => 'TSMC n4',
 	'years' => '2022+',
 	},
 	'Lovelace' => {
 	'ids' => '',
 	'code' => '',
+	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
 	'process' => 'TSMC 5nm',
 	'years' => '2022-23+',
 	},
@@ -16109,13 +16113,13 @@ sub set_nv_data {
 }
 sub gpu_data {
 	eval $start if $b_log;
-	my ($v_id,$p_id) = @_;
+	my ($v_id,$p_id,$name) = @_;
 	my ($gpu_data,$b_nv);
 	if ($v_id eq '1002' ||$v_id eq '8086' ){
-		$gpu_data = gpu_generic_data($v_id,$p_id);
+		$gpu_data = gpu_generic_data($v_id,$p_id,$name);
 	}
 	else {
-		$gpu_data = gpu_nv_data($p_id);
+		$gpu_data = gpu_nv_data($p_id,$name);
 		$b_nv = 1;
 	}
 	eval $end if $b_log;
@@ -16123,7 +16127,7 @@ sub gpu_data {
 }
 sub gpu_generic_data {
 	eval $start if $b_log;
-	my ($v_id,$p_id) = @_;
+	my ($v_id,$p_id,$name) = @_;
 	my ($gen_gpu,%info);
 	if ($v_id eq '1002'){
 		set_amd_data() if !$gpu_amd;
@@ -16135,8 +16139,10 @@ sub gpu_generic_data {
 	}
 	# Reverse, newer will be more common geneerally than older, so save some cpu!
 	foreach my $item (reverse @$gen_gpu){
-		next if !$item->{'ids'};
-		if ($p_id =~ /^($item->{'ids'})$/){
+		next if !$item->{'ids'} && !$item->{'pattern'};
+		if (($item->{'ids'} && $p_id =~ /^($item->{'ids'})$/) ||
+		(!$item->{'ids'} && $item->{'pattern'} && 
+		$name =~ /\b($item->{'pattern'})\b/)){
 			%info = (
 			'arch' => $item->{'arch'},
 			'code' => $item->{'code'},
@@ -16155,7 +16161,7 @@ sub gpu_generic_data {
 }
 sub gpu_nv_data {
 	eval $start if $b_log;
-	my ($product_id) = @_;
+	my ($p_id,$name) = @_;
 	my (%info);
 	set_nv_data() if !$gpu_nv_legacy;
 	my $date = $self_date;
@@ -16163,7 +16169,10 @@ sub gpu_nv_data {
 	# Test for current active first, those will be most common, these will be
 	# run in random order, which is fine since user ids will also be random
 	foreach my $key (keys %$gpu_nv){
-		if ($product_id =~ /^($gpu_nv->{$key}{'ids'})$/){
+		next if !$gpu_nv->{$key}{'ids'} && !$gpu_nv->{$key}{'pattern'};
+		if (($gpu_nv->{$key}{'ids'} && $p_id =~ /^($gpu_nv->{$key}{'ids'})$/) ||
+		(!$gpu_nv->{$key}{'ids'} && $gpu_nv->{$key}{'pattern'} &&
+		$name =~ /\b($gpu_nv->{$key}{'pattern'})\b/)){
 			%info = (
 			'arch' => $key,
 			'code' => $gpu_nv->{$key}{'code'},
@@ -16182,7 +16191,7 @@ sub gpu_nv_data {
 	if (!%info){
 		# we reverse here since newer is more likely than older
 		foreach my $item (reverse @$gpu_nv_legacy){
-			if ($product_id =~ /^($item->{'ids'})$/){
+			if ($p_id =~ /^($item->{'ids'})$/){
 				%info = (
 				'arch' => $item->{'arch'},
 				'code' => $item->{'code'},
