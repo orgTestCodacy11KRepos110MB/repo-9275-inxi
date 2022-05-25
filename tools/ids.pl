@@ -262,18 +262,18 @@ my $intel_data = {
 	'intel' => {
 	'file' => 'gpu.intel.full.sort',
 	'00' => {
-	'arch' => 'Gen1',
-	'pattern' => '827\d{2}|8281[05]\w?|i815|i830|Almador|Coloma|Portola|Solano|Whitney',
-	'code' => '',
-	'process' => 'Intel 150nm',
-	'years' => '1998-2002',
-	},
-	'01' => {
 	'arch' => 'i740',
-	'pattern' => 'i74[02]|Auburn',
+	'pattern' => '8274{2}|i74[02]|Auburn',
 	'code' => '',
 	'process' => 'Intel 150nm',
 	'years' => '1998',
+	},
+	'01' => {
+	'arch' => 'Gen1',
+	'pattern' => '8275{2}|8281[05]\w?|i8(15|30)|Almador|Coloma|Portola|Solano|Whitney',
+	'code' => '',
+	'process' => 'Intel 150nm',
+	'years' => '1998-2002',
 	},
 	'02' => {
 	'arch' => 'Gen2',
@@ -298,7 +298,7 @@ my $intel_data = {
 	},
 	'05' => {
 	'arch' => 'Gen4',
-	'pattern' => '82[GQ]96[35]|(82)?(G3[135]|Q3[35])|GME?965E?|Bear\s?Lake|Crestline|Santa\s?Rosa',
+	'pattern' => '82[GQ]96[35]|(82)?(G3[135]|Q3[35])|GME?965E?|Bear\s?Lake|Broadwater|Crestline|Pineview|Santa\s?Rosa|GMA X?3[01]00\w*',
 	'code' => '',
 	'process' => 'Intel 65n',
 	'years' => '2006-07',
@@ -313,7 +313,7 @@ my $intel_data = {
 	},
 	'07' => {
 	'arch' => 'Gen5',
-	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA X?4500',
+	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA X?4[57]00\w*',
 	'code' => '',
 	'process' => 'Intel 45nm',
 	'years' => '2008',
