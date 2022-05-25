@@ -29,8 +29,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'ids.pl';
-my $self_version = '1.5';
-my $self_date = '2022-05-24';
+my $self_version = '1.6';
+my $self_date = '2022-05-25';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
@@ -632,7 +632,6 @@ sub process {
 				say $line;
 				say Dumper \@result;
 			}
-			
 			foreach my $item (@result){
 				# say $item;
 				@$data = grep {$_ ne $item} @$data;
@@ -670,7 +669,7 @@ sub output {
 	foreach my $sort (sort keys %output){
 		if ($b_print_output){
 			if ($b_hash){
-				say $tab . $quote . $output{$sort}->{'arch'} . $quote . ' => {';
+				say $tab . '{' . $quote . 'arch' . $quote . ' => ' . $quote . $output{$sort}->{'arch'} . $quote . ',';
 			}
 			else {
 				say $output{$sort}->{'arch'} . ':';

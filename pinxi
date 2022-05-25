@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.16';
-my $self_date='2022-05-24';
-my $self_patch='13';
+my $self_date='2022-05-25';
+my $self_patch='14';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -13685,7 +13685,7 @@ sub device_speed {
 {
 package GraphicItem;
 my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
-my ($gpu_amd,$gpu_intel,$gpu_nv,$gpu_nv_legacy);
+my ($gpu_amd,$gpu_intel,$gpu_nv);
 sub get {
 	eval $start if $b_log;
 	my (@rows);
@@ -13698,7 +13698,7 @@ sub get {
 	}
 	else {
 		push(@rows,device_output());
-		($gpu_amd,$gpu_intel,$gpu_nv,$gpu_nv_legacy) = ();
+		($gpu_amd,$gpu_intel,$gpu_nv) = ();
 		if (!@rows){
 			my $key = 'Message';
 			my $type = 'pci-card-data';
@@ -13765,7 +13765,7 @@ sub device_output {
 		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
 			# legacy: 1180 0df7 0029 current: 13bc 1c8d 24b1 regex: H100, RTX 4000
-			# ($row->[5],$row->[6],$row->[4]) = ('12de','1180','');
+			# ($row->[5],$row->[6],$row->[4]) = ('12de','0029','');
 			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6],$row->[4]);
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
@@ -15499,6 +15499,8 @@ sub display_drivers_x {
 	eval $end if $b_log;
 	@driver_data ? return \@driver_data : return;
 }
+
+## GPU DATA ##
 sub set_amd_data {
 	$gpu_amd = [
 	# no ids
@@ -15857,24 +15859,24 @@ sub set_intel_data {
 	];
 }
 sub set_nv_data {
-	my ($status_eol);
 	# this is vendor id: 12d2, nv1/riva/tnt type cards
 	# 0008|0009|0010|0018|0019
 	# and these are vendor id: 10de for 73.14
 	# 0020|0028|0029|002c|002d|00a0|0100|0101|0103|0150|0151|0152|0153
-	if (($show{'gpu-data'})){
-		$status_eol = main::message('nv-legacy-eol');
-	}
-	else {
-		$status_eol = main::message('nv-legacy-eol-try');
-	}
+	my $try = ($show{'gpu-data'}) ? '-try' : '';
+	my $status_eol = main::message('nv-legacy-eol' . $try);
+	my $date = $self_date;
+	$date =~ s/-\d+$//;
+	my $status_current = main::message('nv-current',$date);
 	# load legacy data, note, if there are 2 or more arch in 1 legacy, it has 1
 	# item per arch. kernel/last/xorg support either from nvidia or sgfxi
-	$gpu_nv_legacy = [
+	## Legacy 71.86.xx
+	$gpu_nv = [
 	{'arch' => 'Fahrenheit',
 	'ids' => '0008|0009|0010|0018|0019|0020|0028|0029|002c|002d|00a0',
 	'code' => 'NVx',
 	'kernel' => '2.6.38',
+	'legacy' => 1,
 	'process' => 'TSMC 220-350nm',
 	'release' => '71.86.15',
 	'series' => '71.86.xx',
@@ -15886,6 +15888,7 @@ sub set_nv_data {
 	'ids' => '0100|0101|0103|0150|0151|0152|0153',
 	'code' => 'NV1x',
 	'kernel' => '2.6.38',
+	'legacy' => 1,
 	'process' => 'TSMC 150-220nm',
 	'release' => '71.86.15',
 	'series' => '71.86.xx',
@@ -15893,10 +15896,12 @@ sub set_nv_data {
 	'xorg' => '1.7',
 	'years' => '1999-2005',
 	},
+	## Legacy 96.43.xx
 	{'arch' => 'Celsius',
 	'ids' => '0110|0111|0112|0113|01a0',
 	'code' => 'NV1x',
 	'kernel' => '3.6',
+	'legacy' => 1,
 	'process' => 'TSMC 150-220nm',
 	'release' => '96.43.23',
 	'series' => '96.43.xx',
@@ -15910,6 +15915,7 @@ sub set_nv_data {
 	'0253|0258|0259|025b|0280|0281|0282|0286|0288|0289|028c',
 	'code' => 'NV[12]x',
 	'kernel' => '3.6',
+	'legacy' => 1,
 	'process' => 'TSMC 150nm',
 	'release' => '96.43.23',
 	'series' => '96.43.xx',
@@ -15917,12 +15923,14 @@ sub set_nv_data {
 	'xorg' => '1.12',
 	'years' => '2001-03',
 	},
+	## Legacy 173.14.xx
 	{'arch' => 'Rankine',
 	'ids' => '00fa|00fb|00fc|00fd|00fe|0301|0302|0308|0309|0311|0312|0314|031a|' .
 	'031b|031c|0320|0321|0322|0323|0324|0325|0326|0327|0328|032a|032b|032c|032d|' .
 	'0330|0331|0332|0333|0334|0338|033f|0341|0342|0343|0344|0347|0348|034c|034e',
 	'code' => 'NV3x',
 	'kernel' => '3.12',
+	'legacy' => 1,
 	'process' => '130-150nm', # IBM 130, TSMC 130-150
 	'release' => '173.14.39',
 	'series' => '173.14.xx',
@@ -15930,6 +15938,7 @@ sub set_nv_data {
 	'xorg' => '1.15',
 	'years' => '2003-05',
 	},
+	## Legacy 304.xx
 	{'arch' => 'Curie',
 	'ids' => '0040|0041|0042|0043|0044|0045|0046|0047|0048|004e|0090|0091|0092|' .
 	'0093|0095|0098|0099|009d|00c0|00c1|00c2|00c3|00c8|00c9|00cc|00cd|00ce|00f1|' .
@@ -15942,6 +15951,7 @@ sub set_nv_data {
 	'03d0|03d1|03d2|03d5|03d6|0531|0533|053a|053b|053e|07e0|07e1|07e2|07e3|07e5',
 	'code' => '', # hard to get these, roughly MCP[567]x/NV4x/G7x
 	'kernel' => '4.13',
+	'legacy' => 1,
 	'process' => '90-130nm', # IBM 130, TSMC 90-110
 	'release' => '304.137',
 	'series' => '304.xx',
@@ -15949,6 +15959,7 @@ sub set_nv_data {
 	'xorg' => '1.19',
 	'years' => '2003-13',
 	},
+	# Legacy 340.xx
 	# these are both Tesla and Tesla 2.0
 	{'arch' => 'Tesla',
 	'ids' => '0191|0193|0194|0197|019d|019e|0400|0401|0402|0403|0404|0405|0406|' .
@@ -15970,6 +15981,7 @@ sub set_nv_data {
 	'0cb1|0cbc|10c0|10c3|10c5|10d8',
 	'code' => '', # not clear, 8800/GT2xx/maybe G7x
 	'kernel' => '5.4',
+	'legacy' => 1,
 	'process' => '40-80nm',
 	'release' => '340.108',
 	'series' => '340.xx',
@@ -15977,16 +15989,19 @@ sub set_nv_data {
 	'xorg' => '1.20',
 	'years' => '2006-13',
 	},
+	## Legacy 367.xx
 	{'arch' => 'Kepler',
 	'ids' => '0fef|0ff2|11bf',
 	'code' => 'GKxxx',
 	'kernel' => '',
+	'legacy' => 1,
 	'process' => 'TSMC 28nm',
 	'release' => '',
 	'series' => '367.xx',
 	'status' => main::message('nv-legacy-active','late 2022'),
 	'xorg' => '2012-18',
 	},
+	## Legacy 390.xx
 	# this is Fermi, Fermi 2.0
 	{'arch' => 'Fermi',
 	'ids' => '06c0|06c4|06ca|06cd|06d1|06d2|06d8|06d9|06da|06dc|06dd|06de|06df|' .
@@ -16000,6 +16015,7 @@ sub set_nv_data {
 	'124d|1251',
 	'code' => 'GF1xx',
 	'kernel' => '',
+	'legacy' => 1,
 	'process' => '40/28nm',
 	'release' => '',
 	'series' => '390.xx+',
@@ -16007,10 +16023,12 @@ sub set_nv_data {
 	'xorg' => '',
 	'years' => '2010-16',
 	},
+	## Legacy 470.xx
 	{'arch' => 'Fermi 2',
 	'ids' => '0fec|1281|1289|128b|1295|1298',
 	'code' => 'GF119/GK208',
 	'kernel' => '',
+	'legacy' => 1,
 	'process' => 'TSMC 28nm',
 	'release' => '',
 	'series' => '470.xx+',
@@ -16029,6 +16047,7 @@ sub set_nv_data {
 	'1291|1292|1293|1295|1296|1299|129a|12b9|12ba',
 	'code' => 'GKxxx',
 	'kernel' => '',
+	'legacy' => 1,
 	'process' => 'TSMC 28nm',
 	'release' => '',
 	'series' => '470.xx+',
@@ -16036,10 +16055,8 @@ sub set_nv_data {
 	'xorg' => '',
 	'years' => '2012-18',
 	},
-	];
-	
+	## Current Active Series
 	# load microarch data, as stuff goes legacy, these will form new legacy items.
-	$gpu_nv = [
 	{'arch' => 'Maxwell',
 	'ids' => '1340|1341|1344|1346|1347|1348|1349|134b|134d|134e|134f|137a|137b|' .
 	'1380|1381|1382|1390|1391|1392|1393|1398|1399|139a|139b|139c|139d|13b0|13b1|' .
@@ -16050,6 +16067,7 @@ sub set_nv_data {
 	'code' => 'GMxxx',
 	'process' => 'TSMC 28nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2014-19',
 	},
 	{'arch' => 'Pascal',
@@ -16062,6 +16080,7 @@ sub set_nv_data {
 	'code' => 'GP10x',
 	'process' => 'TSMC 16nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2016-21',
 	},
 	{'arch' => 'Volta',
@@ -16070,6 +16089,7 @@ sub set_nv_data {
 	'code' => 'GV1xx',
 	'process' => 'TSMC 12nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2017-20',
 	},
 	{'arch' => 'Turing',
@@ -16082,6 +16102,7 @@ sub set_nv_data {
 	'code' => 'TUxxx',
 	'process' => 'TSMC 12nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2018-22',
 	},
 	{'arch' => 'Ampere',
@@ -16093,6 +16114,7 @@ sub set_nv_data {
 	'code' => 'GAxxx',
 	'process' => 'TSMC 7nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2020-22',
 	},
 	# no ids yet
@@ -16102,6 +16124,7 @@ sub set_nv_data {
 	'pattern' => 'G?H[12]\d{2}',
 	'process' => 'TSMC n4',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2022+',
 	},
 	{'arch' => 'Lovelace',
@@ -16110,6 +16133,7 @@ sub set_nv_data {
 	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
 	'process' => 'TSMC 5nm',
 	'series' => '515.xx+',
+	'status' => $status_current,
 	'years' => '2022-23+',
 	},
 	];
@@ -16117,46 +16141,28 @@ sub set_nv_data {
 sub gpu_data {
 	eval $start if $b_log;
 	my ($v_id,$p_id,$name) = @_;
-	my ($gpu_data,$b_nv);
+	my ($gpu,$gpu_data,$b_nv);
 	if ($v_id eq '1002'){
 		set_amd_data() if !$gpu_amd;
-		$gpu_data = get_gpu_data('gen',$v_id,$p_id,$name);
+		$gpu = $gpu_amd;
 	}
 	elsif ($v_id eq '8086'){
 		set_intel_data() if !$gpu_intel;
-		$gpu_data = get_gpu_data('gen',$v_id,$p_id,$name);
+		$gpu = $gpu_intel;
 	}
 	else {
-		set_nv_data() if !$gpu_nv_legacy;
-		foreach my $type (('nv-current','nv-legacy')){
-			$gpu_data = get_gpu_data($type,$v_id,$p_id,$name);
-			last if $gpu_data;
-		}
+		set_nv_data() if !$gpu_nv;
+		$gpu = $gpu_nv;
 		$b_nv = 1;
 	}
+	$gpu_data = get_gpu_data($gpu,$p_id,$name);
 	eval $end if $b_log;
 	return ($gpu_data,$b_nv);
 }
 sub get_gpu_data {
 	eval $start if $b_log;
-	my ($type,$v_id,$p_id,$name) = @_;
-	my ($date,$gpu,$info);
-	if ($v_id eq '1002'){
-		$gpu = $gpu_amd;
-	}
-	elsif ($v_id eq '8086'){
-		$gpu = $gpu_intel;
-	}
-	else {
-		if ($type eq 'nv-current'){
-			$gpu = $gpu_nv;
-			$date = $self_date;
-			$date =~ s/-\d+$//;
-		}
-		else {
-			$gpu = $gpu_nv_legacy;
-		}
-	}
+	my ($gpu,$p_id,$name) = @_;
+	my ($info);
 	# Reverse, newer will be more common geneerally than older, so save some cpu!
 	# This means for amd/intel/nvidia current, the regex name search runs FIRST!
 	foreach my $item (reverse @$gpu){
@@ -16164,13 +16170,11 @@ sub get_gpu_data {
 		if (($item->{'ids'} && $p_id =~ /^($item->{'ids'})$/) ||
 		(!$item->{'ids'} && $item->{'pattern'} && 
 		$name =~ /\b($item->{'pattern'})\b/)){
-			if ($type eq 'nv-current'){
-				$item->{'status'} = main::message('nv-current',$date);
-			}
 			$info = {
 			'arch' => $item->{'arch'},
 			'code' => $item->{'code'},
 			'kernel' => $item->{'kernel'},
+			'legacy' => $item->{'legacy'},
 			'process' => $item->{'process'},
 			'release' => $item->{'release'},
 			'series' => $item->{'series'},
@@ -16181,14 +16185,11 @@ sub get_gpu_data {
 			last;
 		}
 	}
-	if ($info && $type eq 'nv-legacy'){
-		$info->{'legacy'} = 1;
-	}
-	if (!$info && ($type eq 'gen' || $type eq 'nv-legacy')){
+	if (!$info){
 		$info->{'status'} = main::message('unknown-device-id');
 	}
 	main::log_data('dump','%info',$info) if $b_log;
-	print "$type: ", Data::Dumper::Dumper $info if $dbg[49];
+	print "Raw \$info data: ", Data::Dumper::Dumper $info if $dbg[49];
 	eval $end if $b_log;
 	return $info;
 }
