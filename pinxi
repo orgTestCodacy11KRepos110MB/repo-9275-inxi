@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-05-24';
-my $self_patch='12';
+my $self_patch='13';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -13764,8 +13764,8 @@ sub device_output {
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
+			# ($row->[5],$row->[6],$row->[4]) = ('12de','220d','H100');
 			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6],$row->[4]);
-			# my $gpu_data = nvidia_data('1bb5');
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
 					$rows[$j]->{main::key($num++,1,3,'non-free')} = '';
@@ -16038,8 +16038,8 @@ sub set_nv_data {
 	];
 	
 	# load microarch data, as stuff goes legacy, these will form new legacy items.
-	$gpu_nv = {
-	'Maxwell' => {
+	$gpu_nv = [
+	{'arch' => 'Maxwell',
 	'ids' => '1340|1341|1344|1346|1347|1348|1349|134b|134d|134e|134f|137a|137b|' .
 	'1380|1381|1382|1390|1391|1392|1393|1398|1399|139a|139b|139c|139d|13b0|13b1|' .
 	'13b2|13b3|13b4|13b6|13b9|13ba|13bb|13bc|13c0|13c2|13d7|13d8|13d9|13da|13f0|' .
@@ -16051,7 +16051,7 @@ sub set_nv_data {
 	'series' => '515.xx+',
 	'years' => '2014-19',
 	},
-	'Pascal' => {
+	{'arch' => 'Pascal',
 	'ids' => '15f0|15f7|15f8|15f9|17c2|1b00|1b02|1b06|1b30|1b38|1b80|1b81|1b82|' .
 	'1b83|1b84|1b87|1ba0|1ba1|1ba2|1bb0|1bb1|1bb4|1bb5|1bb6|1bb7|1bb8|1bb9|1bbb|' .
 	'1bc7|1be0|1be1|1c02|1c03|1c04|1c06|1c07|1c09|1c20|1c21|1c22|1c23|1c30|1c31|' .
@@ -16063,7 +16063,7 @@ sub set_nv_data {
 	'series' => '515.xx+',
 	'years' => '2016-21',
 	},
-	'Volta' => {
+	{'arch' => 'Volta',
 	'ids' => '1d81|1db1|1db3|1db4|1db5|1db6|1db7|1db8|1dba|1df0|1df2|1df6|1fb0|' .
 	'20b0|20b3|20b6',
 	'code' => 'GV1xx',
@@ -16071,7 +16071,7 @@ sub set_nv_data {
 	'series' => '515.xx+',
 	'years' => '2017-20',
 	},
-	'Turing' => {
+	{'arch' => 'Turing',
 	'ids' => '1e02|1e04|1e07|1e09|1e30|1e36|1e78|1e81|1e82|1e84|1e87|1e89|1e90|' .
 	'1e91|1e93|1eb0|1eb1|1eb5|1eb6|1ec2|1ec7|1ed0|1ed1|1ed3|1ef5|1f02|1f03|1f06|' .
 	'1f07|1f08|1f0a|1f0b|1f10|1f11|1f12|1f14|1f15|1f36|1f42|1f47|1f50|1f51|1f54|' .
@@ -16083,7 +16083,7 @@ sub set_nv_data {
 	'series' => '515.xx+',
 	'years' => '2018-22',
 	},
-	'Ampere' => {
+	{'arch' => 'Ampere',
 	'ids' => '20b0|20b2|20b5|20b7|20f1|2203|2204|2206|2208|220a|220d|2216|2230|' .
 	'2231|2232|2233|2235|2236|2237|2238|2414|2420|2438|2460|2482|2484|2486|2487|' .
 	'2488|2489|248a|249c|249d|24a0|24b0|24b1|24b6|24b7|24b8|24b9|24ba|24bb|24dc|' .
@@ -16095,127 +16095,100 @@ sub set_nv_data {
 	'years' => '2020-22',
 	},
 	# no ids yet
-	'Hopper' => {
+	{'arch' => 'Hopper',
 	'ids' => '',
 	'code' => 'GH1xx',
 	'pattern' => 'G?H[12]\d{2}',
 	'process' => 'TSMC n4',
+	'series' => '515.xx+',
 	'years' => '2022+',
 	},
-	'Lovelace' => {
+	{'arch' => 'Lovelace',
 	'ids' => '',
 	'code' => 'AD1xx',
 	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
 	'process' => 'TSMC 5nm',
+	'series' => '515.xx+',
 	'years' => '2022-23+',
 	},
-	};
+	];
 }
 sub gpu_data {
 	eval $start if $b_log;
 	my ($v_id,$p_id,$name) = @_;
 	my ($gpu_data,$b_nv);
-	if ($v_id eq '1002' ||$v_id eq '8086' ){
-		$gpu_data = gpu_generic_data($v_id,$p_id,$name);
+	if ($v_id eq '1002'){
+		set_amd_data() if !$gpu_amd;
+		$gpu_data = get_gpu_data('gen',$v_id,$p_id,$name);
+	}
+	elsif ($v_id eq '8086'){
+		set_intel_data() if !$gpu_intel;
+		$gpu_data = get_gpu_data('gen',$v_id,$p_id,$name);
 	}
 	else {
-		$gpu_data = gpu_nv_data($p_id,$name);
+		set_nv_data() if !$gpu_nv_legacy;
+		foreach my $type (('nv-current','nv-legacy')){
+			$gpu_data = get_gpu_data($type,$v_id,$p_id,$name);
+			last if $gpu_data;
+		}
 		$b_nv = 1;
 	}
 	eval $end if $b_log;
 	return ($gpu_data,$b_nv);
 }
-sub gpu_generic_data {
+sub get_gpu_data {
 	eval $start if $b_log;
-	my ($v_id,$p_id,$name) = @_;
-	my ($gen_gpu,%info);
+	my ($type,$v_id,$p_id,$name) = @_;
+	my ($date,$gpu,$info,$status);
 	if ($v_id eq '1002'){
-		set_amd_data() if !$gpu_amd;
-		$gen_gpu = $gpu_amd;
+		$gpu = $gpu_amd;
 	}
 	elsif ($v_id eq '8086'){
-		set_intel_data() if !$gpu_intel;
-		$gen_gpu = $gpu_intel;
+		$gpu = $gpu_intel;
+	}
+	else {
+		if ($type eq 'nv-current'){
+			$gpu = $gpu_nv;
+			$date = $self_date;
+			$date =~ s/-\d+$//;
+		}
+		else {
+			$gpu = $gpu_nv_legacy;
+		}
 	}
 	# Reverse, newer will be more common geneerally than older, so save some cpu!
-	foreach my $item (reverse @$gen_gpu){
+	foreach my $item (reverse @$gpu){
 		next if !$item->{'ids'} && (!$item->{'pattern'} || !$name);
 		if (($item->{'ids'} && $p_id =~ /^($item->{'ids'})$/) ||
 		(!$item->{'ids'} && $item->{'pattern'} && 
 		$name =~ /\b($item->{'pattern'})\b/)){
-			%info = (
+			if ($type ne 'gen'){
+				$status = ($type eq 'nv-current') ? main::message('nv-current',$date) : $item->{'status'};
+			}
+			$info = {
 			'arch' => $item->{'arch'},
 			'code' => $item->{'code'},
+			'kernel' => $item->{'kernel'},
 			'process' => $item->{'process'},
+			'release' => $item->{'release'},
+			'series' => $item->{'series'},
+			'status' => $status,
+			'xorg' => $item->{'xorg'},
 			'years' => $item->{'years'},
-			);
+			};
 			last;
 		}
 	}
-	if (!%info){
-		$info{'status'} = main::message('unknown-device-id');
+	if ($info && $type eq 'nv-legacy'){
+		$info->{'legacy'} = 1;
 	}
-	main::log_data('dump','%info',\%info) if $b_log;
+	if (!$info && ($type eq 'gen' || $type eq 'nv-legacy')){
+		$info->{'status'} = main::message('unknown-device-id');
+	}
+	main::log_data('dump','%info',$info) if $b_log;
+	print "$type: ", Data::Dumper::Dumper $info if $dbg[49];
 	eval $end if $b_log;
-	return \%info;
-}
-sub gpu_nv_data {
-	eval $start if $b_log;
-	my ($p_id,$name) = @_;
-	my (%info);
-	set_nv_data() if !$gpu_nv_legacy;
-	my $date = $self_date;
-	$date =~ s/-\d+$//;
-	# Test for current active first, those will be most common, these will be
-	# run in random order, which is fine since user ids will also be random
-	foreach my $key (keys %$gpu_nv){
-		next if !$gpu_nv->{$key}{'ids'} && (!$gpu_nv->{$key}{'pattern'} || !$name);
-		if (($gpu_nv->{$key}{'ids'} && $p_id =~ /^($gpu_nv->{$key}{'ids'})$/) ||
-		(!$gpu_nv->{$key}{'ids'} && $gpu_nv->{$key}{'pattern'} &&
-		$name =~ /\b($gpu_nv->{$key}{'pattern'})\b/)){
-			%info = (
-			'arch' => $key,
-			'code' => $gpu_nv->{$key}{'code'},
-			'kernel' => '',
-			'process' => $gpu_nv->{$key}{'process'},
-			'release' => '',
-			'series' => $gpu_nv->{$key}{'series'},
-			'status' => main::message('nv-current',$date),
-			'xorg' => '',
-			'years' => $gpu_nv->{$key}{'years'},
-			);
-			last;
-		}
-	}
-	# then check for legacy
-	if (!%info){
-		# we reverse here since newer is more likely than older
-		foreach my $item (reverse @$gpu_nv_legacy){
-			if ($p_id =~ /^($item->{'ids'})$/){
-				%info = (
-				'arch' => $item->{'arch'},
-				'code' => $item->{'code'},
-				'kernel' => $item->{'kernel'},
-				'process' => $item->{'process'},
-				'release' => $item->{'release'},
-				'series' => $item->{'series'},
-				'status' => $item->{'status'},
-				'xorg' => $item->{'xorg'},
-				'years' => $item->{'years'},
-				);
-				last;
-			}
-		}
-		if (%info){
-			$info{'legacy'} = 1;
-		}
-	}
-	if (!%info){
-		$info{'status'} = main::message('unknown-device-id');
-	}
-	main::log_data('dump','%info',\%info) if $b_log;
-	eval $end if $b_log;
-	return \%info;
+	return $info;
 }
 
 ## MONITOR DATA ##
