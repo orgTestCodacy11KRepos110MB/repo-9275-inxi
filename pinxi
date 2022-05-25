@@ -13764,7 +13764,8 @@ sub device_output {
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
-			# ($row->[5],$row->[6],$row->[4]) = ('12de','220d','H100');
+			# legacy: 1180 0df7 0029 current: 13bc 1c8d 24b1 regex: H100, RTX 4000
+			# ($row->[5],$row->[6],$row->[4]) = ('12de','1180','');
 			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6],$row->[4]);
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
@@ -16139,7 +16140,7 @@ sub gpu_data {
 sub get_gpu_data {
 	eval $start if $b_log;
 	my ($type,$v_id,$p_id,$name) = @_;
-	my ($date,$gpu,$info,$status);
+	my ($date,$gpu,$info);
 	if ($v_id eq '1002'){
 		$gpu = $gpu_amd;
 	}
@@ -16163,8 +16164,8 @@ sub get_gpu_data {
 		if (($item->{'ids'} && $p_id =~ /^($item->{'ids'})$/) ||
 		(!$item->{'ids'} && $item->{'pattern'} && 
 		$name =~ /\b($item->{'pattern'})\b/)){
-			if ($type ne 'gen'){
-				$status = ($type eq 'nv-current') ? main::message('nv-current',$date) : $item->{'status'};
+			if ($type eq 'nv-current'){
+				$item->{'status'} = main::message('nv-current',$date);
 			}
 			$info = {
 			'arch' => $item->{'arch'},
@@ -16173,7 +16174,7 @@ sub get_gpu_data {
 			'process' => $item->{'process'},
 			'release' => $item->{'release'},
 			'series' => $item->{'series'},
-			'status' => $status,
+			'status' => $item->{'status'},
 			'xorg' => $item->{'xorg'},
 			'years' => $item->{'years'},
 			};
