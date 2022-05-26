@@ -82,7 +82,7 @@ my $amd_data = {
 	'arch' => 'Rage 3',
 	'pattern' => 'Rage (3|XL)|3D Rage (PRO)',
 	'code' => 'Rage 3',
-	'process' => '350nm',
+	'process' => 'TSMC 350nm',
 	'years' => '1997-99',
 	},
 	'04' => {
@@ -149,7 +149,7 @@ my $amd_data = {
 	'arch' => 'TeraScale',
 	'pattern' => 'Xenos|RV?[67]\d{2}|RS6[09]0M?|RS[76]80[CLM]?|HD [234]\d{3}|M7[246]|8[2468]|M9[23678]',
 	'code' => 'R6xx/RV6xx/RV7xx',
-	'process' => '40-80nm',
+	'process' => 'TSMC 55-65nm', # tsmc 55nm, 65nm, xbox 360s at 40nm
 	'years' => '2005-13',
 	},
 	# llano, ontario, zacate apu
@@ -205,7 +205,7 @@ my $amd_data = {
 	'arch' => 'GCN 5.1',
 	'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
 	'code' => 'Vega 2',
-	'process' =>  'TSMC 7nm',
+	'process' =>  'TSMC n7 (7nm)',
 	'years' => '2018-21',
 	},
 	# raven ridge, dali, picasso, kestrel apu
@@ -213,7 +213,7 @@ my $amd_data = {
 	'arch' => 'GCN 5',
 	'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
 	'code' => 'Vega',
-	'process' =>  'TSMC 14nm',
+	'process' =>  'GF 14nm',
 	'years' => '2017-20',
 	},
 	# rdna gaming
@@ -222,7 +222,7 @@ my $amd_data = {
 	'arch' => 'RDNA 1',
 	'pattern' => 'Navi\s?1\d|Cyan\s?Skillfish|Ariel|Arden',
 	'code' => 'Navi',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7 (7nm)',
 	'years' => '2019-20',
 	},
 	# Barcelo, Lockhart, Mendocino, Oberon, Rembrandt, Scarlett, Van Gogh apu
@@ -230,7 +230,7 @@ my $amd_data = {
 	'arch' => 'RDNA 2',
 	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 	'code' => 'Navi 2x',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020-22',
 	},
 	# phoenix apu
@@ -238,7 +238,7 @@ my $amd_data = {
 	'arch' => 'RDNA 3',
 	'pattern' => 'Navi\s?3\d\b|Phoenix|RX 7[78]\d{2} XT',
 	'code' => 'Navi 3x',
-	'process' => 'TSMC 5nm',
+	'process' => 'TSMC n5 (5nm)',
 	'years' => '2022+',
 	},
 	# cdna data center
@@ -246,14 +246,14 @@ my $amd_data = {
 	'arch' => 'CDNA 1',
 	'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
 	'code' => 'Instinct',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020',
 	},
 	'25' => {
 	'arch' => 'CDNA 2',
 	'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
 	'code' => 'Instinct',
-	'process' => 'TSMC 6nm',
+	'process' => 'TSMC n6 (7nm)',
 	'years' => '2021-22+',
 	},
 },
@@ -479,7 +479,7 @@ my $nv_data = {
 	'arch' => 'Ampere',
 	'pattern' => 'G?A\d{1,4}[GMH]?|RTX 30\d{2}(Ti)?|CMP [789]\dHX',
 	'code' => 'GAxxx',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020-22',
 	},
 	'05' => {
@@ -493,7 +493,7 @@ my $nv_data = {
 	'arch' => 'Lovelace',
 	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
 	'code' => 'AD1xx',
-	'process' => 'TSMC 5nm',
+	'process' => 'TSMC n5 (5nm)',
 	'years' => '2022-23+',
 	},
 	},
