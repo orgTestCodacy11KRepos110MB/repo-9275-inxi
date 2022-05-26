@@ -90,18 +90,35 @@ inxi/pinxi.
 TOOLS:
 
 There are a few backend tools that are used to generate matching tables for 
-various types of data. These are located in inxi-perl/tools/
+various types of data. These are located in inxi-perl/tools/ and all have a -h / 
+--help menu and significant and useful debugger output tools so you can see what 
+is happening if something isn't working as hoped.
 
 1. vendors.pl - create new set_vendors() sub for pinxi, use this to add new
 vendor and vendor product matches. Don't touch if you don't know regex quite 
 well!
 
-* lists/disks*.txt - the various lists of disk data used, and generated.
+Creates matching table for disk vendors: item.
+
+* lists/disks.**.txt - the various lists of disk data used, and generated.
 
 2. ids.pl - tool to generate nvidia microarch and legacy driver ids for the
 inxi nvidia graphics architecture and non-free driver information. 
 
-* lists/nv_xxx contains the various text files for arch/legacy matching.
+Creates raw matching IDs for gpu_data item, again matching hash tables.
+
+* lists/gpu.[vendor].xxx contain the various text files for arch/legacy 
+matching.
+
+3. ids_raw.pl - generate intel and amd raw id files from source data using some 
+clever transformation tricks, makes all source data turn into the same output so 
+ids.pl can read it easily.
+
+Creates source data files for ids.pl.
+
+* uses pci.id.xxx files from 2 locations, one global pci ids, and one per type, 
+amd and intel for the moment, raw will then transform those into a format ids.pl 
+can use.
 
 ====================================================================
 
