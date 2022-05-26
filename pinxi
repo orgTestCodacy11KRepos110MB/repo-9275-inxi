@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.16';
-my $self_date='2022-05-25';
-my $self_patch='14';
+my $self_date='2022-05-26';
+my $self_patch='15';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -8673,6 +8673,9 @@ sub full_output {
 		if ($b_admin && $cpu->{'gen'}){
 			$rows[$j]->{main::key($num++,0,3,'gen')} = $cpu->{'gen'};
 		}
+		if ($b_admin && $cpu->{'year'}){
+			$rows[$j]->{main::key($num++,0,3,'built')} = $cpu->{'year'};
+		}
 		if ($cpu->{'arch-note'}){
 			$rows[$j]->{main::key($num++,0,3,'note')} = $cpu->{'arch-note'};
 		}
@@ -10195,7 +10198,8 @@ sub cpu_properties {
 	);
 	# arm cpuinfo case only; confirm on bsds, not sure all get family/ids
 	if ($arch->[0] && !$cpu->{'arch'}){
-		($cpu->{'arch'},$cpu->{'arch-note'},$cpu->{'process'},$cpu->{'gen'}) = @{$arch};
+		($cpu->{'arch'},$cpu->{'arch-note'},$cpu->{'process'},$cpu->{'gen'},
+		$cpu->{'year'}) = @{$arch};
 	}
 	# cpu_arch comes from set_os()
 	if (!$cpu->{'arch'} && $cpu_arch && %risc){
@@ -10693,133 +10697,169 @@ sub cp_cpu_arch {
 	}
 	$family ||= '';
 	$model = '' if !defined $model; # model can be 0
-	my ($arch,$note,$process,$gen);
+	my ($arch,$gen,$note,$process,$year);
 	my $check = main::message('note-check');
 	# See: docs/inxi-resources.txt 
 	# print "type:$type fam:$family model:$model step:$stepping\n";
 	if ($type eq 'amd'){
-		if ($family eq '4'){
+		if ($family eq '3'){
+			$arch = 'Am386';
+			$process = 'AMD 900-1500nm';
+			$year = '1991-92';
+		}
+		elsif ($family eq '4'){
 			if ($model =~ /^(3|7|8|9|A)$/){
-				$arch = 'Am486'}
+				$arch = 'Am486';
+				$process = 'AMD 350-700nm';
+				$year = '1993-95';}
 			elsif ($model =~ /^(E|F)$/){
 				$arch = 'Am5x86';
-				$process = 'AMD 350nm';}
+				$process = 'AMD 350nm';
+				$year = '1995-99';}
 		}
 		elsif ($family eq '5'){
 			if ($model =~ /^(0|1|2|3)$/){
 				$arch = 'K5';
-				$process = 'AMD 350-500nm';}
+				$process = 'AMD 350-500nm';
+				$year = '1996';}
 			elsif ($model =~ /^(6|7)$/){
 				$arch = 'K6';
-				$process = 'AMD ' . ($model eq '6') ? '350nm' : '250nm';}
+				$process = 'AMD ' . ($model eq '6') ? '350nm' : '250nm';
+				$year = '1997-98';}
 			elsif ($model =~ /^(8)$/){
 				$arch = 'K6-2';
-				$process = 'AMD 180-250nm';}
+				$process = 'AMD 250nm';
+				$year = '1998-2003';}
 			elsif ($model =~ /^(9|D)$/){
 				$arch = 'K6-3';
-				$process = 'AMD 180-250nm';}
+				$process = 'AMD 180-250nm';
+				$year = '1999-2003';}
 			elsif ($model =~ /^(A)$/){
 				$arch = 'Geode';
-				$process = 'AMD 150-350nm';}
-			}
+				$process = 'AMD 150-350nm';
+				$year = '';} # dates uncertain, 1999 start
+		}
 		elsif ($family eq '6'){
 			if ($model =~ /^(1|2)$/){
-				$arch = 'K7';
-				$process = 'AMD 180-250nm';}
+				$arch = 'K7 Athlon Classic';
+				$process = 'AMD 180-250nm';
+				$year = '1999-2002';}
 			elsif ($model =~ /^(3|4)$/){
 				$arch = 'K7 Thunderbird';
-				$process = 'AMD 180nm';}
+				$process = 'AMD 180nm';
+				$year = '';}
 			elsif ($model =~ /^(6|7|8|A)$/){
-				$arch = 'K7 Palomino+';
-				$process = 'AMD 130-180nm';}
+				$arch = 'K7 Palomino+'; # athlon xp
+				$process = 'AMD 130-180nm';
+				$year = '';}
 			else {
 				$arch = 'K7';
-				$process = 'AMD 130-250nm';}
+				$process = 'AMD 130-250nm';
+				$year = '';}
 		}
 		elsif ($family eq 'F'){
 			if ($model =~ /^(4|5|7|8|B|C|E|F|14|15|17|18|1B|1C|1F)$/){
 				$arch = 'K8';
-				$process = 'AMD 65-130nm';}
+				$process = 'AMD 65-130nm';
+				$year = '';}
 			elsif ($model =~ /^(21|23|24|25|27|28|2C|2F)$/){
 				$arch = 'K8 rev.E';
-				$process = 'AMD 65-130nm';}
+				$process = 'AMD 65-130nm';
+				$year = '';}
 			elsif ($model =~ /^(41|43|48|4B|4C|4F|5D|5F|68|6B|6C|6F|7C|7F|C1)$/){
 				$arch = 'K8 rev.F+';
-				$process = 'AMD 65-130nm';}
+				$process = 'AMD 65-130nm';
+				$year = '';}
 			else {
 				$arch = 'K8';
-				$process = 'AMD 65-130nm';}
+				$process = 'AMD 65-130nm';
+				$year = '';}
 		}
 		elsif ($family eq '10'){
 			if ($model =~ /^(2|4|5|6|8|9|A)$/){
 				$arch = 'K10';
-				$process = 'AMD 32-65nm';}
+				$process = 'AMD 32-65nm';
+				$year = '2007-12';}
 			else {
 				$arch = 'K10';
-				$process = 'AMD 32-65nm';}
+				$process = 'AMD 32-65nm';
+				$year = '';}
 		}
 		elsif ($family eq '11'){
 			if ($model =~ /^(3)$/){
 				$arch = 'Turion X2 Ultra';
-				$process = 'AMD 45-90nm';}
+				$process = 'AMD 45-90nm';
+				$year = '';}
 		}
 		# might also need cache handling like 14/16
 		elsif ($family eq '12'){
 			if ($model =~ /^(1)$/){
 				$arch = 'Fusion';
-				$process = 'AMD 32nm';}
+				$process = 'GF 32nm';
+				$year = '';}
 			else {
 				$arch = 'Fusion';
-				$process = 'AMD 32nm';}
+				$process = 'GF 32nm';
+				$year = '';}
 		}
 		# SOC, apu
 		elsif ($family eq '14'){
 			if ($model =~ /^(1|2)$/){
 				$arch = 'Bobcat';
-				$process = 'AMD 40nm';}
+				$process = 'GF 40nm';
+				$year = '';}
 			else {
 				$arch = 'Bobcat';
-				$process = 'AMD 40nm';}
+				$process = 'GF 40nm';
+				$year = '';}
 		}
 		elsif ($family eq '15'){
 			# note: only model 1 confirmd
 			if ($model =~ /^(0|1|3|4|5|6|7|8|9|A|B|C|D|E|F)$/){
 				$arch = 'Bulldozer';
-				$process = 'AMD 32nm';}
+				$process = 'GF 32nm';
+				$year = '2011';}
 			# note: only 2,11,13 confirmed
 			elsif ($model =~ /^(2|10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F)$/){
 				$arch = 'Piledriver';
-				$process = 'AMD 32nm';}
+				$process = 'GF 32nm';
+				$year = '2012-13';}
 			# note: only 30,38 confirmed
 			elsif ($model =~ /^(30|31|32|33|34|35|36|37|38|39|3A|3B|3C|3D|3E|3F)$/){
 				$arch = 'Steamroller';
-				$process = 'AMD 28nm';}
+				$process = 'GF 28nm';
+				$year = '2014';}
 			# note; only 60,65,70 confirmed
 			elsif ($model =~ /^(60|61|62|63|64|65|66|67|68|69|6A|6B|6C|6D|6E|6F|70|71|72|73|74|75|76|77|78|79|7A|7B|7C|7D|7E|7F)$/){
 				$arch = 'Excavator';
-				$process = 'AMD 28nm';}
+				$process = 'GF 28nm';
+				$year = '2015';}
 			else {
 				$arch = 'Bulldozer';
-				$process = 'AMD 32nm';}
+				$process = 'GF 32nm';
+				$year = '2011-12';}
 		}
 		# SOC, apu
 		elsif ($family eq '16'){
 			if ($model =~ /^(0|1|2|3|4|5|6|7|8|9|A|B|C|D|E|F)$/){
 				$arch = 'Jaguar';
-				$process = 'AMD 28nm';}
+				$process = 'GF 28nm';
+				$year = '2013-14';}
 			elsif ($model =~ /^(30|31|32|33|34|35|36|37|38|39|3A|3B|3C|3D|3E|3F)$/){
 				$arch = 'Puma';
-				$process = 'AMD 28nm';}
+				$process = 'GF 28nm';
+				$year = '2014-15';}
 			else {
 				$arch = 'Jaguar';
-				$process = 'AMD 28nm';}
+				$process = 'GF 28nm';
+				$year = '2013-14';}
 		}
 		elsif ($family eq '17'){
 			# can't find stepping/model for no ht 2x2 core/die models, only first ones
 			if ($model =~ /^(1|11|20)$/){
 				$arch = 'Zen';
 				$process = 'GF 14nm';
-			}
+				$year = '2017-19';}
 			# Seen: stepping 1 is Zen+ Ryzen 7 3750H. But stepping 1 Zen is: Ryzen 3 3200U
 			# AMD Ryzen 3 3200G is stepping 1, Zen+
 			# Unknown if stepping 0 is Zen or either.
@@ -10828,23 +10868,24 @@ sub cp_cpu_arch {
 				$gen = '1';
 				$process = 'GF 12nm';
 				$note = $check;
-			}
+				$year = '2019';}
 			# shares model 8 with zen, stepping unknown
 			elsif ($model =~ /^(8)$/){
 				$arch = 'Zen+';
 				$gen = '2';
 				$process = 'GF 12nm';
-			}
+				$year = '2018-21';}
 			# used this but it didn't age well:  ^(2[0123456789ABCDEF]|
 			elsif ($model =~ /^(31|47|60|68|71|90)$/){
 				$arch = 'Zen 2';
 				$gen = '3';
-				$process = 'TSMC 7nm'; # some consumer maybe GF 14nm
-			}
+				$process = 'TSMC n7'; # some consumer maybe GF 14nm
+				$year = '2020-22';}
 			else {
 				$arch = 'Zen';
 				$note = $check;
-				$process = '7-14nm';}
+				$process = '7-14nm';
+				$year = '';}
 		}
 		# Joint venture between AMD and Chinese companies. Type amd? or hygon?
 		elsif ($family eq '18'){
@@ -10852,33 +10893,33 @@ sub cp_cpu_arch {
 			$arch = 'Zen (Hygon Dhyana)';
 			$gen = '1';
 			$process = 'GF 14nm';
-		}
+			$year = '';}
 		elsif ($family eq '19'){
 			# ext model 7,8, but no base models yet
 			# 10 engineering sample
 			if ($model =~ /^(10|7\d|8\d)$/){
 				$arch = 'Zen 4';
 				$gen = '5';
-				$process = 'TSMC 5nm';
-			}
+				$process = 'TSMC n5';
+				$year = '2022';}
 			# double check 40, 44
 			elsif ($model =~ /^(40|44)$/){
 				$arch = 'Zen 3+';
 				$gen = '4';
-				$process = 'TSMC 6nm';
-			}
+				$process = 'TSMC n6';
+				$year = '2022';}
 			# 21, 50: step 0; 
 			elsif ($model =~ /^(0|1|8|21|50)$/){
 				$arch = 'Zen 3';
 				$gen = '4';
-				$process = 'TSMC 7nm';
-			}
+				$process = 'TSMC n7';
+				$year = '2021-22';}
 			else {
 				$arch = 'Zen 3/4';
 				$note = $check;
-				$process = 'TSMC 5-7nm';
-			}
-			# Zen 5: TSCM 3nm
+				$process = 'TSMC n5-7';
+				$year = '2021-22';}
+			# Zen 5: TSCM n3
 		}
 	}
 	elsif ($type eq 'arm'){
@@ -10895,30 +10936,38 @@ sub cp_cpu_arch {
 		if ($family eq '5'){
 			if ($model =~ /^(4)$/){
 				$arch = 'WinChip C6';
-				$process = '250nm';}
+				$process = '250nm';
+				$year = '';}
 			elsif ($model =~ /^(8)$/){
 				$arch = 'WinChip 2';
-				$process = '250nm';}
+				$process = '250nm';
+				$year = '';}
 			elsif ($model =~ /^(9)$/){
 				$arch = 'WinChip 3';
-				$process = '250nm';}
+				$process = '250nm';
+				$year = '';}
 		}
 		elsif ($family eq '6'){
 			if ($model =~ /^(6)$/){
 				$arch = 'WinChip-based';
-				$process = '150nm';} # guess 
+				$process = '150nm'; # guess
+				$year = '';}
 			elsif ($model =~ /^(7|8)$/){
 				$arch = 'C3';
-				$process = '150nm';}
+				$process = '150nm';
+				$year = '';}
 			elsif ($model =~ /^(9)$/){
 				$arch = 'C3-2';
-				$process = '130nm';}
+				$process = '130nm';
+				$year = '';}
 			elsif ($model =~ /^(A|D)$/){
 				$arch = 'C7';
-				$process = '90nm';}
+				$process = '90nm';
+				$year = '';}
 			elsif ($model =~ /^(F)$/){
 				$arch = 'Isaiah';
-				$process = '90nm';} # guess
+				$process = '90nm'; # guess
+				$year = '';} 
 		}
 	}
 	# note, to test uncoment $cpu{'type'} = Elbrus in proc/cpuinfo logic
@@ -10926,68 +10975,92 @@ sub cp_cpu_arch {
 		# E8CB
 		if ($family eq '4'){
 			if ($model eq '1'){
-				$arch = 'Elbrus'}
+				$arch = 'Elbrus';
+				$process = '';
+				$year = '';}
 			elsif ($model eq '2'){
-				$arch = 'Elbrus-S'}
+				$arch = 'Elbrus-S';
+				$process = '';
+				$year = '';}
 			elsif ($model eq '3'){
 				$arch = 'Elbrus-4C';
-				$process = '65nm';}
+				$process = '65nm';
+				$year = '';}
 			elsif ($model eq '4'){
 				$arch = 'Elbrus-2C+';
-				$process = '90nm';}
+				$process = '90nm';
+				$year = '';}
 			elsif ($model eq '6'){
 				$arch = 'Elbrus-2CM';
-				$process = '90nm';}
+				$process = '90nm';
+				$year = '';}
 			elsif ($model eq '7'){
 				if ($stepping >= 2){
 					$arch = 'Elbrus-8C1';
-					$process = '28nm';}
+					$process = '28nm';
+					$year = '';}
 				else {
 					$arch = 'Elbrus-8C';
-					$process = '28nm';}
+					$process = '28nm';
+					$year = '';}
 			} # note: stepping > 1 may be 8C1
 			elsif ($model eq '8'){
 				$arch = 'Elbrus-1C+';
-				$process = 'TSMC 40nm'}
+				$process = 'TSMC 40nm';
+				$year = '';}
 			# 8C2 morphed out of E8CV, but the two were the same die
 			elsif ($model eq '9'){
 				$arch = 'Elbrus-8CV/8C2';
 				$process = 'TSMC 28nm';
-				$note = $check;}
+				$note = $check;
+				$year = '';}
 			elsif ($model eq 'A'){
 				$arch = 'Elbrus-12C';
-				$process = 'TSMC 16nm';} # guess
+				$process = 'TSMC 16nm'; # guess
+				$year = '';}
 			elsif ($model eq 'B'){
 				$arch = 'Elbrus-16C';
-				$process = 'TSMC 16nm';}
+				$process = 'TSMC 16nm';
+				$year = '';}
 			elsif ($model eq 'C'){
 				$arch = 'Elbrus-2C3';
-				$process = 'TSMC 16nm';}
+				$process = 'TSMC 16nm';
+				$year = '';}
 			else {
-				$arch = 'Elbrus-??';
-				$note = $check;}
+				$arch = 'Elbrus-??';;
+				$year = '';
+				$note = $check;
+				$year = '';}
 		}
 		elsif ($family eq '5'){
 			if ($model eq '9'){
 				$arch = 'Elbrus-8C2';
-				$process = 'TSMC 28nm';}
+				$process = 'TSMC 28nm';
+				$year = '';}
 			else {
 				$arch = 'Elbrus-??';
-				$note = $check;}
+				$note = $check;
+				$process = '';
+				$year = '';}
 		}
 		elsif ($family eq '6'){
 			if ($model eq 'A'){
 				$arch = 'Elbrus-12C';
-				$process = 'TSMC 16nm';} # guess
+				$process = 'TSMC 16nm'; # guess
+				$year = '';}
 			elsif ($model eq 'B'){
 				$arch = 'Elbrus-16C';
-				$process = 'TSMC 16nm';}
+				$process = 'TSMC 16nm';
+				$year = '';}
 			elsif ($model eq 'C'){
 				$arch = 'Elbrus-2C3';
-				$process = 'TSMC 16nm';}
+				$process = 'TSMC 16nm';
+				$year = '';}
 			else {
 				$arch = 'Elbrus-??';
-				$note = $check;}
+				$note = $check;
+				$process = '';
+				$year = '';}
 		}
 		else {
 			$arch = 'Elbrus-??';
@@ -10998,173 +11071,223 @@ sub cp_cpu_arch {
 		if ($family eq '4'){
 			if ($model =~ /^(0|1|2|3|4|5|6|7|8|9)$/){
 				$arch = '486';
-				$process = '600-1000nm';}
+				$process = '600-1000nm';
+				$year = '';}
 		}
 		elsif ($family eq '5'){
 			if ($model =~ /^(1|2|3|7)$/){
 				$arch = 'P5';
-				$process = 'Intel 350-800nm';}
+				$process = 'Intel 350-800nm';
+				$year = '';}
 			elsif ($model =~ /^(4|8)$/){
 				$arch = 'P5';
-				$process = 'Intel 350-800nm';} # MMX
+				$process = 'Intel 350-800nm'; # MMX
+				$year = '';}
 			elsif ($model =~ /^(9|A)$/){
 				$arch = 'Lakemont';
-				$process = 'Intel 350-800nm';}
+				$process = 'Intel 350-800nm';
+				$year = '';}
 		}
 		elsif ($family eq '6'){
 			if ($model =~ /^(1)$/){
 				$arch = 'P6 Pro';
-				$process = 'Intel 350nm';}
+				$process = 'Intel 350nm';
+				$year = '';}
 			elsif ($model =~ /^(3)$/){
 				$arch = 'P6 II Klamath';
-				$process = 'Intel 350nm';}
+				$process = 'Intel 350nm';
+				$year = '';}
 			elsif ($model =~ /^(5)$/){
 				$arch = 'P6 II Deschutes';
-				$process = 'Intel 250nm';}
+				$process = 'Intel 250nm';
+				$year = '';}
 			elsif ($model =~ /^(6)$/){
 				$arch = 'P6 II Mendocino';
-				$process = 'Intel 250nm';}
+				$process = 'Intel 250nm';
+				$year = '';}
 			elsif ($model =~ /^(7)$/){
 				$arch = 'P6 III Katmai';
-				$process = 'Intel 250nm';}
+				$process = 'Intel 250nm';
+				$year = '';}
 			elsif ($model =~ /^(8)$/){
 				$arch = 'P6 III Coppermine';
-				$process = 'Intel 180nm';}
+				$process = 'Intel 180nm';
+				$year = '';}
 			elsif ($model =~ /^(9)$/){
-				$arch = 'M Banias';
-				$process = 'Intel 130nm';} # pentium M
+				$arch = 'M Banias'; # Pentium M
+				$process = 'Intel 130nm';
+				$year = '';}
 			elsif ($model =~ /^(A)$/){
 				$arch = 'P6 III Xeon';
-				$process = 'Intel 180-250nm';}
+				$process = 'Intel 180-250nm';
+				$year = '';}
 			elsif ($model =~ /^(B)$/){
 				$arch = 'P6 III Tualitin';
-				$process = 'Intel 130nm';}
+				$process = 'Intel 130nm';
+				$year = '';}
 			elsif ($model =~ /^(D)$/){
-				$arch = 'M Dothan';
-				$process = 'Intel 90nm';} # Pentium M
+				$arch = 'M Dothan'; # Pentium M
+				$process = 'Intel 90nm';
+				$year = '';}
 			elsif ($model =~ /^(E)$/){
 				$arch = 'M Yonah';
-				$process = 'Intel 65nm';}
+				$process = 'Intel 65nm';
+				$year = '';}
 			elsif ($model =~ /^(F|16)$/){
 				$arch = 'Core2 Merom';
-				$process = 'Intel 65nm';}
+				$process = 'Intel 65nm';
+				$year = '';}
 			elsif ($model =~ /^(15)$/){
 				$arch = 'M Tolapai';
-				$process = 'Intel 90nm';} # pentium M system on chip
+				$process = 'Intel 90nm';
+				$year = '';} # pentium M system on chip
 			elsif ($model =~ /^(1D)$/){
 				$arch = 'Penryn';
-				$process = 'Intel 45nm';}
+				$process = 'Intel 45nm';
+				$year = '';}
 			elsif ($model =~ /^(17)$/){
 				$arch = 'Yorkfield';
-				$process = 'Intel 45nm';}
+				$process = 'Intel 45nm';
+				$year = '';}
 			# had 25 also, but that's westmere, at least for stepping 2
 			elsif ($model =~ /^(1A|1E|1F|2C|2E|2F)$/){
 				$arch = 'Nehalem';
-				$process = 'Intel 45nm';}
+				$process = 'Intel 45nm';
+				$year = '';}
 			elsif ($model =~ /^(1C|26)$/){
 				$arch = 'Bonnell';
-				$process = 'Intel 45nm';} # atom Bonnell? 27?
+				$process = 'Intel 45nm';
+				$year = '';} # atom Bonnell? 27?
 			elsif ($model =~ /^(27|35|36)$/){
 				$arch = 'Saltwell';
-				$process = 'Intel 32nm';}
+				$process = 'Intel 32nm';
+				$year = '';}
 			# 25 may be nahelem in a stepping, check. Stepping 2 is westmere
 			elsif ($model =~ /^(25|2C|2F)$/){
 				$arch = 'Westmere';
-				$process = 'Intel 32nm';}
+				$process = 'Intel 32nm';
+				$year = '';}
 			elsif ($model =~ /^(2A|2D)$/){
 				$arch = 'Sandy Bridge';
-				$process = 'Intel 32nm';}
+				$process = 'Intel 32nm';
+				$year = '';}
 			elsif ($model =~ /^(37|4A|4D|5A|5D)$/){
 				$arch = 'Silvermont';
-				$process = 'Intel 22nm';}
+				$process = 'Intel 22nm';
+				$year = '';}
 			elsif ($model =~ /^(3A|3E)$/){
 				$arch = 'Ivy Bridge';
-				$process = 'Intel 22nm';}
+				$process = 'Intel 22nm';
+				$year = '';}
 			elsif ($model =~ /^(3C|3F|45|46)$/){
 				$arch = 'Haswell';
-				$process = 'Intel 22nm';}
+				$process = 'Intel 22nm';
+				$year = '';}
 			elsif ($model =~ /^(3D|47|4F|56)$/){
 				$arch = 'Broadwell';
-				$process = 'Intel 14nm';}
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(4C)$/){
 				$arch = 'Airmont';
-				$process = 'Intel 14nm';}
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(4E)$/){
 				$arch = 'Skylake';
-				$process = 'Intel 14nm';} 
+				$process = 'Intel 14nm';
+				$year = '';} 
 			# need to find stepping for these, guessing stepping 4 is last for SL
 			elsif ($model =~ /^(55)$/){
 				if ($stepping >= 5 && $stepping <= 7){
 					$arch = 'Cascade Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				elsif ($stepping >= 8){
 					$arch = 'Cooper Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				else {
 					$arch = 'Skylake';
-					$process = 'Intel 14nm';} }
+					$process = 'Intel 14nm';
+					$year = '';}}
 			elsif ($model =~ /^(57)$/){
 				$arch = 'Knights Landing';
-				$process = 'Intel 14-22nm';}
+				$process = 'Intel 14-22nm';
+				$year = '';}
 			elsif ($model =~ /^(5C|5F)$/){
 				$arch = 'Goldmont';
-				$process = 'Intel 14nm';}
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(5E)$/){
 				$arch = 'Skylake-S';
-				$process = 'Intel 14nm';}
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(66)$/){
 				$arch = 'Cannon Lake';
-				$process = 'Intel 10nm';}
+				$process = 'Intel 10nm';
+				$year = '';}
 			# 6 are servers, 7 not
 			elsif ($model =~ /^(6A|6C|7D|7E)$/){
 				$arch = 'Ice Lake';
-				$process = 'Intel 10nm';}
+				$process = 'Intel 10nm';
+				$year = '';}
 			elsif ($model =~ /^(7A)$/){
 				$arch = 'Goldmont Plus';
-				$process = 'Intel 14nm';} 
+				$process = 'Intel 14nm';
+				$year = '';} 
 			elsif ($model =~ /^(85)$/){
 				$arch = 'Knights Mill';
-				$process = 'Intel 14nm';}
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(8A|96|9C)$/){
 				$arch = 'Tremont';
-				$process = 'Intel 10nm';}
+				$process = 'Intel 10nm';
+				$year = '';}
 			elsif ($model =~ /^(8C|8D)$/){
 				$arch = 'Tiger Lake';
-				$process = 'Intel 10nm';}
+				$process = 'Intel 10nm';
+				$year = '';}
 			elsif ($model =~ /^(8E)$/){
 				# can be AmberL or KabyL
 				if ($stepping == 9){
 					$arch = 'Amber/Kaby Lake';
 					$note = $check;
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				elsif ($stepping == 10){
 					$arch = 'Coffee Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				elsif ($stepping == 11){
 					$arch = 'Whiskey Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				# can be WhiskeyL or CometL
 				elsif ($stepping == 12){
 					$arch = 'Comet/Whiskey Lake';
 					$note = $check;
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				# note: had it as > 13, but 0xC seems to be CL
 				elsif ($stepping >= 13){
-					$arch = 'Comet Lake';
-					$process = 'Intel 14nm';} # guess, have not seen docs yet
+					$arch = 'Comet Lake'; # guess, have not seen docs yet
+					$process = 'Intel 14nm';
+					$year = '';}
 				# NOTE: not enough info to lock this down
 				else {
 					$arch = 'Kaby Lake';
 					$note = $check;
-					$process = 'Intel 14nm';} 
+					$process = 'Intel 14nm';
+					$year = '';} 
 			}
 			elsif ($model =~ /^(8F)$/){
 				$arch = 'Sapphire Rapids';
-				$process = '10nm ESF';} # server
+				$process = '10nm ESF';
+				$year = '';} # server
 			elsif ($model =~ /^(97|9A)$/){
 				$arch = 'Alder Lake';
 				$gen = '12';
-				$process = 'Intel 7 (10nm ESF)';}
+				$process = 'Intel 7 (10nm ESF)';
+				$year = '';}
 			## IDS UNKNOWN, release late 2022
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Raptor Lake'; #
@@ -11176,21 +11299,26 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				elsif ($stepping >= 10 && $stepping <= 13){
 					$arch = 'Coffee Lake';
-					$process = 'Intel 14nm';}
+					$process = 'Intel 14nm';
+					$year = '';}
 				else {
 					$arch = 'Kaby Lake';
 					$note = $check;
-					$process = 'Intel 14nm';} 
+					$process = 'Intel 14nm';
+					$year = '';} 
 			}
 			elsif ($model =~ /^(A5)$/){
-				$arch = 'Comet Lake';
-				$process = 'Intel 14nm';} # steppings 0-5
+				$arch = 'Comet Lake'; # stepping 0-5
+				$process = 'Intel 14nm';
+				$year = '';}
 			elsif ($model =~ /^(A7)$/){
 				$arch = 'Rocket Lake';
-				$process = 'Intel 14nm';} 
+				$process = 'Intel 14nm';
+				$year = '';} 
 			# More info: comet: shares family/model, need to find stepping numbers
 			# Coming: meteor lake; granite rapids; diamond rapids
 		}
@@ -11198,36 +11326,45 @@ sub cp_cpu_arch {
 		elsif ($family eq 'B'){
 			if ($model =~ /^(0)$/){
 				$arch = 'Knights Ferry';
-				$process = 'Intel 45nm';}
+				$process = 'Intel 45nm';
+				$year = '';}
 			if ($model =~ /^(1)$/){
 				$arch = 'Knights Corner';
-				$process = 'Intel 22nm';}
+				$process = 'Intel 22nm';
+				$year = '';}
 		}
 		# pentium 4
 		elsif ($family eq 'F'){
 			if ($model =~ /^(0|1)$/){
 				$arch = 'Netburst Willamette';
-				$process = 'Intel 180nm';}
+				$process = 'Intel 180nm';
+				$year = '';}
 			elsif ($model =~ /^(2)$/){
 				$arch = 'Netburst Northwood';
-				$process = 'Intel 130nm';}
+				$process = 'Intel 130nm';
+				$year = '';}
 			elsif ($model =~ /^(3)$/){
 				$arch = 'Netburst Prescott';
-				$process = 'Intel 90nm';} # 6? Nocona
+				$process = 'Intel 90nm';
+				$year = '';} # 6? Nocona
 			elsif ($model =~ /^(4)$/){
 				if ($stepping == 1){
 					$arch = 'Netburst Prescott';
-					$process = 'Intel 90nm';} 
+					$process = 'Intel 90nm';
+					$year = '';} 
 				else {
 					$arch = 'Netburst Smithfield';
-					$process = 'Intel 90nm';} # 6? Nocona
+					$process = 'Intel 90nm';
+					$year = '';} # 6? Nocona
 			}
 			elsif ($model =~ /^(6)$/){
 				$arch = 'Netburst Presler';
-				$process = 'Intel 65nm';}
+				$process = 'Intel 65nm';
+				$year = '';}
 			else {
 				$arch = 'Netburst';
-				$process = 'Intel 90-180nm';}
+				$process = 'Intel 90-180nm';
+				$year = '';}
 		}
 		# this is not going to e accurate, WhiskyL or Kaby L can ID as Skylake
 		# but if it's a new cpu microarch not handled yet, it may give better 
@@ -11252,7 +11389,7 @@ sub cp_cpu_arch {
 		}
 	}
 	eval $end if $b_log;
-	return [$arch,$note,$process,$gen];
+	return [$arch,$note,$process,$gen,$year];
 }
 sub cp_cpu_topology {
 	my ($counts,$topology) = @_;
@@ -15667,7 +15804,7 @@ sub set_amd_data {
 	{'arch' => 'GCN 5.1',
 	'ids' => '15df|1636|1638|164c|66a0|66a1|66a2|66a3|66a7|66af|69af',
 	'code' => 'Vega 2',
-	'process' =>  'TSMC 7nm',
+	'process' =>  'TSMC n7',
 	'years' => '2018-21',
 	},
 	{'arch' => 'GCN 5',
@@ -15681,32 +15818,32 @@ sub set_amd_data {
 	'ids' => '13e9|13fe|1478|1479|1607|7310|7312|731f|7340|7341|7347|734f|7360|' .
 	'7362',
 	'code' => 'Navi',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7',
 	'years' => '2019-20',
 	},
 	{'arch' => 'RDNA 2',
 	'ids' => '163f|164d|1681|73a1|73a2|73a3|73a5|73ab|73ae|73af|73bf|73c3|73ce|' .
 	'73df|73e0|73e1|73e3|73ef|73ff|7421|7422|7423|7424|743f',
 	'code' => 'Navi 2x',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7',
 	'years' => '2020-22',
 	},
 	{'arch' => 'RDNA 3',
 	'ids' => '15bf|164f',
 	'code' => 'Navi 3x',
-	'process' => 'TSMC 5nm',
+	'process' => 'TSMC n5',
 	'years' => '2022+',
 	},
 	{'arch' => 'CDNA 1',
 	'ids' => '7388|738c|738e',
 	'code' => 'Instinct',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7',
 	'years' => '2020',
 	},
 	{'arch' => 'CDNA 2',
 	'ids' => '7408|740c|740f',
 	'code' => 'Instinct',
-	'process' => 'TSMC 6nm',
+	'process' => 'TSMC n6',
 	'years' => '2021-22+',
 	},
 	];
@@ -16112,7 +16249,7 @@ sub set_nv_data {
 	'24dd|24e0|24fa|2503|2504|2507|2508|2520|2523|2531|2560|2563|2571|25a0|25a2|' .
 	'25a5|25b6|25b8|25b9|25ba|25bb|25e0|25e2|25e5|25f9|25fa',
 	'code' => 'GAxxx',
-	'process' => 'TSMC 7nm',
+	'process' => 'TSMC n7',
 	'series' => '515.xx+',
 	'status' => $status_current,
 	'years' => '2020-22',
@@ -16131,7 +16268,7 @@ sub set_nv_data {
 	'ids' => '',
 	'code' => 'AD1xx',
 	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
-	'process' => 'TSMC 5nm',
+	'process' => 'TSMC n5',
 	'series' => '515.xx+',
 	'status' => $status_current,
 	'years' => '2022-23+',
