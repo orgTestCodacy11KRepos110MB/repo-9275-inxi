@@ -172,7 +172,7 @@ my $amd_data = {
 	'arch' => 'GCN 1',
 	'pattern' => 'Southern Islands|Banks|Cape Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
 	'code' => 'Southern Islands',
-	'process' => 'TSMC 28',
+	'process' => 'TSMC 28nm',
 	'years' => '2011-20',
 	},
 	# beema, mullins, kabini, kaveri, temash apu
@@ -262,18 +262,19 @@ my $intel_data = {
 	'intel' => {
 	'file' => 'gpu.intel.full.sort',
 	'00' => {
-	'arch' => 'i740',
-	'pattern' => '8274{2}|i74[02]|Auburn',
-	'code' => '',
-	'process' => 'Intel 150nm',
-	'years' => '1998',
-	},
-	'01' => {
 	'arch' => 'Gen1',
 	'pattern' => '8275{2}|8281[05]\w?|i8(15|30)|Almador|Coloma|Portola|Solano|Whitney',
 	'code' => '',
 	'process' => 'Intel 150nm',
 	'years' => '1998-2002',
+	},
+	# ill-fated standalone gfx card
+	'01' => {
+	'arch' => 'i740',
+	'pattern' => '8274{2}|i74[02]|Auburn',
+	'code' => '',
+	'process' => 'Intel 150nm',
+	'years' => '1998',
 	},
 	'02' => {
 	'arch' => 'Gen2',
