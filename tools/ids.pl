@@ -487,7 +487,7 @@ my $nv_data = {
 	'arch' => 'Hopper',
 	'pattern' => 'G?H[12]\d{2}',
 	'code' => 'GH1xx',
-	'process' => 'TSMC 4nm',
+	'process' => 'TSMC n4 (5nm)',
 	'years' => '2022+',
 	},
 	'06' => {
