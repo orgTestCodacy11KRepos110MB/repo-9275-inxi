@@ -245,14 +245,14 @@ my $amd_data = {
 	'24' => {
 	'arch' => 'CDNA 1',
 	'pattern' => 'Arcturus|Radeon Instinct MI1\d{2}',
-	'code' => 'Instinct',
+	'code' => 'Instinct MI1xx',
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020',
 	},
 	'25' => {
 	'arch' => 'CDNA 2',
 	'pattern' => 'Aldebaran|Radeon Instinct MI2\d{2}',
-	'code' => 'Instinct',
+	'code' => 'Instinct MI2xx',
 	'process' => 'TSMC n6 (7nm)',
 	'years' => '2021-22+',
 	},
