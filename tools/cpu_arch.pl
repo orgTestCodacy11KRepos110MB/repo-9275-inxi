@@ -36,7 +36,7 @@ my $dbg = [];
 
 my $job = 'amd';
 my $options = 'all|amd|centaur|elbrus|intel';
-## NOTE: family is integer, model hex, stepping integer, name string
+## NOTE: family is hex, model hex, stepping hex, name string
 my $tests = {
 'amd' => [
 {'family' => '6', 'model' => '2', 'stepping' => '0', 'name' => '', },
@@ -164,11 +164,11 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(3|4)$/){
 				$arch = 'K7 Thunderbird';
 				$process = 'AMD 180nm';
-				$year = '';}
+				$year = '2000-01';}
 			elsif ($model =~ /^(6|7|8|A)$/){
 				$arch = 'K7 Palomino+'; # athlon xp
 				$process = 'AMD 130-180nm';
-				$year = '';}
+				$year = '2001';}
 			else {
 				$arch = 'K7';
 				$process = 'AMD 130-250nm';
@@ -200,13 +200,16 @@ sub cp_cpu_arch {
 			else {
 				$arch = 'K10';
 				$process = 'AMD 32-65nm';
-				$year = '';}
+				$year = '2007-12';}
 		}
+		# very loose, all stepping 1: covers athlon x2, sempron, turion x2
+		# years unclear, could be 2005 start, or 2008
 		elsif ($family eq '11'){
 			if ($model =~ /^(3)$/){
-				$arch = 'Turion X2 Ultra';
+				$arch = 'Athlon X2/Turion X2'; # unclear: K8 or K10
+				$note = $check;
 				$process = 'AMD 45-90nm';
-				$year = '';}
+				$year = ''; } 
 		}
 		# might also need cache handling like 14/16
 		elsif ($family eq '12'){
@@ -224,11 +227,11 @@ sub cp_cpu_arch {
 			if ($model =~ /^(1|2)$/){
 				$arch = 'Bobcat';
 				$process = 'GF 40nm';
-				$year = '';}
+				$year = '2011-13';}
 			else {
 				$arch = 'Bobcat';
 				$process = 'GF 40nm';
-				$year = '';}
+				$year = '2011-13';}
 		}
 		elsif ($family eq '15'){
 			# note: only model 1 confirmd
