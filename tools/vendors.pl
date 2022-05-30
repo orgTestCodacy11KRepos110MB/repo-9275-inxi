@@ -40,11 +40,12 @@ my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
 my $dbg = [];
 
-## Copy everything between start/end copy block comments. These are the rules
-## you need to update to add unmatched vendors or vendor products. Always make
-## sure you understand how this works before proceeding or you will be sad.
+## Copy everything including start/end disk vendor block comments. These are the 
+## rules you need to update to add unmatched vendors or vendor products. Always 
+## make sure you understand how this works before proceeding or you will be sad.
+## Paste into pinxi, replace including start/end comments
 
-## START COPY BLOCK ##
+## START DISK VENDOR BLOCK ##
 # 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 sub set_vendors {
 	eval $start if $b_log;
@@ -526,8 +527,8 @@ sub set_vendors {
 	];
 	eval $end if $b_log;
 }
-# receives space separated string that may or may not contain vendor data
-## END COPY BLOCK ##
+## END DISK VENDOR BLOCK ##
+# r
 # You should not need to change device_vendor(), but if you do, make sure to 
 #  also change the version in pinxi at the same time.
 sub device_vendor {

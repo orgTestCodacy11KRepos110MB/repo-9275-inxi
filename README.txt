@@ -94,13 +94,10 @@ various types of data. These are located in inxi-perl/tools/ and all have a -h /
 --help menu and significant and useful debugger output tools so you can see what 
 is happening if something isn't working as hoped.
 
-1. vendors.pl - create new set_vendors() sub for pinxi, use this to add new
-vendor and vendor product matches. Don't touch if you don't know regex quite 
-well!
-
-Creates matching table for disk vendors: item.
-
-* lists/disks.**.txt - the various lists of disk data used, and generated.
+1. cpu_arch.pl - tool to update cp_cpu_arch, as with vendors.pl, this is the 
+master copy of cp_cpu_arch, which you copy from cpu_arch.pl to replace 
+cp_cpu_arch in pinxi. Includes debuggers to test cpu types, model, stepping,
+name strings.
 
 2. ids.pl - tool to generate nvidia microarch and legacy driver ids for the
 inxi nvidia graphics architecture and non-free driver information. 
@@ -119,6 +116,14 @@ Creates source data files for ids.pl.
 * uses pci.id.xxx files from 2 locations, one global pci ids, and one per type, 
 amd and intel for the moment, raw will then transform those into a format ids.pl 
 can use.
+
+4. vendors.pl - create new set_vendors() sub for pinxi, use this to add new
+vendor and vendor product matches. Don't touch if you don't know regex quite 
+well!
+
+Creates matching table for disk vendors: item.
+
+* lists/disks.**.txt - the various lists of disk data used, and generated.
 
 ====================================================================
 
