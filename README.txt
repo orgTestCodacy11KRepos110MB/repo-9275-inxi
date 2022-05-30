@@ -95,7 +95,7 @@ various types of data. These are located in inxi-perl/tools/ and all have a -h /
 --help menu and significant and useful debugger output tools so you can see what 
 is happening if something isn't working as hoped.
 
-Because these always require manual updates using emprirical research and data,
+Because these always require manual updates using empirical research and data,
 they are developed stand-alone to make it easier to update them, and also easier
 for other people to work on them, and, ideally, to contribute patches to improve
 matches. Well, I can dream, can't I? LOL.
