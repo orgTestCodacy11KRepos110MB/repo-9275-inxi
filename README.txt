@@ -99,7 +99,15 @@ master copy of cp_cpu_arch, which you copy from cpu_arch.pl to replace
 cp_cpu_arch in pinxi. Includes debuggers to test cpu types, model, stepping,
 name strings.
 
-2. ids.pl - tool to generate nvidia microarch and legacy driver ids for the
+2. disk_vendors.pl - create new set_vendors() sub for pinxi, use this to add new
+vendor and vendor product matches. Don't touch if you don't know regex quite 
+well!
+
+Creates matching table for disk vendors: item.
+
+* lists/disks.**.txt - the various lists of disk data used, and generated.
+
+3. gpu_ids.pl - tool to generate nvidia microarch and legacy driver ids for the
 inxi nvidia graphics architecture and non-free driver information. 
 
 Creates raw matching IDs for gpu_data item, again matching hash tables.
@@ -107,7 +115,7 @@ Creates raw matching IDs for gpu_data item, again matching hash tables.
 * lists/gpu.[vendor].xxx contain the various text files for arch/legacy 
 matching.
 
-3. ids_raw.pl - generate intel and amd raw id files from source data using some 
+4. gpu_raw.pl - generate intel and amd raw id files from source data using some 
 clever transformation tricks, makes all source data turn into the same output so 
 ids.pl can read it easily.
 
@@ -117,13 +125,7 @@ Creates source data files for ids.pl.
 amd and intel for the moment, raw will then transform those into a format ids.pl 
 can use.
 
-4. vendors.pl - create new set_vendors() sub for pinxi, use this to add new
-vendor and vendor product matches. Don't touch if you don't know regex quite 
-well!
-
-Creates matching table for disk vendors: item.
-
-* lists/disks.**.txt - the various lists of disk data used, and generated.
+5. ram_vendors.pl - similar to vendors.pl only much more simple.
 
 ====================================================================
 

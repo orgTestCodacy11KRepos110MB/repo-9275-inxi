@@ -65,38 +65,6 @@ my $tests = {
 ],
 };
 
-sub tester {
-	if ($job eq 'all'){
-		foreach my $key (sort keys %$tests){
-			item($key);
-		}
-	}
-	else {
-		item($job);
-	}
-}
-sub item {
-	my ($key) = @_;
-	foreach my $cpu (@{$tests->{$key}}){
-		next if !$cpu->{'family'};
-		my $result = cp_cpu_arch(
-		$key, $cpu->{'family'}, $cpu->{'model'},$cpu->{'stepping'},$cpu->{'name'}
-		);
-		say $line;
-		say "$key: fam: $cpu->{'family'} mod: $cpu->{'model'} step: $cpu->{'stepping'} name: $cpu->{'name'}";
-		foreach my $sub (@$result){
-			my $sub = (defined $sub) ? "  val: $sub " : '  val: undef ';
-			say $sub;
-		}
-		# print Dumper $result,
-	}
-}
-tester();
-
-sub message {
-	return 'check';
-}
-
 ## Copy entire block, from start to end cpu arch comments, including comments.
 
 ## START CPU ARCH ##
@@ -812,6 +780,37 @@ sub cp_cpu_arch {
 }
 ## END CPU ARCH ##
 
+sub message {
+	return 'check';
+}
+
+sub process {
+	if ($job eq 'all'){
+		foreach my $key (sort keys %$tests){
+			item($key);
+		}
+	}
+	else {
+		item($job);
+	}
+}
+sub item {
+	my ($key) = @_;
+	foreach my $cpu (@{$tests->{$key}}){
+		next if !$cpu->{'family'};
+		my $result = cp_cpu_arch(
+		$key, $cpu->{'family'}, $cpu->{'model'},$cpu->{'stepping'},$cpu->{'name'}
+		);
+		say $line;
+		say "$key: fam: $cpu->{'family'} mod: $cpu->{'model'} step: $cpu->{'stepping'} name: $cpu->{'name'}";
+		foreach my $sub (@$result){
+			my $sub = (defined $sub) ? "  val: $sub " : '  val: undef ';
+			say $sub;
+		}
+		# print Dumper $result,
+	}
+}
+
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
@@ -869,6 +868,6 @@ sub show_version {
 }
 sub main {
 	options();
-	tester();
+	process();
 }
 main();

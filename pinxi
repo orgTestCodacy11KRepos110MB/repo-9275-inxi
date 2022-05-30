@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-05-30';
-my $self_patch='18';
+my $self_patch='19';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -12324,9 +12324,9 @@ sub proc_data_advanced {
 		# maybe rework logic if find good scsi data example, but for now use this
 		elsif ($drives->[$i]{'model'} && !$drives->[$i]{'vendor'}){
 			$drives->[$i]{'model'} = main::clean_disk($drives->[$i]{'model'});
-			my @device_data = device_vendor($drives->[$i]{'model'},'');
-			$drives->[$i]{'model'} = $device_data[1] if $device_data[1];
-			$drives->[$i]{'vendor'} = $device_data[0] if $device_data[0];
+			my $result = disk_vendor($drives->[$i]{'model'},'');
+			$drives->[$i]{'model'} = $result->[1] if $result->[1];
+			$drives->[$i]{'vendor'} = $result->[0] if $result->[0];
 		}
 		if ($working_path){
 			$path = "${working_path}removable";
@@ -12429,9 +12429,9 @@ sub bsd_data {
 			# generate the synthetic model/vendor data
 			$drives[$i]->{'model'} = $disks_bsd{$id}->{'model'};
 			if ($drives[$i]->{'model'}){
-				my @device_data = device_vendor($drives[$i]->{'model'},'');
-				$drives[$i]->{'vendor'} = $device_data[0] if $device_data[0];
-				$drives[$i]->{'model'} = $device_data[1] if $device_data[1];
+				my $result = disk_vendor($drives[$i]->{'model'},'');
+				$drives[$i]->{'vendor'} = $result->[0] if $result->[0];
+				$drives[$i]->{'model'} = $result->[1] if $result->[1];
 			}
 			if ($disks_bsd{$id}->{'duid'}){
 				$drives[$i]->{'duid'} = $disks_bsd{$id}->{'duid'};
@@ -12626,20 +12626,24 @@ sub smartctl_data {
 					$b_kingston = 1 if $split[$r] =~/kingston/i;
 					# usb/firewire/thunderbolt enclosure id method
 					if ($data->[$i]{'type'}){
-						@working = device_vendor("$split[$r]");
-						$data->[$i]{'drive-model'} = $working[1] if $data->[$i]{'model'} && $data->[$i]{'model'} ne $working[1];
-						$data->[$i]{'drive-vendor'} = $working[0] if $data->[$i]{'vendor'} && $data->[$i]{'vendor'} ne $working[0];
+						my $result = disk_vendor("$split[$r]");
+						if ($data->[$i]{'model'} && $data->[$i]{'model'} ne $result->[1]){
+							$data->[$i]{'drive-model'} = $result->[1];
+						}
+						if ($data->[$i]{'vendor'} && $data->[$i]{'vendor'} ne $result->[0]){
+							$data->[$i]{'drive-vendor'} = $result->[0];
+						}
 					}
 					# fallback for very corner cases where primary model id failed
 					if (!$data->[$i]{'model'} && $split[$r]){
-						@working = device_vendor("$split[$r]");
-						$data->[$i]{'model'} = $working[1] if $working[1];
-						$data->[$i]{'vendor'} = $working[0] if $working[0] && !$data->[$i]{'vendor'};
+						my $result = disk_vendor("$split[$r]");
+						$data->[$i]{'model'} = $result->[1] if $result->[1];
+						$data->[$i]{'vendor'} = $result->[0] if $result->[0] && !$data->[$i]{'vendor'};
 					}
 				}
 				elsif ($split[$a] eq 'Model Family'){
-					@working = device_vendor("$split[$r]");
-					$data->[$i]{'family'} = $working[1];
+					my $result = disk_vendor("$split[$r]");
+					$data->[$i]{'family'} = $result->[1] if $result->[1];
 					# $data->[$i]{'family'} =~ s/$data->[$i]{'vendor'}\s*// if $data->[$i]{'vendor'};
 				}
 				elsif ($split[$a] eq 'Firmware Version'){
@@ -13090,7 +13094,6 @@ sub disk_data_by_id {
 	foreach (@by_id){
 		if ($device eq Cwd::abs_path($_)){
 			my @data = split('_', $_);
-			my @device_data;
 			last if scalar @data < 2; # scsi-3600508e000000000876995df43efa500
 			$serial = pop @data if @data;
 			# usb-PNY_USB_3.0_FD_3715202280-0:0
@@ -13099,9 +13102,9 @@ sub disk_data_by_id {
 			# get rid of the ata-|nvme-|mmc- etc
 			$model =~ s/^\/dev\/disk\/by-id\/([^-]+-)?//;
 			$model = main::clean_disk($model);
-			@device_data = device_vendor($model,$serial);
-			$vendor = $device_data[0] if $device_data[0];
-			$model = $device_data[1] if $device_data[1];
+			my $result = disk_vendor($model,$serial);
+			$vendor = $result->[0] if $result->[0];
+			$model = $result->[1] if $result->[1];
 			# print $device, '::', Cwd::abs_path($_),'::', $model, '::', $vendor, '::', $serial, "\n";
 			(@disk_data) = ($model,$vendor,$serial);
 			last;
@@ -13112,7 +13115,7 @@ sub disk_data_by_id {
 }
 ## START DISK VENDOR BLOCK ##
 # 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
-sub set_vendors {
+sub set_disk_vendors {
 	eval $start if $b_log;
 	$vendors = [
 	## MOST LIKELY/COMMON MATCHES ##
@@ -13594,17 +13597,16 @@ sub set_vendors {
 }
 ## END DISK VENDOR BLOCK ##
 # receives space separated string that may or may not contain vendor data
-sub device_vendor {
+sub disk_vendor {
 	eval $start if $b_log;
 	my ($model,$serial) = @_;
 	my ($vendor) = ('');
-	my (@data);
 	return if !$model;
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
-	# Data URLs: inxi-resources.txt Section: DriveItem device_vendor()
+	# Data URLs: inxi-resources.txt Section: DriveItem disk_vendor()
 	# $model = 'H10 HBRPEKNX0202A NVMe INTEL 512GB';
 	# $model = 'Patriot Memory';
-	set_vendors() if !$vendors;
+	set_disk_vendors() if !$vendors;
 	foreach my $row (@$vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
@@ -13619,12 +13621,11 @@ sub device_vendor {
 			}
 			$model =~ s/^[\/\[\s_-]+|[\/\s_-]+$//g;
 			$model =~ s/\s\s/ /g;
-			@data = ($vendor,$model);
 			last;
 		}
 	}
 	eval $end if $b_log;
-	return @data;
+	return [$vendor,$model];
 }
 
 # Normally hddtemp requires root, but you can set user rights in /etc/sudoers.
@@ -21472,12 +21473,12 @@ sub dmidecode_data {
 				$vendor_id = lc($1) if $1;
 			}
 			if ((!$manufacturer || $vendor_id)  && $part_number){
-				my @result = ram_vendor($part_number);
-				$manufacturer = $result[0] if $result[0];
-				$part_number = $result[1] if $result[1];
+				my $result = ram_vendor($part_number);
+				$manufacturer = $result->[0] if $result->[0];
+				$part_number = $result->[1] if $result->[1];
 			}
 			if ($vendor_id && !$manufacturer){
-				set_vendor_ids() if !$vendor_ids;
+				set_ram_vendor_ids() if !$vendor_ids;
 				if ($vendor_ids->{$vendor_id}){
 					$manufacturer = $vendor_ids->{$vendor_id};
 				}
@@ -21872,7 +21873,8 @@ sub speed_mapper {
 	);
 	return ($speeds{$type}) ?  $speeds{$type} . ' MT/s' : $type;
 }
-sub set_vendors {
+## START RAM VENDOR ##
+sub set_ram_vendors {
 	$vendors = [
 	# A-Data xpg: AX4U; AX\d{4} for axiom
 	['^(A[DX]\dU|AVD|A[\s-]?Data)','A[\s-]?Data','A-Data',''],
@@ -21920,7 +21922,7 @@ sub set_vendors {
 	];
 }
 # note: many of these are pci ids, not confirmed valid for ram
-sub set_vendor_ids {
+sub set_ram_vendor_ids {
 	$vendor_ids = {
 	'01f4' => 'Transcend',# confirmed
 	'02fe' => 'Elpida',# confirmed
@@ -21953,11 +21955,12 @@ sub set_vendor_ids {
 	# '' => '',
 	}
 }
+## END RAM VENDOR ##
 sub ram_vendor {
 	eval $end if $b_log;
 	my ($id) = $_[0];
-	set_vendors() if !$vendors;
-	my ($vendor,@data);
+	set_ram_vendors() if !$vendors;
+	my ($vendor);
 	foreach my $row (@$vendors){
 		if ($id =~ /$row->[0]/i){
 			$vendor = $row->[2];
@@ -21972,12 +21975,11 @@ sub ram_vendor {
 			}
 			$id =~ s/^[\/\[\s_-]+|[\/\s_-]+$//g;
 			$id =~ s/\s\s/ /g;
-			@data = ($vendor,$id);
 			last;
 		}
 	}
 	eval $end if $b_log;
-	return @data;
+	return [$vendor,$id];
 }
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## ids_raw.pl: Copyright (C) 2022 Harald Hope
+## gpu_raw.pl: Copyright (C) 2022 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -25,7 +25,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
-my $self_name = 'ids_raw.pl';
+my $self_name = 'gpu_raw.pl';
 my $self_version = '1.1';
 my $self_date = '2022-05-22';
 

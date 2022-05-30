@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## vendors.pl: Copyright (C) 2022 Harald Hope
+## disk_vendors.pl: Copyright (C) 2022 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -26,7 +26,7 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
-my $self_name = 'vendors.pl';
+my $self_name = 'disk_vendors.pl';
 my $self_version = '1.3';
 my $self_date = '2022-05-22';
 
@@ -47,7 +47,7 @@ my $dbg = [];
 
 ## START DISK VENDOR BLOCK ##
 # 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
-sub set_vendors {
+sub set_disk_vendors {
 	eval $start if $b_log;
 	$vendors = [
 	## MOST LIKELY/COMMON MATCHES ##
@@ -531,17 +531,16 @@ sub set_vendors {
 # r
 # You should not need to change device_vendor(), but if you do, make sure to 
 #  also change the version in pinxi at the same time.
-sub device_vendor {
+sub disk_vendor {
 	eval $start if $b_log;
 	my ($model,$serial) = @_;
 	my ($vendor) = ('');
-	my (@data);
 	return if !$model;
 	# 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
 	# Data URLs: inxi-resources.txt Section: DriveItem device_vendor()
 	# $model = 'H10 HBRPEKNX0202A NVMe INTEL 512GB';
 	# $model = 'Patriot Memory';
-	set_vendors() if !$vendors;
+	set_disk_vendors() if !$vendors;
 	foreach my $row (@$vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
@@ -556,12 +555,11 @@ sub device_vendor {
 			}
 			$model =~ s/^[\/\[\s_-]+|[\/\s_-]+$//g;
 			$model =~ s/\s\s/ /g;
-			@data = ($vendor,$model);
 			last;
 		}
 	}
 	eval $end if $b_log;
-	return @data;
+	return [$vendor,$model];
 }
 
 sub process {
@@ -588,9 +586,9 @@ sub process {
 			push(@sizes,$size) if $size && !grep {$_ eq $size} @sizes;
 		}
 		else {
-			my @result = ($holder) ? device_vendor($holder,0) : ();
+			my $result = ($holder) ? disk_vendor($holder,0) : ();
 			# say "$holder :: $disk";
-			if ($holder && !$result[0] && @sizes){
+			if ($holder && !$result->[0] && @sizes){
 				my $data = 'type: ' . $type_holder . ' model: ' . $holder . ' size: ' . join('/',@sizes);
 				if ($type_holder eq '0-int' || $type_holder eq '0-na'){
 					push(@disks_standard,$data);
