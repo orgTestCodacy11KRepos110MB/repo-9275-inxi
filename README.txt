@@ -2,8 +2,8 @@
 README for development branch of inxi Perl version: pinxi
 ================================================================================
 FILE:    README.txt
-VERSION: 4.0
-DATE:    2018-09-01
+VERSION: 5.0
+DATE:    2022-05-30
 
 NOTE: While the real program name will never change, for the sake of clarity, 
 the inxi-perl branch inxi is called pinxi, so it can be run next to either 
