@@ -430,13 +430,15 @@ my $intel_data = {
 	'process' => '',
 	'years' => '',
 	},
+	# needs more info, are these going to be half tsmc, half intel? 
 	'23' => {
 	'arch' => 'Gen12.7',
 	'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
 	'code' => 'Alchemist',
-	'process' => 'Intel 6nm',
+	'process' => 'Intel 10nm/TSMC n6',
 	'years' => '2022+',
 	},
+	# coming: Battlemage, Celestial, and Druid  (2025)
 },
 };
 
