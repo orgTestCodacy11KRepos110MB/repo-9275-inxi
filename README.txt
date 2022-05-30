@@ -118,12 +118,15 @@ ids for the inxi nvidia graphics architecture and non-free driver information.
 
 Creates raw matching IDs for gpu_data item, again matching hash tables.
 
+Copy and paste the changed id rows from terminal to corresponding gpu data 
+function.
+
 * lists/gpu.[vendor].xxx contain the various text files for arch/legacy 
 matching.
 
-4. gpu_raw.pl - generate intel and amd raw id files from source data using some 
-clever transformation tricks, makes all source data turn into the same output so 
-ids.pl can read it easily.
+4. gpu_raw.pl - generate intel and amd gpu id files from raw source data using 
+some clever transformation tricks, makes all source data turn into the same 
+output so ids.pl can read it easily.
 
 Creates source data files for ids.pl.
 
@@ -135,6 +138,9 @@ can use.
 testing of unhandled ram model strings in cases where id failed. Also includes
 the vendor id matching table, so you can also update that, though it's not 
 used in this logic yet, but is in pinxi.
+
+Use to confirm new matching patterns before copying / pasting changed block into
+pinxi ram section.
 
 ================================================================================
 
