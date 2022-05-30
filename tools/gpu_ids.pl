@@ -431,11 +431,12 @@ my $intel_data = {
 	'years' => '',
 	},
 	# needs more info, are these going to be half tsmc, half intel? 
+	# https://en.wikipedia.org/wiki/Intel_Arc and TPU don't fully agree
 	'23' => {
 	'arch' => 'Gen12.7',
 	'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
 	'code' => 'Alchemist',
-	'process' => 'Intel 10nm/TSMC n6',
+	'process' => 'TSMC n6 (7nm)', 
 	'years' => '2022+',
 	},
 	# coming: Battlemage, Celestial, and Druid  (2025)
