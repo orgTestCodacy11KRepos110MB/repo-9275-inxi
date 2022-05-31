@@ -10,10 +10,14 @@
 ## this page: http://www.gnu.org/philosophy/free-sw.html
 ##
 ## These are based on lists found on latest driver support page:
-## https://www.nvidia.com/Download/driverResults.aspx/187826/en-us
-## http://us.download.nvidia.com/XFree86/Linux-x86_64/515.43.04/README/supportedchips.html#subsys
-## Copy with mouse highlight the driver section, then paste that into a text file.
-## Make sure it preserves the tabs \t!!! Otherwise it won't work!
+## https://www.nvidia.com/en-us/drivers/unix/
+## Select latest or beta driver, click Additional Information tab, go down, 
+## click: README for more detailed... scroll down, click 
+##  II. Appendices
+##    A. Supported NVIDIA GPU Products
+## Select then copy with mouse highlight the driver section you want, then paste 
+## that into a text file. Make sure it preserves the tabs \t!!! Otherwise it 
+## won't work!
 use strict;
 use warnings;
 # use diagnostics;
@@ -29,14 +33,14 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_ids.pl';
-my $self_version = '1.6';
-my $self_date = '2022-05-25';
+my $self_version = '1.7';
+my $self_date = '2022-05-31';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|intel|nv-(current|510|470|390|367|340|304|173|96|71)';
+my $options = 'amd|intel|nv-(current|515|510|470|390|367|340|304|173|96|71)';
 
 my ($active,$file,$id_data,%output);
 my $data = [];
@@ -610,6 +614,9 @@ my $nv_data = {
 };
 $nv_data->{'nv-510'} = $nv_data->{'nv-current'};
 $nv_data->{'nv-510'}{'file'} = 'gpu.nv.510.xx.sort';
+
+$nv_data->{'nv-515'} = $nv_data->{'nv-current'};
+$nv_data->{'nv-515'}{'file'} = 'gpu.nv.515.xx.sort';
 
 sub process {
 	say "Running job: $job";
