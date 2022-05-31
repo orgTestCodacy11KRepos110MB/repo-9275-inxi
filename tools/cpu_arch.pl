@@ -43,6 +43,7 @@ my $tests = {
 {'family' => '15', 'model' => '14', 'stepping' => '1', 'name' => '', },
 {'family' => '17', 'model' => '8', 'stepping' => '0', 'name' => '', },
 {'family' => '19', 'model' => '72', 'stepping' => '1', 'name' => '', },
+{'family' => '', 'model' => '', 'stepping' => '', 'name' => '', },
 ],
 'centaur' => [
 {'family' => '5', 'model' => '8', 'stepping' => '', 'name' => '', },
@@ -61,6 +62,7 @@ my $tests = {
 {'family' => '6', 'model' => '47', 'stepping' => '', 'name' => '', },
 {'family' => '6', 'model' => '55', 'stepping' => '9', 'name' => '', },
 {'family' => '6', 'model' => '8E', 'stepping' => '11', 'name' => '', },
+{'family' => '6', 'model' => 'A7', 'stepping' => '1', 'name' => '11th Gen Intel Core i5-11400', },
 {'family' => '', 'model' => '', 'stepping' => '', 'name' => '', },
 ],
 };
@@ -771,7 +773,7 @@ sub cp_cpu_arch {
 				$gen = ($gen) ? "$gen (core 1)": 'core 1';
 			}
 			elsif ($name =~ /\bi[3579][\s-]([A-Z][\s-]?)?([2-9]|1[0-4])\d{3}/){
-				$gen = ($gen) ? "$gen (core $1)" : "core $1";
+				$gen = ($gen) ? "$gen (core $2)" : "core $2";
 			}
 		}
 	}
@@ -798,10 +800,10 @@ sub item {
 	my ($key) = @_;
 	foreach my $cpu (@{$tests->{$key}}){
 		next if !$cpu->{'family'};
+		say $line;
 		my $result = cp_cpu_arch(
 		$key, $cpu->{'family'}, $cpu->{'model'},$cpu->{'stepping'},$cpu->{'name'}
 		);
-		say $line;
 		say "$key: fam: $cpu->{'family'} mod: $cpu->{'model'} step: $cpu->{'stepping'} name: $cpu->{'name'}";
 		foreach my $sub (@$result){
 			my $sub = (defined $sub) ? "  val: $sub " : '  val: undef ';
