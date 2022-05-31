@@ -9,7 +9,7 @@
 ## If you don't understand what Free Software is, please read (or reread)
 ## this page: http://www.gnu.org/philosophy/free-sw.html
 ##
-## These are based on lists found on latest driver support page:
+## Nvidia drivers are based on lists found on latest driver support page:
 ## https://www.nvidia.com/en-us/drivers/unix/
 ## Select latest or beta driver, click Additional Information tab, go down, 
 ## click: README for more detailed... scroll down, click 
@@ -18,6 +18,14 @@
 ## Select then copy with mouse highlight the driver section you want, then paste 
 ## that into a text file. Make sure it preserves the tabs \t!!! Otherwise it 
 ## won't work!
+## 
+## Intel/AMD pci ids lists are created with gpu_raw.pl using pci ids from 
+## device-hunt.com vendor intel (8086) and amd (1002). On those, as with nvidia, 
+## copy and paste the table into the pci.ids.amd.dh.com or pci.ids.intel.dh.com
+## file. The majority come from the current https://pci-ids.ucw.cz/ lists which 
+## is stored as: pci.ids.ucw.cz - Just check to see if they have a newer version, 
+## they number it by date so it's easy to see if it's been updated.
+
 use strict;
 use warnings;
 # use diagnostics;
