@@ -16,6 +16,15 @@
 ## Because of the nature of disk names, there's always going be a big set that
 ## cannot be matched, but overall the results using this method are quite good.
 
+## NOTE: cpu microarch data comes from a variety of sources, to match to cpuid,
+## family, model, stepping, use wikichip.com. For histories and tech specs, use
+## wikichip, wikipedia, or cpu-world.com. Go to the source if in doubt, sometimes
+## CPU makers have pdfs that list this data, AMD does sometimes. If you can't
+## get the data clearly, in most cases, leave it blank, it's better to say 
+## nothing and not be wrong, than to try to make stuff up, and be wrong. Also,
+## sometimes just googling it in general and finding articles from the tech 
+## media can be useful to close in on stuff that is ambiguous or too new.
+
 use strict;
 use warnings;
 # use diagnostics;
@@ -28,7 +37,7 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 
 my $self_name = 'cpu_arch.pl';
 my $self_version = '1.0';
-my $self_date = '2022-05-30';
+my $self_date = '2022-05-31';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
