@@ -28427,32 +28427,33 @@ sub get_init_data {
 	my (@data);
 	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
 	# otherwise that is 'init', which covers the rest of the init systems.
-	# more data may be needed for other init systems.
-	if ($comm){
-		if ($comm =~ /systemd/){
-			$init = 'systemd';
-			if ($program = check_program('systemd')){
-				$init_version = program_version($program,'^systemd','2','--version',1);
-			}
-			if (!$init_version && ($program = check_program('systemctl'))){
-				$init_version = program_version($program,'^systemd','2','--version',1);
-			}
-			if ($runlevel && $runlevel =~ /^\d$/){
-				my $target = '';
-				if ($runlevel == 1){
-					$target = 'rescue';
-				}
-				elsif ($runlevel > 1 && $runlevel < 5){
-					$target = 'multi-user';
-				}
-				elsif ($runlevel == 5){
-					$target = 'graphical';
-				}
-				$runlevel = "$target ($runlevel)" if $target;
-			}
+	# more data may be needed for other init systems. 
+	# Some systemd cases no /proc/1/comm exists however :(
+	if (($comm && $comm =~ /systemd/) || -e '/run/systemd/units'){
+		$init = 'systemd';
+		if ($program = check_program('systemd')){
+			$init_version = program_version($program,'^systemd','2','--version',1);
 		}
+		if (!$init_version && ($program = check_program('systemctl'))){
+			$init_version = program_version($program,'^systemd','2','--version',1);
+		}
+		if ($runlevel && $runlevel =~ /^\d$/){
+			my $target = '';
+			if ($runlevel == 1){
+				$target = 'rescue';
+			}
+			elsif ($runlevel > 1 && $runlevel < 5){
+				$target = 'multi-user';
+			}
+			elsif ($runlevel == 5){
+				$target = 'graphical';
+			}
+			$runlevel = "$target ($runlevel)" if $target;
+		}
+	}
+	if (!$init && $comm){
 		# epoch version == Epoch Init System 1.0.1 "Sage"
-		elsif ($comm =~ /epoch/){
+		if ($comm =~ /epoch/){
 			$init = 'Epoch';
 			$init_version = program_version('epoch', '^Epoch', '4','version');
 		}
@@ -30288,6 +30289,7 @@ sub get_runlevel_default {
 		}
 		if (!$default){
 			$default = (grabber("$program get-default 2>/dev/null"))[0];
+			$default =~ s/\.target$// if $default;
 		}
 	}
 	if (!$default){
