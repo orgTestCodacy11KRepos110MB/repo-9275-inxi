@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-06-01';
-my $self_patch='21';
+my $self_patch='22';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5781,7 +5781,7 @@ sub show_options {
 	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
 	GCC versions. If running in shell, not in IRC client, shows shell version 
-	number, if detected. Init/RC type and runlevel (if available). Total
+	number, if detected. Init/RC type and runlevel/target (if available). Total
 	count of all packages discovered in system and not -r."],
 	['2', '-j', '', "Add mapped: name if partition mapped."],
 	['2', '-J', '', "For Device: driver."],
@@ -5826,8 +5826,8 @@ sub show_options {
 	system); Xorg Screen data: ID, s-res, dpi;  Monitors: ID, position (if > 1), 
 	resolution, dpi, model, diagonal."],
 	['2', '-I', '', "Other detected installed gcc versions (if present). System 
-	default runlevel. Adds parent program (or pty/tty) for shell info if not in 
-	IRC. Adds Init version number, RC (if found). Adds per package manager
+	default target/runlevel. Adds parent program (or pty/tty) for shell info if 
+	not in IRC. Adds Init version number, RC (if found). Adds per package manager
 	installed package counts if not -r."],
 	['2', '-j,-p,-P', '', "Swap priority."],
 	['2', '-J', '', "Vendor:chip-ID."],
@@ -28435,6 +28435,19 @@ sub get_init_data {
 			if (!$init_version && ($program = check_program('systemctl'))){
 				$init_version = program_version($program,'^systemd','2','--version',1);
 			}
+			if ($runlevel && $runlevel =~ /^\d$/){
+				my $target = '';
+				if ($runlevel == 1){
+					$target = 'rescue.target';
+				}
+				elsif ($runlevel > 1 && $runlevel < 5){
+					$target = 'multi-user.target';
+				}
+				elsif ($runlevel == 5){
+					$target = 'graphical.target';
+				}
+				$runlevel = "$target ($runlevel)" if $target;
+			}
 		}
 		# epoch version == Epoch Init System 1.0.1 "Sage"
 		elsif ($comm =~ /epoch/){
@@ -28498,16 +28511,16 @@ sub get_init_data {
 			$runlevel = (grabber("$program -r 2>/dev/null"))[0];
 		}
 	}
-	my %init = (
+	my $result = {
 	'init-type' => $init,
 	'init-version' => $init_version,
 	'rc-type' => $rc,
 	'rc-version' => $rc_version,
 	'runlevel' => $runlevel,
 	'default' => $default,
-	);
+	};
 	eval $end if $b_log;
-	return %init;
+	return $result;
 }
 
 ## IpData
@@ -30248,11 +30261,9 @@ sub get_runlevel_data {
 	if (my $program = check_program('runlevel')){
 		# variants: N 5; 3 5; unknown
 		$runlevel = (grabber("$program 2>/dev/null"))[0];
-		if ($runlevel){
-			$runlevel =~ s/^(\S\s)?(\d)$/$2/;
-			# print_line($runlevel . ";;");
-			$runlevel = undef if $runlevel eq 'unknown';
-		}
+		$runlevel = undef if $runlevel && lc($runlevel) eq 'unknown';
+		$runlevel =~ s/^(\S\s)?(\d)$/$2/ if $runlevel;
+		# print_line($runlevel . ";;");
 	}
 	eval $end if $b_log;
 	return $runlevel;
@@ -30265,28 +30276,34 @@ sub get_runlevel_default {
 	eval $start if $b_log;
 	my @data;
 	my $default = '';
-	my $b_systemd = 0;
-	my $inittab = '/etc/inittab';
-	my $systemd = '/etc/systemd/system/default.target';
-	my $upstart = '/etc/init/rc-sysinit.conf';
-	# note: systemd systems do not necessarily have this link created
-	if (-e $systemd){
-		$default = readlink($systemd);
-		$default =~ s/.*\/// if $default; 
-		$b_systemd = 1;
+	if (my $program = check_program('systemctl')){
+		# note: systemd systems do not necessarily have this link created
+		my $systemd = '/etc/systemd/system/default.target';
+		# faster to read than run
+		if (-e $systemd){
+			$default = readlink($systemd);
+			$default =~ s/.*\/// if $default; 
+		}
+		if (!$default){
+			$default = (grabber("$program get-default 2>/dev/null"))[0];
+		}
 	}
-	# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
-	# note that technically default can be changed at boot but for inxi purposes 
-	# that does not matter, we just want to know the system default
-	elsif (-r $upstart){
-		# env DEFAULT_RUNLEVEL=2
-		@data = reader($upstart);
-		$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
-	}
-	# handle weird cases where null but inittab exists
-	if (!$default && -r $inittab){
-		@data = reader($inittab);
-		$default = awk(\@data,'^id.*initdefault',2,':');
+	if (!$default){
+		# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
+		# note that technically default can be changed at boot but for inxi purposes 
+		# that does not matter, we just want to know the system default
+		my $upstart = '/etc/init/rc-sysinit.conf';
+		my $inittab = '/etc/inittab';
+		if (-r $upstart){
+			# env DEFAULT_RUNLEVEL=2
+			@data = reader($upstart);
+			$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
+		}
+		# handle weird cases where null but inittab exists
+		if (!$default && -r $inittab){
+			@data = reader($inittab);
+			$default = awk(\@data,'^id.*initdefault',2,':');
+		}
 	}
 	eval $end if $b_log;
 	return $default;
@@ -32120,26 +32137,26 @@ sub info_item{
 		$data{$data_name}->[$index]{main::key($num++,0,2,'gpu')} = $gpu_ram;
 	}
 	if ((!$b_display || $force{'display'}) || $extra > 0){
-		my %init = main::get_init_data();
-		my $init_type = ($init{'init-type'}) ? $init{'init-type'}: 'N/A';
+		my $init = main::get_init_data();
+		my $init_type = ($init->{'init-type'}) ? $init->{'init-type'}: 'N/A';
 		$data{$data_name}->[$index]{main::key($num++,1,1,'Init')} = $init_type;
 		if ($extra > 1){
-			my $init_version = ($init{'init-version'}) ? $init{'init-version'}: 'N/A';
+			my $init_version = ($init->{'init-version'}) ? $init->{'init-version'}: 'N/A';
 			$data{$data_name}->[$index]{main::key($num++,0,2,'v')} = $init_version;
 		}
-		if ($init{'rc-type'}){
-			$data{$data_name}->[$index]{main::key($num++,1,2,'rc')} = $init{'rc-type'};
-			if ($init{'rc-version'}){
-				$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $init{'rc-version'};
+		if ($init->{'rc-type'}){
+			$data{$data_name}->[$index]{main::key($num++,1,2,'rc')} = $init->{'rc-type'};
+			if ($init->{'rc-version'}){
+				$data{$data_name}->[$index]{main::key($num++,0,3,'v')} = $init->{'rc-version'};
 			}
 		}
-		if ($init{'runlevel'}){
-			$data{$data_name}->[$index]{main::key($num++,0,2,'runlevel')} = $init{'runlevel'};
+		if ($init->{'runlevel'}){
+			my $key = ($init->{'init-type'} && $init->{'init-type'} eq 'systemd') ? 'target' : 'runlevel';
+			$data{$data_name}->[$index]{main::key($num++,0,2,$key)} = $init->{'runlevel'};
 		}
 		if ($extra > 1){
-			if ($init{'default'}){
-				my $default = ($init{'init-type'} eq 'systemd' && $init{'default'} =~ /[^0-9]$/) ? 'target' : 'default';
-				$data{$data_name}->[$index]{main::key($num++,0,2,$default)} = $init{'default'};
+			if ($init->{'default'}){
+				$data{$data_name}->[$index]{main::key($num++,0,2,'default')} = $init->{'default'};
 			}
 			if ($b_admin && (my $tool = ServiceData::get('tool',''))){
 				$data{$data_name}->[$index]{main::key($num++,0,2,'tool')} = $tool;
