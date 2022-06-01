@@ -2904,7 +2904,7 @@ sub basic_data {
 }
 sub check_items {
 	my ($type,$line,$pm) = @_;
-	my (@data,%info,@missing,$row,@rows,$result,@unreadable);
+	my (@data,@missing,$row,@rows,$result,@unreadable);
 	my ($b_dir,$b_file,$b_kernel_module,$b_perl_module,$b_program,$item);
 	my ($about,$extra,$extra2,$extra3,$extra4,$info_os,$install) = ('','','','','','info','');
 	if ($type eq 'required system directories'){
@@ -3028,8 +3028,8 @@ sub check_items {
 	foreach my $item (@data){
 		$install = '';
 		$about = '';
-		%info = item_data($item);
-		$about = $info{$info_os};
+		my $info = item_data($item);
+		$about = $info->{$info_os};
 		if (($b_dir && -d $item) || ($b_file && -r $item) ||
 		($b_program && main::check_program($item)) || 
 		($b_perl_module && main::check_perl_module($item)) ||
@@ -3043,8 +3043,8 @@ sub check_items {
 		else {
 			$result = 'Missing';
 			if (($b_program || $b_perl_module) && $pm){
-				$info{$pm} ||= 'N/A';
-				$install = " ~ Install package: $info{$pm}";
+				$info->{$pm} ||= 'N/A';
+				$install = " ~ Install package: $info->{$pm}";
 			}
 			push(@missing, "$item$install");
 		}
@@ -3072,7 +3072,7 @@ sub check_items {
 
 sub item_data {
 	my ($type) = @_;
-	my %data = (
+	my $data = {
 	# Directory Data
 	'/sys/class/dmi/id' => {
 	'info' => '-M system, motherboard, bios',
@@ -3567,8 +3567,8 @@ sub item_data {
 	'rpm' => 'perl-XML-Dumper',
 	},
 	## END PACKAGE MANAGER BLOCK ##
-	);
-	return %{$data{$type}};
+	};
+	return $data->{$type};
 }
 sub get_pm {
 	my ($pm) = ('');
@@ -6233,7 +6233,7 @@ sub get_client_version {
 	}
 	# then do some perl type searches, do this last since it's a wildcard search
 	elsif ($client{'name'} =~ /^(perl.*|ksirc|dsirc)$/){
-		my @cmdline = main::get_cmdline();
+		my $cmdline = main::get_cmdline();
 		# Dynamic runpath detection is too complex with KSirc, because KSirc is started from
 		# kdeinit. /proc/<pid of the grandparent of this process>/exe is a link to /usr/bin/kdeinit
 		# with one parameter which contains parameters separated by spaces(??), first param being KSirc.
@@ -6242,7 +6242,7 @@ sub get_client_version {
 		# You can imagine how hosed I am if I try to make inxi find out dynamically with which path
 		# KSirc was run by browsing up the process tree in /proc. That alone is straightjacket material.
 		# (KSirc sucks anyway ;)
-		foreach (@cmdline){
+		foreach (@$cmdline){
 			if ($_ =~ /dsirc/){
 				$client{'version'} = main::program_version('ksirc','KSirc:',2,'-v',0,0);
 				$client{'name'} = 'ksirc';
@@ -6305,7 +6305,7 @@ sub get_cmdline {
 	}
 	main::log_data('string',"cmdline: @cmdline count: $i") if $b_log;
 	eval $end if $b_log;
-	return @cmdline;
+	return [@cmdline];
 }
 sub perl_python_client {
 	eval $start if $b_log;
@@ -10343,11 +10343,11 @@ sub cp_data_fallback {
 	# where rounds to 0 or 1 less
 	# print "$cpu{'type'},$cpu{'family'},$cpu{'model-id'},$cpu{'arch'}\n";
 	if ($tests->{'elbrus'} && $counts->{'processors'}){
-		my @elbrus = cp_elbrus_data($cpu->{'family'},$cpu->{'model-id'},
+		my $elbrus = cp_elbrus_data($cpu->{'family'},$cpu->{'model-id'},
 		$counts->{'processors'},$cpu->{'arch'});
-		$counts->{'cpu-cores'} = $elbrus[0];
-		$counts->{'physical'} = $elbrus[1];
-		$cpu->{'arch'} = $elbrus[2];
+		$counts->{'cpu-cores'} = $elbrus->[0];
+		$counts->{'physical'} = $elbrus->[1];
+		$cpu->{'arch'} = $elbrus->[2];
 		# print 'model id: ' . $cpu->{'model-id'} . ' arch: ' . $cpu->{'arch'} . " cpc: $counts->{'cpu-cores'} phyc: $counts->{'physical'} proc: $counts->{'processors'} \n";
 	}
 	$counts->{'physical'} ||= 1; # assume 1 if no id found, as with ARM
@@ -11582,7 +11582,7 @@ sub cp_elbrus_data {
 	eval $start if $b_log;
 	my ($family_id,$model_id,$count,$arch) = @_;
 	# 0: cores
-	my @return = (0,1,$arch);
+	my $return = [0,1,$arch];
 	my %cores = (
 	# key=family id + model id
 	'41' => 1,
@@ -11601,12 +11601,12 @@ sub cp_elbrus_data {
 	'6B' => 16,
 	'6C' => 2,
 	);
-	$return[0] = $cores{$family_id . $model_id} if $cores{$family_id . $model_id};
-	if ($return[0]){
-		$return[1] = ($count % $return[0]) ? int($count/$return[0]) + 1 : $count/$return[0];
+	$return->[0] = $cores{$family_id . $model_id} if $cores{$family_id . $model_id};
+	if ($return->[0]){
+		$return->[1] = ($count % $return->[0]) ? int($count/$return->[0]) + 1 : $count/$return->[0];
 	}
 	eval $end if $b_log;
-	return @return;
+	return $return;
 }
 sub cp_speed_data {
 	eval $start if $b_log;
@@ -11966,7 +11966,8 @@ sub drive_output {
 		$rows[$j]->{main::key($num++,0,1,'SMART Message')} = $smartctl_missing;
 	}
 	elsif ($b_admin){
-		($smart_age,$smart_basic,$smart_fail) = smartctl_fields();
+		my $result = smartctl_fields();
+		($smart_age,$smart_basic,$smart_fail) = @$result;
 	}
 	foreach my $row (sort { $a->{'id'} cmp $b->{'id'} } @$disks){
 		($id,$model,$size) = ('','','');
@@ -12367,16 +12368,16 @@ sub proc_data_advanced {
 			}
 		}
 		if ($extra > 2){
-			@data = disk_data_advanced($pt_cmd,$drives->[$i]{'id'});
-			$pt_cmd = $data[0];
-			$drives->[$i]{'partition-table'} = uc($data[1]) if $data[1];
-			if ($data[2]){
-				$drives->[$i]{'rotation'} = $data[2];
+			my $result = disk_data_advanced($pt_cmd,$drives->[$i]{'id'});
+			$pt_cmd = $result->[0];
+			$drives->[$i]{'partition-table'} = uc($result->[1]) if $result->[1];
+			if ($result->[2]){
+				$drives->[$i]{'rotation'} = $result->[2];
 				$drives->[$i]{'drive-type'} = 'HDD';
 			}
 			elsif (($block_type && $block_type ne 'sdx') ||
 			# note: this case could conceivabley be wrong for a spun down HDD
-			(defined $data[2] && $data[2] eq '0') ||
+			(defined $result->[2] && $result->[2] eq '0') ||
 			($drives->[$i]{'model'} && 
 			$drives->[$i]{'model'} =~ /(flash|mmc|msata|\bm[\.-]?2\b|nvme|ssd|solid\s?state)/i)){
 				$drives->[$i]{'drive-type'} = 'SSD';
@@ -12475,7 +12476,7 @@ sub bsd_data {
 # make sure to update if fields added in smartctl_data()
 sub smartctl_fields {
 	eval $start if $b_log;
-	my @data = (
+	my $data = [
 	[ # age
 	['smart-gsense-error-rate-ar','g-sense error rate'],
 	['smart-media-wearout-a','media wearout'],
@@ -12556,9 +12557,9 @@ sub smartctl_fields {
 	['smart-unknown-5-t','threshold'],
 	['smart-unknown-5-f','alert'],
 	]
-	);
+	];
 	eval $end if $b_log;
-	return @data;
+	return $data;
 }
 
 sub smartctl_data {
@@ -13056,7 +13057,7 @@ sub disk_data_advanced {
 		$return[1] = 'mbr' if $return[1] && lc($return[1]) eq 'dos';
 	}
 	eval $end if $b_log;
-	return @return;
+	return [@return];
 }
 sub scsi_data {
 	eval $start if $b_log;
@@ -19669,16 +19670,16 @@ sub cpu_processes {
 		$num = 1;
 		$j = scalar @processes;
 		my @row = split(/\s+/, $_);
-		my @command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
+		my $command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
 		$cpu = ($ps_cols >= 10) ? $row[2] . '%': 'N/A';
 		@data = ({
 		main::key($num++,1,2,$i++) => '',
 		main::key($num++,0,3,'cpu') => $cpu,
-		main::key($num++,1,3,'command') => $command[0],
+		main::key($num++,1,3,'command') => $command->[0],
 		},);
 		push(@processes,@data);
-		if ($command[1]){
-			$processes[$j]->{main::key($num++,0,4,'started by')} = $command[1];
+		if ($command->[1]){
+			$processes[$j]->{main::key($num++,0,4,'started by')} = $command->[1];
 		}
 		$pid = (defined $pid_col)? $row[$pid_col] : 'N/A';
 		$processes[$j]->{main::key($num++,0,3,'pid')} = $pid;
@@ -19735,15 +19736,15 @@ sub mem_processes {
 		else {
 			$mem = 'N/A';
 		}
-		my @command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
+		my $command = process_starter(scalar @row, $row[$ps_cols],$row[$ps_cols + 1]);
 		@data = ({
 		main::key($num++,1,2,$i++) => '',
 		main::key($num++,0,3,'mem') => $mem,
-		main::key($num++,1,3,'command') => $command[0],
+		main::key($num++,1,3,'command') => $command->[0],
 		},);
 		push(@processes,@data);
-		if ($command[1]){
-			$processes[$j]->{main::key($num++,0,4,'started by')} = $command[1];
+		if ($command->[1]){
+			$processes[$j]->{main::key($num++,0,4,'started by')} = $command->[1];
 		}
 		$pid = (defined $pid_col)? $row[$pid_col] : 'N/A';
 		$processes[$j]->{main::key($num++,0,3,'pid')} = $pid;
@@ -19758,20 +19759,20 @@ sub mem_processes {
 }
 sub process_starter {
 	my ($count, $row10, $row11) = @_;
-	my (@return);
+	my $return = [undef,undef];
 	# note: [migration/0] would clear with a simple basename
 	if ($count > ($ps_cols + 1) && $row11 =~ /^\// && $row11 !~ /^\/(tmp|temp)/){
 		$row11 =~ s/^\/.*\///;
-		$return[0] = $row11;
+		$return->[0] = $row11;
 		$row10 =~ s/^\/.*\///;
-		$return[1] = $row10;
+		$return->[1] = $row10;
 	}
 	else {
 		$row10 =~ s/^\/.*\///;
-		$return[0] = $row10;
-		$return[1] = '';
+		$return->[0] = $row10;
+		$return->[1] = '';
 	}
-	return @return;
+	return $return;
 }
 sub throttled {
 	my ($ps_count,$count,$j) = @_;
