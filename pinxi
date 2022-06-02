@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-06-01';
-my $self_patch='22';
+my $self_patch='23';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -4897,7 +4897,9 @@ sub get {
 			main::error_handler('bad-arg',$opt,$arg);
 		}},
 	'V|version' => sub { 
-		$show{'version'} = 1 },
+		$show{'version'} = 1;},
+	'version-short|vs' => sub { 
+		$show{'version-short'} = 1;},
 	'w|weather' => sub {
 		my ($opt) = @_;
 		$show{'short'} = 0;
@@ -5349,7 +5351,10 @@ sub post_process {
 		main::set_downloader();
 	}
 	main::set_xorg_log() if $show{'graphic'};
-	main::show_version() if $show{'version'};
+	if ($show{'version'} || ($show{'version-short'} && !$show{'info'} && 
+	!$show{'short'})){
+		main::show_version();
+	}
 	main::show_options() if $show{'help'};
 	$use{'man'} = 0 if (!$use{'yes-man'} || $use{'no-man'});
 	main::update_me($self_download, $download_id) if $use{'update-trigger'};
@@ -5912,7 +5917,8 @@ sub show_options {
 		);
 	}
 	push(@data, 
-	['1', '-V', '--version', "Prints $self_name version info then exits."],
+	['1', '-V', '--version', "Prints full $self_name version info then exits."],
+	['1', '', '--version-short,--vs', "Prints 1 line $self_name version info."],
 	['0', '', '', "$line"],
 	['0', '', '', "Advanced Options:"],
 	['1', '', '--alt', "Trigger for various advanced options:"],
@@ -6050,7 +6056,7 @@ sub show_version {
 	# strange output /./ ending, but just trim it off, I don't know how it happens
 	$working_path =~ s%/\./%/%;
 	push(@data, [ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"]);
-	if (!$b_irc){
+	if (!$b_irc && !$show{'version-short'}){
 		push(@data, [ 0, '', '', '']);
 		my $year = (split/-/, $self_date)[0];
 		push(@data, 
@@ -6075,7 +6081,7 @@ sub show_version {
 		);
 	}
 	print_basic(\@data); 
-	exit 0; # shell true
+	exit 0 if !$show{'version-short'}; # shell true
 }
 
 ########################################################################
