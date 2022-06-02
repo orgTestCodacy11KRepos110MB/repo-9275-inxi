@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-06-02';
-my $self_patch='24';
+my $self_patch='25';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -7361,45 +7361,45 @@ package AudioItem;
 
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
 	if (%risc && !$use{'soc-audio'} && !$use{'pci-tool'}){
 		my $key = 'Message';
-		push(@rows,{
+		push(@$rows,{
 		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
 		},);
 	}
 	else {
-		push(@rows,device_output());
+		device_output($rows);
 	}
-	if (((%risc && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@rows) && 
+	if (((%risc && !$use{'soc-audio'} && !$use{'pci-tool'}) || !@$rows) && 
 	(my $file = $system_files{'asound-cards'})){
-		push(@rows,asound_output($file));
+		asound_output($rows,$file);
 	}
-	push(@rows,usb_output());
-	if (!@rows){
+	usb_output($rows);
+	if (!@$rows){
 		my $key = 'Message';
 		my $type = 'pci-card-data';
 		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 			$type = 'pci-card-data-root';
 		}
-		push(@rows,{
+		push(@$rows,{
 		main::key($num++,0,1,$key) => main::message($type,''),
 		},);
 	}
-	push(@rows,sound_server_output());
+	sound_server_output($rows);
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'audio'};
-	my (@rows);
+	my $rows = $_[0];
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'audio'}}){
 		$num = 1;
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		my $driver = $row->[9];
 		$driver ||= 'N/A';
 		my $device = $row->[4];
@@ -7408,52 +7408,50 @@ sub device_output {
 		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $use{'pci-tool'} && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
-			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
+			$rows->[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
-		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
+		$rows->[$j]{main::key($num++,1,2,'driver')} = $driver;
 		if ($extra > 0 && !$bsd_type){
 			if ($row->[9]){
 				my $version = main::get_module_version($row->[9]);
-				$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
+				$rows->[$j]{main::key($num++,0,3,'v')} = $version if $version;
 			}
 		}
 		if ($b_admin && $row->[10]){
 			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
-			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
+			$rows->[$j]{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pcie_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,$rows,\$num);
 			}
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
 			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $chip_id;
 			if ($extra > 2 && $row->[1]){
-				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
+				$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 			}
 		}
 		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 # this handles fringe cases where there is no card on pcibus,
 # but there is a card present. I don't know the exact architecture
 # involved but I know this situation exists on at least one old machine.
 sub asound_output {
 	eval $start if $b_log;
-	my ($file) = @_;
-	my (@asound,@rows);
+	my ($file,$rows) = @_;
 	my ($device,$driver,$j,$num) = ('','',0,1);
-	@asound = main::reader($file);
+	my @asound = main::reader($file);
 	foreach (@asound){
 		# filtering out modems and usb devices like webcams, this might get a
 		# usb audio card as well, this will take some trial and error
@@ -7465,27 +7463,27 @@ sub asound_output {
 			$device = $2;
 			$driver = $1;
 			if ($device){
-				$j = scalar @rows;
+				$j = scalar @$rows;
 				$driver ||= 'N/A';
-				push(@rows, {
+				push(@$rows, {
 				main::key($num++,1,1,'Device') => $device,
 				main::key($num++,1,2,'driver') => $driver,
 				},);
 				if ($extra > 0){
 					my $version = main::get_module_version($driver);
-					$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
-					$rows[$j]->{main::key($num++,0,2,'message')} = main::message('pci-advanced-data','');
+					$rows->[$j]{main::key($num++,0,3,'v')} = $version if $version;
+					$rows->[$j]{main::key($num++,0,2,'message')} = main::message('pci-advanced-data','');
 				}
 			}
 		}
 	}
-	# print Data::Dumper:Dumper \s@rows;
+	# print Data::Dumper:Dumper $rows;
 	eval $end if $b_log;
-	return @rows;
 }
 sub usb_output {
 	eval $start if $b_log;
-	my (@rows,@ids,$path_id,$product,@temp2);
+	my $rows = $_[0];
+	my (@ids,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
 	return if !$usb{'audio'};
 	foreach my $row (@{$usb{'audio'}}){
@@ -7497,51 +7495,50 @@ sub usb_output {
 		$path_id = $row->[2] if $row->[2];
 		$product ||= 'N/A';
 		$row->[15] ||= 'N/A';
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $product,
 		main::key($num++,0,2,'type') => 'USB',
 		main::key($num++,0,2,'driver') => $row->[15],
 		},);
 		if ($extra > 0){
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
 		}
 		if ($extra > 1){
 			$row->[7] ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $row->[7];
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $row->[7];
 		}
 		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
+			$rows->[$j]{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
-		$j = scalar @rows;
+		$j = scalar @$rows;
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub sound_server_output {
 	eval $start if $b_log;
-	my (@rows,$program);
+	my $rows = $_[0];
+	my ($program);
 	my ($j,$num) = (0,0);
-	my @servers = sound_server_data();
-	foreach my $server (@servers){
+	foreach my $server (@{sound_server_data()}){
 		next if $extra < 1 && (!$server->[2] || $server->[2] ne 'yes');
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		$server->[1] ||= 'N/A';
 		$server->[2] ||= 'N/A';
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Sound Server') => $server->[0],
 		main::key($num++,0,2,'v') => $server->[1],
 		main::key($num++,0,2,'running') => $server->[2],
 		});
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub sound_server_data {
 	eval $start if $b_log;
-	my (@servers,$program,$running,$server,$version);
+	my ($program,$running,$server,$version);
+	my $servers = [];
 	if (my $file = $system_files{'asound-version'}){
 		# avoid possible second line if compiled by user
 		my $content = main::reader($file,'',0);
@@ -7555,7 +7552,7 @@ sub sound_server_data {
 		# if (main::check_program('aplay') && main::grabber('aplay -l 2>/dev/null')){
 		# 	$running = 'yes';
 		# }
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
 	# sndstat file may be removed in linux oss
@@ -7567,21 +7564,21 @@ sub sound_server_data {
 		$version =~ s|/.*$|| if $version;
 		# not a great test, but ok for now
 		$running = (-e '/dev/sndstat') ? 'yes' : 'no?';
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
 	if ($program = main::check_program('sndiod')){
 		$server = 'sndio';
 		#$version = main::program_version('sndio','\S',2);
 		$running = (grep {/sndiod/} @ps_cmd) ? 'yes': 'no';
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
 	if ($program = main::check_program('jackd')){
 		$server = 'JACK';
 		$version = main::program_version($program,'^jackd',3,'--version',1);
 		$running = (grep {/jackd/} @ps_cmd) ? 'yes':'no' ;
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
 	# note: pactl info/list/stat could be used
@@ -7589,20 +7586,20 @@ sub sound_server_data {
 		$server = 'PulseAudio';
 		$version = main::program_version($program,'^pactl',2,'--version',1);
 		$running = (grep {m|/pulseaudiod?\b|} @ps_cmd) ? 'yes':'no' ;
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
 	if ($program = main::check_program('pipewire')){
 		$server = 'PipeWire';
 		$version = main::program_version($program,'^Compiled with libpipe',4,'--version',1);
 		$running = (grep {/pipewire/} @ps_cmd) ? 'yes':'no' ;
-		push(@servers, [$server,$version,$running]);
+		push(@$servers, [$server,$version,$running]);
 		($running,$server,$version) = ('','','');
 	}
-	main::log_data('dump','sound servers: @servers',\@servers) if $b_log;
-	print Data::Dumper::Dumper \@servers if $dbg[26];
-	return @servers;
+	main::log_data('dump','sound servers: @$servers',$servers) if $b_log;
+	print Data::Dumper::Dumper $servers if $dbg[26];
 	eval $end if $b_log;
+	return $servers;
 }
 }
 
@@ -7613,65 +7610,67 @@ package BatteryItem;
 my (@upower_items,$b_upower,$upower);
 sub get {
 	eval $start if $b_log;
-	my (@rows,%battery,$key1,$val1);
+	my ($key1,$val1);
+	my $battery = {};
+	my $rows = [];
 	my $num = 0;
 	if ($force{'dmidecode'}){
 		if ($alerts{'dmidecode'}->{'action'} ne 'use'){
 			$key1 = $alerts{'dmidecode'}->{'action'};
 			$val1 = $alerts{'dmidecode'}->{'message'};
 			$key1 = ucfirst($key1);
-			@rows = ({main::key($num++,0,1,$key1) => $val1,});
+			$rows = [{main::key($num++,0,1,$key1) => $val1}];
 		}
 		else {
-			%battery = battery_data_dmi();
-			if (!%battery){
+			battery_data_dmi($battery);
+			if (!%$battery){
 				if ($show{'battery-forced'}){
 					$key1 = 'Message';
 					$val1 = main::message('battery-data','');
-					@rows = ({main::key($num++,0,1,$key1) => $val1,});
+					$rows = [{main::key($num++,0,1,$key1) => $val1,}];
 				}
 			}
 			else {
-				@rows = battery_output(\%battery);
+				battery_output($rows,$battery);
 			}
 		}
 	}
 	elsif ($bsd_type && ($sysctl{'battery'} || $show{'battery-forced'})){
-		%battery = battery_data_sysctl() if $sysctl{'battery'};
-		if (!%battery){
+		battery_data_sysctl($battery) if $sysctl{'battery'};
+		if (!%$battery){
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
 				$val1 = main::message('battery-data-bsd','');
-				@rows = ({main::key($num++,0,1,$key1) => $val1,});
+				$rows = [{main::key($num++,0,1,$key1) => $val1,}];
 			}
 		}
 		else {
-			@rows = battery_output(\%battery);
+			battery_output($rows,$battery);
 		}
 	}
 	elsif (-d '/sys/class/power_supply/'){
-		%battery = battery_data_sys();
-		if (!%battery){
+		battery_data_sys($battery);
+		if (!%$battery){
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
 				$val1 = main::message('battery-data','');
-				@rows = ({main::key($num++,0,1,$key1) => $val1,});
+				$rows = [{main::key($num++,0,1,$key1) => $val1}];
 			}
 		}
 		else {
-			@rows = battery_output(\%battery);
+			battery_output($rows,$battery);
 		}
 	}
 	else {
 		if ($show{'battery-forced'}){
 			$key1 = 'Message';
 			$val1 = (!$bsd_type) ? main::message('battery-data-sys'): main::message('battery-data-bsd');
-			@rows = ({main::key($num++,0,1,$key1) => $val1,});
+			$rows = [{main::key($num++,0,1,$key1) => $val1,}];
 		}
 	}
 	(@upower_items,$b_upower,$upower) = ();
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 # alarm capacity capacity_level charge_full charge_full_design charge_now 
 # 	cycle_count energy_full energy_full_design energy_now location manufacturer model_name 
@@ -7696,8 +7695,8 @@ sub get {
 # 17 location
 sub battery_output {
 	eval $start if $b_log;
-	my ($battery) = @_;
-	my ($key,@rows);
+	my ($rows,$battery) = @_;
+	my ($key);
 	my $num = 0;
 	my $j = 0;
 	# print Data::Dumper::Dumper $battery;
@@ -7733,8 +7732,8 @@ sub battery_output {
 			}
 		}
 		$condition ||= 'N/A';
-		$j = scalar @rows;
-		push(@rows, {
+		$j = scalar @$rows;
+		push(@$rows, {
 		main::key($num++,1,1,'ID') => $key,
 		main::key($num++,0,2,'charge') => $charge,
 		main::key($num++,0,2,'condition') => $condition,
@@ -7743,10 +7742,10 @@ sub battery_output {
 		 $battery->{$key}{'voltage_min_design'} && 
 		 ($battery->{$key}{'voltage_now'} - $battery->{$key}{'voltage_min_design'}) < 0.5)){
 			$battery->{$key}{'voltage_now'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
+			$rows->[$j]{main::key($num++,1,2,'volts')} = $battery->{$key}{'voltage_now'};
 			if ($battery->{$key}{'voltage_now'} ne 'N/A' || $battery->{$key}{'voltage_min_design'}){
 				$battery->{$key}{'voltage_min_design'} ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,3,'min')} = $battery->{$key}{'voltage_min_design'};
+				$rows->[$j]{main::key($num++,0,3,'min')} = $battery->{$key}{'voltage_min_design'};
 			}
 		}
 		if ($extra > 0){
@@ -7764,23 +7763,23 @@ sub battery_output {
 			else {
 				$model = 'N/A';
 			}
-			$rows[$j]->{main::key($num++,0,2,'model')} = $model;
+			$rows->[$j]{main::key($num++,0,2,'model')} = $model;
 			if ($extra > 2){
 				$chemistry = ($battery->{$key}{'technology'}) ? $battery->{$key}{'technology'}: 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'type')} = $chemistry;
+				$rows->[$j]{main::key($num++,0,2,'type')} = $chemistry;
 			}
 			if ($extra > 1){
 				$serial = main::filter($battery->{$key}{'serial_number'});
-				$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
+				$rows->[$j]{main::key($num++,0,2,'serial')} = $serial;
 			}
 			$status = ($battery->{$key}{'status'}) ? $battery->{$key}{'status'}: 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'status')} = $status;
+			$rows->[$j]{main::key($num++,0,2,'status')} = $status;
 			if ($extra > 2){
 				if ($battery->{$key}{'cycle_count'}){
-					$rows[$j]->{main::key($num++,0,2,'cycles')} = $battery->{$key}{'cycle_count'};
+					$rows->[$j]{main::key($num++,0,2,'cycles')} = $battery->{$key}{'cycle_count'};
 				}
 				if ($battery->{$key}{'location'}){
-					$rows[$j]->{main::key($num++,0,2,'location')} = $battery->{$key}{'location'};
+					$rows->[$j]{main::key($num++,0,2,'location')} = $battery->{$key}{'location'};
 				}
 			}
 		}
@@ -7794,11 +7793,10 @@ sub battery_output {
 			$num = 0;
 			next if !defined $battery->{$key} || $battery->{$key}{'purpose'} eq 'mains';
 			my ($charge,$model,$serial,$percent,$status,$vendor) = ('','','','','','');
-			my (%upower_data);
-			$j = scalar @rows;
-			%upower_data = upower_data($key) if $upower;
-			if ($upower_data{'percent'}){
-				$charge = $upower_data{'percent'};
+			$j = scalar @$rows;
+			my $upower_data = ($upower) ? upower_data($key) : {};
+			if ($upower_data->{'percent'}){
+				$charge = $upower_data->{'percent'};
 			}
 			elsif ($battery->{$key}{'capacity_level'} &&
 			 lc($battery->{$key}{'capacity_level'}) ne 'unknown'){
@@ -7820,30 +7818,30 @@ sub battery_output {
 			else {
 				$model = 'N/A';
 			}
-			push(@rows, {
+			push(@$rows, {
 			main::key($num++,1,1,'Device') => $key,
 			main::key($num++,0,2,'model') => $model,
 			},);
 			if ($extra > 1){
 				$serial = main::filter($battery->{$key}{'serial_number'});
-				$rows[$j]->{main::key($num++,0,2,'serial')} = $serial;
+				$rows->[$j]{main::key($num++,0,2,'serial')} = $serial;
 			}
-			$rows[$j]->{main::key($num++,0,2,'charge')} = $charge;
-			if ($extra > 2 && $upower_data{'rechargeable'}){
-				$rows[$j]->{main::key($num++,0,2,'rechargeable')} = $upower_data{'rechargeable'};
+			$rows->[$j]{main::key($num++,0,2,'charge')} = $charge;
+			if ($extra > 2 && $upower_data->{'rechargeable'}){
+				$rows->[$j]{main::key($num++,0,2,'rechargeable')} = $upower_data->{'rechargeable'};
 			}
 			$status = ($battery->{$key}{'status'}) ? $battery->{$key}{'status'}: 'N/A' ;
-			$rows[$j]->{main::key($num++,0,2,'status')} = $status;
+			$rows->[$j]{main::key($num++,0,2,'status')} = $status;
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 
 # charge: mAh energy: Wh
 sub battery_data_sys {
 	eval $start if $b_log;
-	my ($b_ma,%battery,$file,$id,$item,$path,$value);
+	my $battery = $_[0];
+	my ($b_ma,$file,$id,$item,$path,$value);
 	my $num = 0;
 	my @batteries = main::globber("/sys/class/power_supply/*");
 	# note: there is no 'location' file, but dmidecode has it
@@ -7864,7 +7862,7 @@ sub battery_data_sys {
 			$value = (-r $path) ? main::reader($path,'',0): '';
 			# mains, plus in psu
 			if ($file eq 'type' && $value && lc($value) ne 'battery'){
-				$battery{$id}->{'purpose'} = 'mains';
+				$battery->{$id}{'purpose'} = 'mains';
 			}
 			if ($value){
 				$value = main::trimmer($value);
@@ -7917,206 +7915,205 @@ sub battery_data_sys {
 			elsif ($b_root && -e $path && ! -r $path){
 				$value = main::message('root-required');
 			}
-			$battery{$id}->{$file} = $value;
-			# print "$battery{$id}->{$file}\n";
+			$battery->{$id}{$file} = $value;
+			# print "$battery->{$id}{$file}\n";
 		}
 		# note, too few data sets, there could be sbs-charger but not sure
-		if (!$battery{$id}->{'purpose'}){
+		if (!$battery->{$id}{'purpose'}){
 			# NOTE: known ids: BAT[0-9] CMB[0-9]. arm may be like: sbs- sbm- but just check 
 			# if the energy/charge values exist for this item, if so, it's a battery, if not, 
 			# it's a device.
 			if ($id =~ /^(BAT|CMB).*$/i || 
-			 ($battery{$id}->{'energy_full'} || $battery{$id}->{'charge_full'} || 
-			 $battery{$id}->{'energy_now'} || $battery{$id}->{'charge_now'} || 
-			 $battery{$id}->{'energy_full_design'} || $battery{$id}->{'charge_full_design'}) || 
-			 $battery{$id}->{'voltage_min_design'} || $battery{$id}->{'voltage_now'}){
-				$battery{$id}->{'purpose'} =  'primary';
+			 ($battery->{$id}{'energy_full'} || $battery->{$id}{'charge_full'} || 
+			 $battery->{$id}{'energy_now'} || $battery->{$id}{'charge_now'} || 
+			 $battery->{$id}{'energy_full_design'} || $battery->{$id}{'charge_full_design'}) || 
+			 $battery->{$id}{'voltage_min_design'} || $battery->{$id}{'voltage_now'}){
+				$battery->{$id}{'purpose'} =  'primary';
 			}
 			else {
-				$battery{$id}->{'purpose'} =  'device';
+				$battery->{$id}{'purpose'} =  'device';
 			}
 		}
 		# note:voltage_now fluctuates, which will make capacity numbers change a bit
 		# if any of these values failed, the math will be wrong, but no way to fix that
 		# tests show more systems give right capacity/charge with voltage_min_design 
 		# than with voltage_now
-		if ($b_ma && $battery{$id}->{'voltage_min_design'}){
-			if ($battery{$id}->{'charge_now'}){
-				$battery{$id}->{'energy_now'} = $battery{$id}->{'charge_now'} * $battery{$id}->{'voltage_min_design'};
+		if ($b_ma && $battery->{$id}{'voltage_min_design'}){
+			if ($battery->{$id}{'charge_now'}){
+				$battery->{$id}{'energy_now'} = $battery->{$id}{'charge_now'} * $battery->{$id}{'voltage_min_design'};
 			}
-			if ($battery{$id}->{'charge_full'}){
-				$battery{$id}->{'energy_full'} = $battery{$id}->{'charge_full'}*$battery{$id}->{'voltage_min_design'};
+			if ($battery->{$id}{'charge_full'}){
+				$battery->{$id}{'energy_full'} = $battery->{$id}{'charge_full'}*$battery->{$id}{'voltage_min_design'};
 			}
-			if ($battery{$id}->{'charge_full_design'}){
-				$battery{$id}->{'energy_full_design'} = $battery{$id}->{'charge_full_design'} * $battery{$id}->{'voltage_min_design'};
+			if ($battery->{$id}{'charge_full_design'}){
+				$battery->{$id}{'energy_full_design'} = $battery->{$id}{'charge_full_design'} * $battery->{$id}{'voltage_min_design'};
 			}
 		}
-		if ($battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'}){
-			$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'}/$battery{$id}->{'energy_full'};
-			$battery{$id}->{'capacity'} = sprintf("%.1f", $battery{$id}->{'capacity'});
+		if ($battery->{$id}{'energy_now'} && $battery->{$id}{'energy_full'}){
+			$battery->{$id}{'capacity'} = 100 * $battery->{$id}{'energy_now'}/$battery->{$id}{'energy_full'};
+			$battery->{$id}{'capacity'} = sprintf("%.1f", $battery->{$id}{'capacity'});
 		}
-		if ($battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'}){
-			$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'}/$battery{$id}->{'energy_full_design'};
-			$battery{$id}->{'of_orig'} = sprintf("%.1f", $battery{$id}->{'of_orig'});
+		if ($battery->{$id}{'energy_full_design'} && $battery->{$id}{'energy_full'}){
+			$battery->{$id}{'of_orig'} = 100 * $battery->{$id}{'energy_full'}/$battery->{$id}{'energy_full_design'};
+			$battery->{$id}{'of_orig'} = sprintf("%.1f", $battery->{$id}{'of_orig'});
 		}
-		if ($battery{$id}->{'energy_now'}){
-			$battery{$id}->{'energy_now'} = sprintf("%.1f", $battery{$id}->{'energy_now'});
+		if ($battery->{$id}{'energy_now'}){
+			$battery->{$id}{'energy_now'} = sprintf("%.1f", $battery->{$id}{'energy_now'});
 		}
-		if ($battery{$id}->{'energy_full_design'}){
-			$battery{$id}->{'energy_full_design'} = sprintf("%.1f",$battery{$id}->{'energy_full_design'});
+		if ($battery->{$id}{'energy_full_design'}){
+			$battery->{$id}{'energy_full_design'} = sprintf("%.1f",$battery->{$id}{'energy_full_design'});
 		}
-		if ($battery{$id}->{'energy_full'}){
-			$battery{$id}->{'energy_full'} = sprintf("%.1f", $battery{$id}->{'energy_full'});
+		if ($battery->{$id}{'energy_full'}){
+			$battery->{$id}{'energy_full'} = sprintf("%.1f", $battery->{$id}{'energy_full'});
 		}
 	}
-	print Data::Dumper::Dumper \%battery if $dbg[33];
-	main::log_data('dump','sys: %battery',\%battery) if $b_log;
+	print Data::Dumper::Dumper $battery if $dbg[33];
+	main::log_data('dump','sys: %$battery',$battery) if $b_log;
 	eval $end if $b_log;
-	return %battery;
 }
 sub battery_data_sysctl {
 	eval $start if $b_log;
-	my (%battery,$id);
+	my $battery = $_[0];
+	my ($id);
 	for (@{$sysctl{'battery'}}){
 		if (/^(hw\.sensors\.)acpi([^\.]+)(\.|:)/){
 			$id = uc($2);
 		}
 		if (/volt[^:]+:([0-9\.]+)\s+VDC\s+\(voltage\)/){
-			$battery{$id}->{'voltage_min_design'} = $1;
+			$battery->{$id}{'voltage_min_design'} = $1;
 		}
 		elsif (/volt[^:]+:([0-9\.]+)\s+VDC\s+\(current voltage\)/){
-			$battery{$id}->{'voltage_now'} = $1;
+			$battery->{$id}{'voltage_now'} = $1;
 		}
 		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(design capacity\)/){
-			$battery{$id}->{'energy_full_design'} = $1;
+			$battery->{$id}{'energy_full_design'} = $1;
 		}
 		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(last full capacity\)/){
-			$battery{$id}->{'energy_full'} = $1;
+			$battery->{$id}{'energy_full'} = $1;
 		}
 		elsif (/watthour[^:]+:([0-9\.]+)\s+Wh\s+\(remaining capacity\)/){
-			$battery{$id}->{'energy_now'} = $1;
+			$battery->{$id}{'energy_now'} = $1;
 		}
 		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(design capacity\)/){
-			$battery{$id}->{'charge_full_design'} = $1;
+			$battery->{$id}{'charge_full_design'} = $1;
 		}
 		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(last full capacity\)/){
-			$battery{$id}->{'charge_full'} = $1;
+			$battery->{$id}{'charge_full'} = $1;
 		}
 		elsif (/amphour[^:]+:([0-9\.]+)\s+Ah\s+\(remaining capacity\)/){
-			$battery{$id}->{'charge_now'} = $1;
+			$battery->{$id}{'charge_now'} = $1;
 		}
 		elsif (/raw[^:]+:[0-9\.]+\s+\((battery) ([^\)]+)\)/){
-			$battery{$id}->{'status'} = $2;
+			$battery->{$id}{'status'} = $2;
 		}
 		elsif (/^acpi[\S]+:at [^:]+:\s*$id\s+/i){
 			if (/\s+model\s+(.*?)\s*/){
-				$battery{$id}->{'model_name'} = main::clean_dmi($1);
+				$battery->{$id}{'model_name'} = main::clean_dmi($1);
 			}
 			if (/\s*serial\s+([\S]*?)\s*/){
-				$battery{$id}->{'serial_number'} = main::clean_unset($1,'^(0x)0+$');
+				$battery->{$id}{'serial_number'} = main::clean_unset($1,'^(0x)0+$');
 			}
 			if (/\s*type\s+(.*?)\s*/){
-				$battery{$id}->{'technology'} = $1;
+				$battery->{$id}{'technology'} = $1;
 			}
 			if (/\s*oem\s+(.*)/){
-				$battery{$id}->{'manufacturer'} = main::clean_dmi($1);
+				$battery->{$id}{'manufacturer'} = main::clean_dmi($1);
 			}
 		}
 	}
 	# then do the condition/charge percent math
-	for my $id (keys %battery){
-		$battery{$id}->{'purpose'} = 'primary';
+	for my $id (keys %$battery){
+		$battery->{$id}{'purpose'} = 'primary';
 		# CHARGE is Ah, which are converted to Wh by: Ah x voltage. 
-		if ($battery{$id}->{'voltage_min_design'}){
-			if ($battery{$id}->{'charge_now'}){
-				$battery{$id}->{'energy_now'} = $battery{$id}->{'charge_now'} * $battery{$id}->{'voltage_min_design'};
+		if ($battery->{$id}{'voltage_min_design'}){
+			if ($battery->{$id}{'charge_now'}){
+				$battery->{$id}{'energy_now'} = $battery->{$id}{'charge_now'} * $battery->{$id}{'voltage_min_design'};
 			}
-			if ($battery{$id}->{'charge_full'}){
-				$battery{$id}->{'energy_full'} = $battery{$id}->{'charge_full'}*$battery{$id}->{'voltage_min_design'};
+			if ($battery->{$id}{'charge_full'}){
+				$battery->{$id}{'energy_full'} = $battery->{$id}{'charge_full'}*$battery->{$id}{'voltage_min_design'};
 			}
-			if ($battery{$id}->{'charge_full_design'}){
-				$battery{$id}->{'energy_full_design'} = $battery{$id}->{'charge_full_design'} * $battery{$id}->{'voltage_min_design'};
+			if ($battery->{$id}{'charge_full_design'}){
+				$battery->{$id}{'energy_full_design'} = $battery->{$id}{'charge_full_design'} * $battery->{$id}{'voltage_min_design'};
 			}
 		}
-		if ($battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'}){
-			$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'}/$battery{$id}->{'energy_full_design'};
-			$battery{$id}->{'of_orig'} = sprintf("%.1f", $battery{$id}->{'of_orig'});
+		if ($battery->{$id}{'energy_full_design'} && $battery->{$id}{'energy_full'}){
+			$battery->{$id}{'of_orig'} = 100 * $battery->{$id}{'energy_full'}/$battery->{$id}{'energy_full_design'};
+			$battery->{$id}{'of_orig'} = sprintf("%.1f", $battery->{$id}{'of_orig'});
 		}
-		if ($battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'}){
-			$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'}/$battery{$id}->{'energy_full'};
-			$battery{$id}->{'capacity'} = sprintf("%.1f", $battery{$id}->{'capacity'});
+		if ($battery->{$id}{'energy_now'} && $battery->{$id}{'energy_full'}){
+			$battery->{$id}{'capacity'} = 100 * $battery->{$id}{'energy_now'}/$battery->{$id}{'energy_full'};
+			$battery->{$id}{'capacity'} = sprintf("%.1f", $battery->{$id}{'capacity'});
 		}
-		if ($battery{$id}->{'energy_now'}){
-			$battery{$id}->{'energy_now'} = sprintf("%.1f", $battery{$id}->{'energy_now'});
+		if ($battery->{$id}{'energy_now'}){
+			$battery->{$id}{'energy_now'} = sprintf("%.1f", $battery->{$id}{'energy_now'});
 		}
-		if ($battery{$id}->{'energy_full'}){
-			$battery{$id}->{'energy_full'} = sprintf("%.1f", $battery{$id}->{'energy_full'});
+		if ($battery->{$id}{'energy_full'}){
+			$battery->{$id}{'energy_full'} = sprintf("%.1f", $battery->{$id}{'energy_full'});
 		}
-		if ($battery{$id}->{'energy_full_design'}){
-			$battery{$id}->{'energy_full_design'} = sprintf("%.1f", $battery{$id}->{'energy_full_design'});
+		if ($battery->{$id}{'energy_full_design'}){
+			$battery->{$id}{'energy_full_design'} = sprintf("%.1f", $battery->{$id}{'energy_full_design'});
 		}
 	}
-	print Data::Dumper::Dumper \%battery if $dbg[33];
-	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
+	print Data::Dumper::Dumper $battery if $dbg[33];
+	main::log_data('dump','dmi: %$battery',$battery) if $b_log;
 	eval $end if $b_log;
-	return %battery;
 }
 # note, dmidecode does not have charge_now or charge_full
 sub battery_data_dmi {
 	eval $start if $b_log;
-	my (%battery,$id);
+	my $battery = $_[0];
+	my ($id);
 	my $i = 0;
 	foreach my $row (@dmi){
 		# Portable Battery
 		if ($row->[0] == 22){
 			$id = "BAT$i";
 			$i++;
-			$battery{$id}->{'purpose'} = 'primary';
+			$battery->{$id}{'purpose'} = 'primary';
 			# skip first three row, we don't need that data
 			foreach my $item (@$row[3 .. $#$row]){
 				my @value = split(/:\s+/, $item);
 				next if !$value[0];
 				if ($value[0] eq 'Location'){
-					$battery{$id}->{'location'} = $value[1]}
+					$battery->{$id}{'location'} = $value[1]}
 				elsif ($value[0] eq 'Manufacturer'){
-					$battery{$id}->{'manufacturer'} = main::clean_dmi($value[1])}
+					$battery->{$id}{'manufacturer'} = main::clean_dmi($value[1])}
 				elsif ($value[0] =~ /Chemistry/){
-					$battery{$id}->{'technology'} = $value[1]}
+					$battery->{$id}{'technology'} = $value[1]}
 				elsif ($value[0] =~ /Serial Number/){
-					$battery{$id}->{'serial_number'} = $value[1]}
+					$battery->{$id}{'serial_number'} = $value[1]}
 				elsif ($value[0] =~ /^Name/){
-					$battery{$id}->{'model_name'} = main::clean_dmi($value[1])}
+					$battery->{$id}{'model_name'} = main::clean_dmi($value[1])}
 				elsif ($value[0] eq 'Design Capacity'){
 					$value[1] =~ s/\s*mwh$//i;
-					$battery{$id}->{'energy_full_design'} = sprintf("%.1f", $value[1]/1000);
+					$battery->{$id}{'energy_full_design'} = sprintf("%.1f", $value[1]/1000);
 				}
 				elsif ($value[0] eq 'Design Voltage'){
 					$value[1] =~ s/\s*mv$//i;
-					$battery{$id}->{'voltage_min_design'} = sprintf("%.1f", $value[1]/1000);
+					$battery->{$id}{'voltage_min_design'} = sprintf("%.1f", $value[1]/1000);
 				}
 			}
-			if ($battery{$id}->{'energy_now'} && $battery{$id}->{'energy_full'}){
-				$battery{$id}->{'capacity'} = 100 * $battery{$id}->{'energy_now'} / $battery{$id}->{'energy_full'};
-				$battery{$id}->{'capacity'} = sprintf("%.1f%", $battery{$id}->{'capacity'});
+			if ($battery->{$id}{'energy_now'} && $battery->{$id}{'energy_full'}){
+				$battery->{$id}{'capacity'} = 100 * $battery->{$id}{'energy_now'} / $battery->{$id}{'energy_full'};
+				$battery->{$id}{'capacity'} = sprintf("%.1f%", $battery->{$id}{'capacity'});
 			}
-			if ($battery{$id}->{'energy_full_design'} && $battery{$id}->{'energy_full'}){
-				$battery{$id}->{'of_orig'} = 100 * $battery{$id}->{'energy_full'} / $battery{$id}->{'energy_full_design'};
-				$battery{$id}->{'of_orig'} = sprintf("%.0f%", $battery{$id}->{'of_orig'});
+			if ($battery->{$id}{'energy_full_design'} && $battery->{$id}{'energy_full'}){
+				$battery->{$id}{'of_orig'} = 100 * $battery->{$id}{'energy_full'} / $battery->{$id}{'energy_full_design'};
+				$battery->{$id}{'of_orig'} = sprintf("%.0f%", $battery->{$id}{'of_orig'});
 			}
 		}
 		elsif ($row->[0] > 22){
 			last;
 		}
 	}
-	print Data::Dumper::Dumper \%battery if $dbg[33];
-	main::log_data('dump','dmi: %battery',\%battery) if $b_log;
+	print Data::Dumper::Dumper $battery if $dbg[33];
+	main::log_data('dump','dmi: %$battery',$battery) if $b_log;
 	eval $end if $b_log;
-	return %battery;
 }
 sub upower_data {
 	my ($id) = @_;
 	eval $start if $b_log;
-	my (%data);
+	my $data = {};
 	if (!$b_upower && $upower){
 		@upower_items = main::grabber("$upower -e",'','strip');
 		$b_upower = 1;
@@ -8128,19 +8125,19 @@ sub upower_data {
 				foreach my $row (@working){
 					my @temp = split(/\s*:\s*/, $row);
 					if ($temp[0] eq 'percentage'){
-						$data{'percent'} = $temp[1];
+						$data->{'percent'} = $temp[1];
 					}
 					elsif ($temp[0] eq 'rechargeable'){
-						$data{'rechargeable'} = $temp[1];
+						$data->{'rechargeable'} = $temp[1];
 					}
 				}
 				last;
 			}
 		}
 	}
-	main::log_data('dump','upower: %data',\%data) if $b_log;
+	main::log_data('dump','upower: %$data',$data) if $b_log;
 	eval $end if $b_log;
-	return %data;
+	return $data;
 }
 }
 
@@ -9049,9 +9046,9 @@ sub prep_short_data {
 sub cpuinfo_data {
 	eval $start if $b_log;
 	my ($file)=  @_;
-	my ($arch,$note,$temp);
+	my ($cpu,$arch,$note,$temp);
 	# has to be set above fake cpu section
-	my %cpu =  set_cpu_data();
+	set_cpu_data(\$cpu);
 	# sleep is also set in front of sysctl_data for BSDs, same idea
 	my $sleep = $cpu_sleep * 1000000;
 	if ($b_hires){
@@ -9099,11 +9096,11 @@ sub cpuinfo_data {
 			foreach (keys %working){
 				$freq{sprintf("%04d",$_)} = $working{$_}->[1] if defined $working{$_}->[0];
 			}
-			$cpu{'sys-freq'} = \%freq if %freq;
+			$cpu->{'sys-freq'} = \%freq if %freq;
 		}
 	}
-	cpuinfo_data_grabber($file,\$cpu{'type'}) if !$loaded{'cpuinfo'};
-	$cpu{'type'} = cpu_vendor($cpu_arch) if $cpu_arch eq 'elbrus'; # already set to lower
+	cpuinfo_data_grabber($file,\$cpu->{'type'}) if !$loaded{'cpuinfo'};
+	$cpu->{'type'} = cpu_vendor($cpu_arch) if $cpu_arch eq 'elbrus'; # already set to lower
 	my ($core_count,$proc_count,$speed) = (0,0,0);
 	my ($b_block_1) = (1);
 	# need to prime for arm cpus, which do not have physical/core ids usually
@@ -9114,32 +9111,32 @@ sub cpuinfo_data {
 		next if !$block;
 		if ($b_block_1){
 			$b_block_1 = 0;
-			if (!$cpu{'type'} && $block->{'vendor_id'}){
-				$cpu{'type'} = cpu_vendor($block->{'vendor_id'});
+			if (!$cpu->{'type'} && $block->{'vendor_id'}){
+				$cpu->{'type'} = cpu_vendor($block->{'vendor_id'});
 			}
 			# PPC can use 'cpu', MIPS 'cpu model'
 			$temp = main::get_defined($block->{'model name'},$block->{'cpu'},
 			 $block->{'cpu model'});
 			if ($temp){
-				$cpu{'model_name'} = $temp;
-				$cpu{'model_name'} = main::clean($cpu{'model_name'});
-				$cpu{'model_name'} = clean_cpu($cpu{'model_name'});
-				if ($risc{'arm'} || $cpu{'model_name'} =~ /ARM|AArch/i){
-					$cpu{'type'} = 'arm';
-					if ($cpu{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
-						$cpu{'model_name'} = $1;
-						$cpu{'stepping'} = $2;
+				$cpu->{'model_name'} = $temp;
+				$cpu->{'model_name'} = main::clean($cpu->{'model_name'});
+				$cpu->{'model_name'} = clean_cpu($cpu->{'model_name'});
+				if ($risc{'arm'} || $cpu->{'model_name'} =~ /ARM|AArch/i){
+					$cpu->{'type'} = 'arm';
+					if ($cpu->{'model_name'} =~ /(.*)\srev\s([\S]+)\s(\(([\S]+)\))?/){
+						$cpu->{'model_name'} = $1;
+						$cpu->{'stepping'} = $2;
 						if ($4){
-							$cpu{'arch'} = $4;
-							if ($cpu{'model_name'} !~ /\Q$cpu{'arch'}\E/i){
-								$cpu{'model_name'} .= ' ' . $cpu{'arch'};
+							$cpu->{'arch'} = $4;
+							if ($cpu->{'model_name'} !~ /\Q$cpu->{'arch'}\E/i){
+								$cpu->{'model_name'} .= ' ' . $cpu->{'arch'};
 							}
 						}
 						# print "p0:\n";
 					}
 				}
-				elsif ($risc{'mips'} || $cpu{'model_name'} =~ /mips/i){
-					$cpu{'type'} = 'mips';
+				elsif ($risc{'mips'} || $cpu->{'model_name'} =~ /mips/i){
+					$cpu->{'type'} = 'mips';
 				}
 			}
 			$temp = main::get_defined($block->{'architecture'},
@@ -9147,38 +9144,38 @@ sub cpuinfo_data {
 			if ($temp){
 				if ($temp =~ /^\d+$/){
 					# translate integers to hex
-					$cpu{'family'} = uc(sprintf("%x",$temp));
+					$cpu->{'family'} = uc(sprintf("%x",$temp));
 				}
 				elsif ($risc{'arm'}){
-					$cpu{'arch'} = $temp;
+					$cpu->{'arch'} = $temp;
 				}
 			}
 			# note: stepping and ARM cpu revision are integers
 			$temp = main::get_defined($block->{'stepping'},$block->{'cpu revision'});
 			# can be 0, but can be 'unknown'
 			if (defined $temp || 
-			 ($cpu{'type'} eq 'elbrus' && defined $block->{'revision'})){
+			 ($cpu->{'type'} eq 'elbrus' && defined $block->{'revision'})){
 				$temp = $block->{'revision'} if defined $block->{'revision'};
 				if ($temp =~ /^\d+$/){
-					$cpu{'stepping'} = uc(sprintf("%x",$temp));
+					$cpu->{'stepping'} = uc(sprintf("%x",$temp));
 				}
 			}
 			# PPC revision is a string, but elbrus revision is hex
 			elsif (defined $block->{'revision'}){
-				$cpu{'revision'} = $block->{'revision'};
+				$cpu->{'revision'} = $block->{'revision'};
 			}
 			# this is hex so uc for cpu arch id. raspi 4 has Model rather than Hardware
 			if (defined $block->{'model'}){
 				# can be 0, but can be 'unknown'
-				$cpu{'model-id'} = uc(sprintf("%x",$block->{'model'}));
+				$cpu->{'model-id'} = uc(sprintf("%x",$block->{'model'}));
 			}
 			if ($block->{'cpu variant'}){
-				$cpu{'model-id'} = uc($block->{'cpu variant'});
-				$cpu{'model-id'} =~ s/^0X//;
+				$cpu->{'model-id'} = uc($block->{'cpu variant'});
+				$cpu->{'model-id'} =~ s/^0X//;
 			}
 			 # this is per cpu, not total if > 1 pys cpus
-			if (!$cpu{'cores'} && $block->{'cpu cores'}){
-				$cpu{'cores'} = $block->{'cpu cores'};
+			if (!$cpu->{'cores'} && $block->{'cpu cores'}){
+				$cpu->{'cores'} = $block->{'cpu cores'};
 			}
 			## this is only for -C full cpu output
 			if ($type eq 'full'){
@@ -9186,37 +9183,37 @@ sub cpuinfo_data {
 				# L2, or L3, but never all of them added togehter, so give up.
 				if ($block->{'cache size'} && 
 					$block->{'cache size'} =~ /(\d+\s*[KMG])i?B?$/){
-					$cpu{'cache'} = main::translate_size($1);
+					$cpu->{'cache'} = main::translate_size($1);
 				}
 				if ($block->{'l1 cache size'} && 
 				 $block->{'l1 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
-					$cpu{'l1-cache'} = main::translate_size($1);
+					$cpu->{'l1-cache'} = main::translate_size($1);
 				}
 				if ($block->{'l2 cache size'} && 
 					$block->{'l2 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
-					$cpu{'l2-cache'} = main::translate_size($1);
+					$cpu->{'l2-cache'} = main::translate_size($1);
 				}
 				if ($block->{'l3 cache size'} && 
 				 $block->{'l3 cache size'} =~ /(\d+\s*[KMG])i?B?$/){
-					$cpu{'l3-cache'} = main::translate_size($1);
+					$cpu->{'l3-cache'} = main::translate_size($1);
 				}
 				$temp = main::get_defined($block->{'flags'} || $block->{'features'});
 				if ($temp){
-					$cpu{'flags'} = $temp;
+					$cpu->{'flags'} = $temp;
 				}
 				if ($b_admin){
 					# note: not used unless maybe /sys data missing?
 					if ($block->{'bugs'}){
-						$cpu{'bugs-string'} = $block->{'bugs'};
+						$cpu->{'bugs-string'} = $block->{'bugs'};
 					}
 					# unlike family and model id, microcode appears to be hex already
 					if ($block->{'microcode'}){
 						if ($block->{'microcode'} =~ /0x/){
-							$cpu{'microcode'} = uc($block->{'microcode'});
-							$cpu{'microcode'} =~ s/^0X//;
+							$cpu->{'microcode'} = uc($block->{'microcode'});
+							$cpu->{'microcode'} =~ s/^0X//;
 						}
 						else {
-							$cpu{'microcode'} = uc(sprintf("%x",$block->{'microcode'}));
+							$cpu->{'microcode'} = uc(sprintf("%x",$block->{'microcode'}));
 						}
 					}
 				}
@@ -9224,49 +9221,49 @@ sub cpuinfo_data {
 		}
 		# These occurs in a separate block with E2C3, last in cpuinfo blocks,
 		# otherwise per block in E8C variants
-		if ($cpu{'type'} eq 'elbrus' && (!$cpu{'l1i-cache'} && 
-		 !$cpu{'l1d-cache'} && !$cpu{'l2-cache'} && !$cpu{'l3-cache'})){
+		if ($cpu->{'type'} eq 'elbrus' && (!$cpu->{'l1i-cache'} && 
+		 !$cpu->{'l1d-cache'} && !$cpu->{'l2-cache'} && !$cpu->{'l3-cache'})){
 			# note: cache0 is L1i and cache1 L1d. cp_caches_fallback handles
 			if ($block->{'cache0'} && 
 				$block->{'cache0'} =~ /size\s*=\s*(\d+)K\s/){
-				$cpu{'l1i-cache'} = $1;
+				$cpu->{'l1i-cache'} = $1;
 			}
 			if ($block->{'cache1'} && 
 				$block->{'cache1'} =~ /size\s*=\s*(\d+)K\s/){
-				$cpu{'l1d-cache'} = $1;
+				$cpu->{'l1d-cache'} = $1;
 			}
 			if ($block->{'cache2'} && 
 				$block->{'cache2'} =~ /size\s*=\s*(\d+)(K|M)\s/){
-				$cpu{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
+				$cpu->{'l2-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 			}
 			if ($block->{'cache3'} &&
 				$block->{'cache3'} =~ /size\s*=\s*(\d+)(K|M)\s/){
-				$cpu{'l3-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
+				$cpu->{'l3-cache'} = ($2 eq 'M') ? ($1*1024) : $1;
 			}
 		}
 		## Start incrementers
 		$temp = main::get_defined($block->{'cpu mhz'},$block->{'clock'});
 		if ($temp){
 			$speed = clean_speed($temp);
-			push(@{$cpu{'processors'}},$speed);
+			push(@{$cpu->{'processors'}},$speed);
 		}
 		# new arm shows bad bogomip value, so don't use it, however, ancient
 		# cpus, intel 486, can have super low bogomips, like 33.17
 		if ($extra > 0 && $block->{'bogomips'} && ((%risc && 
 			$block->{'bogomips'} > 50) || !%risc)){
-			$cpu{'bogomips'} += $block->{'bogomips'};
+			$cpu->{'bogomips'} += $block->{'bogomips'};
 		}
 		# just to get core counts for ARM/MIPS/PPC systems
 		if (defined $block->{'processor'} && !$temp){
 			if ($block->{'processor'} =~ /^\d+$/){
-				push(@{$cpu{'processors'}},0);
+				push(@{$cpu->{'processors'}},0);
 			}
 		}
 		# note: for alder lake, could vary, depending on if e or p core but we 
 		# only care aobut the highest value for crude logic here
 		if ($block->{'siblings'} && 
-		 (!$cpu{'siblings'} || $block->{'siblings'} > $cpu{'siblings'})){
-			$cpu{'siblings'} = $block->{'siblings'};
+		 (!$cpu->{'siblings'} || $block->{'siblings'} > $cpu->{'siblings'})){
+			$cpu->{'siblings'} = $block->{'siblings'};
 		}
 		# Ignoring trying to catch dies with $block->{'physical id'}, 
 		# that's too buggy for cpuinfo
@@ -9274,26 +9271,26 @@ sub cpuinfo_data {
 			# https://www.pcworld.com/article/3214635/components-processors/ryzen-threadripper-review-we-test-amds-monster-cpu.html
 			my $phys = (defined $block->{'physical id'}) ? $block->{'physical id'}: 0;
 			my $die_id = 0;
-			if (!grep {$_ eq $block->{'core id'}} @{$cpu{'ids'}->[$phys][$die_id]}){
-				push(@{$cpu{'ids'}->[$phys][$die_id]},$block->{'core id'});
+			if (!grep {$_ eq $block->{'core id'}} @{$cpu->{'ids'}->[$phys][$die_id]}){
+				push(@{$cpu->{'ids'}->[$phys][$die_id]},$block->{'core id'});
 			}
 		}
 	}
 	undef @cpuinfo; # we're done with it, dump it
 	undef %cpuinfo_machine;
 	if (%risc){
-		if (!$cpu{'type'}){
-			$cpu{'type'} = $risc{'id'};
+		if (!$cpu->{'type'}){
+			$cpu->{'type'} = $risc{'id'};
 		}
 		if (!$bsd_type){
 			my $system_cpus = system_cpu_name();
-			$cpu{'system-cpus'} = $system_cpus if %$system_cpus;
+			$cpu->{'system-cpus'} = $system_cpus if %$system_cpus;
 		}
 	}
-	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	print Data::Dumper::Dumper \%cpu if $dbg[8];
+	main::log_data('dump','%$cpu',$cpu) if $b_log;
+	print Data::Dumper::Dumper $cpu if $dbg[8];
 	eval $end if $b_log;
-	return \%cpu;
+	return $cpu;
 }
 sub cpuinfo_data_grabber {
 	eval $start if $b_log;
@@ -9713,10 +9710,10 @@ sub sys_data_grabber {
 }
 sub sysctl_data {
 	eval $start if $b_log;
-	my %cpu = set_cpu_data();
-	my (@line,%speeds,@working);
+	my ($cpu,@line,%speeds,@working);
 	my ($sep) = ('');
 	my ($die_holder,$die_id,$phys_holder,$phys_id,$proc_count,$speed) = (0,0,0,0,0,0,0);
+	set_cpu_data(\$cpu);
 	@{$sysctl{'cpu'}} = () if !$sysctl{'cpu'}; # don't want error next!
 	foreach (@{$sysctl{'cpu'}}){
 		@line = split(/\s*:\s*/, $_);
@@ -9733,84 +9730,84 @@ sub sysctl_data {
 			$line[1] = clean_cpu($line[1]);
 			if ($line[1] =~ /([0-9]+)[\s-]*([KM]B)\s+L2 cache/i){
 				my $multiplier = ($2 eq 'MB') ? 1024: 1;
-				$cpu{'l2-cache'} = $1 * $multiplier;
+				$cpu->{'l2-cache'} = $1 * $multiplier;
 			}
 			if ($line[1] =~ /([^0-9\.][0-9\.]+)[\s-]*[MG]Hz/){
-				$cpu{'max-freq'} = $1;
-				if ($cpu{'max-freq'} =~ /MHz/i){
-					$cpu{'max-freq'} =~ s/[\s-]*MHz//;
-					$cpu{'max-freq'} = clean_speed($cpu{'max-freq'},'mhz');
+				$cpu->{'max-freq'} = $1;
+				if ($cpu->{'max-freq'} =~ /MHz/i){
+					$cpu->{'max-freq'} =~ s/[\s-]*MHz//;
+					$cpu->{'max-freq'} = clean_speed($cpu->{'max-freq'},'mhz');
 				}
-				elsif ($cpu{'max-freq'} =~ /GHz/){
-					$cpu{'max-freq'} =~ s/[\s-]*GHz//i;
-					$cpu{'max-freq'} = $cpu{'max-freq'} / 1000;
-					$cpu{'max-freq'} = clean_speed($cpu{'max-freq'},'mhz');
+				elsif ($cpu->{'max-freq'} =~ /GHz/){
+					$cpu->{'max-freq'} =~ s/[\s-]*GHz//i;
+					$cpu->{'max-freq'} = $cpu->{'max-freq'} / 1000;
+					$cpu->{'max-freq'} = clean_speed($cpu->{'max-freq'},'mhz');
 				}
 			}
 			if ($line[1] =~ /\)$/){
 				$line[1] =~ s/\s*\(.*\)$//;
 			}
-			$cpu{'model_name'} = $line[1];
-			$cpu{'type'} = cpu_vendor($line[1]);
+			$cpu->{'model_name'} = $line[1];
+			$cpu->{'type'} = cpu_vendor($line[1]);
 		}
 		# NOTE: hw.l1icachesize: hw.l1dcachesize: ; in bytes, apparently
 		elsif ($line[0] eq 'hw.l1dcachesize'){
-			$cpu{'l1d-cache'} = $line[1]/1024;
+			$cpu->{'l1d-cache'} = $line[1]/1024;
 		}
 		elsif ($line[0] eq 'hw.l1icachesize'){
-			$cpu{'l1i-cache'} = $line[1]/1024;
+			$cpu->{'l1i-cache'} = $line[1]/1024;
 		}
 		elsif ($line[0] eq 'hw.l2cachesize'){
-			$cpu{'l2-cache'} = $line[1]/1024;
+			$cpu->{'l2-cache'} = $line[1]/1024;
 		}
 		elsif ($line[0] eq 'hw.l3cachesize'){
-			$cpu{'l3-cache'} = $line[1]/1024;
+			$cpu->{'l3-cache'} = $line[1]/1024;
 		}
 		# hw.smt: openbsd
 		elsif ($line[0] eq 'hw.smt'){
-			$cpu{'smt'} = ($line[1]) ? 'enabled' : 'disabled';
+			$cpu->{'smt'} = ($line[1]) ? 'enabled' : 'disabled';
 		}
 		# htl: maybe freebsd, never seen, 1 is disabled, sigh...
 		elsif ($line[0] eq 'machdep.hlt_logical_cpus'){
-			$cpu{'smt'} = ($line[1]) ? 'disabled' : 'enabled';
+			$cpu->{'smt'} = ($line[1]) ? 'disabled' : 'enabled';
 		}
 		# this is in mghz in samples
-		elsif (!$cpu{'cur-freq'} && 
+		elsif (!$cpu->{'cur-freq'} && 
 		 ($line[0] eq 'hw.clockrate' || $line[0] eq 'hw.cpuspeed')){
-			$cpu{'cur-freq'} = $line[1];
+			$cpu->{'cur-freq'} = $line[1];
 		}
 		# these are in hz: 2400000000
 		elsif ($line[0] eq 'hw.cpufrequency'){
-			$cpu{'cur-freq'} = $line[1]/1000000;
+			$cpu->{'cur-freq'} = $line[1]/1000000;
 		}
 		elsif ($line[0] eq 'hw.busfrequency_min'){
-			$cpu{'min-freq'} = $line[1]/1000000;
+			$cpu->{'min-freq'} = $line[1]/1000000;
 		}
 		elsif ($line[0] eq 'hw.busfrequency_max'){
-			$cpu{'max-freq'} = $line[1]/1000000;
+			$cpu->{'max-freq'} = $line[1]/1000000;
 		}
 		# FB seems to call freq something other than clock speed, unreliable 
 		# eg: 1500 Mhz real shows as 2400 freq, which is wrong
 		# elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\.freq$/){
 		#	 $speed = clean_speed($line[1]);
-		#	 $cpu{'processors'}->[$1] = $speed;
+		#	 $cpu->{'processors'}->[$1] = $speed;
 		# }
 		# weird FB thing, freq can be wrong, so just count the cores and call it 
 		# done.
 		elsif ($line[0] =~ /^dev\.cpu\.([0-9]+)\./ && 
-			(!$cpu{'processors'} || !defined $cpu{'processors'}->[$1])){
-			$cpu{'processors'}->[$1] = undef;
+			(!$cpu->{'processors'} || !defined $cpu->{'processors'}->[$1])){
+			$cpu->{'processors'}->[$1] = undef;
 		}
 		elsif ($line[0] eq 'machdep.cpu.vendor'){
-			$cpu{'type'} = cpu_vendor($line[1]);
+			$cpu->{'type'} = cpu_vendor($line[1]);
 		}
 		# darwin only?
 		elsif ($line[0] eq 'machdep.cpu.features'){
-			$cpu{'flags'} = lc($line[1]);
+			$cpu->{'flags'} = lc($line[1]);
 		}
 		# is this per phys or total?
 		elsif ($line[0] eq 'hw.ncpu'){
-			$cpu{'cores'} = $line[1];
+			$cpu->{'cores'} = $line[1];
 		}
 		# Freebsd does some voltage hacking to actually run at lowest listed 
 		# frequencies. The cpu does not actually support all the speeds output 
@@ -9822,14 +9819,14 @@ sub sysctl_data {
 				# get rid of -1 in FB: 2400/-1 2200/-1 2000/-1 1800/-1
 				$line[1] =~ s|/-1||g;
 				my @temp = split(/\s+/, $line[1]);
-				$cpu{'max-freq'} = $temp[0];
-				$cpu{'min-freq'} = $temp[-1];
-				$cpu{'scalings'} = \@temp;
+				$cpu->{'max-freq'} = $temp[0];
+				$cpu->{'min-freq'} = $temp[-1];
+				$cpu->{'scalings'} = \@temp;
 			}
 		}
 		# Disabled w/XXX. this is almost certainly bad data, should not be used
-		elsif (!$cpu{'cur-freq'} && $line[0] eq 'dev.cpu.0.freqXXX'){
-			$cpu{'cur-freq'} = $line[1];
+		elsif (!$cpu->{'cur-freq'} && $line[0] eq 'dev.cpu.0.freqXXX'){
+			$cpu->{'cur-freq'} = $line[1];
 		}
 		# the following have only been seen in DragonflyBSD data but thumbs up!
 		elsif ($line[0] eq 'hw.cpu_topology.members'){
@@ -9838,13 +9835,13 @@ sub sysctl_data {
 			$count-- if $count > 0;
 			# no way to get per processor speeds yet, so assign 0 to each
 			foreach (0 .. $count){
-				$cpu{'processors'}->[$_] = 0;
+				$cpu->{'processors'}->[$_] = 0;
 			}
 		}
 		elsif ($line[0] eq 'hw.cpu_topology.cpu1.physical_siblings'){
 			# string, like: cpu0 cpu1
 			my @temp = split(/\s+/, $line[1]);
-			$cpu{'siblings'} = scalar @temp;
+			$cpu->{'siblings'} = scalar @temp;
 		}
 		# increment by 1 for every new physical id we see. These are in almost all 
 		# cases separate cpus, not separate dies within a single cpu body.
@@ -9853,36 +9850,36 @@ sub sysctl_data {
 			if ($phys_holder != $line[1]){
 				$phys_id++;
 				$phys_holder = $line[1];
-				push(@{$cpu{'ids'}->[$phys_id][$die_id]},0);
+				push(@{$cpu->{'ids'}->[$phys_id][$die_id]},0);
 			}
 		}
 		elsif ($line[0] eq 'hw.cpu_topology.cpu0.core_id'){
-			$cpu{'ids'}->[$phys_id][$line[1]] = $speed;
+			$cpu->{'ids'}->[$phys_id][$line[1]] = $speed;
 		}
 	}
-	if (!$cpu{'flags'} || !$cpu{'family'}){
+	if (!$cpu->{'flags'} || !$cpu->{'family'}){
 		my $dmesg_boot = dboot_data();
 		 # this core count may fix failed MT detection.
-		$cpu{'cores'} = $dmesg_boot->{'cores'} if $dmesg_boot->{'cores'};
-		$cpu{'flags'} = $dmesg_boot->{'flags'} if !$cpu{'flags'};
-		$cpu{'family'} = $dmesg_boot->{'family'} if !$cpu{'family'};
-		$cpu{'l1d-cache'} = $dmesg_boot->{'l1d-cache'} if !$cpu{'l1d-cache'};
-		$cpu{'l1i-cache'} = $dmesg_boot->{'l1i-cache'} if !$cpu{'l1i-cache'};
-		$cpu{'l2-cache'} = $dmesg_boot->{'l2-cache'} if !$cpu{'l2-cache'};
-		$cpu{'l3-cache'} = $dmesg_boot->{'l3-cache'} if !$cpu{'l3-cache'};
-		$cpu{'microcode'} = $dmesg_boot->{'microcode'} if !$cpu{'microcode'};
-		$cpu{'model-id'} = $dmesg_boot->{'model-id'} if !$cpu{'model-id'};
-		$cpu{'max-freq'} = $dmesg_boot->{'max-freq'} if !$cpu{'max-freq'};
-		$cpu{'min-freq'} = $dmesg_boot->{'min-freq'} if !$cpu{'min-freq'};
-		$cpu{'scalings'} = $dmesg_boot->{'scalings'} if !$cpu{'scalings'};
-		$cpu{'siblings'} = $dmesg_boot->{'siblings'} if !$cpu{'siblings'};
-		$cpu{'stepping'} = $dmesg_boot->{'stepping'} if !$cpu{'stepping'};
-		$cpu{'type'} = $dmesg_boot->{'type'} if !$cpu{'type'};
+		$cpu->{'cores'} = $dmesg_boot->{'cores'} if $dmesg_boot->{'cores'};
+		$cpu->{'flags'} = $dmesg_boot->{'flags'} if !$cpu->{'flags'};
+		$cpu->{'family'} = $dmesg_boot->{'family'} if !$cpu->{'family'};
+		$cpu->{'l1d-cache'} = $dmesg_boot->{'l1d-cache'} if !$cpu->{'l1d-cache'};
+		$cpu->{'l1i-cache'} = $dmesg_boot->{'l1i-cache'} if !$cpu->{'l1i-cache'};
+		$cpu->{'l2-cache'} = $dmesg_boot->{'l2-cache'} if !$cpu->{'l2-cache'};
+		$cpu->{'l3-cache'} = $dmesg_boot->{'l3-cache'} if !$cpu->{'l3-cache'};
+		$cpu->{'microcode'} = $dmesg_boot->{'microcode'} if !$cpu->{'microcode'};
+		$cpu->{'model-id'} = $dmesg_boot->{'model-id'} if !$cpu->{'model-id'};
+		$cpu->{'max-freq'} = $dmesg_boot->{'max-freq'} if !$cpu->{'max-freq'};
+		$cpu->{'min-freq'} = $dmesg_boot->{'min-freq'} if !$cpu->{'min-freq'};
+		$cpu->{'scalings'} = $dmesg_boot->{'scalings'} if !$cpu->{'scalings'};
+		$cpu->{'siblings'} = $dmesg_boot->{'siblings'} if !$cpu->{'siblings'};
+		$cpu->{'stepping'} = $dmesg_boot->{'stepping'} if !$cpu->{'stepping'};
+		$cpu->{'type'} = $dmesg_boot->{'type'} if !$cpu->{'type'};
 	}
-	main::log_data('dump','%cpu',\%cpu) if $b_log;
-	print Data::Dumper::Dumper \%cpu if $dbg[8];
+	main::log_data('dump','%$cpu',$cpu) if $b_log;
+	print Data::Dumper::Dumper $cpu if $dbg[8];
 	eval $end if $b_log;
-	return \%cpu;
+	return $cpu;
 }
 
 ## DATA GENERATOR DATA SOURCES ##
@@ -11776,7 +11773,7 @@ sub cpu_vendor {
 }
 # do not define model-id, stepping, or revision, those can be 0 valid value
 sub set_cpu_data {
-	my %cpu =  (
+	${$_[0]} = {
 	'arch' => '',
 	'avg-freq' => 0, # MHz
 	'bogomips' => 0,
@@ -11796,8 +11793,7 @@ sub set_cpu_data {
 	'scalings' => [],
 	'siblings' => 0,
 	'type' => '',
-	);
-	return %cpu;
+	};
 }
 sub system_cpu_name {
 	eval $start if $b_log;
