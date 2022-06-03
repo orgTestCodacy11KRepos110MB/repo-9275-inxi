@@ -69,6 +69,20 @@ Display protocol, it is just blank, if you use su, or sudo start. This makes
 some internal inxi wayland triggers then fail. Still looking to see if there is 
 a fix or workaround for this.
 
+3. In sensors, a new syntax for k10-pci temp, Tctl, which unfortunately is the
+only temp type present for AMD family 17h (zen) and newer cpus, but that is not
+an actual cpu temp, it's:
+https://www.kernel.org/doc/html/v5.12/hwmon/k10temp.html
+
+"Tctl is the processor temperature control value, used by the platform to 
+control cooling systems. Tctl is a non-physical temperature on an arbitrary 
+scale measured in degrees. It does _not_ represent an actual physical 
+temperature like die or case temperature."
+
+Even worse, it replaced Tdie, which was, correctly, temp1_input, and, somewhat
+insanely, the non real cpu temp is now temp1_input, and if present, the real
+Tdie cpu temp is temp2_input. I don't know how to work around this problem.
+
 --------------------------------------------------------------------------------
 BUGS:
 
@@ -79,6 +93,8 @@ name.
 init 3 > init 5 showed 35, not 5. Doesn't show on systemd stuff often since it
 doesn't use runlevels in this way, but this bug has been around a really long
 time. 
+
+3. SensorItem::gpu_data was always logging its data, missing the if $b_log.
 
 --------------------------------------------------------------------------------
 FIXES:
@@ -189,14 +205,14 @@ assign various data depending on the type.
 
 6. Changed vendors.pl name to disk_vendors.pl
 
-7. Changed disk and ram vendor tools to return array ref, not array.
+7. Big redo of array/hash handling in OutputHandler, was partially by reference,
+now is completely by reference. All Items now return $rows array ref as well.
 
-8. Changed get_init_data to return hash ref, not hash.
+8. Going along with 7, made most internal passing of hash/arrays use hash/array
+references instead, where it makes sense, and doesn't make the code harder to
+work with.
 
-9. Big redo of array/hash handling in OutputHandler, was partially by reference,
-now is completely by reference.
-
-10. Refactored WeatherItem, split apart the parts from output to be more like
+9. Refactored WeatherItem, split apart the parts from output to be more like
 normal Items in terms of error handling etc.
 
 --------------------------------------------------------------------------------
