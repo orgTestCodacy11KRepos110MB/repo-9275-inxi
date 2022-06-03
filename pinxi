@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.16';
 my $self_date='2022-06-02';
-my $self_patch='25';
+my $self_patch='26';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -728,9 +728,9 @@ sub set_xorg_log {
 
 ## arg: 1 - the type of action, either integer, count, or full
 sub get_color_scheme {
-	my ($type) = @_;
 	eval $start if $b_log;
-	my @color_schemes = (
+	my ($type) = @_;
+	my $color_schemes = [
 	[qw(EMPTY EMPTY EMPTY)],
 	[qw(NORMAL NORMAL NORMAL)],
 	# for dark OR light backgrounds
@@ -778,17 +778,17 @@ sub get_color_scheme {
 	[qw(BLACK MAGENTA NORMAL)],
 	[qw(MAGENTA BLUE NORMAL)],
 	[qw(MAGENTA DBLUE NORMAL)],
-	);
+	];
 	eval $end if $b_log;
 	if ($type eq 'count'){
-		return scalar @color_schemes;
+		return scalar @$color_schemes;
 	}
 	if ($type eq 'full'){
-		return @color_schemes;
+		return $color_schemes;
 	}
 	else {
-		return @{$color_schemes[$type]};
-		# print Dumper $color_schemes[$scheme_nu];
+		# print Dumper $color_schemes->[$type];
+		return $color_schemes->[$type];
 	}
 }
 
@@ -797,7 +797,6 @@ sub set_color_scheme {
 	my ($scheme) = @_;
 	$colors{'scheme'} = $scheme;
 	my $index = ($b_irc) ? 1 : 0; # defaults to non irc
-	
 	# NOTE: qw(...) kills the escape, it is NOT the same as using 
 	# Literal "..", ".." despite docs saying it is.
 	my %color_palette = (
@@ -820,10 +819,10 @@ sub set_color_scheme {
 	'GREY' => [ "\e[0;37m", "\x0315" ],
 	'NORMAL' => [ "\e[0m", "\x03" ],
 	);
-	my @scheme = get_color_scheme($colors{'scheme'});
-	$colors{'c1'} = $color_palette{$scheme[0]}->[$index];
-	$colors{'c2'} = $color_palette{$scheme[1]}->[$index];
-	$colors{'cn'} = $color_palette{$scheme[2]}->[$index];
+	my $color_scheme = get_color_scheme($colors{'scheme'});
+	$colors{'c1'} = $color_palette{$color_scheme->[0]}[$index];
+	$colors{'c2'} = $color_palette{$color_scheme->[1]}[$index];
+	$colors{'cn'} = $color_palette{$color_scheme->[2]}[$index];
 	# print Dumper \@scheme;
 	# print "$colors{'c1'}here$colors{'c2'} we are!$colors{'cn'}\n";
 	eval $end if $b_log;
@@ -24392,19 +24391,20 @@ package UnmountedItem;
 
 sub get {
 	eval $start if $b_log;
-	my (@data,@rows,$key1,$val1);
+	my ($data,$key1,$val1);
+	my $rows = [];
 	my $num = 0;
 	if ($bsd_type){
 		DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
 		if (%disks_bsd && ($alerts{'disklabel'}->{'action'} eq 'use' ||
 		 $alerts{'gpart'}->{'action'} eq 'use')){
-			@data = bsd_data();
-			if (!@data){
+			$data = bsd_data();
+			if (!@$data){
 				$key1 = 'Message';
 				$val1 = main::message('unmounted-data');
 			}
 			else {
-				@rows = create_output(\@data);
+				create_output($rows,$data);
 			}
 		}
 		else {
@@ -24420,13 +24420,13 @@ sub get {
 	}
  	else {
 		if ($system_files{'proc-partitions'}){
-			@data = proc_data();
-			if (!@data){
+			$data = proc_data();
+			if (!@$data){
 				$key1 = 'Message';
 				$val1 = main::message('unmounted-data');
 			}
 			else {
-				@rows = create_output(\@data);
+				create_output($rows,$data);
 			}
 		}
 		else {
@@ -24434,16 +24434,16 @@ sub get {
 			$val1 = main::message('unmounted-file');
 		}
  	}
- 	if (!@rows && $key1){
-		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+ 	if (!@$rows && $key1){
+		$rows = [{main::key($num++,0,1,$key1) => $val1}];
  	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 sub create_output {
 	eval $start if $b_log;
-	my ($unmounted) = @_;
-	my (@rows,$fs);
+	my ($rows,$unmounted) = @_;
+	my ($fs);
 	my ($j,$num) = (0,0);
 	@$unmounted = sort { $a->{'dev-base'} cmp $b->{'dev-base'} } @$unmounted;
 	my $fs_skip = PartitionItem::fs_excludes('label-uuid');
@@ -24464,20 +24464,20 @@ sub create_output {
 				$fs = main::message('tool-missing-basic','file');
 			}
 		}
-		$j = scalar @rows;
-		push(@rows, {
+		$j = scalar @$rows;
+		push(@$rows, {
 		main::key($num++,1,1,'ID') => "/dev/$row->{'dev-base'}",
 		});
 		if ($b_admin && $row->{'maj-min'}){
-			$rows[$j]->{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
+			$rows->[$j]{main::key($num++,0,2,'maj-min')} = $row->{'maj-min'};
 		}
 		if ($extra > 0 && $row->{'dev-mapped'}){
-			$rows[$j]->{main::key($num++,0,2,'mapped')} = $row->{'dev-mapped'};
+			$rows->[$j]{main::key($num++,0,2,'mapped')} = $row->{'dev-mapped'};
 		}
 		$row->{'label'} ||= 'N/A';
 		$row->{'uuid'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
-		$rows[$j]->{main::key($num++,0,2,'fs')} = $fs;
+		$rows->[$j]{main::key($num++,0,2,'size')} = $size;
+		$rows->[$j]{main::key($num++,0,2,'fs')} = $fs;
 		# don't show for fs known to not have label/uuid
 		if (($show{'label'} || $show{'uuid'}) && $fs !~ /^$fs_skip$/){
 			if ($show{'label'}){
@@ -24485,19 +24485,18 @@ sub create_output {
 					$row->{'label'} = main::filter_partition('part', $row->{'label'}, '');
 				}
 				$row->{'label'} ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
+				$rows->[$j]{main::key($num++,0,2,'label')} = $row->{'label'};
 			}
 			if ($show{'uuid'}){
 				if ($use{'filter-uuid'}){
 					$row->{'uuid'} = main::filter_partition('part', $row->{'uuid'}, '');
 				}
 				$row->{'uuid'} ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
+				$rows->[$j]{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
 			}
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub proc_data {
 	eval $start if $b_log;
@@ -24509,8 +24508,8 @@ sub proc_data {
 	# set labels, uuid, gpart
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
 	RaidItem::raid_data() if !$loaded{'raid'};
-	my @mounted = get_mounted();
-	# print join("\n",(@filters,@mounted)),"\n";
+	my $mounted = get_mounted();
+	# print join("\n",(@filters,@$mounted)),"\n";
 	foreach my $row (@proc_partitions){
 		($dev_mapped,$fs,$label,$maj_min,$uuid,$size) = ('','','','','','');
 		# note that size 1 means it is a logical extended partition container
@@ -24530,9 +24529,9 @@ sub proc_data {
 		if ($row->[-1] !~ /^(nvme[0-9]+n|mmcblk|mtdblk|mtdblock)[0-9]+$/ && 
 		$row->[-1] =~ /[a-z][0-9]+$|dm-[0-9]+$/ && 
 		$row->[-1] !~ /\bloop/ && 
-		!(grep {$row->[-1] =~ /$_$/} (@filters,@mounted)) && 
-		!(grep {$_ =~ /(block\/)?$row->[-1]$/} @mounted) &&
-		!(grep {$_ =~ /^sd[a-z]+$/ && $row->[-1] =~ /^$_[0-9]+/} @mounted)){
+		!(grep {$row->[-1] =~ /$_$/} (@filters,@$mounted)) && 
+		!(grep {$_ =~ /(block\/)?$row->[-1]$/} @$mounted) &&
+		!(grep {$_ =~ /^sd[a-z]+$/ && $row->[-1] =~ /^$_[0-9]+/} @$mounted)){
 			$dev_mapped = $dmmapper{$row->[-1]} if $dmmapper{$row->[-1]};
 			if (@lsblk){
 				my $id = ($dev_mapped) ? $dev_mapped: $row->[-1];
@@ -24577,18 +24576,18 @@ sub proc_data {
 	print Data::Dumper::Dumper \@unmounted if $dbg[35];
 	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
 	eval $end if $b_log;
-	return @unmounted;
+	return \@unmounted;
 }
 sub bsd_data {
 	eval $start if $b_log;
 	my ($fs,$label,$size,$uuid,%part,@unmounted);
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
 	RaidItem::raid_data() if !$loaded{'raid'};
-	my @mounted = get_mounted();
+	my $mounted = get_mounted();
 	foreach my $id (sort keys %disks_bsd){
 		next if !$disks_bsd{$id}->{'partitions'};
 		foreach my $part (sort keys %{$disks_bsd{$id}->{'partitions'}}){
-			if (!(grep {$_ =~ /$part$/} @mounted)){
+			if (!(grep {$_ =~ /$part$/} @$mounted)){
 				$fs = $disks_bsd{$id}->{'partitions'}{$part}{'fs'};
 				next if $fs && $fs =~ /(raid|_member)$/i; 
 				$label = $disks_bsd{$id}->{'partitions'}{$part}{'label'};
@@ -24610,7 +24609,7 @@ sub bsd_data {
 	print Data::Dumper::Dumper \@unmounted if $dbg[35];
 	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
 	eval $end if $b_log;
-	return @unmounted;
+	return \@unmounted;
 }
 sub get_mounted {
 	eval $start if $b_log;
@@ -24643,7 +24642,7 @@ sub get_mounted {
 		}
 	}
 	eval $end if $b_log;
-	return @mounted;
+	return \@mounted;
 }
 # bsds do not seem to return any useful data so only for linux
 sub unmounted_filesystem {
@@ -24685,7 +24684,8 @@ sub unmounted_filesystem {
 package UsbItem;
 sub get {
 	eval $start if $b_log;
-	my (@rows,$key1,$val1);
+	my ($key1,$val1);
+	my $rows = [];
 	my $num = 0;
 	if (!$usb{'main'} && $alerts{'lsusb'}->{'action'} ne 'use' && 
 	 $alerts{'usbdevs'}->{'action'} ne 'use' &&
@@ -24712,31 +24712,32 @@ sub get {
 # 			}
 		}
 		$key1 = ucfirst($key1);
-		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+		$rows = [{main::key($num++,0,1,$key1) => $val1}];
 	}
 	else {
-		@rows = usb_output();
-		if (!@rows){
+		usb_output($rows);
+		if (!@$rows){
 			my $key = 'Message';
-			push(@rows, {
-			main::key($num++,0,1,$key) => main::message('usb-data',''),
-			},);
+			$rows = [{
+			main::key($num++,0,1,$key) => main::message('usb-data','')
+			}];
 		}
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 sub usb_output {
 	eval $start if $b_log;
 	return if !$usb{'main'};
-	my (@rows);
-	my ($b_hub,$bus_id,$chip_id,$driver,$ind_sc,$path_id,$ports,$product,$serial,$speed,$type);
+	my $rows = $_[0];
+	my ($b_hub,$bus_id,$chip_id,$driver,$ind_sc,$path_id,$ports,$product,$serial,
+	$speed,$type);
 	my $num = 0;
 	my $j = 0;
 	# note: the data has been presorted in UsbData:
 	# bus alpah id, so we don't need to worry about the order
 	foreach my $id (@{$usb{'main'}}){
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		($b_hub,$ind_sc,$num) = (0,3,1);
 		($driver,$path_id,$ports,$product,
 		$serial,$speed,$type) = ('','','','','','','');
@@ -24752,7 +24753,7 @@ sub usb_output {
 			$ports = $id->[10] if $id->[10];
 			$ports ||= 'N/A';
 			# print "pt0:$protocol\n";
-			push(@rows, {
+			push(@$rows, {
 			main::key($num++,1,1,'Hub') => $bus_id,
 			main::key($num++,0,2,'info') => $product,
 			main::key($num++,0,2,'ports') => $ports,
@@ -24768,45 +24769,44 @@ sub usb_output {
 			$type ||= 'N/A';
 			$driver ||= 'N/A';
 			# print "pt3:$class:$product\n";
-			$rows[$j]->{main::key($num++,1,2,'Device')} = $bus_id;
-			$rows[$j]->{main::key($num++,0,3,'info')} = $product;
-			$rows[$j]->{main::key($num++,0,3,'type')} = $type;
+			$rows->[$j]{main::key($num++,1,2,'Device')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,3,'info')} = $product;
+			$rows->[$j]{main::key($num++,0,3,'type')} = $type;
 			if ($extra > 0){
-				$rows[$j]->{main::key($num++,0,3,'driver')} = $driver;
+				$rows->[$j]{main::key($num++,0,3,'driver')} = $driver;
 			}
 			if ($extra > 2 && $id->[9]){
-				$rows[$j]->{main::key($num++,0,3,'interfaces')} = $id->[9];
+				$rows->[$j]{main::key($num++,0,3,'interfaces')} = $id->[9];
 			}
-			$rows[$j]->{main::key($num++,0,3,'rev')} = $speed;
+			$rows->[$j]{main::key($num++,0,3,'rev')} = $speed;
 		}
 		# for either hub or device
 		if ($extra > 1 && main::is_numeric($id->[17])){
 			my $speed = $id->[17];
 			if ($speed >= 1000){$speed = ($id->[17]/1000) . " Gb/s"}
 			else {$speed = $id->[17] . " Mb/s"}
-			$rows[$j]->{main::key($num++,0,$ind_sc,'speed')} = $speed;
+			$rows->[$j]{main::key($num++,0,$ind_sc,'speed')} = $speed;
 		}
 		if ($extra > 2 && $id->[19] && $id->[19] ne '0mA'){
-			$rows[$j]->{main::key($num++,0,$ind_sc,'power')} = $id->[19];
+			$rows->[$j]{main::key($num++,0,$ind_sc,'power')} = $id->[19];
 		}
 		if ($extra > 1){
 			$chip_id = $id->[7];
 			$chip_id ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,$ind_sc,'chip-ID')} = $chip_id;
+			$rows->[$j]{main::key($num++,0,$ind_sc,'chip-ID')} = $chip_id;
 		}
 		if ($extra > 2 && defined $id->[5] && $id->[5] ne ''){
 			my $id = sprintf("%02s",$id->[4]) . sprintf("%02s", $id->[5]);
-			$rows[$j]->{main::key($num++,0,$ind_sc,'class-ID')} = $id;
+			$rows->[$j]{main::key($num++,0,$ind_sc,'class-ID')} = $id;
 		}
 		if (!$b_hub && $extra > 2){
 			if ($serial){
-				$rows[$j]->{main::key($num++,0,$ind_sc,'serial')} = main::filter($serial);
+				$rows->[$j]{main::key($num++,0,$ind_sc,'serial')} = main::filter($serial);
 			}
 		}
 	}
 	# print Data::Dumper::Dumper \@rows;
 	eval $end if $b_log;
-	return @rows;
 }
 }
 
