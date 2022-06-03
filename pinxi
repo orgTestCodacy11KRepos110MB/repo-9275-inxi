@@ -7133,11 +7133,11 @@ sub print_data {
 				}
 				($counter,$b_row1,$split_count) = (0,1,0);
 				foreach my $key2 (sort {substr($a,0,3) <=> substr($b,0,3)} keys %$val1){
+					($hash_id,$b_container,$indentx,$key) = (split('#', $key2));
 					if (!$b_single){
 						$indent_use = ($b_row1 || $b_ni2) ? $indent: $indent_2;
 					}
 					# print "m-1: r1: $b_row1 iu: $indent_use\n";
-					($hash_id,$b_container,$indentx,$key) = (split('#', $key2));
 					if ($start_holder eq 'Graphics' && $key eq 'Screen'){
 						$ids{'Monitor'} = 1;
 					}
@@ -7364,9 +7364,9 @@ sub get {
 	my $num = 0;
 	if (%risc && !$use{'soc-audio'} && !$use{'pci-tool'}){
 		my $key = 'Message';
-		$rows = [{
+		@$rows = ({
 		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'})
-		}];
+		});
 	}
 	else {
 		device_output($rows);
@@ -7382,7 +7382,7 @@ sub get {
 		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 			$type = 'pci-card-data-root';
 		}
-		$rows = [{main::key($num++,0,1,$key) => main::message($type,'')}];
+		@$rows = ({main::key($num++,0,1,$key) => main::message($type,'')});
 	}
 	sound_server_output($rows);
 	eval $end if $b_log;
@@ -7407,7 +7407,7 @@ sub device_output {
 		}
 		push(@$rows, {
 		main::key($num++,1,1,'Device') => $device,
-		},);
+		});
 		if ($extra > 0 && $use{'pci-tool'} && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
 			$rows->[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
@@ -7465,7 +7465,7 @@ sub asound_output {
 				push(@$rows, {
 				main::key($num++,1,1,'Device') => $device,
 				main::key($num++,1,2,'driver') => $driver,
-				},);
+				});
 				if ($extra > 0){
 					my $version = main::get_module_version($driver);
 					$rows->[$j]{main::key($num++,0,3,'v')} = $version if $version;
@@ -7496,7 +7496,7 @@ sub usb_output {
 		main::key($num++,1,1,'Device') => $product,
 		main::key($num++,0,2,'type') => 'USB',
 		main::key($num++,0,2,'driver') => $row->[15],
-		},);
+		});
 		if ($extra > 0){
 			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
 		}
@@ -7638,7 +7638,7 @@ sub get {
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
 				$val1 = main::message('battery-data-bsd','');
-				$rows = [{main::key($num++,0,1,$key1) => $val1}];
+				@$rows = ({main::key($num++,0,1,$key1) => $val1});
 			}
 		}
 		else {
@@ -7651,7 +7651,7 @@ sub get {
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
 				$val1 = main::message('battery-data','');
-				$rows = [{main::key($num++,0,1,$key1) => $val1}];
+				@$rows = ({main::key($num++,0,1,$key1) => $val1});
 			}
 		}
 		else {
@@ -7662,7 +7662,7 @@ sub get {
 		if ($show{'battery-forced'}){
 			$key1 = 'Message';
 			$val1 = (!$bsd_type) ? main::message('battery-data-sys'): main::message('battery-data-bsd');
-			$rows = [{main::key($num++,0,1,$key1) => $val1}];
+			@$rows = ({main::key($num++,0,1,$key1) => $val1});
 		}
 	}
 	(@upower_items,$b_upower,$upower) = ();
@@ -7734,7 +7734,7 @@ sub battery_output {
 		main::key($num++,1,1,'ID') => $key,
 		main::key($num++,0,2,'charge') => $charge,
 		main::key($num++,0,2,'condition') => $condition,
-		},);
+		});
 		if ($extra > 0 || ($battery->{$key}{'voltage_now'} && 
 		 $battery->{$key}{'voltage_min_design'} && 
 		 ($battery->{$key}{'voltage_now'} - $battery->{$key}{'voltage_min_design'}) < 0.5)){
@@ -13841,42 +13841,42 @@ my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
 my ($gpu_amd,$gpu_intel,$gpu_nv);
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
 	if (%risc && !$use{'soc-gfx'} && !$use{'pci-tool'}){
 		my $key = 'Message';
-		push(@rows, {
-		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
-		},);
+		@$rows = ({
+		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'})
+		});
 	}
 	else {
-		push(@rows,device_output());
+		device_output($rows);
 		($gpu_amd,$gpu_intel,$gpu_nv) = ();
-		if (!@rows){
+		if (!@$rows){
 			my $key = 'Message';
 			my $type = 'pci-card-data';
 			if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 				$type = 'pci-card-data-root';
 			}
-			push(@rows, {
-			main::key($num++,0,1,$key) => main::message($type,''),
-			},);
+			@$rows = ({
+			main::key($num++,0,1,$key) => main::message($type,'')
+			});
 		}
 	}
 	# note: not perfect, but we need usb gfx to show for all types, soc, pci, etc
-	push(@rows,usb_output());
-	push(@rows,display_output());
-	push(@rows,interface_output());
+	usb_output($rows);
+	display_output($rows);
+	interface_output($rows);
 	(%graphics,$monitor_ids,$monitor_map) = ();
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 
 ## DEVICE OUTPUT ##
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'graphics'};
-	my (@rows);
+	my $rows = $_[0];
 	my ($j,$num) = (0,1);
 	set_monitors_sys() if !$monitor_ids && -e '/sys/class/drm';
 	foreach my $row (@{$devices{'graphics'}}){
@@ -13889,31 +13889,31 @@ sub device_output {
 		# card. .1 would be for example: Display Adapter with bus id x:xx.1, not the right one
 		next if $row->[3] != 0;
 		# print "$row->[0] $row->[3]\n";
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		my $device = main::trimmer($row->[4]);
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		# have seen absurdly verbose card descriptions, with non related data etc
 		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $use{'pci-tool'} && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
-			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
+			$rows->[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
 		push(@{$graphics{'gpu-drivers'}},$row->[9]) if $row->[9];
 		my $driver = ($row->[9]) ? $row->[9]:'N/A';
-		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
+		$rows->[$j]{main::key($num++,1,2,'driver')} = $driver;
 		if ($row->[9] && !$bsd_type){
 			my $version = main::get_module_version($row->[9]);
 			$version ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,3,'v')} = $version;
+			$rows->[$j]{main::key($num++,0,3,'v')} = $version;
 		}
 		if ($b_admin && $row->[10]){
 			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
-			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
+			$rows->[$j]{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0 && $row->[5] && $row->[6] && 
 		$row->[5] =~ /^(1002|10de|12d2|8086)$/){
@@ -13922,68 +13922,68 @@ sub device_output {
 			my ($gpu_data,$b_nv) = gpu_data($row->[5],$row->[6],$row->[4]);
 			if (!$bsd_type && $b_nv && $b_admin){
 				if ($gpu_data->{'legacy'} && $show{'gpu-data'}){
-					$rows[$j]->{main::key($num++,1,3,'non-free')} = '';
-					$rows[$j]->{main::key($num++,0,4,'series')} = $gpu_data->{'series'};
-					$rows[$j]->{main::key($num++,0,4,'status')} = $gpu_data->{'status'};
+					$rows->[$j]{main::key($num++,1,3,'non-free')} = '';
+					$rows->[$j]{main::key($num++,0,4,'series')} = $gpu_data->{'series'};
+					$rows->[$j]{main::key($num++,0,4,'status')} = $gpu_data->{'status'};
 					if ($gpu_data->{'xorg'}){
-						$rows[$j]->{main::key($num++,1,4,'last')} = '';
-						$rows[$j]->{main::key($num++,0,5,'release')} = $gpu_data->{'release'};
-						$rows[$j]->{main::key($num++,0,5,'kernel')} = $gpu_data->{'kernel'};
-						$rows[$j]->{main::key($num++,0,5,'xorg')} = $gpu_data->{'xorg'};
+						$rows->[$j]{main::key($num++,1,4,'last')} = '';
+						$rows->[$j]{main::key($num++,0,5,'release')} = $gpu_data->{'release'};
+						$rows->[$j]{main::key($num++,0,5,'kernel')} = $gpu_data->{'kernel'};
+						$rows->[$j]{main::key($num++,0,5,'xorg')} = $gpu_data->{'xorg'};
 					}
 				}
 				else {
 					$gpu_data->{'series'} ||= 'N/A';
-					$rows[$j]->{main::key($num++,1,3,'non-free')} = $gpu_data->{'series'};
-					$rows[$j]->{main::key($num++,0,4,'status')} = $gpu_data->{'status'};
+					$rows->[$j]{main::key($num++,1,3,'non-free')} = $gpu_data->{'series'};
+					$rows->[$j]{main::key($num++,0,4,'status')} = $gpu_data->{'status'};
 				}
 			}
 			if ($gpu_data->{'arch'}){
-				$rows[$j]->{main::key($num++,1,2,'arch')} = $gpu_data->{'arch'};
+				$rows->[$j]{main::key($num++,1,2,'arch')} = $gpu_data->{'arch'};
 				# we don't need to see repeated values here, but usually code is different.
 				if ($show{'gpu-data'} && $gpu_data->{'code'} && 
 				$gpu_data->{'code'} ne $gpu_data->{'arch'}){
-					$rows[$j]->{main::key($num++,0,3,'code')} = $gpu_data->{'code'};
+					$rows->[$j]{main::key($num++,0,3,'code')} = $gpu_data->{'code'};
 				}
 				if ($b_admin && $gpu_data->{'process'}){
-					$rows[$j]->{main::key($num++,0,3,'process')} = $gpu_data->{'process'};
+					$rows->[$j]{main::key($num++,0,3,'process')} = $gpu_data->{'process'};
 				}
 				if ($show{'gpu-data'} && $gpu_data->{'years'}){
-					$rows[$j]->{main::key($num++,0,3,'built')} = $gpu_data->{'years'};
+					$rows->[$j]{main::key($num++,0,3,'built')} = $gpu_data->{'years'};
 				}
 			}
 		}
 		if ($extra > 0){
 			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pcie_data($bus_id,$j,\@rows,\$num,'gpu');
+				main::get_pcie_data($bus_id,$j,$rows,\$num,'gpu');
 			}
 			if ($extra > 1 && $monitor_ids){
-				port_output($bus_id,$j,\@rows,\$num);
+				port_output($bus_id,$j,$rows,\$num);
 			}
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
 			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $chip_id;
 		}
 		if ($extra > 2 && $row->[1]){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
 		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub usb_output {
 	eval $start if $b_log;
-	my (@rows,@ids,$driver,$path_id,$product,@temp2);
+	my $rows = $_[0];
+	my (@ids,$driver,$path_id,$product,@temp2);
 	my ($j,$num) = (0,1);
 	return if !$usb{'graphics'};
 	foreach my $row (@{$usb{'graphics'}}){
 		# these tests only work for /sys based usb data for now
 		$num = 1;
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		# make sure to reset, or second device trips last flag
 		($driver,$path_id,$product) = ('','','');
 		$product = main::clean($row->[13]) if $row->[13];
@@ -13999,7 +13999,7 @@ sub usb_output {
 				$driver = 'N/A';
 			}
 		}
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $product,
 		main::key($num++,0,2,'type') => 'USB',
 		main::key($num++,0,2,'driver') => $driver,
@@ -14007,23 +14007,22 @@ sub usb_output {
 		if ($extra > 0){
 			my $bus_id = "$path_id:$row->[1]";
 			if ($extra > 1 && $monitor_ids){
-				port_output($bus_id,$j,\@rows,\$num);
+				port_output($bus_id,$j,$rows,\$num);
 			}
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
 			$row->[7] ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $row->[7];
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $row->[7];
 		}
 		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
+			$rows->[$j]{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 # $rows, $num by ref
 sub port_output {
@@ -14049,26 +14048,26 @@ sub port_output {
 	if (@connected || @empty || @disabled){
 		my ($off,$active,$unused);
 		my $split = ','; # add space if many to allow for wrapping
-		$$rows[$j]->{main::key($$num++,1,2,'ports')} = '';
+		$rows->[$j]{main::key($$num++,1,2,'ports')} = '';
 		$split = ', ' if scalar @connected > 3;
 		$active = (@connected) ? join($split,sort @connected) : 'none';
-		$$rows[$j]->{main::key($$num++,0,3,'active')} = $active;
+		$rows->[$j]{main::key($$num++,0,3,'active')} = $active;
 		if (@disabled){
 			$split = (scalar @disabled > 3) ? ', ' : ',';
 			$off = join($split,sort @disabled);
-			$$rows[$j]->{main::key($$num++,0,3,'off')} = $off;
+			$rows->[$j]{main::key($$num++,0,3,'off')} = $off;
 		}
 		$split = (scalar @empty > 3) ? ', ' : ',';
 		$unused = (@empty) ? join($split,sort @empty) : 'none';
-		$$rows[$j]->{main::key($$num++,0,3,'empty')} = $unused;
+		$rows->[$j]{main::key($$num++,0,3,'empty')} = $unused;
 	}
 }
 
 ## DISPLAY OUTPUT ##
 sub display_output(){
 	eval $start if $b_log;
-	my (@row);
-	my ($num,$j) = (0,0);
+	my $rows = $_[0];
+	my ($num,$j) = (0,scalar @$rows);
 	# note: these may not always be set, they won't be out of X, for example
 	display_protocol();
 	# get rid of all inactive or disabled monitor port ids
@@ -14111,40 +14110,40 @@ sub display_output(){
 		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && 
 		!$x_drivers){
 			$server_string = main::message('display-server');
-			@row = ({
+			push(@$rows,{
 			main::key($num++,1,1,'Display') => '',
 			main::key($num++,0,2,'server') => $server_string,
 			});
 		}
 		else {
 			$server_string ||= 'N/A';
-			@row = ({
+			push(@$rows, {
 			main::key($num++,1,1,'Display') => $graphics{'protocol'},
 			main::key($num++,1,2,'server') => $server_string,
 			});
 			if ($graphics{'x-server'} && $graphics{'x-server'}->[0][1]){
-				$row[0]->{main::key($num++,0,3,'v')} = $graphics{'x-server'}->[0][1];
+				$rows->[$j]{main::key($num++,0,3,'v')} = $graphics{'x-server'}->[0][1];
 			}
 			if ($graphics{'x-server'} && $graphics{'x-server'}->[1][0]){
-				$row[0]->{main::key($num++,1,3,'with')} = $graphics{'x-server'}->[1][0];
+				$rows->[$j]{main::key($num++,1,3,'with')} = $graphics{'x-server'}->[1][0];
 				if ($graphics{'x-server'}->[1][1]){
-					$row[0]->{main::key($num++,0,4,'v')} = $graphics{'x-server'}->[1][1];
+					$rows->[$j]{main::key($num++,0,4,'v')} = $graphics{'x-server'}->[1][1];
 				}
 			}
 			if ($graphics{'compositors'}){
 				if (scalar @{$graphics{'compositors'}} == 1){
-					$row[0]->{main::key($num++,1,2,'compositor')} = $graphics{'compositors'}->[0][0];
+					$rows->[$j]{main::key($num++,1,2,'compositor')} = $graphics{'compositors'}->[0][0];
 					if ($graphics{'compositors'}->[0][1]){
-						$row[0]->{main::key($num++,0,3,'v')} = $graphics{'compositors'}->[0][1];
+						$rows->[$j]{main::key($num++,0,3,'v')} = $graphics{'compositors'}->[0][1];
 					}
 				}
 				else {
 					my $i =1;
-					$row[0]->{main::key($num++,1,2,'compositors')} = '';
+					$rows->[$j]{main::key($num++,1,2,'compositors')} = '';
 					foreach (@{$graphics{'compositors'}}){
-						$row[0]->{main::key($num++,1,3,$i)} = $_->[0];
+						$rows->[$j]{main::key($num++,1,3,$i)} = $_->[0];
 						if ($_->[1]){
-							$row[0]->{main::key($num++,0,4,'v')} = $_->[1];
+							$rows->[$j]{main::key($num++,0,4,'v')} = $_->[1];
 						}
 						$i++;
 					}
@@ -14175,26 +14174,26 @@ sub display_output(){
 			}
 			# if xvesa, will always have display-driver set
 			if ($graphics{'xvesa'} && $graphics{'display-driver'}){
-				$row[0]->{main::key($num++,0,2,'driver')} = join(',',@{$graphics{'display-driver'}});
+				$rows->[$j]{main::key($num++,0,2,'driver')} = join(',',@{$graphics{'display-driver'}});
 			}
 			else {
 				my $gpu_drivers = gpu_drivers_sys('all');
 				my $note_indent = 4;
 				if ($gpu_drivers || $x_drivers){
-					$row[0]->{main::key($num++,1,2,'driver')} = '';
+					$rows->[$j]{main::key($num++,1,2,'driver')} = '';
 					# The only wayland setups with x drivers have xorg, transitional that is.
 					if ($x_drivers){
-						$row[0]->{main::key($num++,1,3,'X')} = '';
+						$rows->[$j]{main::key($num++,1,3,'X')} = '';
 						my $driver = ($x_drivers->[0]) ? $x_drivers->[0] : 'N/A';
-						$row[0]->{main::key($num++,1,4,'loaded')} = $driver;
+						$rows->[$j]{main::key($num++,1,4,'loaded')} = $driver;
 						if ($x_drivers->[1]){
-							$row[0]->{main::key($num++,0,4,'unloaded')} = $x_drivers->[1];
+							$rows->[$j]{main::key($num++,0,4,'unloaded')} = $x_drivers->[1];
 						}
 						if ($x_drivers->[2]){
-							$row[0]->{main::key($num++,0,4,'failed')} = $x_drivers->[2];
+							$rows->[$j]{main::key($num++,0,4,'failed')} = $x_drivers->[2];
 						}
 						if ($extra > 1 && $x_drivers->[3]){
-							$row[0]->{main::key($num++,0,4,'alternate')} = $x_drivers->[3];
+							$rows->[$j]{main::key($num++,0,4,'alternate')} = $x_drivers->[3];
 						}
 					}
 					my $drivers;
@@ -14204,35 +14203,35 @@ sub display_output(){
 					else {
 						$drivers = ($graphics{'gpu-drivers'}) ? join(',',@{$graphics{'gpu-drivers'}}): 'N/A';
 					}
-					$row[0]->{main::key($num++,1,3,'gpu')} = $drivers;
+					$rows->[$j]{main::key($num++,1,3,'gpu')} = $drivers;
 				}
 				else {
 					$note_indent = 3;
-					$row[0]->{main::key($num++,1,2,'driver')} = 'N/A';
+					$rows->[$j]{main::key($num++,1,2,'driver')} = 'N/A';
 				}
 				if ($driver_note){
-					$row[0]->{main::key($num++,0,$note_indent,'note')} = $driver_note;
+					$rows->[$j]{main::key($num++,0,$note_indent,'note')} = $driver_note;
 				}
 			}
 		}
 		if (!$show{'graphic-basic'} && $extra > 1 && $graphics{'display-rect'}){
-			$row[0]->{main::key($num++,0,2,'d-rect')} = $graphics{'display-rect'};
+			$rows->[$j]{main::key($num++,0,2,'d-rect')} = $graphics{'display-rect'};
 		}
 		if (!$show{'graphic-basic'} && $extra > 1){
 			if (defined $graphics{'display-id'}){
-				$row[0]->{main::key($num++,0,2,'display-ID')} = $graphics{'display-id'};
+				$rows->[$j]{main::key($num++,0,2,'display-ID')} = $graphics{'display-id'};
 			}
 			if (defined $graphics{'display-screens'}){
-				$row[0]->{main::key($num++,0,2,'screens')} = $graphics{'display-screens'};
+				$rows->[$j]{main::key($num++,0,2,'screens')} = $graphics{'display-screens'};
 			}
 			if (defined $graphics{'display-default-screen'} && 
 			 $graphics{'display-screens'} && $graphics{'display-screens'} > 1){
-				$row[0]->{main::key($num++,0,2,'default screen')} = $graphics{'display-default-screen'};
+				$rows->[$j]{main::key($num++,0,2,'default screen')} = $graphics{'display-default-screen'};
 			}
 		}
 		if ($graphics{'no-screens'}){
 			my $res = (!$show{'graphic-basic'} && $extra > 1 && !$graphics{'xvesa'}) ? 'note' : 'resolution';
-			$row[0]->{main::key($num++,0,2,$res)} = $graphics{'no-screens'};
+			$rows->[$j]{main::key($num++,0,2,$res)} = $graphics{'no-screens'};
 		}
 		elsif ($graphics{'screens'}){
 			my ($diag,$dpi,$hz,$size);
@@ -14245,7 +14244,7 @@ sub display_output(){
 				$j++ if !$show{'graphic-basic'};
 				if (!$show{'graphic-basic'} || $m_count == 0){
 					if (!$show{'graphic-basic'} && defined $main->{'screen'}){
-						$row[$j]->{main::key($num++,1,2,'Screen')} = $main->{'screen'};
+						$rows->[$j]{main::key($num++,1,2,'Screen')} = $main->{'screen'};
 					}
 					if ($main->{'res-x'} && $main->{'res-y'}){
 						$resolution = $main->{'res-x'} . 'x' . $main->{'res-y'};
@@ -14253,28 +14252,28 @@ sub display_output(){
 					}
 					$resolution ||= 'N/A';
 					if ($s_count == 1 || !$show{'graphic-basic'}){
-						$row[$j]->{main::key($num++,0,3,'s-res')} = $resolution;
+						$rows->[$j]{main::key($num++,0,3,'s-res')} = $resolution;
 					}
 					elsif ($show{'graphic-basic'}){
-						$row[$j]->{main::key($num++,0,3,'s-res')} = '' if $screen_count == 1;
-						$row[$j]->{main::key($num++,0,3,$screen_count)} = $resolution;
+						$rows->[$j]{main::key($num++,0,3,'s-res')} = '' if $screen_count == 1;
+						$rows->[$j]{main::key($num++,0,3,$screen_count)} = $resolution;
 					}
 					if ($main->{'s-dpi'} && (!$show{'graphic-basic'} && $extra > 1)){
-						$row[$j]->{main::key($num++,0,3,'s-dpi')} = $main->{'s-dpi'};
+						$rows->[$j]{main::key($num++,0,3,'s-dpi')} = $main->{'s-dpi'};
 					}
 					if (!$show{'graphic-basic'} && $extra > 2){
 						if ($main->{'size-missing'}){
-							$row[$j]->{main::key($num++,0,3,'s-size')} = $main->{'size-missing'};
+							$rows->[$j]{main::key($num++,0,3,'s-size')} = $main->{'size-missing'};
 						}
 						else {
 							if ($main->{'size-x'} && $main->{'size-y'}){
 								$size = $main->{'size-x'} . 'x' . $main->{'size-y'} . 
 								'mm ('. $main->{'size-x-i'} . 'x' . $main->{'size-y-i'} . '")';
-								$row[$j]->{main::key($num++,0,3,'s-size')} = $size;
+								$rows->[$j]{main::key($num++,0,3,'s-size')} = $size;
 							}
 							if ($main->{'diagonal'}){
 								$diag = $main->{'diagonal-m'} . 'mm ('. $main->{'diagonal'} . '")';
-								$row[$j]->{main::key($num++,0,3,'s-diag')} = $diag;
+								$rows->[$j]{main::key($num++,0,3,'s-diag')} = $diag;
 							}
 						}
 					}
@@ -14284,35 +14283,34 @@ sub display_output(){
 					$b_screen_monitors = 1;
 					if ($show{'graphic-basic'}){
 						monitors_output_basic('screen',$main->{'monitors'},
-						$main->{'s-dpi'},$j,\@row,\$num);
+						$main->{'s-dpi'},$j,$rows,\$num);
 					}
 					else {
 						monitors_output_full('screen',$main->{'monitors'},
-						$j,\@row,\$num);
+						$j,$rows,\$num);
 					}
 				}
 				elsif (!$show{'graphic-basic'} && $graphics{'no-monitors'}){
-					$row[$j]->{main::key($num++,0,4,'monitors')} = $graphics{'no-monitors'};
+					$rows->[$j]{main::key($num++,0,4,'monitors')} = $graphics{'no-monitors'};
 				}
 			}
 		}
 		elsif (!$b_display){
 			$graphics{'tty'} ||= 'N/A';
-			$row[0]->{main::key($num++,0,2,'tty')} = $graphics{'tty'};
+			$rows->[$j]{main::key($num++,0,2,'tty')} = $graphics{'tty'};
 		}
 		# fallback, if no xrandr/xdpyinfo, if wayland, if console. Note we've 
 		# deleted each key used in advanced_monitor_data() so those won't show again
 		if (!$b_screen_monitors && $monitor_ids && %$monitor_ids){
 			if ($show{'graphic-basic'}){
-				monitors_output_basic('monitor',$monitor_ids,'',$j,\@row,\$num);
+				monitors_output_basic('monitor',$monitor_ids,'',$j,$rows,\$num);
 			}
 			else {
-				monitors_output_full('monitor',$monitor_ids,$j,\@row,\$num);
+				monitors_output_full('monitor',$monitor_ids,$j,$rows,\$num);
 			}
 		}
 	}
 	eval $end if $b_log;
-	return @row;
 }
 sub monitors_output_basic {
 	eval $start if $b_log;
@@ -14353,33 +14351,33 @@ sub monitors_output_basic {
 # $j, $row, $num passed by ref
 sub monitors_output_full {
 	eval $start if $b_log;
-	my ($type,$monitors,$j,$row,$num) = @_;
+	my ($type,$monitors,$j,$rows,$num) = @_;
 	my ($b_no_size,$resolution);
 	my ($m1,$m2,$m3,$m4) = ($type eq 'screen') ? (3,4,5,6) : (2,3,4,5);
 	# note: in case where mapped id != sys id, the key will not match 'monitor'
 	foreach my $key (sort keys %{$monitors}){
 		$j++;
-		$$row[$j]->{main::key($$num++,1,$m1,'Monitor')} = $monitors->{$key}{'monitor'};
+		$rows->[$j]{main::key($$num++,1,$m1,'Monitor')} = $monitors->{$key}{'monitor'};
 		if ($monitors->{$key}{'monitor-mapped'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
+			$rows->[$j]{main::key($$num++,0,$m2,'mapped')} = $monitors->{$key}{'monitor-mapped'};
 		}
 		if ($monitors->{$key}{'disabled'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'note')} = $monitors->{$key}{'disabled'};
+			$rows->[$j]{main::key($$num++,0,$m2,'note')} = $monitors->{$key}{'disabled'};
 		}
 		if ($monitors->{$key}{'position'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'pos')} = $monitors->{$key}{'position'};
+			$rows->[$j]{main::key($$num++,0,$m2,'pos')} = $monitors->{$key}{'position'};
 		}
 		if ($monitors->{$key}{'model'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'model')} = $monitors->{$key}{'model'};
+			$rows->[$j]{main::key($$num++,0,$m2,'model')} = $monitors->{$key}{'model'};
 		}
 		elsif ($monitors->{$key}{'model-id'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'model-id')} = $monitors->{$key}{'model-id'};
+			$rows->[$j]{main::key($$num++,0,$m2,'model-id')} = $monitors->{$key}{'model-id'};
 		}
 		if ($extra > 2 && $monitors->{$key}{'serial'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
+			$rows->[$j]{main::key($$num++,0,$m2,'serial')} = main::filter($monitors->{$key}{'serial'});
 		}
 		if ($b_admin && $monitors->{$key}{'build-date'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'built')} = $monitors->{$key}{'build-date'};
+			$rows->[$j]{main::key($$num++,0,$m2,'built')} = $monitors->{$key}{'build-date'};
 		}
 		if ($monitors->{$key}{'res-x'} || $monitors->{$key}{'res-y'} || 
 		$monitors->{$key}{'hz'} || $monitors->{$key}{'size-x'} || 
@@ -14388,7 +14386,7 @@ sub monitors_output_full {
 				$resolution = $monitors->{$key}{'res-x'} . 'x' . $monitors->{$key}{'res-y'};
 			}
 			$resolution ||= 'N/A';
-			$$row[$j]->{main::key($$num++,0,$m2,'res')} = $resolution;
+			$rows->[$j]{main::key($$num++,0,$m2,'res')} = $resolution;
 		}
 		else {
 			if ($b_display){
@@ -14398,50 +14396,50 @@ sub monitors_output_full {
 				$resolution = main::message('monitor-console');
 			}
 			$b_no_size = 1;
-			$$row[$j]->{main::key($$num++,0,$m2,'size-res')} = $resolution;
+			$rows->[$j]{main::key($$num++,0,$m2,'size-res')} = $resolution;
 		}
 		if ($extra > 2 && $monitors->{$key}{'hz'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'hz')} = $monitors->{$key}{'hz'};
+			$rows->[$j]{main::key($$num++,0,$m2,'hz')} = $monitors->{$key}{'hz'};
 		}
 		if ($monitors->{$key}{'dpi'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'dpi')} = $monitors->{$key}{'dpi'};
+			$rows->[$j]{main::key($$num++,0,$m2,'dpi')} = $monitors->{$key}{'dpi'};
 		}
 		if ($b_admin && $monitors->{$key}{'gamma'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'gamma')} = $monitors->{$key}{'gamma'};
+			$rows->[$j]{main::key($$num++,0,$m2,'gamma')} = $monitors->{$key}{'gamma'};
 		}
 		if ($show{'edid'} && $monitors->{$key}{'colors'}){
-			$$row[$j]->{main::key($$num++,1,$m2,'chroma')} = '';
-			$$row[$j]->{main::key($$num++,1,$m3,'red')} = '';
-			$$row[$j]->{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'red_x'};
-			$$row[$j]->{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'red_y'};
-			$$row[$j]->{main::key($$num++,1,$m3,'green')} = '';
-			$$row[$j]->{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'green_x'};
-			$$row[$j]->{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'green_y'};
-			$$row[$j]->{main::key($$num++,1,$m3,'blue')} = '';
-			$$row[$j]->{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'blue_x'};
-			$$row[$j]->{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'blue_y'};
-			$$row[$j]->{main::key($$num++,1,$m3,'white')} = '';
-			$$row[$j]->{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'white_x'};
-			$$row[$j]->{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'white_y'};
+			$rows->[$j]{main::key($$num++,1,$m2,'chroma')} = '';
+			$rows->[$j]{main::key($$num++,1,$m3,'red')} = '';
+			$rows->[$j]{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'red_x'};
+			$rows->[$j]{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'red_y'};
+			$rows->[$j]{main::key($$num++,1,$m3,'green')} = '';
+			$rows->[$j]{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'green_x'};
+			$rows->[$j]{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'green_y'};
+			$rows->[$j]{main::key($$num++,1,$m3,'blue')} = '';
+			$rows->[$j]{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'blue_x'};
+			$rows->[$j]{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'blue_y'};
+			$rows->[$j]{main::key($$num++,1,$m3,'white')} = '';
+			$rows->[$j]{main::key($$num++,0,$m4,'x')} = $monitors->{$key}{'colors'}{'white_x'};
+			$rows->[$j]{main::key($$num++,0,$m4,'y')} = $monitors->{$key}{'colors'}{'white_y'};
 		}
 		if ($extra > 2 && $monitors->{$key}{'scale'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'scale')} = $monitors->{$key}{'scale'};
+			$rows->[$j]{main::key($$num++,0,$m2,'scale')} = $monitors->{$key}{'scale'};
 		}
 		if ($extra > 2 && $monitors->{$key}{'size-x'} && $monitors->{$key}{'size-y'}){
 			my $size =  $monitors->{$key}{'size-x'} . 'x' . $monitors->{$key}{'size-y'} .
 			'mm ('. $monitors->{$key}{'size-x-i'} . 'x' . $monitors->{$key}{'size-y-i'} . '")';
-			$$row[$j]->{main::key($$num++,0,$m2,'size')} = $size;
+			$rows->[$j]{main::key($$num++,0,$m2,'size')} = $size;
 		}
 		if ($monitors->{$key}{'diagonal'}){
 			my $diag = $monitors->{$key}{'diagonal-m'} . 'mm ('. $monitors->{$key}{'diagonal'} . '")';
-			$$row[$j]->{main::key($$num++,0,$m2,'diag')} = $diag;
+			$rows->[$j]{main::key($$num++,0,$m2,'diag')} = $diag;
 		}
 		elsif ($b_display && !$b_no_size && !$monitors->{$key}{'size-x'} && 
 		!$monitors->{$key}{'size-y'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'size')} = main::message('monitor-na');;
+			$rows->[$j]{main::key($$num++,0,$m2,'size')} = main::message('monitor-na');;
 		}
 		if ($b_admin && $monitors->{$key}{'ratio'}){
-			$$row[$j]->{main::key($$num++,0,$m2,'ratio')} = $monitors->{$key}{'ratio'};
+			$rows->[$j]{main::key($$num++,0,$m2,'ratio')} = $monitors->{$key}{'ratio'};
 		}
 		if ($extra > 2){
 			if (!$monitors->{$key}{'modes'} || !@{$monitors->{$key}{'modes'}}){
@@ -14449,30 +14447,30 @@ sub monitors_output_full {
 			}
 			my $cnt = scalar @{$monitors->{$key}{'modes'}};
 			if ($cnt == 1 || ($cnt > 2 && $show{'edid'})){
-				$$row[$j]->{main::key($$num++,0,$m2,'modes')} = join(', ', @{$monitors->{$key}{'modes'}});
+				$rows->[$j]{main::key($$num++,0,$m2,'modes')} = join(', ', @{$monitors->{$key}{'modes'}});
 			}
 			else {
-				$$row[$j]->{main::key($$num++,1,$m2,'modes')} = '';
-				$$row[$j]->{main::key($$num++,0,$m3,'max')} = ${$monitors->{$key}{'modes'}}[0];
-				$$row[$j]->{main::key($$num++,0,$m3,'min')} = ${$monitors->{$key}{'modes'}}[-1];
+				$rows->[$j]{main::key($$num++,1,$m2,'modes')} = '';
+				$rows->[$j]{main::key($$num++,0,$m3,'max')} = ${$monitors->{$key}{'modes'}}[0];
+				$rows->[$j]{main::key($$num++,0,$m3,'min')} = ${$monitors->{$key}{'modes'}}[-1];
 			}
 		}
 		if ($show{'edid'}){
 			if ($monitors->{$key}{'edid-errors'}){
 				$j++;
 				my $cnt = 1;
-				$$row[$j]->{main::key($$num++,1,$m2,'EDID-Errors')} = '';
+				$rows->[$j]{main::key($$num++,1,$m2,'EDID-Errors')} = '';
 				foreach my $err (@{$monitors->{$key}{'edid-errors'}}){
-					$$row[$j]->{main::key($$num++,0,$m3,$cnt)} = $err;
+					$rows->[$j]{main::key($$num++,0,$m3,$cnt)} = $err;
 					$cnt++;
 				}
 			}
 			if ($monitors->{$key}{'edid-warnings'}){
 				$j++;
 				my $cnt = 1;
-				$$row[$j]->{main::key($$num++,1,$m2,'EDID-Warnings')} = '';
+				$rows->[$j]{main::key($$num++,1,$m2,'EDID-Warnings')} = '';
 				foreach my $warn (@{$monitors->{$key}{'edid-warnings'}}){
-					$$row[$j]->{main::key($$num++,0,$m3,$cnt)} = $warn;
+					$rows->[$j]{main::key($$num++,0,$m3,$cnt)} = $warn;
 					$cnt++;
 				}
 			}
@@ -14482,7 +14480,7 @@ sub monitors_output_full {
 # 	if ($b_display && $b_admin && $graphics{'protocol'} && 
 # 	$graphics{'protocol'} eq 'wayland' && $monitors->{$key}{'drivers'}){
 # 		$driver = join(',',@{$monitors->{$key}{'drivers'}});
-# 		$$row[$j]->{main::key($$num++,0,$m2,'driver')} = $driver;
+# 		$rows->[$j]{main::key($$num++,0,$m2,'driver')} = $driver;
 # 	}
 	eval $end if $b_log;
 }
@@ -14491,30 +14489,31 @@ sub monitors_output_full {
 # as soon as EGL for Wayland appears add it!
 sub interface_output {
 	eval $start if $b_log;
+	my $rows = $_[0];
 	my $num = 0;
-	my (@row,$program,$type);
+	my ($program,$type);
 	# print ("$b_display : $b_root\n");
 	if ($b_display){
 		if (!$force{'wayland'} && ($program = main::check_program('glxinfo'))){
-			interface_glx_output($program,\@row,\$num);
+			interface_glx_output($program,$rows,\$num);
 		}
 		elsif ($graphics{'xvesa'}){
-			interface_vesa_output(\@row,\$num);
+			interface_vesa_output($rows,\$num);
 		}
 		# handles no data until we find one for wayland egl data
 		elsif ($graphics{'protocol'} eq 'wayland'){
-			interface_egl_output(\@row,\$num);
+			interface_egl_output($rows,\$num);
 		}
 		else {
-			@row = ({
-			main::key($num++,0,1,'Message') => main::message('glxinfo-missing'),
+			push(@$rows,{
+			main::key($num++,0,1,'Message') => main::message('glxinfo-missing')
 			});
 		}
 	}
 	else {
 		$type = 'gl-console';
 		if ($graphics{'xvesa'}){
-			interface_vesa_output(\@row,\$num);
+			interface_vesa_output($rows,\$num);
 		}
 		elsif (!main::check_program('glxinfo')){
 			if ($graphics{'protocol'} eq 'wayland'){
@@ -14535,24 +14534,23 @@ sub interface_output {
 				$type = 'gl-try';
 			}
 		}
-		@row = ({
-		main::key($num++,0,1,'Message') => main::message($type),
+		push(@$rows,{
+		main::key($num++,0,1,'Message') => main::message($type)
 		});
 	}
 	eval $end if $b_log;
-	return @row;
 }
 sub interface_egl_output {
 	eval $start if $b_log;
-	my ($row,$num) = @_;
-	@$row = ({
-	main::key($num++,0,1,'Message') => main::message('interface-wayland'),
+	my ($rows,$num) = @_;
+	push(@$rows,{
+	main::key($num++,0,1,'Message') => main::message('interface-wayland')
 	});
 	eval $end if $b_log;
 }
 sub interface_glx_output {
 	eval $start if $b_log;
-	my ($program,$row,$num) = @_;
+	my ($program,$rows,$num) = @_;
 	# NOTE: glxinfo -B is not always available, unfortunately
 	my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
@@ -14565,8 +14563,8 @@ sub interface_glx_output {
 		else {
 			$type = 'gl-null';
 		}
-		@$row = ({
-		main::key($$num++,0,1,'Message') => main::message($type),
+		push(@$rows, {
+		main::key($$num++,0,1,'Message') => main::message($type)
 		});
 		return;
 	}
@@ -14644,26 +14642,28 @@ sub interface_glx_output {
 	}
 	$version = join(', ', @opengl_version) if @opengl_version;
 	$renderer = join(', ', @renderer) if @renderer;
-	@$row = ({
+	my $j = scalar @$rows;
+	push(@$rows, {
 	main::key($$num++,1,1,'OpenGL') => '',
 	main::key($$num++,1,2,'renderer') => ($renderer) ? $renderer : 'N/A',
 	main::key($$num++,0,2,'v') => ($version) ? $version : 'N/A',
 	});
 	if ($b_compat && $extra > 1 && $compat_version){
-		$row->[0]{main::key($$num++,0,2,'compat-v')} = $compat_version;
+		$rows->[$j]{main::key($$num++,0,2,'compat-v')} = $compat_version;
 	}
 	if ($extra > 0){
-		$row->[0]{main::key($$num++,0,2,'direct render')} = $direct_render;
+		$rows->[$j]{main::key($$num++,0,2,'direct render')} = $direct_render;
 	}
 	eval $end if $b_log;
 }
 # WARNING! Never seen a GOP type UEFI, needs more data
 sub interface_vesa_output {
 	eval $start if $b_log;
-	my ($row,$num) = @_;
+	my ($rows,$num) = @_;
 	my ($controller,$dac,$interface,$ram,$source,$version);
 	# note: goes to stderr, not stdout
 	my @data = main::grabber($graphics{'xvesa'} . ' -listmodes 2>&1');
+	my $j = scalar @$rows;
 	if ($data[0] && $data[0] =~ /^(VBE|GOP)\s+version\s+(\S+)\s\(([^)]+)\)/i){
 		$interface = $1;
 		$version = $2;
@@ -14678,18 +14678,18 @@ sub interface_vesa_output {
 		$ram = main::get_size($ram,'string');
 	}
 	if (!$interface){
-		$row->[0]{main::key($$num++,0,1,'Message')} = main::message('xvesa-interface');
+		$rows->[$j]{main::key($$num++,0,1,'Message')} = main::message('xvesa-interface');
 	}
 	else {
-		$row->[0]{main::key($$num++,1,1,'Interface')} = $interface;
-		$row->[0]{main::key($$num++,0,2,'v')} = ($version) ? $version : 'N/A';
-		$row->[0]{main::key($$num++,0,2,'source')} = ($source) ? $source : 'N/A';
+		$rows->[$j]{main::key($$num++,1,1,'Interface')} = $interface;
+		$rows->[$j]{main::key($$num++,0,2,'v')} = ($version) ? $version : 'N/A';
+		$rows->[$j]{main::key($$num++,0,2,'source')} = ($source) ? $source : 'N/A';
 		if ($dac){
-			$row->[0]{main::key($$num++,0,2,'dac')} = $dac;
-			$row->[0]{main::key($$num++,0,2,'controller')} = $controller;
+			$rows->[$j]{main::key($$num++,0,2,'dac')} = $dac;
+			$rows->[$j]{main::key($$num++,0,2,'controller')} = $controller;
 		}
 		if ($ram){
-			$row->[0]{main::key($$num++,0,2,'ram')} = $ram;
+			$rows->[$j]{main::key($$num++,0,2,'ram')} = $ram;
 		}
 	}
 	eval $end if $b_log;
@@ -17963,23 +17963,23 @@ package NetworkItem;
 my ($b_ip_run,@ifs_found);
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
 	if (%risc && !$use{'soc-network'} && !$use{'pci-tool'}){
 		# do nothing, but keep the test conditions to force 
 		# the non arm case to always run
 	}
 	else {
-		push(@rows,device_output());
+		device_output($rows);
 	}
-	push(@rows,usb_output());
+	usb_output($rows);
 	# note: raspberry pi uses usb networking only 
-	if (!@rows){
+	if (!@$rows){
 		if (%risc){
 			my $key = 'Message';
-			push(@rows, {
-			main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
-			},);
+			@$rows = ({
+			main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'})
+			});
 		}
 		else {
 			my $key = 'Message';
@@ -17987,9 +17987,9 @@ sub get {
 			if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 				$type = 'pci-card-data-root';
 			}
-			push(@rows,{
-			main::key($num++,0,1,$key) => main::message($type,''),
-			},);
+			@$rows = ({
+			main::key($num++,0,1,$key) => main::message($type,'')
+			});
 		}
 	}
 	if ($show{'network-advanced'}){
@@ -17997,29 +17997,30 @@ sub get {
 		# shift @ifs_found;
 		# pop @ifs_found;
 		if (!$bsd_type){
-			push(@rows,advanced_data_sys('check','',0,'','',''));
+			advanced_data_sys($rows,'check','',0,'','','');
 		}
 		else {
-			push(@rows,advanced_data_bsd('check'));
+			advanced_data_bsd($rows,'check');
 		}
 	}
 	if ($show{'ip'}){
-		push(@rows,wan_ip());
+		wan_ip($rows);
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'network'};
-	my ($b_wifi,@rows,%holder);
+	my $rows = $_[0];
+	my ($b_wifi,%holder);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'network'}}){
 		$num = 1;
 		# print "$row->[0] $row->[3]\n"; 
 		# print "$row->[0] $row->[3]\n";
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		my $driver = $row->[9];
 		my $chip_id = main::get_chip_id($row->[5],$row->[6]);
 		# working around a virtuo bug same chip id is used on two nics
@@ -18035,17 +18036,17 @@ sub device_output {
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
 		#$device ||= 'N/A';
 		$driver ||= 'N/A';
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $use{'pci-tool'} && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
-			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
+			$rows->[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
 		if ($row->[1] eq '0680'){
-			$rows[$j]->{main::key($num++,0,2,'type')} = 'network bridge';
+			$rows->[$j]{main::key($num++,0,2,'type')} = 'network bridge';
 		}
-		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
+		$rows->[$j]{main::key($num++,1,2,'driver')} = $driver;
 		my $bus_id = 'N/A';
 		# note: for arm/mips we want to see the single item bus id, why not?
 		# note: we can have bus id: 0002 / 0 which is valid, but 0 / 0 is invalid
@@ -18056,57 +18057,58 @@ sub device_output {
 			if ($row->[9] && !$bsd_type){
 				my $version = main::get_module_version($row->[9]);
 				$version ||= 'N/A';
-				$rows[$j]->{main::key($num++,0,3,'v')} = $version;
+				$rows->[$j]{main::key($num++,0,3,'v')} = $version;
 			}
 			if ($b_admin && $row->[10]){
 				$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
-				$rows[$j]->{main::key($num++,0,3,'modules')} = $row->[10] if $row->[10];
+				$rows->[$j]{main::key($num++,0,3,'modules')} = $row->[10] if $row->[10];
 			}
 			$row->[8] ||= 'N/A';
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pcie_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,$rows,\$num);
 			}
 			# as far as I know, wifi has no port, but in case it does in future, use it
-			$rows[$j]->{main::key($num++,0,2,'port')} = $row->[8] if (!$b_wifi || ($b_wifi && $row->[8] ne 'N/A'));
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,2,'port')} = $row->[8] if (!$b_wifi || ($b_wifi && $row->[8] ne 'N/A'));
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $chip_id;
 		}
 		if ($extra > 2 && $row->[1]){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
 		if ($show{'network-advanced'}){
 			my @data;
 			if (!$bsd_type){
-				@data = advanced_data_sys($row->[5],$row->[6],$holder{$chip_id},$b_wifi,'',$bus_id);
+				advanced_data_sys($rows,$row->[5],$row->[6],$holder{$chip_id},$b_wifi,'',$bus_id);
 			}
 			else {
-				@data = advanced_data_bsd("$row->[9]$row->[11]",$b_wifi) if defined $row->[9] && defined $row->[11];
+				if (defined $row->[9] && defined $row->[11]){
+					advanced_data_bsd($rows,"$row->[9]$row->[11]",$b_wifi);
+				}
 			}
-			push(@rows,@data) if @data;
 		}
 		# print "$row->[0]\n";
 	}
 	# @rows = ();
 	# we want to handle ARM errors in main get
-	if (!@rows && !%risc){
+	if (!@$rows && !%risc){
 		my $key = 'Message';
 		my $type = 'pci-card-data';
 		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 			$type = 'pci-card-data-root';
 		}
-		push(@rows, {
-		main::key($num++,0,1,$key) => main::message($type,''),
-		},);
+		@$rows = ({
+		main::key($num++,0,1,$key) => main::message($type,'')
+		});
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub usb_output {
 	eval $start if $b_log;
 	return if !$usb{'network'};
-	my (@rows,@temp2,$b_wifi,$driver,$path,$path_id,$product,$type);
+	my $rows = $_[0];
+	my (@temp2,$b_wifi,$driver,$path,$path_id,$product,$type);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$usb{'network'}}){
 		$num = 1;
@@ -18117,52 +18119,49 @@ sub usb_output {
 		$path_id = $row->[2] if $row->[2];
 		$type = $row->[14] if $row->[14];
 		$driver ||= 'N/A';
-		push(@rows, {
+		$j = scalar @$rows;
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $product,
 		main::key($num++,0,2,'type') => 'USB',
 		main::key($num++,0,2,'driver') => $driver,
 		},);
 		$b_wifi = check_wifi($product);
 		if ($extra > 0){
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
 		}
 		if ($extra > 1){
 			$row->[7] ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $row->[7];
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $row->[7];
 		}
 		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
+			$rows->[$j]{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
 		if ($show{'network-advanced'}){
-			my @data;
 			if (!$bsd_type){
 				my (@temp,$vendor,$chip);
 				@temp = split(':', $row->[7]) if $row->[7];
 				($vendor,$chip) = ($temp[0],$temp[1]) if @temp;
-				@data = advanced_data_sys($vendor,$chip,0,$b_wifi,$path,'');
+				advanced_data_sys($rows,$vendor,$chip,0,$b_wifi,$path,'');
 			}
 			# NOTE: we need the driver + driver nu, like wlp0 to get a match,
 			else {
 				$driver .= $row->[21] if defined $row->[21];
-				@data = advanced_data_bsd($driver,$b_wifi);
+				advanced_data_bsd($rows,$driver,$b_wifi);
 			}
-			push(@rows,@data) if @data;
 		}
-		$j = scalar @rows;
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub advanced_data_sys {
 	eval $start if $b_log;
 	return if ! -d '/sys/class/net';
-	my ($vendor,$chip,$count,$b_wifi,$path_usb,$bus_id) = @_;
-	my ($cont_if,$ind_if,$num) = (2,3,0);
+	my ($rows,$vendor,$chip,$count,$b_wifi,$path_usb,$bus_id) = @_;
+	my ($cont_if,$ind_if,$j,$num) = (2,3,0,0);
 	my $key = 'IF';
-	my ($b_check,$b_usb,$if,$path,@paths,@row,@rows);
+	my ($b_check,$b_usb,$if,$path,@paths);
 	# ntoe: we've already gotten the base path, now we 
 	# we just need to get the IF path, which is one level in:
 	# usb1/1-1/1-1:1.0/net/enp0s20f0u1/
@@ -18185,6 +18184,7 @@ sub advanced_data_sys {
 	# print join('; ', @paths),  $count, "\n";
 	foreach (@paths){
 		my ($data1,$data2,$duplex,$mac,$speed,$state);
+		$j = scalar @$rows;
 		# for usb, we already know where we are
 		if (!$b_usb){
 			# pi mmcnr has pcitool and also these vendor/device paths.
@@ -18227,10 +18227,10 @@ sub advanced_data_sys {
 			$state = main::reader($path,'',0) if -r $path;
 			$state ||= 'N/A';
 			# print "$speed \n";
-			@row = ({
+			push(@$rows,{
 			main::key($num++,1,$cont_if,$key) => $if,
-			main::key($num++,0,$ind_if,'state') => $state,
-			},);
+			main::key($num++,0,$ind_if,'state') => $state
+			});
 			# my $j = scalar @row - 1;
 			push(@ifs_found, $if) if (!$b_check && (! grep {/$if/} @ifs_found));
 			# print "push: if: $if ifs: @ifs_found\n";
@@ -18242,36 +18242,33 @@ sub advanced_data_sys {
 			if (!$b_wifi && $state ne 'down' && $state ne 'no'){
 				# make sure the value is strictly numeric before appending Mbps
 				$speed = (main::is_int($speed)) ? "$speed Mbps" : $speed;
-				$row[0]->{main::key($num++,0,$ind_if,'speed')} = $speed;
-				$row[0]->{main::key($num++,0,$ind_if,'duplex')} = $duplex;
+				$rows->[$j]{main::key($num++,0,$ind_if,'speed')} = $speed;
+				$rows->[$j]{main::key($num++,0,$ind_if,'duplex')} = $duplex;
 			}
-			$row[0]->{main::key($num++,0,$ind_if,'mac')} = $mac;
-			if ($b_check){
-				push(@rows,@row);
-			}
-			else {
-				@rows = @row;
-			}
+			$rows->[$j]{main::key($num++,0,$ind_if,'mac')} = $mac;
+# 			if ($b_check){
+# 				push(@rows,@row);
+# 			}
+# 			else {
+# 				@rows = @row;
+# 			}
 			if ($show{'ip'}){
-				@row = if_ip($key,$if);
-				push(@rows, @row);
+				if_ip($rows,$key,$if);
 			}
 			last if !$b_check;
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 
 sub advanced_data_bsd {
 	eval $start if $b_log;
 	return if ! @ifs_bsd;
-	my ($if,$b_wifi) = @_;
-	my (@data,@row,@rows,$working_if);
+	my ($rows,$if,$b_wifi) = @_;
+	my (@data,$working_if);
 	my ($b_check,$state,$speed,$duplex,$mac);
-	my ($cont_if,$ind_if,$num) = (2,3,0);
+	my ($cont_if,$ind_if,$j,$num) = (2,3,0,0);
 	my $key = 'IF';
-	my $j = 0;
 	if ($if eq 'check'){
 		$b_check = 1;
 		$key = 'IF-ID';
@@ -18299,11 +18296,12 @@ sub advanced_data_bsd {
 				$speed ||= 'N/A';
 				$state = $data[0];
 				$state ||= 'N/A';
+				$j = scalar @$rows;
 				# print "$speed \n";
-				@row = ({
+				push(@$rows, {
 				main::key($num++,1,$cont_if,$key) => $if,
 				main::key($num++,0,$ind_if,'state') => $state,
-				},);
+				});
 				push(@ifs_found, $if) if (!$b_check && (!grep {/$if/} @ifs_found));
 				# print "push: if: $if ifs: @ifs_found\n";
 				# no print out for wifi since it doesn't have duplex/speed data available
@@ -18312,20 +18310,17 @@ sub advanced_data_bsd {
 				if (!$b_wifi && $state ne 'down' && $state ne 'no network'){
 					# make sure the value is strictly numeric before appending Mbps
 					$speed = (main::is_int($speed)) ? "$speed Mbps" : $speed;
-					$row[0]->{main::key($num++,0,$ind_if,'speed')} = $speed;
-					$row[0]->{main::key($num++,0,$ind_if,'duplex')} = $duplex;
+					$rows->[$j]{main::key($num++,0,$ind_if,'speed')} = $speed;
+					$rows->[$j]{main::key($num++,0,$ind_if,'duplex')} = $duplex;
 				}
-				$row[0]->{main::key($num++,0,$ind_if,'mac')} = $mac;
+				$rows->[$j]{main::key($num++,0,$ind_if,'mac')} = $mac;
 			}
-			push(@rows, @row);
 			if ($show{'ip'} && $if){
-				@row = if_ip($key,$if);
-				push(@rows,@row) if @row;
+				if_ip($rows,$key,$if);
 			}
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 ## values:
 # 0 - ipv 
@@ -18335,8 +18330,8 @@ sub advanced_data_bsd {
 # 4 - scope if, if different from if
 sub if_ip {
 	eval $start if $b_log;
-	my ($type,$if) = @_;
-	my (@data,@rows,$working_if);
+	my ($rows,$type,$if) = @_;
+	my (@data,$working_if);
 	my ($cont_ip,$ind_ip) = (3,4);
 	my $num = 0;
 	my $j = 0;
@@ -18357,12 +18352,12 @@ sub if_ip {
  		}
 		if ($working_if eq $if){
 			foreach my $data2 (@data){
-				$j = scalar @rows;
+				$j = scalar @$rows;
 				$num = 1;
 				if ($limit > 0 && $j >= $limit){
-					push(@rows, {
+					push(@$rows, {
 					main::key($num++,0,$cont_ip,'Message') => main::message('output-limit',scalar @data),
-					},);
+					});
 					last OUTER;
 				}
 				# print "$data2->[0] $data2->[1]\n";
@@ -18385,35 +18380,34 @@ sub if_ip {
 						# trim off if at end of multi word string if found
 						$data2->[4] =~ s/\s$if$// if $data2->[4] =~ /[^\s]+\s$if$/;
 						my $key = ($data2->[4] =~ /deprecated|dynamic|temporary|noprefixroute/) ? 'type' : 'virtual';
-						push(@rows, {
+						push(@$rows, {
 						main::key($num++,1,$cont_ip,"IP v$ipv") => $ip,
 						main::key($num++,0,$ind_ip,$key) => $data2->[4],
 						main::key($num++,0,$ind_ip,'scope') => $scope,
-						},);
+						});
 					}
 					else {
-						push(@rows, {
+						push(@$rows, {
 						main::key($num++,1,$cont_ip,"IP v$ipv") => $ip,
 						main::key($num++,0,$ind_ip,'scope') => $scope,
-						},);
+						});
 					}
 				}
 				else {
-					push(@rows, {
+					push(@$rows, {
 					main::key($num++,1,($cont_ip - 1),'IF') => $if,
 					main::key($num++,1,$cont_ip,"IP v$ipv") => $ip,
 					main::key($num++,0,$ind_ip,'scope') => $scope,
-					},);
+					});
 				}
 				if ($extra > 1 && $data2->[2]){
 					$broadcast = main::filter($data2->[2]);
-					$rows[$j]->{main::key($num++,0,$ind_ip,'broadcast')} = $broadcast;
+					$rows->[$j]{main::key($num++,0,$ind_ip,'broadcast')} = $broadcast;
 				}
 			}
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 # get ip using downloader to stdout. This is a clean, text only IP output url,
 # single line only, ending in the ip address. May have to modify this in the future
@@ -18426,7 +18420,8 @@ sub if_ip {
 # dig +short +time=1 +tries=1 myip.opendns.com. A @208.67.222.222
 sub wan_ip {
 	eval $start if $b_log;
-	my (@data,$b_dig,$b_html,$ip,$ua);
+	my $rows = $_[0];
+	my ($b_dig,$b_html,$ip,$ua);
 	my $num = 0;
 	# time: 0.06 - 0.07 seconds
 	# cisco opendns.com may be terminating supporting this one, sometimes works, sometimes not: 
@@ -18482,11 +18477,10 @@ sub wan_ip {
 			$ip = main::message('IP', 'WAN IP');
 		}
 	}
-	@data = ({
+	push(@$rows, {
 	main::key($num++,0,1,'WAN IP') => $ip,
-	},);
+	});
 	eval $end if $b_log;
-	return @data;
 }
 sub check_bus_id {
 	eval $start if $b_log;
