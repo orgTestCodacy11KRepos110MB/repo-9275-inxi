@@ -8979,7 +8979,7 @@ sub short_output {
 sub short_data {
 	eval $start if $b_log;
 	my $num = 0;
-	my ($cpu,@data,%speeds);
+	my ($cpu,$data,%speeds);
 	my $sys = '/sys/devices/system/cpu/cpufreq/policy0';
 	# NOTE: : Permission denied, ie, this is not always readable
 	# /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq
@@ -8997,15 +8997,15 @@ sub short_data {
 			else {
 				$key1 = ucfirst($alerts{'sysctl'}->{'action'});
 				$val1 = $alerts{'sysctl'}->{'message'};
-				@data = ({main::key($num++,0,1,$key1) => $val1,});
-				return @data;
+				$data = ({main::key($num++,0,1,$key1) => $val1,});
+				return $data;
 			}
 		}
 	}
 	# $cpu{'cur-freq'} = $cpu[0]->{'core-id'}[0]{'speed'};
-	@data = prep_short_data($cpu);
+	$data = prep_short_data($cpu);
 	eval $end if $b_log;
-	return \@data;
+	return $data;
 }
 sub prep_short_data {
 	eval $start if $b_log;
@@ -9016,7 +9016,7 @@ sub prep_short_data {
  	$type = $properties->{'cpu-type'} if $properties->{'cpu-type'};
  	$speed_key = $properties->{'speed-key'} if $properties->{'speed-key'};
  	$speed = $properties->{'speed'} if $properties->{'speed'};
- 	my @result = (
+ 	my $result = [
  	$properties->{'topology-string'},
  	$cpu,
  	$type,
@@ -9025,14 +9025,14 @@ sub prep_short_data {
  	$properties->{'min-max-key'},
  	$properties->{'min-max'},
  	$properties->{'avg-speed-key'},
- 	);
+ 	];
  	if ($extra > 0){
 		$cpu_data->{'arch'} ||= 'N/A';
-		$result[8] = $cpu_data->{'arch'};
-		$result[9] = $cpu_data->{'arch-note'};
+		$result->[8] = $cpu_data->{'arch'};
+		$result->[9] = $cpu_data->{'arch-note'};
  	}
 	eval $end if $b_log;
-	return @result;
+	return $result;
 }
 
 ## PRIMARY DATA GENERATORS ##
@@ -11866,9 +11866,9 @@ my ($debugger_dir);
 sub get {
 	eval $start if $b_log;
 	my ($type) = @_;
+	$type ||= 'standard';
 	my ($key1,$val1);
 	my $rows = [];
-	$type ||= 'standard';
 	my $num = 0;
 	my $data = drive_data($type);
 	# NOTE: 
@@ -12110,7 +12110,7 @@ sub smart_output {
 sub drive_data {
 	eval $start if $b_log;
 	my ($type) = @_;
-	my (@rows,@data,@devs);
+	my ($data,@devs);
 	my $num = 0;
 	my ($used) = (0);
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
@@ -12134,28 +12134,28 @@ sub drive_data {
 		}
 	}
 	if (!$bsd_type){
-		@data = proc_data($used);
+		$data = proc_data($used);
 	}
 	else {
-		@data = bsd_data($used);
+		$data = bsd_data($used);
 	}
 	if ($b_admin){
 		if ($alerts{'smartctl'} && $alerts{'smartctl'}->{'action'} eq 'use'){
-			@data = smartctl_data(\@data);
+			$data = smartctl_data($data);
 		}
 		else {
 			$smartctl_missing = $alerts{'smartctl'}->{'message'};
 		}
 	}
-	print Data::Dumper::Dumper \@data if $dbg[13];;
+	print Data::Dumper::Dumper $data if $dbg[13];;
 	main::log_data('data',"used: $used") if $b_log;
 	eval $end if $b_log;
-	return \@data;
+	return $data;
 }
 sub proc_data {
 	eval $start if $b_log;
 	my ($used) = @_;
-	my (@data,@drives);
+	my ($data,@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
 	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	foreach my $row (@proc_partitions){
@@ -12202,29 +12202,29 @@ sub proc_data {
 	}
 	# print Data::Dumper::Dumper \@drives;
 	main::log_data('data',"size: $size") if $b_log;
-	@data = ({
+	$data = [{
 	'logical-size' => $logical_size,
 	'logical-free' => $raw_logical[2],
 	'size' => $size,
 	'used' => $used,
-	});
+	}];
 	# print Data::Dumper::Dumper \@data;
 	if ($show{'disk'}){
-		unshift(@drives,@data);
+		unshift(@drives,@$data);
 		# print 'drives:', Data::Dumper::Dumper \@drives;
-		@data = proc_data_advanced($b_hdx,\@drives);
+		$data = proc_data_advanced($b_hdx,\@drives);
 	}
-	main::log_data('dump','@data',\@data) if $b_log;
-	print Data::Dumper::Dumper \@data if $dbg[24];
+	main::log_data('dump','@data',$data) if $b_log;
+	print Data::Dumper::Dumper $data if $dbg[24];
 	eval $end if $b_log;
-	return @data;
+	return $data;
 }
 
 sub proc_data_advanced {
 	eval $start if $b_log;
 	my ($b_hdx,$drives) = @_;
 	my ($i) = (0);
-	my (@data,@disk_data,@rows,@scsi,@temp,@working);
+	my ($disk_data,$scsi,@temp,@working);
 	my ($pt_cmd) = ('unset');
 	my ($block_type,$file,$firmware,$model,$path,
 	$partition_scheme,$serial,$vendor,$working_path);
@@ -12251,7 +12251,7 @@ sub proc_data_advanced {
 	}
 	# scsi stuff
 	if ($file = $system_files{'proc-scsi'}){
-		@scsi = scsi_data($file);
+		$scsi = scsi_data($file);
 	}
 	# print 'drives:', Data::Dumper::Dumper $drives;
 	for ($i = 1; $i < scalar @$drives; $i++){
@@ -12259,8 +12259,8 @@ sub proc_data_advanced {
 		($block_type,$firmware,$model,$partition_scheme,
 		$serial,$vendor,$working_path) = ('','','','','','','');
 		# print "$drives->[$i]{'id'}\n";
-		@disk_data = disk_data_by_id("/dev/$drives->[$i]{'id'}");
-		main::log_data('dump','@disk_data', \@disk_data) if $b_log;
+		$disk_data = disk_data_by_id("/dev/$drives->[$i]{'id'}");
+		main::log_data('dump','@$disk_data', $disk_data) if $b_log;
 		if ($drives->[$i]{'id'} =~ /[sv]d[a-z]/){
 			$block_type = 'sdx';
 			$working_path = "/sys/block/$drives->[$i]{'id'}/device/";
@@ -12279,16 +12279,16 @@ sub proc_data_advanced {
 		}
 		main::log_data('data',"working path: $working_path") if $b_log;
 		if ($b_admin && -e "/sys/block/"){
-			my @working = block_data($drives->[$i]{'id'});
-			$drives->[$i]{'block-logical'} = $working[0];
-			$drives->[$i]{'block-physical'} = $working[1];
+			my $block = block_data($drives->[$i]{'id'});
+			$drives->[$i]{'block-logical'} = $block->[0];
+			$drives->[$i]{'block-physical'} = $block->[1];
 		}
-		if ($block_type && @scsi && @by_id && ! -e "${working_path}model" && ! -e "${working_path}name"){
+		if ($block_type && @$scsi && @by_id && ! -e "${working_path}model" && ! -e "${working_path}name"){
 			## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
 			# discovered disk name AND ends with the correct identifier, sdx
 			# get rid of whitespace for some drive names and ids, and extra data after - in name
 			SCSI:
-			foreach my $row (@scsi){
+			foreach my $row (@$scsi){
 				if ($row->{'model'}){
 					$row->{'model'} = (split(/\s*-\s*/,$row->{'model'}))[0];
 					foreach my $id (@by_id){
@@ -12304,7 +12304,7 @@ sub proc_data_advanced {
 		}
 		# note: an entire class of model names gets truncated by /sys so that should be the last 
 		# in priority re tests.
-		elsif ((!@disk_data || !$disk_data[0]) && $block_type){
+		elsif ((!@$disk_data || !$disk_data->[0]) && $block_type){
 			# NOTE: while path ${working_path}vendor exists, it contains junk value, like: ATA
 			$path = "${working_path}model";
 			if (-r $path){
@@ -12317,9 +12317,9 @@ sub proc_data_advanced {
 				$drives->[$i]{'model'} = $model if $model;
 			}
 		}
-		if (!$drives->[$i]{'model'} && @disk_data){
-			$drives->[$i]{'model'} = $disk_data[0] if $disk_data[0];
-			$drives->[$i]{'vendor'} = $disk_data[1] if $disk_data[1];
+		if (!$drives->[$i]{'model'} && @$disk_data){
+			$drives->[$i]{'model'} = $disk_data->[0] if $disk_data->[0];
+			$drives->[$i]{'vendor'} = $disk_data->[1] if $disk_data->[1];
 		}
 		# maybe rework logic if find good scsi data example, but for now use this
 		elsif ($drives->[$i]{'model'} && !$drives->[$i]{'vendor'}){
@@ -12339,11 +12339,11 @@ sub proc_data_advanced {
 		if ($extra > 0){
 			$drives->[$i]{'temp'} = hdd_temp("$drives->[$i]{'id'}");
 			if ($extra > 1){
-				my @speed_data = device_speed($drives->[$i]{'id'});
-				$drives->[$i]{'speed'} = $speed_data[0] if $speed_data[0];
-				$drives->[$i]{'lanes'} = $speed_data[1] if $speed_data[1];
-				if (@disk_data && $disk_data[2]){
-					$drives->[$i]{'serial'} = $disk_data[2];
+				my $speed_data = device_speed($drives->[$i]{'id'});
+				$drives->[$i]{'speed'} = $speed_data->[0] if $speed_data->[0];
+				$drives->[$i]{'lanes'} = $speed_data->[1] if $speed_data->[1];
+				if (@$disk_data && $disk_data->[2]){
+					$drives->[$i]{'serial'} = $disk_data->[2];
 				}
 				else {
 					$path = "${working_path}serial";
@@ -12381,10 +12381,10 @@ sub proc_data_advanced {
 			}
 		}
 	}
-	main::log_data('dump','$drives',\$drives) if $b_log;
+	main::log_data('dump','$drives',$drives) if $b_log;
 	print Data::Dumper::Dumper $drives if $dbg[24];
 	eval $end if $b_log;
-	return @$drives;
+	return $drives;
 }
 # camcontrol identify <device> |grep ^serial (this might be (S)ATA specific)
 # smartcl -i <device> |grep ^Serial
@@ -12466,7 +12466,7 @@ sub bsd_data {
 	main::log_data('dump','$data',\@data) if $b_log;
 	print Data::Dumper::Dumper \@data if $dbg[24];
 	eval $end if $b_log;
-	return @data;
+	return \@data;
 }
 
 # return indexes: 0 - age; 1 - basic; 2 - fail
@@ -12955,7 +12955,7 @@ sub smartctl_data {
 	}
 	print Data::Dumper::Dumper $data if $dbg[19];
 	eval $end if $b_log;
-	return @$data;
+	return \@$data;
 }
 
 # check for usb/firewire/[and thunderbolt when data found]
@@ -13054,7 +13054,7 @@ sub disk_data_advanced {
 		$return[1] = 'mbr' if $return[1] && lc($return[1]) eq 'dos';
 	}
 	eval $end if $b_log;
-	return [@return];
+	return \@return;
 }
 sub scsi_data {
 	eval $start if $b_log;
@@ -13083,7 +13083,7 @@ sub scsi_data {
 	}
 	main::log_data('dump','@scsi', \@scsi) if $b_log;
 	eval $end if $b_log;
-	return @scsi;
+	return \@scsi;
 }
 # @b_id has already been cleaned of partitions, wwn-, nvme-eui
 sub disk_data_by_id {
@@ -13111,7 +13111,7 @@ sub disk_data_by_id {
 		}
 	}
 	eval $end if $b_log;
-	return @disk_data;
+	return \@disk_data;
 }
 ## START DISK VENDOR BLOCK ##
 # 0 - match pattern; 1 - replace pattern; 2 - vendor print; 3 - serial pattern
@@ -13767,7 +13767,7 @@ sub block_data {
 	@blocks = ($block_log,$block_size); 
 	main::log_data('dump','@blocks',\@blocks) if $b_log;
 	eval $end if $b_log;
-	return @blocks;
+	return \@blocks;
 }
 sub device_speed {
 	eval $start if $b_log;
@@ -13830,7 +13830,7 @@ sub device_speed {
 	@data = ($speed,$lanes);
 	# print "$working $speed\n";
 	eval $end if $b_log;
-	return @data;
+	return \@data;
 }
 }
 
