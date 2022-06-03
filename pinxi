@@ -7365,9 +7365,9 @@ sub get {
 	my $num = 0;
 	if (%risc && !$use{'soc-audio'} && !$use{'pci-tool'}){
 		my $key = 'Message';
-		push(@$rows,{
-		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
-		},);
+		$rows = [{
+		main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'})
+		}];
 	}
 	else {
 		device_output($rows);
@@ -7383,9 +7383,7 @@ sub get {
 		if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 			$type = 'pci-card-data-root';
 		}
-		push(@$rows,{
-		main::key($num++,0,1,$key) => main::message($type,''),
-		},);
+		$rows = [{main::key($num++,0,1,$key) => main::message($type,'')}];
 	}
 	sound_server_output($rows);
 	eval $end if $b_log;
@@ -7627,7 +7625,7 @@ sub get {
 				if ($show{'battery-forced'}){
 					$key1 = 'Message';
 					$val1 = main::message('battery-data','');
-					$rows = [{main::key($num++,0,1,$key1) => $val1,}];
+					$rows = [{main::key($num++,0,1,$key1) => $val1}];
 				}
 			}
 			else {
@@ -7641,7 +7639,7 @@ sub get {
 			if ($show{'battery-forced'}){
 				$key1 = 'Message';
 				$val1 = main::message('battery-data-bsd','');
-				$rows = [{main::key($num++,0,1,$key1) => $val1,}];
+				$rows = [{main::key($num++,0,1,$key1) => $val1}];
 			}
 		}
 		else {
@@ -7665,7 +7663,7 @@ sub get {
 		if ($show{'battery-forced'}){
 			$key1 = 'Message';
 			$val1 = (!$bsd_type) ? main::message('battery-data-sys'): main::message('battery-data-bsd');
-			$rows = [{main::key($num++,0,1,$key1) => $val1,}];
+			$rows = [{main::key($num++,0,1,$key1) => $val1}];
 		}
 	}
 	(@upower_items,$b_upower,$upower) = ();
@@ -8150,7 +8148,7 @@ my ($service);
 my (%hci);
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
 	$b_bluetooth = 1 if @ps_cmd && (grep {m|/bluetoothd\b|} @ps_cmd);
 	# note: rapi 4 has pci bus
@@ -8158,39 +8156,38 @@ sub get {
 		# do nothing, but keep the test conditions to force 
 		# the non risc case to always run
 		# my $key = 'Message';
-		# push(@rows,{
-		# main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'}),
-		# },);
+		# $rows = [{
+		# main::key($num++,0,1,$key) => main::message('risc-pci',$risc{'id'})
+		# }];
 	}
 	else {
-		push(@rows,device_output());
+		device_output($rows);
 	}
-	push(@rows,usb_output());
-	if (!@rows){
+	usb_output($rows);
+	if (!@$rows){
 		if ($show{'bluetooth-forced'}){
 			my $key = 'Message';
-			push(@rows,{
-			main::key($num++,0,1,$key) => main::message('bluetooth-data'),
-			},);
+			$rows = [{main::key($num++,0,1,$key) => main::message('bluetooth-data')}];
 		}
 	}
 	# if there are any unhandled hci items print them out
 	if (%hci){
-		push(@rows,advanced_output('check',''));
+		advanced_output($rows,'check','');
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 
 sub device_output {
 	eval $start if $b_log;
 	return if !$devices{'bluetooth'};
-	my ($bus_id,@rows);
+	my $rows = $_[0];
+	my ($bus_id);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$devices{'bluetooth'}}){
 		$num = 1;
 		$bus_id = '';
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		my $driver = ($row->[9]) ? $row->[9] : 'N/A';
 		my $device = $row->[4];
 		$device = ($device) ? main::clean_pci($device,'output') : 'N/A';
@@ -8198,34 +8195,34 @@ sub device_output {
 		if (length($device) > 85 || $size{'max-cols'} < 110){
 			$device = main::filter_pci_long($device);
 		}
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $device,
 		},);
 		if ($extra > 0 && $use{'pci-tool'} && $row->[12]){
 			my $item = main::get_pci_vendor($row->[4],$row->[12]);
-			$rows[$j]->{main::key($num++,0,2,'vendor')} = $item if $item;
+			$rows->[$j]{main::key($num++,0,2,'vendor')} = $item if $item;
 		}
-		$rows[$j]->{main::key($num++,1,2,'driver')} = $driver;
+		$rows->[$j]{main::key($num++,1,2,'driver')} = $driver;
 		if ($extra > 0 && $row->[9] && !$bsd_type){
 			my $version = main::get_module_version($row->[9]);
-			$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
+			$rows->[$j]{main::key($num++,0,3,'v')} = $version if $version;
 		}
 		if ($b_admin && $row->[10]){
 			$row->[10] = main::get_driver_modules($row->[9],$row->[10]);
-			$rows[$j]->{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
+			$rows->[$j]{main::key($num++,0,3,'alternate')} = $row->[10] if $row->[10];
 		}
 		if ($extra > 0){
 			$bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
-				main::get_pcie_data($bus_id,$j,\@rows,\$num);
+				main::get_pcie_data($bus_id,$j,$rows,\$num);
 			}
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = $bus_id;
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
 			my $chip_id = main::get_chip_id($row->[5],$row->[6]);
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $chip_id;
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $chip_id;
 			if ($extra > 2 && $row->[1]){
-				$rows[$j]->{main::key($num++,0,2,'class-ID')} = $row->[1];
+				$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 			}
 		}
 		# weird serial rpi bt
@@ -8237,58 +8234,57 @@ sub device_output {
 			# only theoretical, never seen one
 			$bus_id = "$row->[2].$row->[3]" if defined $row->[2] && defined $row->[3];
 		}
-		push(@rows,advanced_output('pci',$bus_id)) if $bus_id;
+		advanced_output($rows,'pci',$bus_id) if $bus_id;
 		# print "$row->[0]\n";
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub usb_output {
 	eval $start if $b_log;
 	return if !$usb{'bluetooth'};
-	my (@rows,$path_id,$product);
+	my $rows = $_[0];
+	my ($path_id,$product);
 	my ($j,$num) = (0,1);
 	foreach my $row (@{$usb{'bluetooth'}}){
 		# print Data::Dumper::Dumper $row;
 		$num = 1;
-		$j = scalar @rows;
+		$j = scalar @$rows;
 		# makre sure to reset, or second device trips last flag
 		($path_id,$product) = ('','');
 		$product = main::clean($row->[13]) if $row->[13];
 		$product ||= 'N/A';
 		$row->[15] ||= 'N/A';
 		$path_id = $row->[2] if $row->[2];
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Device') => $product,
 		main::key($num++,0,2,'type') => 'USB',
 		main::key($num++,1,2,'driver') => $row->[15],
 		},);
 		if ($extra > 0 && $row->[15] && !$bsd_type){
 			my $version = main::get_module_version($row->[15]);
-			$rows[$j]->{main::key($num++,0,3,'v')} = $version if $version;
+			$rows->[$j]{main::key($num++,0,3,'v')} = $version if $version;
 		}
 		if ($extra > 0){
-			$rows[$j]->{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
+			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = "$path_id:$row->[1]";
 		}
 		if ($extra > 1){
 			$row->[7] ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'chip-ID')} = $row->[7];
+			$rows->[$j]{main::key($num++,0,2,'chip-ID')} = $row->[7];
 		}
 		if ($extra > 2 && defined $row->[5] && $row->[5] ne ''){
-			$rows[$j]->{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
+			$rows->[$j]{main::key($num++,0,2,'class-ID')} = "$row->[4]$row->[5]";
 		}
 		if ($extra > 2 && $row->[16]){
-			$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
+			$rows->[$j]{main::key($num++,0,2,'serial')} = main::filter($row->[16]);
 		}
-		push(@rows,advanced_output('usb',$path_id)) if $path_id;
+		advanced_output($rows,'usb',$path_id) if $path_id;
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub advanced_output {
-	my ($type,$bus_id) = @_;
 	eval $start if $b_log;
-	my (@rows,@temp);
+	my ($rows,$type,$bus_id) = @_;
+	my (@temp);
 	my ($j,$num,$k,$l,$m,$n,$address,$id,$note,$tool) = (0,1,2,3,4,5,'','','','');
 	if (!$b_hci && $alerts{'hciconfig'}->{'action'} eq 'use'){
 		hciconfig_data();
@@ -8320,10 +8316,10 @@ sub advanced_output {
 		if ($hci{'alert'}){
 			if (keys %hci == 1){
 				check_service(); # sets $service
-				$j = scalar @rows;
-				$rows[$j]->{main::key($num++,1,$k,'Report')} = $tool;
-				$rows[$j]->{main::key($num++,0,$l,'bt-service')} = $service;
-				$rows[$j]->{main::key($num++,0,$l,'note')} = $hci{'alert'};
+				$j = scalar @$rows;
+				$rows->[$j]{main::key($num++,1,$k,'Report')} = $tool;
+				$rows->[$j]{main::key($num++,0,$l,'bt-service')} = $service;
+				$rows->[$j]{main::key($num++,0,$l,'note')} = $hci{'alert'};
 			}
 			else {
 				$note = $hci{'alert'};
@@ -8332,33 +8328,33 @@ sub advanced_output {
 		}
 		foreach my $item (@temp){
 			if ($hci{$item}){
-				$j = scalar @rows;
-				push(@rows,{
+				$j = scalar @$rows;
+				push(@$rows,{
 				main::key($num++,1,$k,'Report' . $id) => $tool,
 				},);
 				if ($note){
-					$rows[$j]->{main::key($num++,0,$l,'note')} = $note;
+					$rows->[$j]{main::key($num++,0,$l,'note')} = $note;
 				}
 				# synthesize for rfkill
 				if (!$hci{$item}->{'state'}){
 					$hci{$item}->{'state'} = ($b_bluetooth) ? 'up' : 'down';
 				}
-				$rows[$j]->{main::key($num++,0,$l,'ID')} = $item;
+				$rows->[$j]{main::key($num++,0,$l,'ID')} = $item;
 				if (defined $hci{$item}->{'rf-index'} && 
 				 ($extra > 0 || $hci{$item}->{'state'} eq 'down')){
-					$rows[$j]->{main::key($num++,0,$m,'rfk-id')} = $hci{$item}->{'rf-index'};
+					$rows->[$j]{main::key($num++,0,$m,'rfk-id')} = $hci{$item}->{'rf-index'};
 				}
-				$rows[$j]->{main::key($num++,1,$l,'state')} = $hci{$item}->{'state'};
+				$rows->[$j]{main::key($num++,1,$l,'state')} = $hci{$item}->{'state'};
 				# this only appears for hciconfig, bt-adapter does not run without bt service
 				if (!$b_bluetooth || $hci{$item}->{'state'} eq 'down'){
 					if (!$b_bluetooth || $hci{$item}->{'state'} eq 'down'){
 						check_service(); # sets $service
-						$rows[$j]->{main::key($num++,0,$m,'bt-service')} = $service;
+						$rows->[$j]{main::key($num++,0,$m,'bt-service')} = $service;
 					}
 					if ($hci{$item}->{'hard-blocked'}){
-						$rows[$j]->{main::key($num++,1,$m,'rfk-block')} = '';
-						$rows[$j]->{main::key($num++,0,$n,'hardware')} = $hci{$item}->{'hard-blocked'};
-						$rows[$j]->{main::key($num++,0,$n,'software')} = $hci{$item}->{'soft-blocked'};
+						$rows->[$j]{main::key($num++,1,$m,'rfk-block')} = '';
+						$rows->[$j]{main::key($num++,0,$n,'hardware')} = $hci{$item}->{'hard-blocked'};
+						$rows->[$j]{main::key($num++,0,$n,'software')} = $hci{$item}->{'soft-blocked'};
 					}
 				}
 				if (!$hci{$item}->{'address'} && $tool eq 'rfkill'){
@@ -8367,62 +8363,63 @@ sub advanced_output {
 				else {
 					$address = main::filter($hci{$item}->{'address'});
 				}
-				$rows[$j]->{main::key($num++,0,$l,'address')} = $address;
+				$rows->[$j]{main::key($num++,0,$l,'address')} = $address;
 				# lmp/hci version only hciconfig sadly
 				if (defined $hci{$item}->{'lmp-version'} && 
 				 (my $btv = bluetooth_version($hci{$item}->{'lmp-version'}))){
-					$rows[$j]->{main::key($num++,0,$l,'bt-v')} = $btv;
+					$rows->[$j]{main::key($num++,0,$l,'bt-v')} = $btv;
 				}
 				if ($extra > 0 && defined $hci{$item}->{'lmp-version'}){
-					$rows[$j]->{main::key($num++,0,$l,'lmp-v')} = $hci{$item}->{'lmp-version'};
+					$rows->[$j]{main::key($num++,0,$l,'lmp-v')} = $hci{$item}->{'lmp-version'};
 					if ($extra > 1 && $hci{$item}->{'lmp-subversion'}){
-						$rows[$j]->{main::key($num++,0,$m,'sub-v')} = $hci{$item}->{'lmp-subversion'};
+						$rows->[$j]{main::key($num++,0,$m,'sub-v')} = $hci{$item}->{'lmp-subversion'};
 					}
 				}
 				if ($extra > 0 && defined $hci{$item}->{'hci-version'} && ($extra > 2 || !$hci{$item}->{'lmp-version'} || 
 				 ($hci{$item}->{'lmp-version'} && $hci{$item}->{'lmp-version'} ne $hci{$item}->{'hci-version'}))){
-					$rows[$j]->{main::key($num++,0,$l,'hci-v')} = $hci{$item}->{'hci-version'};
+					$rows->[$j]{main::key($num++,0,$l,'hci-v')} = $hci{$item}->{'hci-version'};
 					if ($extra > 1 && $hci{$item}->{'hci-revision'}){
-						$rows[$j]->{main::key($num++,0,$m,'rev')} = $hci{$item}->{'hci-revision'};
+						$rows->[$j]{main::key($num++,0,$m,'rev')} = $hci{$item}->{'hci-revision'};
 					}
 				}
 				# if ($extra > 1 && $hci{$item}->{'discoverable'}){
-				# 	$rows[$j]->{main::key($num++,1,$l,'discover')} = $hci{$item}->{'discoverable'};
+				# 	$rows->[$j]{main::key($num++,1,$l,'discover')} = $hci{$item}->{'discoverable'};
 				# 	if ($extra > 2 && $hci{$item}->{'discovering'}){
-				# 		$rows[$j]->{main::key($num++,1,$m,'active')} = $hci{$item}->{'discovering'};
+				# 		$rows->[$j]{main::key($num++,1,$m,'active')} = $hci{$item}->{'discovering'};
 				# 	}
 				# }
 				# if ($extra > 1 && $hci{$item}->{'pairable'}){
-				# 	$rows[$j]->{main::key($num++,0,$l,'pair')} = $hci{$item}->{'pairable'};
+				# 	$rows->[$j]{main::key($num++,0,$l,'pair')} = $hci{$item}->{'pairable'};
 				# }
 				# this data only from hciconfig
 				if ($b_admin && 
 				($hci{$item}->{'acl-mtu'} || $hci{$item}->{'sco-mtu'} || $hci{$item}->{'link-policy'})){
-					$j = scalar @rows;
-					push(@rows,{
+					$j = scalar @$rows;
+					push(@$rows,{
 					main::key($num++,1,$l,'Info') => '',
 					},);
 					if ($hci{$item}->{'acl-mtu'}){
-						$rows[$j]->{main::key($num++,0,$m,'acl-mtu')} = $hci{$item}->{'acl-mtu'};
+						$rows->[$j]{main::key($num++,0,$m,'acl-mtu')} = $hci{$item}->{'acl-mtu'};
 					}
 					if ($hci{$item}->{'sco-mtu'}){
-						$rows[$j]->{main::key($num++,0,$m,'sco-mtu')} = $hci{$item}->{'sco-mtu'};
+						$rows->[$j]{main::key($num++,0,$m,'sco-mtu')} = $hci{$item}->{'sco-mtu'};
 					}
 					if ($hci{$item}->{'link-policy'}){
-						$rows[$j]->{main::key($num++,0,$m,'link-policy')} = $hci{$item}->{'link-policy'};
+						$rows->[$j]{main::key($num++,0,$m,'link-policy')} = $hci{$item}->{'link-policy'};
 					}
 					if ($hci{$item}->{'link-mode'}){
-						$rows[$j]->{main::key($num++,0,$m,'link-mode')} = $hci{$item}->{'link-mode'};
+						$rows->[$j]{main::key($num++,0,$m,'link-mode')} = $hci{$item}->{'link-mode'};
 					}
 					if ($hci{$item}->{'service-classes'}){
-						$rows[$j]->{main::key($num++,0,$m,'service-classes')} = $hci{$item}->{'service-classes'};
+						$rows->[$j]{main::key($num++,0,$m,'service-classes')} = $hci{$item}->{'service-classes'};
 					}
 				}
 				delete $hci{$item};
 			}
 		}
 	}
-	if (!@rows && !$b_hci_error && ($alerts{'hciconfig'}->{'action'} ne 'use' &&
+	# since $rows is ref, we need to just check if no $j were set.
+	if (!$j && !$b_hci_error && ($alerts{'hciconfig'}->{'action'} ne 'use' &&
 	$alerts{'bt-adapter'}->{'action'} ne 'use')){
 		my $key = 'Report';
 		my $value = '';
@@ -8433,13 +8430,12 @@ sub advanced_output {
 		else {
 			$value = main::message('tools-missing','hciconfig/bt-adapter');
 		}
-		push(@rows,{
+		push(@$rows,{
 		main::key($num++,0,1,$key) => $value,
 		},);
 		$b_hci_error = 1;
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 
 sub bt_tool_data {
@@ -17175,12 +17171,13 @@ package MachineItem;
 
 sub get {
 	eval $start if $b_log;
-	my (%soc_machine,%data,@rows,$key1,$val1,$which);
+	my (%soc_machine,$data,@rows,$key1,$val1,$which);
+	my $rows = [];
 	my $num = 0;
 	if ($bsd_type && $sysctl{'machine'} && !$force{'dmidecode'}){
-		%data = machine_data_sysctl();
-		if (%data){
-			@rows = machine_output(\%data);
+		$data = machine_data_sysctl();
+		if (%$data){
+			machine_output($rows,$data);
 		}
 		elsif (!$key1){
 			$key1 = 'Message';
@@ -17194,9 +17191,9 @@ sub get {
 			$key1 = ucfirst($key1);
 		}
 		else {
-			%data = machine_data_dmi();
-			if (%data){
-				@rows = machine_output(\%data);
+			$data = machine_data_dmi();
+			if (%$data){
+				machine_output($rows,$data);
 			}
 			elsif (!$key1){
 				$key1 = 'Message';
@@ -17205,9 +17202,9 @@ sub get {
 		}
 	}
 	elsif (-d '/sys/class/dmi/id/'){
-		%data = machine_data_sys();
-		if (%data){
-			@rows = machine_output(\%data);
+		$data = machine_data_sys();
+		if (%$data){
+			machine_output($rows,$data);
 		}
 		else {
 			$key1 = 'Message';
@@ -17221,10 +17218,10 @@ sub get {
 	}
 	elsif ($fake{'elbrus'} || $cpu_arch eq 'elbrus'){
 		if ($fake{'elbrus'} || (my $program = main::check_program('fruid_print'))){
-			%data = machine_data_fruid($program);
+			$data = machine_data_fruid($program);
 		}
-		if (%data){
-			@rows = machine_output(\%data);
+		if (%$data){
+			machine_output($rows,$data);
 		}
 		elsif (!$key1){
 			$key1 = 'Message';
@@ -17234,20 +17231,20 @@ sub get {
 	elsif (!$bsd_type){
 		# this uses /proc/cpuinfo so only GNU/Linux
 		if (%risc){
-			%data = machine_data_soc();
-			@rows = machine_soc_output(\%data) if %data;
+			$data = machine_data_soc();
+			machine_soc_output($rows,$data) if $data;
 		}
-		if (!%data){
+		if (!%$data){
 			$key1 = 'Message';
 			$val1 = main::message('machine-data-force-dmidecode','');
 		}
 	}
 	# if error case, null data, whatever
 	if ($key1){
-		push(@rows,{main::key($num++,0,1,$key1) => $val1,});
+		push(@$rows,{main::key($num++,0,1,$key1) => $val1,});
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 ## keys for machine data are:
 # 0-sys_vendor 1-product_name 2-product_version 3-product_serial 4-product_uuid 
@@ -17258,8 +17255,7 @@ sub get {
 ## unused: 16-bios_rev  17-bios_romsize 18 - firmware type
 sub machine_output {
 	eval $start if $b_log;
-	my ($data) = @_;
-	my (@rows);
+	my ($rows,$data) = @_;
 	my $firmware = 'BIOS';
 	my $num = 0;
 	my $j = 0;
@@ -17293,8 +17289,8 @@ sub machine_output {
 		}
 	}
 	$data->{'device'} ||= 'N/A';
-	$j = scalar @rows;
-	push(@rows, {
+	$j = scalar @$rows;
+	push(@$rows, {
 	main::key($num++,0,1,'Type') => ucfirst($data->{'device'}),
 	},);
 	if (!$b_skip_system){
@@ -17303,10 +17299,10 @@ sub machine_output {
 		$product_name = ($data->{'product_name'}) ? $data->{'product_name'}:'N/A';
 		$product_version = ($data->{'product_version'}) ? $data->{'product_version'}:'N/A';
 		$product_serial = main::filter($data->{'product_serial'});
-		$rows[$j]->{main::key($num++,1,1,'System')} = $system_vendor;
-		$rows[$j]->{main::key($num++,1,2,'product')} = $product_name;
-		$rows[$j]->{main::key($num++,0,3,'v')} = $product_version;
-		$rows[$j]->{main::key($num++,0,3,'serial')} = $product_serial;
+		$rows->[$j]{main::key($num++,1,1,'System')} = $system_vendor;
+		$rows->[$j]{main::key($num++,1,2,'product')} = $product_name;
+		$rows->[$j]{main::key($num++,0,3,'v')} = $product_version;
+		$rows->[$j]{main::key($num++,0,3,'serial')} = $product_serial;
 		# no point in showing chassis if system isn't there, it's very unlikely that 
 		# would be correct
 		if ($extra > 1){
@@ -17329,14 +17325,14 @@ sub machine_output {
 				$chassis_serial = main::filter($data->{'chassis_serial'});
 				$chassis_vendor ||= '';
 				$chassis_type ||= '';
-				$rows[$j]->{main::key($num++,1,1,'Chassis')} = $chassis_vendor;
+				$rows->[$j]{main::key($num++,1,1,'Chassis')} = $chassis_vendor;
 				if ($chassis_type){
-					$rows[$j]->{main::key($num++,0,2,'type')} = $chassis_type;
+					$rows->[$j]{main::key($num++,0,2,'type')} = $chassis_type;
 				}
 				if ($chassis_version){
-					$rows[$j]->{main::key($num++,0,2,'v')} = $chassis_version;
+					$rows->[$j]{main::key($num++,0,2,'v')} = $chassis_version;
 				}
-				$rows[$j]->{main::key($num++,0,2,'serial')} = $chassis_serial;
+				$rows->[$j]{main::key($num++,0,2,'serial')} = $chassis_serial;
 			}
 		}
 		$j++; # start new row
@@ -17364,66 +17360,64 @@ sub machine_output {
 	if ($extra > 1 && $data->{'bios_romsize'}){
 		$bios_romsize = $data->{'bios_romsize'};
 	}
-	$rows[$j]->{main::key($num++,1,1,'Mobo')} = $mobo_vendor;
-	$rows[$j]->{main::key($num++,1,2,'model')} = $mobo_model;
+	$rows->[$j]{main::key($num++,1,1,'Mobo')} = $mobo_vendor;
+	$rows->[$j]{main::key($num++,1,2,'model')} = $mobo_model;
 	if ($mobo_version){
-		$rows[$j]->{main::key($num++,0,3,'v')} = $mobo_version;
+		$rows->[$j]{main::key($num++,0,3,'v')} = $mobo_version;
 	}
-	$rows[$j]->{main::key($num++,0,3,'serial')} = $mobo_serial;
+	$rows->[$j]{main::key($num++,0,3,'serial')} = $mobo_serial;
 	if ($extra > 2 && $data->{'board_uuid'}){
-		$rows[$j]->{main::key($num++,0,3,'uuid')} = $data->{'board_uuid'};
+		$rows->[$j]{main::key($num++,0,3,'uuid')} = $data->{'board_uuid'};
 	}
 	if ($extra > 1 && $data->{'board_mfg_date'}){
-		$rows[$j]->{main::key($num++,0,3,'mfg-date')} = $data->{'board_mfg_date'};
+		$rows->[$j]{main::key($num++,0,3,'mfg-date')} = $data->{'board_mfg_date'};
 	}
-	$rows[$j]->{main::key($num++,1,1,$firmware)} = $bios_vendor;
-	$rows[$j]->{main::key($num++,0,2,'v')} = $bios_version;
+	$rows->[$j]{main::key($num++,1,1,$firmware)} = $bios_vendor;
+	$rows->[$j]{main::key($num++,0,2,'v')} = $bios_version;
 	if ($bios_rev){
-		$rows[$j]->{main::key($num++,0,2,'rev')} = $bios_rev;
+		$rows->[$j]{main::key($num++,0,2,'rev')} = $bios_rev;
 	}
-	$rows[$j]->{main::key($num++,0,2,'date')} = $bios_date;
+	$rows->[$j]{main::key($num++,0,2,'date')} = $bios_date;
 	if ($bios_romsize){
-		$rows[$j]->{main::key($num++,0,2,'rom size')} = $bios_romsize;
+		$rows->[$j]{main::key($num++,0,2,'rom size')} = $bios_romsize;
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub machine_soc_output {
-	my ($soc_machine) = @_;
-	my ($key,@rows);
+	my ($rows,$soc_machine) = @_;
+	my ($key);
 	my ($cont_sys,$ind_sys,$j,$num) = (1,1,0,0);
 	# print Data::Dumper::Dumper \%soc_machine;
 	# this is sketchy, /proc/device-tree/model may be similar to Hardware value from /proc/cpuinfo
 	# raspi: Hardware	: BCM2835 model: Raspberry Pi Model B Rev 2
 	if ($soc_machine->{'device'} || $soc_machine->{'model'}){
-		$rows[$j]->{main::key($num++,0,1,'Type')} = uc($risc{'id'});
+		$rows->[$j]{main::key($num++,0,1,'Type')} = uc($risc{'id'});
 		my $system = 'System';
 		if (defined $soc_machine->{'model'}){
-			$rows[$j]->{main::key($num++,1,1,'System')} = $soc_machine->{'model'};
+			$rows->[$j]{main::key($num++,1,1,'System')} = $soc_machine->{'model'};
 			$system = 'details';
 			($cont_sys,$ind_sys) = (0,2);
 		}
 		$soc_machine->{'device'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,$cont_sys,$ind_sys,$system)} = $soc_machine->{'device'};
+		$rows->[$j]{main::key($num++,$cont_sys,$ind_sys,$system)} = $soc_machine->{'device'};
 	}
 	if ($soc_machine->{'mobo'}){
-		$rows[$j]->{main::key($num++,1,1,'mobo')} = $soc_machine->{'mobo'};
+		$rows->[$j]{main::key($num++,1,1,'mobo')} = $soc_machine->{'mobo'};
 	}
 	# we're going to print N/A for 0000 values sine the item was there.
 	if ($soc_machine->{'firmware'}){
 		# most samples I've seen are like: 0000
 		$soc_machine->{'firmware'} =~ s/^[0]+$//;
 		$soc_machine->{'firmware'} ||= 'N/A';
-		$rows[$j]->{main::key($num++,0,2,'rev')} = $soc_machine->{'firmware'};
+		$rows->[$j]{main::key($num++,0,2,'rev')} = $soc_machine->{'firmware'};
 	}
 	# sometimes has value like: 0000
 	if (defined $soc_machine->{'serial'}){
 		# most samples I've seen are like: 0000
 		$soc_machine->{'serial'} =~ s/^[0]+$//;
-		$rows[$j]->{main::key($num++,0,2,'serial')} = main::filter($soc_machine->{'serial'});
+		$rows->[$j]{main::key($num++,0,2,'serial')} = main::filter($soc_machine->{'serial'});
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub machine_data_fruid {
 	eval $start if $b_log;
@@ -17465,7 +17459,7 @@ sub machine_data_fruid {
 	}
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
-	return %data;
+	return \%data;
 }
 sub machine_data_sys {
 	eval $start if $b_log;
@@ -17524,7 +17518,7 @@ sub machine_data_sys {
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
-	return %data;
+	return \%data;
 }
 # this will create an alternate machine data source
 # which will be used for alt ARM machine data in cases 
@@ -17600,7 +17594,7 @@ sub machine_data_soc {
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
-	return %data;
+	return \%data;
 }
 
 # bios_date: 09/07/2010
@@ -17741,7 +17735,7 @@ sub machine_data_dmi {
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
-	return %data;
+	return \%data;
 }
 # As far as I know, only OpenBSD supports this method.
 # it uses hw. info from sysctl -a and bios info from dmesg.boot
@@ -17821,7 +17815,7 @@ sub machine_data_sysctl {
 	print Data::Dumper::Dumper \%data if $dbg[28];
 	main::log_data('dump','%data',\%data) if $b_log;
 	eval $end if $b_log;
-	return %data;
+	return \%data;
 }
 
 sub get_device_sys {
@@ -23994,7 +23988,8 @@ package SlotItem;
 my ($sys_slots);
 sub get {
 	eval $start if $b_log;
-	my ($data,@rows,$key1,$val1);
+	my ($data,$key1,$val1);
+	my $rows = [];
 	my $num = 0;
 	if ($fake{'dmidecode'} || ($alerts{'dmidecode'}->{'action'} eq 'use' && 
 	 (!%risc || $use{'slot-tool'}))){
@@ -24002,10 +23997,10 @@ sub get {
 			slot_data_sys();
 		}
 		$data = slot_data_dmi();
-		@rows = slot_output($data) if $data;
-		if (!@rows){
+		slot_output($rows,$data) if $data;
+		if (!@$rows){
 			my $key = 'Message';
-			push(@rows, {
+			push(@$rows, {
 			main::key($num++,0,1,$key) => main::message('pci-slot-data',''),
 			},);
 		}
@@ -24013,77 +24008,75 @@ sub get {
 	elsif (%risc && !$use{'slot-tool'}){
 		$key1 = 'Message';
 		$val1 = main::message('risc-pci',$risc{'id'});
-		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+		$rows = [{main::key($num++,0,1,$key1) => $val1}];
 	}
 	elsif ($alerts{'dmidecode'}->{'action'} ne 'use'){
 		$key1 = $alerts{'dmidecode'}->{'action'};
 		$val1 = $alerts{'dmidecode'}->{'message'};
 		$key1 = ucfirst($key1);
-		@rows = ({main::key($num++,0,1,$key1) => $val1,});
+		$rows = [{main::key($num++,0,1,$key1) => $val1,}];
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 sub slot_output {
 	eval $start if $b_log;
-	my $data = $_[0];
-	my (@rows);
+	my ($rows,$data) = @_;
 	my $num = 1;
 	foreach my $slot_data (@$data){
 		next if !$slot_data || ref $slot_data ne 'HASH';
 		$num = 1;
-		my $j = scalar @rows;
+		my $j = scalar @$rows;
 		$slot_data->{'id'} = 'N/A' if !defined $slot_data->{'id'}; # can be 0
 		$slot_data->{'pci'} ||= 'N/A';
-		push(@rows, {
+		push(@$rows, {
 		main::key($num++,1,1,'Slot') => $slot_data->{'id'},
 		main::key($num++,0,2,'type') => $slot_data->{'pci'},
 		},);
 		# PCIe only
 		if ($extra > 1 && $slot_data->{'gen'}){
-			$rows[$j]->{main::key($num++,0,2,'gen')} = $slot_data->{'gen'};
+			$rows->[$j]{main::key($num++,0,2,'gen')} = $slot_data->{'gen'};
 		}
 		if ($slot_data->{'lanes-phys'} && $slot_data->{'lanes-active'} && 
 		$slot_data->{'lanes-phys'} ne $slot_data->{'lanes-active'}){
-			$rows[$j]->{main::key($num++,1,2,'lanes')} = '';
-			$rows[$j]->{main::key($num++,0,3,'phys')} = $slot_data->{'lanes-phys'};
-			$rows[$j]->{main::key($num++,0,3,'active')} = $slot_data->{'lanes-active'};
+			$rows->[$j]{main::key($num++,1,2,'lanes')} = '';
+			$rows->[$j]{main::key($num++,0,3,'phys')} = $slot_data->{'lanes-phys'};
+			$rows->[$j]{main::key($num++,0,3,'active')} = $slot_data->{'lanes-active'};
 		}
 		elsif ($slot_data->{'lanes-phys'}){
-			$rows[$j]->{main::key($num++,0,2,'lanes')} = $slot_data->{'lanes-phys'};
+			$rows->[$j]{main::key($num++,0,2,'lanes')} = $slot_data->{'lanes-phys'};
 		}
 		# Non PCIe only
 		if ($extra > 1 && $slot_data->{'bits'}){
-			$rows[$j]->{main::key($num++,0,2,'bits')} = $slot_data->{'bits'};
+			$rows->[$j]{main::key($num++,0,2,'bits')} = $slot_data->{'bits'};
 		}
 		# PCI-X and PCI only
 		if ($extra > 1 && $slot_data->{'mhz'}){
-			$rows[$j]->{main::key($num++,0,2,'MHz')} = $slot_data->{'mhz'};
+			$rows->[$j]{main::key($num++,0,2,'MHz')} = $slot_data->{'mhz'};
 		}
-		$rows[$j]->{main::key($num++,0,2,'status')} = $slot_data->{'usage'};
+		$rows->[$j]{main::key($num++,0,2,'status')} = $slot_data->{'usage'};
 		if ($slot_data->{'extra'}){
-			$rows[$j]->{main::key($num++,0,2,'info')} = join(', ', @{$slot_data->{'extra'}});
+			$rows->[$j]{main::key($num++,0,2,'info')} = join(', ', @{$slot_data->{'extra'}});
 		}
 		if ($extra > 1){
 			$slot_data->{'length'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'length')} = $slot_data->{'length'};
+			$rows->[$j]{main::key($num++,0,2,'length')} = $slot_data->{'length'};
 			if ($slot_data->{'cpu'}){
-				$rows[$j]->{main::key($num++,0,2,'cpu')} = $slot_data->{'cpu'};
+				$rows->[$j]{main::key($num++,0,2,'cpu')} = $slot_data->{'cpu'};
 			}
 			if ($slot_data->{'volts'}){
-				$rows[$j]->{main::key($num++,0,2,'volts')} = $slot_data->{'volts'};
+				$rows->[$j]{main::key($num++,0,2,'volts')} = $slot_data->{'volts'};
 			}
 		}
 		if ($extra > 0){
 			$slot_data->{'bus_address'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,1,2,'bus-ID')} = $slot_data->{'bus_address'};
+			$rows->[$j]{main::key($num++,1,2,'bus-ID')} = $slot_data->{'bus_address'};
 			if ($b_admin && $slot_data->{'children'}){
-				children_output(\@rows,$j,\$num,$slot_data->{'children'},3);
+				children_output($rows,$j,\$num,$slot_data->{'children'},3);
 			}
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub children_output {
 	my ($rows,$j,$num,$children,$ind) = @_;
@@ -24298,19 +24291,18 @@ package SwapItem;
 
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
-	@rows = create_output();
-	if (!@rows){
-		push(@rows, 
-		{main::key($num++,0,1,'Alert') => main::message('swap-data')},
-		);
+	create_output($rows);
+	if (!@$rows){
+		$rows = [{main::key($num++,0,1,'Alert') => main::message('swap-data')}];
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 sub create_output {
 	eval $start if $b_log;
+	my $rows = $_[0];
 	my $num = 0;
 	my $j = 0;
 	my (@rows,$dev,$percent,$raw_size,$size,$used);
@@ -24328,20 +24320,20 @@ sub create_output {
 		if ($b_admin && !$bsd_type && $j == 0){
 			$j = scalar @rows;
 			if (defined $row->{'swappiness'} || defined $row->{'cache-pressure'}){
-				$rows[$j]->{main::key($num++,1,1,'Kernel')} = '';
+				$rows->[$j]{main::key($num++,1,1,'Kernel')} = '';
 				if (defined $row->{'swappiness'}){
-					$rows[$j]->{main::key($num++,0,2,'swappiness')} = $row->{'swappiness'};
+					$rows->[$j]{main::key($num++,0,2,'swappiness')} = $row->{'swappiness'};
 				}
 				if (defined $row->{'cache-pressure'}){
-					$rows[$j]->{main::key($num++,0,2,'cache-pressure')} = $row->{'cache-pressure'};
+					$rows->[$j]{main::key($num++,0,2,'cache-pressure')} = $row->{'cache-pressure'};
 				}
 			}
 			else {
-				$rows[$j]->{main::key($num++,0,1,'Message')} = main::message('swap-admin');
+				$rows->[$j]{main::key($num++,0,1,'Message')} = main::message('swap-admin');
 			}
 		}
-		$j = scalar @rows;
-		push(@rows, {
+		$j = scalar @$rows;
+		push(@$rows, {
 		main::key($num++,1,1,'ID') => $row->{'id'},
 		main::key($num++,0,2,'type') => $row->{'swap-type'},
 		});
@@ -24349,48 +24341,47 @@ sub create_output {
 		if ($b_admin && $row->{'raw-size'}){
 			# It's an error! permissions or missing tool
 			$raw_size = main::get_size($row->{'raw-size'},'string');
-			$rows[$j]->{main::key($num++,0,2,'raw-size')} = $raw_size;
+			$rows->[$j]{main::key($num++,0,2,'raw-size')} = $raw_size;
 		}
 		# not used for swap as far as I know
 		if ($b_admin && $row->{'raw-available'} && $size ne 'N/A'){
 			$size .=  ' (' . $row->{'raw-available'} . '%)';
 		}
-		$rows[$j]->{main::key($num++,0,2,'size')} = $size;
-		$rows[$j]->{main::key($num++,0,2,'used')} = $used . $percent;
+		$rows->[$j]{main::key($num++,0,2,'size')} = $size;
+		$rows->[$j]{main::key($num++,0,2,'used')} = $used . $percent;
 		# not used for swap as far as I know
 		if ($b_admin && $row->{'block-size'}){
-			$rows[$j]->{main::key($num++,0,2,'block-size')} = $row->{'block-size'} . ' B';;
-			#$rows[$j]->{main::key($num++,0,2,'physical')} = $row->{'block-size'} . ' B';
-			#$rows[$j]->{main::key($num++,0,2,'logical')} = $row->{'block-logical'} . ' B';
+			$rows->[$j]{main::key($num++,0,2,'block-size')} = $row->{'block-size'} . ' B';;
+			#$rows->[$j]{main::key($num++,0,2,'physical')} = $row->{'block-size'} . ' B';
+			#$rows->[$j]{main::key($num++,0,2,'logical')} = $row->{'block-logical'} . ' B';
 		}
 		if ($extra > 1 && defined $row->{'priority'}){
-			$rows[$j]->{main::key($num++,0,2,'priority')} = $row->{'priority'};
+			$rows->[$j]{main::key($num++,0,2,'priority')} = $row->{'priority'};
 		}
 		$row->{'mount'} =~ s|/home/[^/]+/(.*)|/home/$filter_string/$1| if $row->{'mount'} && $use{'filter'};
-		$rows[$j]->{main::key($num++,1,2,$dev)} = ($row->{'mount'}) ? $row->{'mount'} : 'N/A';
+		$rows->[$j]{main::key($num++,1,2,$dev)} = ($row->{'mount'}) ? $row->{'mount'} : 'N/A';
 		if ($b_admin && $row->{'maj-min'}){
-			$rows[$j]->{main::key($num++,0,3,'maj-min')} = $row->{'maj-min'};
+			$rows->[$j]{main::key($num++,0,3,'maj-min')} = $row->{'maj-min'};
 		}
 		if ($extra > 0 && $row->{'dev-mapped'}){
-			$rows[$j]->{main::key($num++,0,3,'mapped')} = $row->{'dev-mapped'};
+			$rows->[$j]{main::key($num++,0,3,'mapped')} = $row->{'dev-mapped'};
 		}
 		if ($show{'label'} && ($row->{'label'} || $row->{'swap-type'} eq 'partition')){
 			if ($use{'filter-label'}){
 				$row->{'label'} = main::filter_partition('part', $row->{'label'}, '');
 			}
 			$row->{'label'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'label')} = $row->{'label'};
+			$rows->[$j]{main::key($num++,0,2,'label')} = $row->{'label'};
 		}
 		if ($show{'uuid'} && ($row->{'uuid'} || $row->{'swap-type'} eq 'partition')){
 			if ($use{'filter-uuid'}){
 				$row->{'uuid'} = main::filter_partition('part', $row->{'uuid'}, '');
 			}
 			$row->{'uuid'} ||= 'N/A';
-			$rows[$j]->{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
+			$rows->[$j]{main::key($num++,0,2,'uuid')} = $row->{'uuid'};
 		}
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 
 }
@@ -24825,143 +24816,166 @@ sub usb_output {
 package WeatherItem;
 sub get {
 	eval $start if $b_log;
-	my (@rows);
+	my $rows = [];
 	my $num = 0;
-	@rows = weather_output();
+	my $location = location_data();
+	if (!$location->[0]){
+		$rows = [{
+		main::key($num++,0,1,'Message') => main::message('weather-null','current location')
+		}];
+	}
+	else {
+		my $weather = get_weather($location);
+		if ($weather->{'error'}){
+			$rows = [{
+			main::key($num++,0,1,'Message') => main::message('weather-error',$weather->{'error'})
+			}];
+		}
+		elsif (!$weather->{'weather'}){
+			$rows = [{
+			main::key($num++,0,1,'Message') => main::message('weather-null','weather data')
+			}];
+		}
+		else {
+			weather_output($rows,$location,$weather);
+		}
+	}
+	if (!@$rows){
+		$rows = [{
+		main::key($num++,0,1,'Message') => main::message('weather-null','weather data')
+		}];
+	}
 	eval $end if $b_log;
-	return\@rows;
+	return $rows;
 }
 sub weather_output {
 	eval $start if $b_log;
+	my ($rows,$location,$weather) = @_;
 	my ($j,$num) = (0,0);
-	my (@location,@rows,$value,%weather,);
+	my ($value);
 	my ($conditions) = ('NA');
-	if ($show{'weather-location'}){
-		my $location_string;
-		$location_string = $show{'weather-location'};
-		$location_string =~ s/\+/ /g;
-		if ($location_string =~ /,/){
-			my @temp = split(',', $location_string);
-			my $sep = '';
-			my $string = '';
-			foreach (@temp){
-				$_ = ucfirst($_);
-				$string .= $sep . $_;
-				$sep = ', ';
-			}
-			$location_string = $string;
-		}
-		$location_string = main::filter($location_string);
-		@location = ($show{'weather-location'},$location_string,'');
-	}
-	else {
-		@location = get_location();
-		if (!$location[0]){
-			return @rows = ({
-			main::key($num++,0,1,'Message') => main::message('weather-null','current location'),
-			});
-		}
-	}
-	%weather = get_weather(\@location);
-	if ($weather{'error'}){
-		return @rows = ({
-		main::key($num++,0,1,'Message') => main::message('weather-error',$weather{'error'}),
-		});
-	}
-	if (!$weather{'weather'}){
-		return @rows = ({
-		main::key($num++,0,1,'Message') => main::message('weather-null','weather data'),
-		});
-	}
-	$conditions = "$weather{'weather'}";
-	my $temp = process_unit($weather{'temp'},$weather{'temp-c'},'C',$weather{'temp-f'},'F');
-	$j = scalar @rows;
-	push(@rows, {
+	$conditions = "$weather->{'weather'}";
+	my $temp = process_unit(
+	$weather->{'temp'},
+	$weather->{'temp-c'},'C',
+	$weather->{'temp-f'},'F');
+	$j = scalar @$rows;
+	push(@$rows, {
 	main::key($num++,1,1,'Report') => '',
 	main::key($num++,0,2,'temperature') => $temp,
 	main::key($num++,0,2,'conditions') => $conditions,
 	},);
 	if ($extra > 0){
-		my $pressure = process_unit($weather{'pressure'},$weather{'pressure-mb'},'mb',$weather{'pressure-in'},'in');
-		my $wind = process_wind($weather{'wind'},$weather{'wind-direction'},$weather{'wind-mph'},$weather{'wind-ms'},
-		$weather{'wind-gust-mph'},$weather{'wind-gust-ms'});
-		$rows[$j]->{main::key($num++,0,2,'wind')} = $wind;
+		my $pressure = process_unit(
+		$weather->{'pressure'},
+		$weather->{'pressure-mb'},'mb',
+		$weather->{'pressure-in'},'in');
+		my $wind = process_wind(
+		$weather->{'wind'},
+		$weather->{'wind-direction'},
+		$weather->{'wind-mph'},
+		$weather->{'wind-ms'},
+		$weather->{'wind-gust-mph'},
+		$weather->{'wind-gust-ms'});
+		$rows->[$j]{main::key($num++,0,2,'wind')} = $wind;
 		if ($extra > 1){
-			if (defined $weather{'cloud-cover'}){
-				$rows[$j]->{main::key($num++,0,2,'cloud cover')} = $weather{'cloud-cover'} . '%';
+			if (defined $weather->{'cloud-cover'}){
+				$rows->[$j]{main::key($num++,0,2,'cloud cover')} = $weather->{'cloud-cover'} . '%';
 			}
-			if ($weather{'precip-1h-mm'} && defined $weather{'precip-1h-in'}){
-				$value = process_unit('',$weather{'precip-1h-mm'},'mm',$weather{'precip-1h-in'},'in');
-				$rows[$j]->{main::key($num++,0,2,'precipitation')} = $value;
+			if ($weather->{'precip-1h-mm'} && defined $weather->{'precip-1h-in'}){
+				$value = process_unit('',$weather->{'precip-1h-mm'},'mm',
+				$weather->{'precip-1h-in'},'in');
+				$rows->[$j]{main::key($num++,0,2,'precipitation')} = $value;
 			}
-			if ($weather{'rain-1h-mm'} && defined $weather{'rain-1h-in'}){
-				$value = process_unit('',$weather{'rain-1h-mm'},'mm',$weather{'rain-1h-in'},'in');
-				$rows[$j]->{main::key($num++,0,2,'rain')} = $value;
+			if ($weather->{'rain-1h-mm'} && defined $weather->{'rain-1h-in'}){
+				$value = process_unit('',$weather->{'rain-1h-mm'},'mm',
+				$weather->{'rain-1h-in'},'in');
+				$rows->[$j]{main::key($num++,0,2,'rain')} = $value;
 			}
-			if ($weather{'snow-1h-mm'} && defined $weather{'snow-1h-in'}){
-				$value = process_unit('',$weather{'snow-1h-mm'},'mm',$weather{'snow-1h-in'},'in');
-				$rows[$j]->{main::key($num++,0,2,'snow')} = $value;
+			if ($weather->{'snow-1h-mm'} && defined $weather->{'snow-1h-in'}){
+				$value = process_unit('',$weather->{'snow-1h-mm'},'mm',
+				$weather->{'snow-1h-in'},'in');
+				$rows->[$j]{main::key($num++,0,2,'snow')} = $value;
 			}
 		}
-		$rows[$j]->{main::key($num++,0,2,'humidity')} = $weather{'humidity'} . '%';
+		$rows->[$j]{main::key($num++,0,2,'humidity')} = $weather->{'humidity'} . '%';
 		if ($extra > 1){
-			if ($weather{'dewpoint'} || (defined $weather{'dewpoint-c'} && defined $weather{'dewpoint-f'})){
-				$value = process_unit($weather{'dewpoint'},$weather{'dewpoint-c'},'C',$weather{'dewpoint-f'},'F');
-				$rows[$j]->{main::key($num++,0,2,'dew point')} = $value;
+			if ($weather->{'dewpoint'} || (defined $weather->{'dewpoint-c'} && 
+			defined $weather->{'dewpoint-f'})){
+				$value = process_unit(
+				$weather->{'dewpoint'},
+				$weather->{'dewpoint-c'},
+				'C',
+				$weather->{'dewpoint-f'},
+				'F');
+				$rows->[$j]{main::key($num++,0,2,'dew point')} = $value;
 			}
 		}
-		$rows[$j]->{main::key($num++,0,2,'pressure')} = $pressure;
+		$rows->[$j]{main::key($num++,0,2,'pressure')} = $pressure;
 	}
 	if ($extra > 1){
-		if ($weather{'heat-index'} || (defined $weather{'heat-index-c'} && defined $weather{'heat-index-f'})){
-			$value = process_unit($weather{'heat-index'},$weather{'heat-index-c'},'C',$weather{'heat-index-f'},'F');
-			$rows[$j]->{main::key($num++,0,2,'heat index')} = $value;
+		if ($weather->{'heat-index'} || (defined $weather->{'heat-index-c'} && 
+		defined $weather->{'heat-index-f'})){
+			$value = process_unit(
+			$weather->{'heat-index'},
+			$weather->{'heat-index-c'},'C',
+			$weather->{'heat-index-f'},'F');
+			$rows->[$j]{main::key($num++,0,2,'heat index')} = $value;
 		}
-		if ($weather{'windchill'} || (defined $weather{'windchill-c'} && defined $weather{'windchill-f'})){
-			$value = process_unit($weather{'windchill'},$weather{'windchill-c'},'C',$weather{'windchill-f'},'F');
-			$rows[$j]->{main::key($num++,0,2,'wind chill')} = $value;
+		if ($weather->{'windchill'} || (defined $weather->{'windchill-c'} && 
+		defined $weather->{'windchill-f'})){
+			$value = process_unit(
+			$weather->{'windchill'},
+			$weather->{'windchill-c'},'C',
+			$weather->{'windchill-f'},'F');
+			$rows->[$j]{main::key($num++,0,2,'wind chill')} = $value;
 		}
 		if ($extra > 2){
-			if ($weather{'forecast'}){
-				$j = scalar @rows;
-				push(@rows, {
-				main::key($num++,1,1,'Forecast') => $weather{'forecast'},
+			if ($weather->{'forecast'}){
+				$j = scalar @$rows;
+				push(@$rows, {
+				main::key($num++,1,1,'Forecast') => $weather->{'forecast'},
 				},);
 			}
 		}
 	}
-	$j = scalar @rows;
-	my $location = '';
+	$j = scalar @$rows;
 	if ($extra > 2 && !$use{'filter'}){
-		$location = complete_location($location[1],$weather{'city'},$weather{'state'},$weather{'country'});
+		complete_location(
+		$location,
+		$weather->{'city'},
+		$weather->{'state'},
+		$weather->{'country'});
 	}
-	push(@rows, {
-	main::key($num++,1,1,'Locale') => $location,
+	push(@$rows, {
+	main::key($num++,1,1,'Locale') => $location->[1],
 	},);
-	if ($extra > 2 && !$use{'filter'} && ($weather{'elevation-m'} || $weather{'elevation-ft'})){
-		$rows[$j]->{main::key($num++,0,2,'altitude')} = process_elevation($weather{'elevation-m'},$weather{'elevation-ft'});
+	if ($extra > 2 && !$use{'filter'} && ($weather->{'elevation-m'} || 
+	$weather->{'elevation-ft'})){
+		$rows->[$j]{main::key($num++,0,2,'altitude')} = process_elevation(
+		$weather->{'elevation-m'},
+		$weather->{'elevation-ft'});
 	}
-	$rows[$j]->{main::key($num++,0,2,'current time')} = $weather{'date-time'},;
+	$rows->[$j]{main::key($num++,0,2,'current time')} = $weather->{'date-time'},;
 	if ($extra > 2){
-		$weather{'observation-time-local'} = 'N/A' if !$weather{'observation-time-local'};
-		$rows[$j]->{main::key($num++,0,2,'observation time')} = $weather{'observation-time-local'};
-		if ($weather{'sunrise'}){
-			$rows[$j]->{main::key($num++,0,2,'sunrise')} = $weather{'sunrise'};
+		$weather->{'observation-time-local'} = 'N/A' if !$weather->{'observation-time-local'};
+		$rows->[$j]{main::key($num++,0,2,'observation time')} = $weather->{'observation-time-local'};
+		if ($weather->{'sunrise'}){
+			$rows->[$j]{main::key($num++,0,2,'sunrise')} = $weather->{'sunrise'};
 		}
-		if ($weather{'sunset'}){
-			$rows[$j]->{main::key($num++,0,2,'sunset')} = $weather{'sunset'};
+		if ($weather->{'sunset'}){
+			$rows->[$j]{main::key($num++,0,2,'sunset')} = $weather->{'sunset'};
 		}
-		if ($weather{'moonphase'}){
-			$value = $weather{'moonphase'} . '%';
-			$value .= ($weather{'moonphase-graphic'}) ? ' ' . $weather{'moonphase-graphic'} :'';
-			$rows[$j]->{main::key($num++,0,2,'moonphase')} = $value;
+		if ($weather->{'moonphase'}){
+			$value = $weather->{'moonphase'} . '%';
+			$value .= ($weather->{'moonphase-graphic'}) ? ' ' . $weather->{'moonphase-graphic'} :'';
+			$rows->[$j]{main::key($num++,0,2,'moonphase')} = $value;
 		}
 	}
-	if ($weather{'api-source'}){
-		$rows[$j]->{main::key($num++,0,1,'Source')} = $weather{'api-source'};
+	if ($weather->{'api-source'}){
+		$rows->[$j]{main::key($num++,0,1,'Source')} = $weather->{'api-source'};
 	}
 	eval $end if $b_log;
-	return @rows;
 }
 sub process_elevation {
 	eval $start if $b_log;
@@ -25076,22 +25090,22 @@ sub get_weather {
 	eval $start if $b_log;
 	my ($location) = @_;
 	my $now = POSIX::strftime "%Y%m%d%H%M", localtime;
-	my ($date_time,$freshness,$tz,@weather_data,%weather);
+	my ($date_time,$freshness,$tz,$weather_data,%weather);
 	my $loc_name = lc($location->[0]);
 	$loc_name =~ s/-\/|\s|,/-/g;
 	$loc_name =~ s/--/-/g;
 	my $file_cached = "$user_data_dir/weather-$loc_name-$weather_source.txt";
 	if (-r $file_cached){
-		@weather_data = main::reader($file_cached);
-		$freshness = (split(/\^\^/, $weather_data[0]))[1];
+		@$weather_data = main::reader($file_cached);
+		$freshness = (split(/\^\^/, $weather_data->[0]))[1];
 		# print "$now:$freshness\n";
 	}
 	if (!$freshness || $freshness < ($now - 60)){
-		@weather_data = download_weather($now,$file_cached,$location);
+		$weather_data = download_weather($now,$file_cached,$location);
 	}
 	# print join("\n", @weather_data), "\n";
 	# NOTE: because temps can be 0, we can't do if value tests
-	foreach (@weather_data){
+	foreach (@$weather_data){
 		my @working = split(/\s*\^\^\s*/, $_);
 		next if ! defined $working[1] || $working[1] eq '';
 		if ($working[0] eq 'api_source'){
@@ -25319,7 +25333,7 @@ sub get_weather {
 		$weather{'observation-time-local'} = $date_time;
 	}
 	eval $end if $b_log;
-	return %weather;
+	return \%weather;
 }
 sub download_weather {
 	eval $start if $b_log;
@@ -25327,21 +25341,23 @@ sub download_weather {
 	my (@weather,$temp,$ua,$url);
 	$url = "https://smxi.org/opt/xr2.php?loc=$location->[0]&src=$weather_source";
 	$ua = 'weather';
-# 		{
-# 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
-# 			# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
-# 			local $/;
-# 			my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
-# 			open(my $fh, '<', $file) or die "can't open $file: $!";
-# 			$temp = <$fh>;
-# 		}
-	$temp = main::download_file('stdout',$url,'',$ua);
+	if ($fake{'weather'}){
+		# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+		# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
+		# local $/;
+		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+		# open(my $fh, '<', $file) or die "can't open $file: $!";
+		# $temp = <$fh>;
+	}
+	else {
+		$temp = main::download_file('stdout',$url,'',$ua);
+	}
 	@weather = split('\n', $temp) if $temp;
 	unshift(@weather, "timestamp^^$now");
 	main::writer($file_cached,\@weather);
 	# print "$file_cached: download/cleaned\n";
 	eval $end if $b_log;
-	return @weather;
+	return \@weather;
 }
 # resolve wide character issue, if detected, switch to iso 
 # date format, we won't try to be too clever here.
@@ -25360,6 +25376,35 @@ sub test_locale_date {
 	$date_time =~ s/\s+$//;
 	# print "2: $date_time\n";
 	return $date_time;
+}
+
+## Location Data ##
+sub location_data {
+	eval $start if $b_log;
+	my $location = [];
+	if ($show{'weather-location'}){
+		my $location_string;
+		$location_string = $show{'weather-location'};
+		$location_string =~ s/\+/ /g;
+		if ($location_string =~ /,/){
+			my @temp = split(',', $location_string);
+			my $sep = '';
+			my $string = '';
+			foreach (@temp){
+				$_ = ucfirst($_);
+				$string .= $sep . $_;
+				$sep = ', ';
+			}
+			$location_string = $string;
+		}
+		$location_string = main::filter($location_string);
+		$location = [$show{'weather-location'},$location_string,''];
+	}
+	else {
+		$location = get_location();
+	}
+	eval $end if $b_log;
+	return $location;
 }
 sub get_location {
 	eval $start if $b_log;
@@ -25445,21 +25490,19 @@ sub get_location {
 	$city = ($loc{'city'}) ? $loc{'city'} : 'City N/A';
 	$state = ($loc{'region-id'}) ? $loc{'region-id'} : 'Region N/A';
 	$loc_string = main::filter("$city, $state, $country");
-	my @location = ($loc_arg,$loc_string,$loc{'tz'});
 	# print ($loc_arg,"\n", join("\n", @loc_data), "\n",scalar @loc_data, "\n");
 	eval $end if $b_log;
-	return @location;
+	return [$loc_arg,$loc_string,$loc{'tz'}];
 }
 sub complete_location {
 	eval $start if $b_log;
 	my ($location,$city,$state,$country) = @_;
-	if ($location && $location =~ /[0-9+-]/ && $city){
-		$location = $country . ', ' . $location if $country && $location !~ m|$country|i;
-		$location = $state . ', ' . $location if $state && $location !~ m|$state|i;
-		$location = $city . ', ' . $location if $city && $location !~ m|$city|i;
+	if ($location->[1] && $location->[1] =~ /[0-9+-]/ && $city){
+		$location->[1] = $country . ', ' . $location->[1] if $country && $location->[1] !~ m|$country|i;
+		$location->[1] = $state . ', ' . $location->[1] if $state && $location->[1] !~ m|$state|i;
+		$location->[1] = $city . ', ' . $location->[1] if $city && $location->[1] !~ m|$city|i;
 	}
 	eval $end if $b_log;
-	return $location;
 }
 }
 
