@@ -7371,6 +7371,7 @@ sub get {
 		asound_output($rows,$file);
 	}
 	usb_output($rows);
+	# note: for servers often no audio, so we don't care about pci specific
 	if (!@$rows){
 		my $key = 'Message';
 		my $type = 'device-data';
@@ -17207,22 +17208,22 @@ sub get {
 	elsif ($fake{'elbrus'} || $cpu_arch eq 'elbrus'){
 		if ($fake{'elbrus'} || (my $program = main::check_program('fruid_print'))){
 			$data = machine_data_fruid($program);
-		}
-		if (%$data){
-			machine_output($rows,$data);
-		}
-		elsif (!$key1){
-			$key1 = 'Message';
-			$val1 = main::message('machine-data-fruid');
+			if (%$data){
+				machine_output($rows,$data);
+			}
+			elsif (!$key1){
+				$key1 = 'Message';
+				$val1 = main::message('machine-data-fruid');
+			}
 		}
 	}
 	elsif (!$bsd_type){
 		# this uses /proc/cpuinfo so only GNU/Linux
 		if (%risc){
 			$data = machine_data_soc();
-			machine_soc_output($rows,$data) if $data;
+			machine_soc_output($rows,$data) if %$data;
 		}
-		if (!%$data){
+		if (!$data || !%$data){
 			$key1 = 'Message';
 			$val1 = main::message('machine-data-force-dmidecode','');
 		}
@@ -17965,7 +17966,6 @@ sub get {
 	else {
 		device_output($rows);
 	}
-	usb_output($rows);
 	# note: raspberry pi uses usb networking only 
 	if (!@$rows){
 		if (%risc){
@@ -17976,7 +17976,7 @@ sub get {
 		}
 		else {
 			my $key = 'Message';
-			my $type = 'device-data';
+			my $type = 'pci-card-data';
 			if ($pci_tool && $alerts{$pci_tool}->{'action'} eq 'permissions'){
 				$type = 'pci-card-data-root';
 			}
@@ -17985,6 +17985,7 @@ sub get {
 			});
 		}
 	}
+	usb_output($rows);
 	if ($show{'network-advanced'}){
 		# @ifs_found = ();
 		# shift @ifs_found;
