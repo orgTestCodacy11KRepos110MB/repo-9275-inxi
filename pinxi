@@ -17411,7 +17411,8 @@ sub machine_soc_output {
 sub machine_data_fruid {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($b_start,%data,@fruid);
+	my ($b_start,@fruid);
+	my $data = {};
 	if (!$fake{'elbrus'}){
 		@fruid = main::grabber("$program 2>/dev/null",'','strip');
 	}
@@ -17427,32 +17428,33 @@ sub machine_data_fruid {
 		next if !$b_start;
 		my @split = split(/\s*:\s+/,$_,2);
 		if ($split[0] eq 'Mfg. Date/Time'){
-			$data{'board_mfg_date'} = $split[1];
-			$data{'board_mfg_date'} =~ s/^(\d+:\d+)\s//;
+			$data->{'board_mfg_date'} = $split[1];
+			$data->{'board_mfg_date'} =~ s/^(\d+:\d+)\s//;
 		}
 		elsif ($split[0] eq 'Board manufacturer'){
-			$data{'board_vendor'} = $split[1];
+			$data->{'board_vendor'} = $split[1];
 		}
 		elsif ($split[0] eq 'Board part number'){
-			$data{'board_part_nu'} = $split[1];
+			$data->{'board_part_nu'} = $split[1];
 		}
 		elsif ($split[0] eq 'Board product name'){
-			$data{'board_name'} = $split[1];
+			$data->{'board_name'} = $split[1];
 		}
 		elsif ($split[0] eq 'Board serial number'){
-			$data{'board_serial'} = $split[1];
+			$data->{'board_serial'} = $split[1];
 		}
 		elsif ($split[0] eq 'Board product version'){
-			$data{'board_version'} = $split[1];
+			$data->{'board_version'} = $split[1];
 		}
 	}
-	print Data::Dumper::Dumper \%data if $dbg[28];
-	main::log_data('dump','%data',\%data) if $b_log;
-	return \%data;
+	print Data::Dumper::Dumper $data if $dbg[28];
+	main::log_data('dump','%data',$data) if $b_log;
+	return $data;
 }
 sub machine_data_sys {
 	eval $start if $b_log;
-	my (%data,$path,$vm);
+	my ($path,$vm);
+	my $data = {};
 	my $sys_dir = '/sys/class/dmi/id/';
 	my $sys_dir_alt = '/sys/devices/virtual/dmi/id/';
 	my @sys_files = qw(bios_vendor bios_version bios_date 
@@ -17462,7 +17464,7 @@ sub machine_data_sys {
 	if ($extra > 1){
 		splice(@sys_files, 0, 0, qw(chassis_serial chassis_vendor chassis_version));
 	}
-	$data{'firmware'} = 'BIOS';
+	$data->{'firmware'} = 'BIOS';
 	# print Data::Dumper::Dumper \@sys_files;
 	if (!-d $sys_dir){
 		if (-d $sys_dir_alt){
@@ -17473,41 +17475,41 @@ sub machine_data_sys {
 		}
 	}
 	if (-d '/sys/firmware/efi'){
-		$data{'firmware'} = 'UEFI';
+		$data->{'firmware'} = 'UEFI';
 	}
 	elsif (glob('/sys/firmware/acpi/tables/UEFI*')){
-		$data{'firmware'} = 'UEFI-[Legacy]';
+		$data->{'firmware'} = 'UEFI-[Legacy]';
 	}
 	foreach (@sys_files){
 		$path = "$sys_dir$_";
 		if (-r $path){
-			$data{$_} = main::reader($path,'',0);
-			$data{$_} = ($data{$_}) ? main::clean_dmi($data{$_}) : '';
+			$data->{$_} = main::reader($path,'',0);
+			$data->{$_} = ($data->{$_}) ? main::clean_dmi($data->{$_}) : '';
 		}
 		elsif (!$b_root && -e $path && !-r $path){
-			$data{$_} = main::message('root-required');
+			$data->{$_} = main::message('root-required');
 		}
 		else {
-			$data{$_} = '';
+			$data->{$_} = '';
 		}
 	}
-	if ($data{'chassis_type'}){
-		if ($data{'chassis_type'} == 1){
-			$data{'device'} = get_device_vm($data{'sys_vendor'},$data{'product_name'});
-			$data{'device'} ||= 'other-vm?';
+	if ($data->{'chassis_type'}){
+		if ($data->{'chassis_type'} == 1){
+			$data->{'device'} = get_device_vm($data->{'sys_vendor'},$data->{'product_name'});
+			$data->{'device'} ||= 'other-vm?';
 		}
 		else {
-			$data{'device'} = get_device_sys($data{'chassis_type'});
+			$data->{'device'} = get_device_sys($data->{'chassis_type'});
 		}
 	}
 	#	print "sys:\n";
 	#	foreach (keys %data){
-	#		print "$_: $data{$_}\n";
+	#		print "$_: $data->{$_}\n";
 	#	}
-	print Data::Dumper::Dumper \%data if $dbg[28];
-	main::log_data('dump','%data',\%data) if $b_log;
+	print Data::Dumper::Dumper $data if $dbg[28];
+	main::log_data('dump','%data',$data) if $b_log;
 	eval $end if $b_log;
-	return \%data;
+	return $data;
 }
 # this will create an alternate machine data source
 # which will be used for alt ARM machine data in cases 
@@ -17515,36 +17517,36 @@ sub machine_data_sys {
 # certain actions for arm only.
 sub machine_data_soc {
 	eval $end if $b_log;
-	my (%data);
+	my $data = {};
 	if (my $file = $system_files{'proc-cpuinfo'}){
 		CpuItem::cpuinfo_data_grabber($file) if !$loaded{'cpuinfo'};
 		# grabber sets keys to lower case to avoid error here
 		if ($cpuinfo_machine{'hardware'} || $cpuinfo_machine{'machine'}){
-			$data{'device'} = main::get_defined($cpuinfo_machine{'hardware'},
+			$data->{'device'} = main::get_defined($cpuinfo_machine{'hardware'},
 			 $cpuinfo_machine{'machine'});
-			$data{'device'} = main::clean_arm($data{'device'});
-			$data{'device'} = main::clean_dmi($data{'device'});
-			$data{'device'} = main::clean($data{'device'});
+			$data->{'device'} = main::clean_arm($data->{'device'});
+			$data->{'device'} = main::clean_dmi($data->{'device'});
+			$data->{'device'} = main::clean($data->{'device'});
 		}
 		if (defined $cpuinfo_machine{'system type'} || $cpuinfo_machine{'model'}){
-			$data{'model'} = main::get_defined($cpuinfo_machine{'system type'},
+			$data->{'model'} = main::get_defined($cpuinfo_machine{'system type'},
 			 $cpuinfo_machine{'model'});
-			$data{'model'} = main::clean_dmi($data{'model'});
-			$data{'model'} = main::clean($data{'model'});
+			$data->{'model'} = main::clean_dmi($data->{'model'});
+			$data->{'model'} = main::clean($data->{'model'});
 		}
 		# seen with PowerMac PPC
 		if (defined $cpuinfo_machine{'motherboard'}){
-			$data{'mobo'} = $cpuinfo_machine{'motherboard'};
+			$data->{'mobo'} = $cpuinfo_machine{'motherboard'};
 		}
 		if (defined $cpuinfo_machine{'revision'}){
-			$data{'firmware'} = $cpuinfo_machine{'revision'};
+			$data->{'firmware'} = $cpuinfo_machine{'revision'};
 		}
 		if (defined $cpuinfo_machine{'serial'}){
-			$data{'serial'} = $cpuinfo_machine{'serial'};
+			$data->{'serial'} = $cpuinfo_machine{'serial'};
 		}
 		undef %cpuinfo_machine; # we're done with it, don't need it anymore
 	}
-	if (!$data{'model'} && $b_android){
+	if (!$data->{'model'} && $b_android){
 		main::set_build_prop() if !$loaded{'build-prop'};
 		if ($build_prop{'product-manufacturer'} && $build_prop{'product-model'}){
 			my $brand = '';
@@ -17552,38 +17554,38 @@ sub machine_data_soc {
 			 $build_prop{'product-brand'} ne $build_prop{'product-manufacturer'}){ 
 				$brand = $build_prop{'product-brand'} . ' ';
 			}
-			$data{'model'} = $brand . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'};
+			$data->{'model'} = $brand . $build_prop{'product-manufacturer'} . ' ' . $build_prop{'product-model'};
 		}
 		elsif ($build_prop{'product-device'}){
-			$data{'model'} = $build_prop{'product-device'};
+			$data->{'model'} = $build_prop{'product-device'};
 		}
 		elsif ($build_prop{'product-name'}){
-			$data{'model'} = $build_prop{'product-name'};
+			$data->{'model'} = $build_prop{'product-name'};
 		}
 	}
-	if (!$data{'model'} && -r '/proc/device-tree/model'){
+	if (!$data->{'model'} && -r '/proc/device-tree/model'){
 		my $model  = main::reader('/proc/device-tree/model','',0);
 		main::log_data('data',"device-tree-model: $model") if $b_log;
 		if ($model){
 			$model = main::clean_dmi($model);
 			$model = (split(/\x01|\x02|\x03|\x00/, $model))[0] if $model;
-			my $device_temp = main::clean_regex($data{'device'});
-			if (!$data{'device'} || ($model && $model !~ /\Q$device_temp\E/i)){
+			my $device_temp = main::clean_regex($data->{'device'});
+			if (!$data->{'device'} || ($model && $model !~ /\Q$device_temp\E/i)){
 				$model = main::clean_arm($model);
-				$data{'model'} = $model;
+				$data->{'model'} = $model;
 			}
 		}
 	}
-	if (!$data{'serial'} && -f '/proc/device-tree/serial-number'){
+	if (!$data->{'serial'} && -f '/proc/device-tree/serial-number'){
 		my $serial  = main::reader('/proc/device-tree/serial-number','',0);
 		$serial = (split(/\x01|\x02|\x03|\x00/, $serial))[0] if $serial;
 		main::log_data('data',"device-tree-serial: $serial") if $b_log;
-		$data{'serial'} = $serial if $serial;
+		$data->{'serial'} = $serial if $serial;
 	}
-	print Data::Dumper::Dumper \%data if $dbg[28];
-	main::log_data('dump','%data',\%data) if $b_log;
+	print Data::Dumper::Dumper $data if $dbg[28];
+	main::log_data('dump','%data',$data) if $b_log;
 	eval $end if $b_log;
-	return \%data;
+	return $data;
 }
 
 # bios_date: 09/07/2010
@@ -17608,9 +17610,10 @@ sub machine_data_soc {
 # sys_vendor:
 sub machine_data_dmi {
 	eval $start if $b_log;
-	my (%data,$vm);
-	return if ! @dmi;
-	$data{'firmware'} = 'BIOS';
+	return if !@dmi;
+	my ($vm);
+	my $data = {};
+	$data->{'firmware'} = 'BIOS';
 	# dmi types:
 	# 0 bios; 1 system info; 2 board|base board info; 3 chassis info; 
 	# 4 processor info, use to check for hypervisor
@@ -17622,19 +17625,19 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Release Date'){
-						$data{'bios_date'} = main::clean_dmi($value[1]) }
+						$data->{'bios_date'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Vendor'){
-						$data{'bios_vendor'} = main::clean_dmi($value[1]) }
+						$data->{'bios_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'bios_version'} = main::clean_dmi($value[1]) }
+						$data->{'bios_version'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'ROM Size'){
-						$data{'bios_romsize'} = main::clean_dmi($value[1]) }
+						$data->{'bios_romsize'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'BIOS Revision'){
-						$data{'bios_rev'} = main::clean_dmi($value[1]) }
+						$data->{'bios_rev'} = main::clean_dmi($value[1]) }
 				}
 				else {
 					if ($item eq '~UEFI is supported'){
-						$data{'firmware'} = 'UEFI';}
+						$data->{'firmware'} = 'UEFI';}
 				}
 			}
 			next;
@@ -17646,15 +17649,15 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name'){
-						$data{'product_name'} = main::clean_dmi($value[1]) }
+						$data->{'product_name'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'product_version'} = main::clean_dmi($value[1]) }
+						$data->{'product_version'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Serial Number'){
-						$data{'product_serial'} = main::clean_dmi($value[1]) }
+						$data->{'product_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'sys_vendor'} = main::clean_dmi($value[1]) }
+						$data->{'sys_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'UUID'){
-						$data{'sys_uuid'} = main::clean_dmi($value[1]) }
+						$data->{'sys_uuid'} = main::clean_dmi($value[1]) }
 				}
 			}
 			next;
@@ -17666,13 +17669,13 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Product Name'){
-						$data{'board_name'} = main::clean_dmi($value[1]) }
+						$data->{'board_name'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Serial Number'){
-						$data{'board_serial'} = main::clean_dmi($value[1]) }
+						$data->{'board_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'board_vendor'} = main::clean_dmi($value[1]) }
+						$data->{'board_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'board_version'} = main::clean_dmi($value[1]) }
+						$data->{'board_version'} = main::clean_dmi($value[1]) }
 				}
 			}
 			next;
@@ -17684,17 +17687,17 @@ sub machine_data_dmi {
 				if ($item !~ /^~/){ # skip the indented rows
 					my @value = split(/:\s+/, $item);
 					if ($value[0] eq 'Serial Number'){
-						$data{'chassis_serial'} = main::clean_dmi($value[1]) }
+						$data->{'chassis_serial'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Type'){
-						$data{'chassis_type'} = main::clean_dmi($value[1]) }
+						$data->{'chassis_type'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Manufacturer'){
-						$data{'chassis_vendor'} = main::clean_dmi($value[1]) }
+						$data->{'chassis_vendor'} = main::clean_dmi($value[1]) }
 					elsif ($value[0] eq 'Version'){
-						$data{'chassis_version'} = main::clean_dmi($value[1]) }
+						$data->{'chassis_version'} = main::clean_dmi($value[1]) }
 				}
 			}
-			if ($data{'chassis_type'} && $data{'chassis_type'} ne 'Other'){
-				$data{'device'} = $data{'chassis_type'};
+			if ($data->{'chassis_type'} && $data->{'chassis_type'} ne 'Other'){
+				$data->{'device'} = $data->{'chassis_type'};
 			}
 			next;
 		}
@@ -17702,9 +17705,9 @@ sub machine_data_dmi {
 		# processor information: check for hypervisor
 		elsif ($row->[0] == 4){
 			# skip first three row, we don't need that data
-			if (!$data{'device'}){
+			if (!$data->{'device'}){
 				if (grep {/hypervisor/i} @$row){
-					$data{'device'} = 'virtual-machine';
+					$data->{'device'} = 'virtual-machine';
 				}
 			}
 			last;
@@ -17713,98 +17716,99 @@ sub machine_data_dmi {
 			last;
 		}
 	}
-	if (!$data{'device'}){
-		$data{'device'} = get_device_vm($data{'sys_vendor'},$data{'product_name'});
-		$data{'device'} ||= 'other-vm?';
+	if (!$data->{'device'}){
+		$data->{'device'} = get_device_vm($data->{'sys_vendor'},$data->{'product_name'});
+		$data->{'device'} ||= 'other-vm?';
 	}
 # 	print "dmi:\n";
 # 	foreach (keys %data){
-# 		print "$_: $data{$_}\n";
+# 		print "$_: $data->{$_}\n";
 # 	}
-	print Data::Dumper::Dumper \%data if $dbg[28];
-	main::log_data('dump','%data',\%data) if $b_log;
+	print Data::Dumper::Dumper $data if $dbg[28];
+	main::log_data('dump','%data',$data) if $b_log;
 	eval $end if $b_log;
-	return \%data;
+	return $data;
 }
 # As far as I know, only OpenBSD supports this method.
 # it uses hw. info from sysctl -a and bios info from dmesg.boot
 sub machine_data_sysctl {
 	eval $start if $b_log;
-	my (%data,$product,$vendor,$vm);
+	my ($product,$vendor,$vm);
+	my $data = {};
 	# ^hw\.(vendor|product|version|serialno|uuid)
 	foreach (@{$sysctl{'machine'}}){
 		next if !$_;
 		my @item = split(':', $_);
 		next if !$item[1];
 		if ($item[0] eq 'hw.vendor' || $item[0] eq 'machdep.dmi.board-vendor'){
-			$data{'board_vendor'} = main::clean_dmi($item[1]);
+			$data->{'board_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.product' || $item[0] eq 'machdep.dmi.board-product'){
-			$data{'board_name'} = main::clean_dmi($item[1]);
+			$data->{'board_name'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.version' || $item[0] eq 'machdep.dmi.board-version'){
-			$data{'board_version'} = main::clean_dmi($item[1]);
+			$data->{'board_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.serialno' || $item[0] eq 'machdep.dmi.board-serial'){
-			$data{'board_serial'} = main::clean_dmi($item[1]);
+			$data->{'board_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.serial'){
-			$data{'board_serial'} = main::clean_dmi($item[1]);
+			$data->{'board_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'hw.uuid'){
-			$data{'board_uuid'} = main::clean_dmi($item[1]);
+			$data->{'board_uuid'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-vendor'){
-			$data{'sys_vendor'} = main::clean_dmi($item[1]);
+			$data->{'sys_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-product'){
-			$data{'product_name'} = main::clean_dmi($item[1]);
+			$data->{'product_name'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-version'){
-			$data{'product_version'} = main::clean_dmi($item[1]);
+			$data->{'product_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-serial'){
-			$data{'product_serial'} = main::clean_dmi($item[1]);
+			$data->{'product_serial'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.system-uuid'){
-			$data{'sys_uuid'} = main::clean_dmi($item[1]);
+			$data->{'sys_uuid'} = main::clean_dmi($item[1]);
 		}
 		# bios0:at mainbus0: AT/286+ BIOS, date 06/30/06, BIOS32 rev. 0 @ 0xf2030, SMBIOS rev. 2.4 @ 0xf0000 (47 entries)
 		# bios0:vendor Phoenix Technologies, LTD version "3.00" date 06/30/2006
 		elsif ($item[0] =~ /^bios[0-9]/){
 			if ($_ =~ /^^bios[0-9]:at\s.*?\srev\.\s([\S]+)\s@.*/){
-				$data{'bios_rev'} = $1;
-				$data{'firmware'} = 'BIOS' if $_ =~ /BIOS/;
+				$data->{'bios_rev'} = $1;
+				$data->{'firmware'} = 'BIOS' if $_ =~ /BIOS/;
 			}
 			elsif ($item[1] =~ /^vendor\s(.*?)\sversion\s(.*?)\sdate\s([\S]+)/){
-				$data{'bios_vendor'} = $1;
-				$data{'bios_version'} = $2;
-				$data{'bios_date'} = $3;
-				$data{'bios_version'} =~ s/^v//i if $data{'bios_version'} && $data{'bios_version'} !~ /vi/i;
+				$data->{'bios_vendor'} = $1;
+				$data->{'bios_version'} = $2;
+				$data->{'bios_date'} = $3;
+				$data->{'bios_version'} =~ s/^v//i if $data->{'bios_version'} && $data->{'bios_version'} !~ /vi/i;
 			}
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-vendor'){
-			$data{'bios_vendor'} = main::clean_dmi($item[1]);
+			$data->{'bios_vendor'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-version'){
-			$data{'bios_version'} = main::clean_dmi($item[1]);
+			$data->{'bios_version'} = main::clean_dmi($item[1]);
 		}
 		elsif ($item[0] eq 'machdep.dmi.bios-date'){
-			$data{'bios_date'} = main::clean_dmi($item[1]);
+			$data->{'bios_date'} = main::clean_dmi($item[1]);
 		}
 	}
-	if ($data{'board_vendor'} || $data{'sys_vendor'} || $data{'board_name'} || $data{'product_name'}){
-		$vendor = $data{'sys_vendor'};
-		$vendor = $data{'board_vendor'} if !$vendor;
-		$product = $data{'product_name'};
-		$product = $data{'board_name'} if !$product;
+	if ($data->{'board_vendor'} || $data->{'sys_vendor'} || $data->{'board_name'} || $data->{'product_name'}){
+		$vendor = $data->{'sys_vendor'};
+		$vendor = $data->{'board_vendor'} if !$vendor;
+		$product = $data->{'product_name'};
+		$product = $data->{'board_name'} if !$product;
 	}
 	# detections can be from other sources.
-	$data{'device'} = get_device_vm($vendor,$product);
-	print Data::Dumper::Dumper \%data if $dbg[28];
-	main::log_data('dump','%data',\%data) if $b_log;
+	$data->{'device'} = get_device_vm($vendor,$product);
+	print Data::Dumper::Dumper $data if $dbg[28];
+	main::log_data('dump','%data',$data) if $b_log;
 	eval $end if $b_log;
-	return \%data;
+	return $data;
 }
 
 sub get_device_sys {
