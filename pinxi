@@ -17132,16 +17132,16 @@ sub component_recursive_data {
 	@devices = map {$_ =~ s|^/.*/||; $_;} @devices if @devices;
 	# return @devices if !$b_admin;
 	foreach my $device (@devices){
-		my ($mapped,$mm2,@part);
-		@part = PartitionData::get($device) if @proc_partitions; 
-		$mm2 = $part[0] . ':' . $part[1] if @part;
+		my ($mapped,$mm2,$part);
+		$part = PartitionData::get($device) if @proc_partitions; 
+		$mm2 = $part->[0] . ':' . $part->[1] if @$part;
 		if ($device =~ /^(bcache|dm-|md)[0-9]+$/){
 			$mapped = $dmmapper{$device};
-			$raw_logical[1] += $part[2] if $mapped && $mapped =~ /_(cdata|cmeta)$/;
-			push(@components, [$device,$mm2,$part[2],$mapped,[component_recursive_data($mm2)]]);
+			$raw_logical[1] += $part->[2] if $mapped && $mapped =~ /_(cdata|cmeta)$/;
+			push(@components, [$device,$mm2,$part->[2],$mapped,[component_recursive_data($mm2)]]);
 		}
 		else {
-			push(@components,[$device,$mm2,$part[2]]);
+			push(@components,[$device,$mm2,$part->[2]]);
 		}
 	}
 	eval $end if $b_log;
@@ -20387,13 +20387,13 @@ sub lvm_data {
 		@working = main::globber("/sys/dev/block/$maj_min/slaves/*") if $maj_min;
 		@working = map {$_ =~ s|^/.*/||; $_;} @working if @working;
 		foreach my $part (@working){
-			my (@data,$dev,$maj_min,$mapped,$size);
+			my ($dev,$maj_min,$mapped,$size);
 			if (@proc_partitions){
-				@data = PartitionData::get($part);
-				$maj_min = $data[0] . ':' . $data[1] if defined $data[1];
-				$size = $data[2];
+				my $info = PartitionData::get($part);
+				$maj_min = $info->[0] . ':' . $info->[1] if defined $info->[1];
+				$size = $info->[2];
 				$raw_logical[1] += $size if $part =~ /^dm-/ && $size;
-				@data = main::globber("/sys/dev/block/$maj_min/slaves/*") if $maj_min;
+				my @data = main::globber("/sys/dev/block/$maj_min/slaves/*") if $maj_min;
 				@data = map {$_ =~ s|^/.*/||; $_;} @data if @data;
 				$dev = join(',', @data) if @data;
 			}
@@ -20463,7 +20463,7 @@ sub md_data {
 		# md1 : inactive sda1[0] sdd1[3] sdc1[2] sdb1[1]
 		# if (/^(md[0-9]+)\s*:\s*([^\s]+)(\s\([^)]+\))?\s([^\s]+)\s(.*)/){
 		if (/^(md[0-9]+)\s*:\s*([\S]+)(\s\([^)]+\))?/){
-			my ($component_string,$details,$device,$id,$level,$maj_min,@part,$size,$status);
+			my ($component_string,$details,$device,$id,$level,$maj_min,$part,$size,$status);
 			my (@components);
 			$id = $1;
 			$status = $2;
@@ -20481,10 +20481,10 @@ sub md_data {
 			@temp = ();
 			# cascade of tests, light to cpu intense
 			if ((!$maj_min || !$size) && @proc_partitions){
-				@part = PartitionData::get($id);
-				if (@part){
-					$maj_min = $part[0] . ':' . $part[1];
-					$size = $part[2];
+				$part = PartitionData::get($id);
+				if (@$part){
+					$maj_min = $part->[0] . ':' . $part->[1];
+					$size = $part->[2];
 				}
 			}
 			if ((!$maj_min || !$size) && @lsblk){
@@ -20512,10 +20512,10 @@ sub md_data {
 					$state = $details->{'devices'}{$name}{'state'};
 				}
 				if ((!$maj_min || !$part_size) && @proc_partitions){
-					@part = PartitionData::get($name);
-					if (@part){
-						$maj_min = $part[0] . ':' . $part[1] if !$maj_min;
-						$part_size = $part[2] if !$part_size;
+					$part = PartitionData::get($name);
+					if (@$part){
+						$maj_min = $part->[0] . ':' . $part->[1] if !$maj_min;
+						$part_size = $part->[2] if !$part_size;
 					}
 				}
 				if ((!$maj_min || !$part_size) && @lsblk){
@@ -20858,10 +20858,10 @@ sub zfs_data {
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
 			if ((!$maj_min || !$part_size) && @proc_partitions){
-				my @part = PartitionData::get($working);
-				if (@part){
-					$maj_min = $part[0] . ':' . $part[1];
-					$part_size = $part[2];
+				my $part = PartitionData::get($working);
+				if (@$part){
+					$maj_min = $part->[0] . ':' . $part->[1];
+					$part_size = $part->[2];
 				}
 			}
 			if ((!$maj_min || !$part_size) && @lsblk){
@@ -21967,28 +21967,28 @@ my $num = 0;
 sub get {
 	eval $start if $b_log;
 	($debugger_dir) = @_;
-	my (@data,@rows,@rows_p,@rows_r);
+	my @rows_package;
+	my $rows = [];
 	if ($extra > 0 && !$loaded{'package-data'}){
 		my $packages = PackageData::get('main',\$num);
-		my @data;
 		for (keys %$packages){
-			$rows_p[0]->{$_} = $packages->{$_};
+			$rows_package[0]->{$_} = $packages->{$_};
 		}
 	}
 	$num = 0;
 	if ($bsd_type){
-		@rows_r = get_repos_bsd();
+		get_repos_bsd($rows);
 	}
 	else {
-		@rows_r = get_repos_linux();
+		get_repos_linux($rows);
 	}
 	if ($debugger_dir){
-		@rows = @dbg_files;
+		@$rows = @dbg_files;
 		undef @dbg_files;
 		undef $debugger_dir;
 	}
 	else {
-		if (!@rows_r){
+		if (!@$rows){
 			my $pm_missing;
 			if ($bsd_type){
 				$pm_missing = main::message('repo-data-bsd',$uname[0]);
@@ -21996,16 +21996,17 @@ sub get {
 			else {
 				$pm_missing = main::message('repo-data');
 			}
-			@data = ({main::key($num++,0,1,'Alert') => $pm_missing});
+			@$rows = ({main::key($num++,0,1,'Alert') => $pm_missing});
 		}
-		@rows = (@rows_p,@rows_r,@data);
+		@$rows = (@rows_package,@$rows);
 	}
 	eval $end if $b_log;
-	return \@rows;
+	return $rows;
 }
 sub get_repos_linux {
 	eval $start if $b_log;
-	my (@content,@data,@data2,@data3,@files,$repo,@repos,@rows);
+	my $rows = $_[0];
+	my (@content,$data,@data2,@data3,@files,$repo,@repos);
 	my ($key,$path);
 	my $apk = '/etc/apk/repositories';
 	my $apt = '/etc/apt/sources.list';
@@ -22045,8 +22046,8 @@ sub get_repos_linux {
 		main::log_data('data',"apt repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		foreach (sort @files){
 			# altlinux/pclinuxos use rpms in apt files
-			@data = repo_builder($_,'apt','^\s*(deb|rpm)') if -r $_;
-			push(@rows,@data);
+			$data = repo_builder($_,'apt','^\s*(deb|rpm)') if -r $_;
+			push(@$rows,@$data);
 		}
 		#@files = main::globber("$ENV{'HOME'}/bin/scripts/inxi/data/repo/apt/*.sources");
 		@files = main::globber("$apt.d/*.sources");
@@ -22127,7 +22128,7 @@ sub get_repos_linux {
 			else {
 				$key = repo_data('missing','apt');
 			}
-			push(@rows, 
+			push(@$rows, 
 			{main::key($num++,1,1,$key) => $file},
 			[@apt_urls],
 			);
@@ -22157,20 +22158,20 @@ sub get_repos_linux {
 		unshift(@files, $pacman) if @repos;
 		foreach (@files){
 			if (-f $_){
-				@data = repo_builder($_,$repo,'^\s*Server','\s*=\s*',1);
-				push(@rows,@data);
+				$data = repo_builder($_,$repo,'^\s*Server','\s*=\s*',1);
+				push(@$rows,@$data);
 			}
 			else {
 				# set it so the debugger knows the file wasn't there
 				push(@dbg_files, $_) if $debugger_dir;
-				push(@rows, 
+				push(@$rows, 
 				{main::key($num++,1,1,'File listed in') => $pacman},
 				[("$_ does not seem to exist.")],
 				);
 			}
 		}
-		if (!@rows){
-			push(@rows, 
+		if (!@$rows){
+			push(@$rows, 
 			{main::key($num++,0,1,repo_data('missing','files')) => $pacman },
 			);
 		}
@@ -22179,21 +22180,20 @@ sub get_repos_linux {
 	if (-f $slackpkg || -f $slackpkg_plus || -d $slapt_get){
 		#$slackpkg = "$ENV{HOME}/bin/scripts/inxi/data/repo/slackware/slackpkg-2.conf";
 		if (-f $slackpkg){
-			@data = repo_builder($slackpkg,'slackpkg','^[[:space:]]*[^#]+');
-			push(@rows,@data);
+			$data = repo_builder($slackpkg,'slackpkg','^[[:space:]]*[^#]+');
+			push(@$rows,@$data);
 		}
 		if (-d $slapt_get){
 			@data2 = main::globber("${slapt_get}*");
 			foreach my $file (@data2){
-				@data = repo_builder($file,'slaptget','^\s*SOURCE','\s*=\s*',1);
-				push(@rows,@data);
+				$data = repo_builder($file,'slaptget','^\s*SOURCE','\s*=\s*',1);
+				push(@$rows,@$data);
 			}
 		}
 		if (-f $slackpkg_plus){
 			push(@dbg_files, $slackpkg_plus) if $debugger_dir;
-			@data =  main::reader($slackpkg_plus,'strip');
 			my (@repoplus_list,$active_repos);
-			foreach my $row (@data){
+			foreach my $row (main::reader($slackpkg_plus,'strip')){
 				@data2 = split(/\s*=\s*/, $row);
 				@data2 = map { $_ =~ s/^\s+|\s+$//g ; $_ } @data2;
 				last if $data2[0] =~ /^SLACKPKGPLUS/i && $data2[1] eq 'off';
@@ -22219,12 +22219,12 @@ sub get_repos_linux {
 				clean_url(\@content);
 				$key = repo_data('active','slackpkg+');
 			}
-			@data = (
+			my @data = (
 			{main::key($num++,1,1,$key) => $slackpkg_plus},
 			[@content],
 			);
 			clean_url(\@data);
-			push(@rows,@data);
+			push(@$rows,@data);
 			@content = ();
 		}
 	}
@@ -22302,14 +22302,14 @@ sub get_repos_linux {
 					clean_url(\@content);
 					$key = repo_data('active',$repo);
 				}
-				push(@rows, 
+				push(@$rows, 
 				{main::key($num++,1,1,$key) => $_},
 				[@content],
 				);
 				@content = ();
 			}
 		}
-		# print Data::Dumper::Dumper \@rows;
+		# print Data::Dumper::Dumper \@$rows;
 	}
 	# gentoo 
 	if ((-d $portage_dir || -d $portage_gentoo_dir) && main::check_program('emerge')){
@@ -22365,7 +22365,7 @@ sub get_repos_linux {
 					clean_url(\@content);
 					$key = repo_data('active','portage');
 				}
-				push(@rows, 
+				push(@$rows, 
 				{main::key($num++,1,1,$key) => $_},
 				[@content],
 				);
@@ -22375,13 +22375,13 @@ sub get_repos_linux {
 	}
 	# Alpine linux
 	if (-f $apk){
-		@data = repo_builder($apk,'apk','^\s*[^#]+');
-		push(@rows,@data);
+		$data = repo_builder($apk,'apk','^\s*[^#]+');
+		push(@$rows,@$data);
 	}
 	# Venom
 	if (-f $scratchpkg){
-		@data = repo_builder($scratchpkg,'scratchpkg','^[[:space:]]*[^#]+');
-		push(@rows,@data);
+		$data = repo_builder($scratchpkg,'scratchpkg','^[[:space:]]*[^#]+');
+		push(@$rows,@$data);
 	}
 	# cards/nutyx
 	if (-f $cards){
@@ -22400,7 +22400,7 @@ sub get_repos_linux {
 			clean_url(\@content);
 			$key = repo_data('active','cards');
 		}
-		push(@rows, 
+		push(@$rows, 
 		{main::key($num++,1,1,$key) => $cards},
 		[@content],
 		);
@@ -22408,11 +22408,11 @@ sub get_repos_linux {
 	}
 	# TinyCore 
 	if (-e $tce_app || -f $tce_file || -f $tce_file2){
-		@data = repo_builder($tce_file,'tce','^\s*[^#]+');
-		push(@rows,@data);
+		$data = repo_builder($tce_file,'tce','^\s*[^#]+');
+		push(@$rows,@$data);
 		if (-f $tce_file2){
-			@data = repo_builder($tce_file2,'tce','^\s*[^#]+');
-			push(@rows,@data);
+			$data = repo_builder($tce_file2,'tce','^\s*[^#]+');
+			push(@$rows,@$data);
 		}
 	}
 	# Void 
@@ -22421,8 +22421,8 @@ sub get_repos_linux {
 		push(@files,main::globber("$xbps_dir_2*.conf")) if -d $xbps_dir_2;
 		main::log_data('data',"xbps repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		foreach (sort @files){
-			@data = repo_builder($_,'xbps','^\s*repository\s*=','\s*=\s*',1) if -r $_;
-			push(@rows,@data);
+			$data = repo_builder($_,'xbps','^\s*repository\s*=','\s*=\s*',1) if -r $_;
+			push(@$rows,@$data);
 		}
 	}
 	# Mandriva/Mageia using: urpmq
@@ -22451,7 +22451,7 @@ sub get_repos_linux {
 				clean_url(\@content);
 				# get the repo
 				$repo = $2;
-				push(@rows, 
+				push(@$rows, 
 				{main::key($num++,1,1,'urpmq repo') => $repo},
 				[@content],
 				);
@@ -22496,7 +22496,7 @@ sub get_repos_linux {
 			if ($repo && @content){
 				clean_url(\@content);
 				$key = repo_data('active',$which);
-				push(@rows, 
+				push(@$rows, 
 				{main::key($num++,1,1,$key) => $repo},
 				[@content],
 				);
@@ -22508,7 +22508,7 @@ sub get_repos_linux {
 		if ($repo && @content){
 			clean_url(\@content);
 			$key = repo_data('active',$which);
-			push(@rows, 
+			push(@$rows, 
 			{main::key($num++,1,1,$key) => $repo},
 			[@content],
 			);
@@ -22525,20 +22525,20 @@ sub get_repos_linux {
 			$key = repo_data('active','nix');
 		}
 		my $user = ($ENV{'USER'}) ? $ENV{'USER'}: 'N/A';
-		push(@rows, 
+		push(@$rows, 
 		{main::key($num++,1,1,$key) => $user},
 		[@content],
 		);
 		@content = ();
 		
 	}
-	# print Dumper \@rows;
+	# print Dumper $rows;
 	eval $end if $b_log;
-	return @rows;
 }
 sub get_repos_bsd {
 	eval $start if $b_log;
-	my (@content,@data,@data2,@data3,@files,@rows);
+	my $rows = $_[0];
+	my (@content,$data,@data2,@data3,@files);
 	my ($key);
 	my $bsd_pkg = '/usr/local/etc/pkg/repos/';
 	my $freebsd = '/etc/freebsd-update.conf';
@@ -22553,12 +22553,12 @@ sub get_repos_bsd {
 	if (-f $portsnap || -f $freebsd || -d $bsd_pkg || 
 	 -f $ghostbsd_pkg || -f $hardenedbsd_pkg){
 		if (-f $portsnap){
-			@data = repo_builder($portsnap,'portsnap','^\s*SERVERNAME','\s*=\s*',1);
-			push(@rows,@data);
+			$data = repo_builder($portsnap,'portsnap','^\s*SERVERNAME','\s*=\s*',1);
+			push(@$rows,@$data);
 		}
 		if (-f $freebsd){
-			@data = repo_builder($freebsd,'freebsd','^\s*ServerName','\s+',1);
-			push(@rows,@data);
+			$data = repo_builder($freebsd,'freebsd','^\s*ServerName','\s+',1);
+			push(@$rows,@$data);
 		}
 		if (-d $bsd_pkg || -f $freebsd_pkg || -f $ghostbsd_pkg || -f $hardenedbsd_pkg){
 			@files = main::globber('/usr/local/etc/pkg/repos/*.conf');
@@ -22600,7 +22600,7 @@ sub get_repos_bsd {
 						clean_url(\@data3);
 						$key = repo_data('active','bsd-package');
 					}
-					push(@rows, 
+					push(@$rows, 
 					{main::key($num++,1,1,$key) => $_},
 					[@data3],
 					);
@@ -22611,18 +22611,18 @@ sub get_repos_bsd {
 	}
 	if (-f $openbsd || -f $openbsd2){
 		if (-f $openbsd){
-			@data = repo_builder($openbsd,'openbsd','^installpath','\s*=\s*',1);
-			push(@rows,@data);
+			$data = repo_builder($openbsd,'openbsd','^installpath','\s*=\s*',1);
+			push(@$rows,@$data);
 		}
 		if (-f $openbsd2){
-			@data = repo_builder($openbsd2,'openbsd','^(http|ftp)','',1);
-			push(@rows,@data);
+			$data = repo_builder($openbsd2,'openbsd','^(http|ftp)','',1);
+			push(@$rows,@$data);
 		}
 	}
 	if (-f $netbsd){
 		# not an empty row, and not a row starting with #
-		@data = repo_builder($netbsd,'netbsd','^\s*[^#]+$');
-		push(@rows,@data);
+		$data = repo_builder($netbsd,'netbsd','^\s*[^#]+$');
+		push(@$rows,@$data);
 	}
 	# I don't think this is right, have to find out, for midnightbsd
 # 	if (-f $mports){
@@ -22644,7 +22644,7 @@ sub get_repos_bsd {
 # 			clean_url(\@data3);
 # 			$key = repo_data('active','mports');
 # 		}
-# 		push(@rows, 
+# 		push(@$rows, 
 # 		{main::key($num++,1,1,$key) => $mports},
 # 		[@data3],
 # 		);
@@ -22652,7 +22652,7 @@ sub get_repos_bsd {
 # 	}
 	# BSDs do not default always to having repo files, so show correct error 
 	# mesage in that case
-	if (!@rows){
+	if (!@$rows){
 		if ($bsd_type eq 'freebsd'){
 			$key = repo_data('missing','freebsd-files');
 		}
@@ -22665,13 +22665,12 @@ sub get_repos_bsd {
 		else {
 			$key = repo_data('missing','bsd-files');
 		}
-		push(@rows, 
+		push(@$rows, 
 		{main::key($num++,0,1,'Message') => $key},
 		[()],
 		);
 	}
 	eval $start if $b_log;
-	return @rows;
 }
 sub repo_data {
 	eval $start if $b_log;
@@ -22739,7 +22738,7 @@ sub repo_data {
 sub repo_builder {
 	eval $start if $b_log;
 	my ($file,$type,$search,$split,$count) = @_;
-	my (@content,@data,$key);
+	my (@content,$key);
 	push(@dbg_files, $file) if $debugger_dir;
 	if (-r $file){
 		@content =  main::reader($file);
@@ -22759,12 +22758,11 @@ sub repo_builder {
 		$key = repo_data('active',$type);
 		clean_url(\@content);
 	}
-	@data = (
+	eval $end if $b_log;
+	return [
 	{main::key($num++,1,1,$key) => $file},
 	[@content],
-	);
-	eval $end if $b_log;
-	return @data;
+	];
 }
 sub clean_data {
 	# basics: trim white space, get rid of double spaces; trim comments at 
@@ -26584,12 +26582,12 @@ sub lspci_data {
 			$device = main::clean($device);
 			# corrupted lspci truncation bug; and ancient lspci, 2.4 kernels
 			if (!$vendor_id){
-				my @temp = lspci_n_data($busid_full);
-				if (@temp){
-					$vendor_id = $temp[1];
-					$chip_id = $temp[2];
-					$type_id = $temp[0] if !$type_id;
-					$rev = $temp[3] if !$rev && $temp[3];
+				my $temp = lspci_n_data($busid_full);
+				if (@$temp){
+					$type_id = $temp->[0] if !$type_id;
+					$vendor_id = $temp->[1];
+					$chip_id = $temp->[2];
+					$rev = $temp->[3] if !$rev && $temp->[3];
 				}
 			}
 			$use{'hardware-raid'} = 1 if $type_id eq '0104';
@@ -26626,11 +26624,11 @@ sub lspci_n_data {
 		print Data::Dumper::Dumper \%lspci_n if $dbg[4];
 		main::log_data('dump','%lspci_n',\%lspci_n) if $b_log;
 	}
-	my @return = ($lspci_n{$bus_id}) ? @{$lspci_n{$bus_id}}: ();
-	print Data::Dumper::Dumper \@return if $dbg[4];
-	main::log_data('dump','@return',\@return) if $b_log;
+	my $return = ($lspci_n{$bus_id}) ? $lspci_n{$bus_id}: [];
+	print Data::Dumper::Dumper $return if $dbg[50];
+	main::log_data('dump','@$return') if $b_log;
 	eval $end if $b_log;
-	return @return;
+	return $return;
 }
 
 # em0@pci0:6:0:0:	class=0x020000 card=0x10d315d9 chip=0x10d38086 rev=0x00 hdr=0x00
@@ -30020,15 +30018,15 @@ sub get {
 	eval $start if $b_log;
 	my $item = $_[0];
 	return if !@proc_partitions;
-	my (@device);
+	my $result;
 	foreach my $device (@proc_partitions){
 		if ($device->[3] eq $item){
-			@device = @$device;
+			$result = $device;
 			last;
 		}
 	}
 	eval $start if $b_log;
-	return @device;
+	return ($result) ? $result : [];
 }
 
 sub proc_data {
