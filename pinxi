@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.16';
-my $self_date='2022-06-02';
-my $self_patch='27';
+my $self_date='2022-06-04';
+my $self_patch='28';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -491,7 +491,7 @@ sub set_display_size {
 		$size{'max-cols'} = $size{'irc'};
 	}
 	# for -V/-h overrides
-	$size{'max-cols-plain'} = $size{'max-cols'};
+	$size{'max-cols-basic'} = $size{'max-cols'};
 	# print "tc: $size{'term-cols'} cmc: $size{'console'} cm: $size{'max-cols'}\n";
 }
 
@@ -2839,7 +2839,7 @@ sub run {
 	main::error_handler('not-in-irc', 'recommends') if $b_irc;
 	my (@data,@rows);
 	my $rows = [];
-	my $line = make_line();
+	my $line = main::make_line();
 	my $pm = get_pm();
 	basic_data($rows,$line,$pm);
 	if (!$bsd_type){
@@ -3585,13 +3585,6 @@ sub make_row {
 		$dots .= '.';
 	}
 	$line = "$start$sep$middle$dots $end";
-	return $line;
-}
-sub make_line {
-	my $line = '';
-	foreach (0 .. $size{'max-cols'} - 2){
-		$line .= '-';
-	}
 	return $line;
 }
 }
@@ -4961,7 +4954,7 @@ sub get {
 			$arg = 80;
 		}
 		if ($arg =~ /\d/ && ($arg == 1 || $arg >= 80)){
-			$size{'max-cols-plain'} = $arg if $arg != 1;
+			$size{'max-cols-basic'} = $arg if $arg != 1;
 			$size{'max-cols'} = $arg;
 		}
 		else {
@@ -5502,8 +5495,8 @@ sub process_updater {
 
 sub show_options {
 	error_handler('not-in-irc', 'help') if $b_irc;
-	my (@data);
-	my $line = '';
+	my $rows = [];
+	my $line = make_line();
 	my $color_scheme_count = get_color_scheme('count') - 1; 
 	my $partition_string='partition';
 	my $partition_string_u='Partition';
@@ -5513,10 +5506,7 @@ sub show_options {
 		$partition_string_u='Slice';
 	}
 	# fit the line to the screen!
-	for my $i (0 .. (($size{'max-cols'} / 2) - 2)){
-		$line = $line . '- ';
-	}
-	push(@data, 
+	push(@$rows, 
 	['0', '', '', "$self_name supports the following options. For more detailed 
 	information, see man^$self_name. If you start $self_name with no arguments,
 	it will display a short system summary."],
@@ -5642,7 +5632,7 @@ sub show_options {
 	);
 	# if distro maintainers don't want the weather feature disable it
 	if ($use{'weather'}){
-		push(@data, 
+		push(@$rows, 
 		['1', '-w', '--weather', "Local weather data/time. To check an alternate
 		location, see -W. NO AUTOMATED QUERIES OR EXCESSIVE USE ALLOWED!"],
 		['1', '-W', '--weather-location', "[location] Supported options for 
@@ -5657,7 +5647,7 @@ sub show_options {
 		metric/imperial (mi), or imperial/metric (im)."],
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	[0, '', '', "$line"],
 	['0', '', '', "Filter Options:"],
 	['1', '', '--host', "Turn on hostname for -S. Overrides -z."],
@@ -5800,11 +5790,11 @@ sub show_options {
 	memory (-xt m)."],
 	);
 	if ($use{'weather'}){
-		push(@data, 
+		push(@$rows, 
 		['2', '-w,-W', '', "Wind speed and direction, humidity, pressure, 
 		and time zone, if available."]);
 	}
-	push(@data, 
+	push(@$rows, 
 	['0', '', '', ''],
 	['1', '-xx', '--extra 2', "Show extra, extra data (only works with verbose 
 	or line output, not short form):"],
@@ -5846,12 +5836,12 @@ sub show_options {
 	['2', '--slots', '', "Slot length; slot voltage, if available."],
 	);
 	if ($use{'weather'}){
-		push(@data,
+		push(@$rows,
 		['2', '-w,-W', '', "Snow, rain, precipitation, (last observed hour), 
 		cloud cover, wind chill, dew point, heat index, if available."]
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	['0', '', '', ''],
 	['1', '-xxx', '--extra 3', "Show extra, extra, extra data (only works 
 	with verbose or line output, not short form):"],
@@ -5881,12 +5871,12 @@ sub show_options {
 	manager version number, virtual terminal number."],
 	);
 	if ($use{'weather'}){
-		push(@data, 
+		push(@$rows, 
 		['2', '-w,-W', '', "Location (uses -z/irc filter), weather observation 
 		time, altitude, sunrise/sunset, if available."] 
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	[0, '', '', "$line"],
 	[0, '', '', "Additional Options:"],
 	['1', '-h', '--help', "This help menu."],
@@ -5895,7 +5885,7 @@ sub show_options {
  	to add support for that feature."],
 	);
 	if ($use{'update'}){
-		push(@data, 
+		push(@$rows, 
 		['1', '-U', '--update', "Auto-update $self_name. Will also install/update
 		man page. Note: if you installed as root, you must be root to update, 
 		otherwise user is fine. Man page installs require root. No arguments 
@@ -5908,7 +5898,7 @@ sub show_options {
 		Use the full download path, e.g.^$self_name^-U^https://myserver.com/inxi"],
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	['1', '-V', '--version', "Prints full $self_name version info then exits."],
 	['1', '', '--version-short,--vs', "Prints 1 line $self_name version info. Can 
 	be used with other line options."],
@@ -5939,12 +5929,12 @@ sub show_options {
 	default)."],
 	);
 	if ($use{'update'}){
-		push(@data, 
+		push(@$rows, 
 		['1', '', '--man', "Install correct man version for dev branch (-U 3) or 
 		pinxi using -U."],
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	['1', '', '--no-dig', "Skip dig for WAN IP checks, use downloader program."],
 	['1', '', '--no-doas', "Skip internal program use of doas features (not 
 	related to starting $self_name with doas)."],
@@ -5952,11 +5942,11 @@ sub show_options {
 	only, or nothing if --no-dig."],
 	);
 	if ($use{'update'}){
-		push(@data, 
+		push(@$rows, 
 		['1', '', '--no-man', "Disable man install for all -U update actions."],
 		);
 	}
-	push(@data, 
+	push(@$rows, 
 	['1', '', '--no-ssl', "Skip SSL certificate checks for all downloader actions 
 	(Wget/Fetch/Curl/Perl-HTTP::Tiny)."],
 	['1', '', '--no-sudo', "Skip internal program use of sudo features (not 
@@ -6022,14 +6012,15 @@ sub show_options {
 	to. Example:^$self_name^--debug^21^--ftp^ftp.myserver.com/incoming"],
 	['0', '', '', "$line"],
 	);
-	print_basic(\@data,1); 
+	print_basic($rows); 
 	exit 0; # shell true
 }
 
 sub show_version {
 	# if not in PATH could be either . or directory name, no slash starting
 	my $working_path=$self_path;
-	my (@data,$link,$self_string);
+	my ($link,$self_string);
+	my $rows = [];
 	Cwd->import('getcwd'); # no point loading this on top use, we only use getcwd here
 	if ($working_path eq '.'){
 		$working_path = getcwd();
@@ -6048,20 +6039,20 @@ sub show_version {
 	}
 	# strange output /./ ending, but just trim it off, I don't know how it happens
 	$working_path =~ s%/\./%/%;
-	push(@data, [ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"]);
+	push(@$rows, [ 0, '', '', "$self_name $self_version-$self_patch ($self_date)"]);
 	if (!$b_irc && !$show{'version-short'}){
-		push(@data, [ 0, '', '', '']);
+		push(@$rows, [ 0, '', '', '']);
 		my $year = (split/-/, $self_date)[0];
-		push(@data, 
+		push(@$rows, 
 		[ 0, '', '', "Copyright^(C)^2008-$year^Harald^Hope^aka^h2"],
 		[ 0, '', '', "Forked from Infobash 3.02: Copyright^(C)^2005-2007^Michiel^de^Boer^aka^locsmif." ],
 		[ 0, '', '', "Using Perl version: $]"],
 		[ 0, '', '', "Program Location: $working_path" ],
 		);
 		if ($link){
-			push(@data, [ 0, '', '', "Started via symbolic link: $link" ]);
+			push(@$rows, [ 0, '', '', "Started via symbolic link: $link" ]);
 		}
-		push(@data, 
+		push(@$rows, 
 		[ 0, '', '', '' ],
 		[ 0, '', '', "Website:^https://github.com/smxi/inxi^or^https://smxi.org/" ],
 		[ 0, '', '', "IRC:^irc.oftc.net channel:^#smxi" ],
@@ -6073,7 +6064,7 @@ sub show_version {
 		(https://www.gnu.org/licenses/gpl.html)" ]
 		);
 	}
-	print_basic(\@data,1); 
+	print_basic($rows); 
 	exit 0 if !$show{'version-short'} || $show{'short'}; # shell true
 }
 
@@ -6669,6 +6660,14 @@ sub increment_starters {
 	return $result;
 }
 
+sub make_line {
+	my $line = '';
+	foreach (0 .. $size{'max-cols-basic'} - 2){
+		$line .= '-';
+	}
+	return $line;
+}
+
 sub message {
 	my ($type,$id) = @_;
 	$id ||= '';
@@ -6974,7 +6973,7 @@ sub output_control {
 }
 
 sub print_basic {
-	my ($data,$b_plain) = @_;
+	my ($data) = @_;
 	my $indent = 18;
 	my $indent_static = 18;
 	my $indent1_static = 5;
@@ -6983,7 +6982,7 @@ sub print_basic {
 	my $indent2 = 8;
 	my $length =  @$data;
 	my ($start,$i,$j,$line);
-	my $width = ($b_plain) ? $size{'max-cols-plain'} : $size{'max-cols'};
+	my $width = $size{'max-cols-basic'};
 	if ($width > 110){
 		$indent_static = 22;
 	}
@@ -12138,7 +12137,7 @@ sub drive_data {
 			$smartctl_missing = $alerts{'smartctl'}->{'message'};
 		}
 	}
-	print Data::Dumper::Dumper $data if $dbg[13];;
+	print Data::Dumper::Dumper $data if $dbg[13];
 	main::log_data('data',"used: $used") if $b_log;
 	eval $end if $b_log;
 	return $data;
@@ -12146,7 +12145,7 @@ sub drive_data {
 sub proc_data {
 	eval $start if $b_log;
 	my ($used) = @_;
-	my ($data,@drives);
+	my (@drives);
 	my ($b_hdx,$logical_size,$size) = (0,0,0);
 	PartitionData::set() if !$bsd_type && !$loaded{'partition-data'};
 	foreach my $row (@proc_partitions){
@@ -12193,7 +12192,7 @@ sub proc_data {
 	}
 	# print Data::Dumper::Dumper \@drives;
 	main::log_data('data',"size: $size") if $b_log;
-	$data = [{
+	my $result = [{
 	'logical-size' => $logical_size,
 	'logical-free' => $raw_logical[2],
 	'size' => $size,
@@ -12201,14 +12200,14 @@ sub proc_data {
 	}];
 	# print Data::Dumper::Dumper \@data;
 	if ($show{'disk'}){
-		unshift(@drives,@$data);
+		unshift(@drives,@$result);
 		# print 'drives:', Data::Dumper::Dumper \@drives;
-		$data = proc_data_advanced($b_hdx,\@drives);
+		$result = proc_data_advanced($b_hdx,\@drives);
 	}
-	main::log_data('dump','@data',$data) if $b_log;
-	print Data::Dumper::Dumper $data if $dbg[24];
+	main::log_data('dump','@$result',$result) if $b_log;
+	print Data::Dumper::Dumper $result if $dbg[24];
 	eval $end if $b_log;
-	return $data;
+	return $result;
 }
 
 sub proc_data_advanced {
@@ -12383,7 +12382,7 @@ sub proc_data_advanced {
 sub bsd_data {
 	eval $start if $b_log;
 	my ($used) = @_;
-	my (@data,@drives,@softraid,@temp);
+	my (@drives,@softraid,@temp);
 	my ($i,$logical_size,$size,$working) = (0,0,0,0);
 	my $file = $system_files{'dmesg-boot'};
 	DiskDataBSD::set() if !$loaded{'disk-data-bsd'};
@@ -12443,21 +12442,21 @@ sub bsd_data {
 			$size = main::message('data-bsd');
 		}
 	}
-	@data = ({
+	my $result = [{
 	'logical-size' => $logical_size,
 	'logical-free' => $raw_logical[2],
 	'size' => $size,
 	'used' => $used,
-	});
+	}];
 	#main::log_data('dump','$data',\@data) if $b_log;
 	if ($show{'disk'}){
-		push(@data,@drives);
+		push(@$result,@drives);
 		# print 'data:', Data::Dumper::Dumper \@data;
 	}
-	main::log_data('dump','$data',\@data) if $b_log;
-	print Data::Dumper::Dumper \@data if $dbg[24];
+	main::log_data('dump','$result',$result) if $b_log;
+	print Data::Dumper::Dumper $result if $dbg[24];
 	eval $end if $b_log;
-	return \@data;
+	return $result;
 }
 
 # return indexes: 0 - age; 1 - basic; 2 - fail
@@ -18500,12 +18499,11 @@ package OpticalItem;
 sub get {
 	eval $start if $b_log;
 	my $rows = $_[0];
+	my $start = scalar @$rows;
 	my ($data,$key1,$val1);
 	my $num = 0;
 	if ($bsd_type){
-		$key1 = 'Optical Report';
 		$val1 = main::message('optical-data-bsd');
-		@$rows = ({main::key($num++,0,1,$key1) => $val1,});
 		if ($dboot{'optical'}){
 			$data = drive_data_bsd();
 			drive_output($rows,$data) if %$data;
@@ -18518,21 +18516,17 @@ sub get {
 			elsif (!$file){
 				$val1 = main::message('dmesg-boot-missing');
 			}
-			else {
-				$val1 = main::message('optical-data-bsd');
-			}
-			$key1 = 'Optical Report';
-			@$rows = ({main::key($num++,0,1,$key1) => $val1,});
 		}
 	}
 	else {
+		$val1 = main::message('optical-data');
 		$data = drive_data_linux();
 		drive_output($rows,$data) if %$data;
 	}
-	if (!@$rows){
+	# if none of the above increased the row count, show the error message
+	if ($start == scalar @$rows){
 		$key1 = 'Message';
-		$val1 = main::message('optical-data');
-		@$rows = ({main::key($num++,0,1,$key1) => $val1,});
+		push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 	}
 	eval $end if $b_log;
 	return $rows;
@@ -25385,12 +25379,12 @@ sub get_location {
 	if (!$freshness || $freshness < $now - 90){
 		my $temp;
 		my $url = "http://geoip.ubuntu.com/lookup";
-# 		{
-# 			local $/;
-# 			my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/location-1.xml";
-# 			open(my $fh, '<', $file) or die "can't open $file: $!";
-# 			$temp = <$fh>;
-# 		}
+		#	{
+		#		local $/;
+		#		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/location-1.xml";
+		#		open(my $fh, '<', $file) or die "can't open $file: $!";
+		#		$temp = <$fh>;
+		#	}
 		$temp  = main::download_file('stdout',$url);
 		@loc_data = split('\n', $temp);
 		@loc_data = map {
@@ -27212,18 +27206,18 @@ sub get {
 	my $id = $_[0];
 	return if !$id || !%disks_bsd;
 	$id =~ s|^/dev/||;
-	my %data;
+	my $data = {};
 	# this handles mainly zfs, which can be either disk or part
 	if ($disks_bsd{$id}){
-		%data = %{$disks_bsd{$id}};
-		delete $data{'partitions'} if $data{'partitions'};
+		$data = $disks_bsd{$id};
+		delete $data->{'partitions'} if $data->{'partitions'};
 	}
 	else {
 		OUTER: foreach my $key (keys %disks_bsd){
 			if ($disks_bsd{$key}->{'partitions'}){
 				foreach my $part (keys %{$disks_bsd{$key}->{'partitions'}}){
 					if ($part eq $id){
-						%data = %{$disks_bsd{$key}->{'partitions'}{$part}};
+						$data = $disks_bsd{$key}->{'partitions'}{$part};
 						last OUTER;
 					}
 				}
@@ -27231,7 +27225,7 @@ sub get {
 		}
 	}
 	eval $end if $b_log;
-	return \%data;
+	return $data;
 }
 sub set_dboot_disks {
 	eval $start if $b_log;
