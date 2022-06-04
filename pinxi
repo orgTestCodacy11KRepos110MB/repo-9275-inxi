@@ -549,16 +549,20 @@ sub set_path {
 	my (@path);
 	# NOTE: recent Xorg's show error if you try /usr/bin/Xorg -version but work 
 	# if you use the /usr/lib/xorg-server/Xorg path.
-	@paths = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin);
+	my @test = qw(/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin 
+	/usr/X11R6/bin);
+	foreach (@test){
+		push(@paths,$_) if -d $_;
+	}
 	@path = split(':', $ENV{'PATH'}) if $ENV{'PATH'};
 	# print "paths: @paths\nPATH: $ENV{'PATH'}\n";
 	# Create a difference of $PATH and $extra_paths and add that to $PATH:
 	foreach my $id (@path){
-		if (!(grep { /^$id$/ } @paths) && $id !~ /(game)/){
+		if (-d $id && !(grep {/^$id$/} @paths) && $id !~ /(game)/){
 			push(@paths, $id);
 		}
 	}
-	# print "paths: @paths\n";
+	# print "paths: \n", join("\n", @paths),"\n";
 }
 
 sub set_sep {
@@ -6732,9 +6736,9 @@ sub message {
 	'package-data' => 'No packages detected. Unsupported package manager?',
 	'partition-data' => 'No partition data found.',
 	'partition-hidden' => 'N/A (hidden?)',
-	'pci-advanced-data' => 'bus/chip ids unavailable',
-	'pci-card-data' => 'No device data found.',
-	'pci-card-data-root' => 'Device data requires root.',
+	'pci-advanced-data' => 'bus/chip ids n/a',
+	'pci-card-data' => 'No PCI device data found.',
+	'pci-card-data-root' => 'PCI device data requires root.',
 	'pci-slot-data' => 'No PCI Slot data found.',
 	'pm-disabled' => 'see --pkg',
 	'ps-data-null' => 'No process data available.',
@@ -15412,7 +15416,7 @@ sub display_server_data {
 	# load the extra X paths, it's important that these are first, because
 	# later Xorg versions show error if run in console or ssh if the true path 
 	# is not used.
-	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec /usr/X11R6/bin), @paths);
+	@paths = (qw(/usr/lib /usr/lib/xorg /usr/lib/xorg-server /usr/libexec), @paths);
 	my (@data,$server,$version);
 	if (!$graphics{'x-server'} || !$graphics{'x-server'}->[0][1]){
 		# IMPORTANT: both commands send version data to stderr!
@@ -15466,7 +15470,7 @@ sub display_server_data {
 		push(@{$graphics{'x-server'}},['Xwayland',$version]);
 	}
 	# remove extra X paths from global @paths
-	@paths = grep { !/^\/usr\/lib|xorg|X11R6|libexec/ } @paths;
+	@paths = grep { !/^\/usr\/lib|xorg|libexec/ } @paths;
 	eval $end if $b_log;
 }
 sub display_protocol {
