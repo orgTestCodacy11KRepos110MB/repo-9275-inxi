@@ -3708,7 +3708,8 @@ sub get_piece {
 # by lines from the command arg
 sub grabber {
 	eval $start if $b_log;
-	my ($cmd,$split,$strip) = @_;
+	my ($cmd,$split,$strip,$type) = @_;
+	$type //= 'arr';
 	$split ||= "\n";
 	my @rows;
 	if ($strip){
@@ -3722,7 +3723,7 @@ sub grabber {
 		@rows = split(/$split/, qx($cmd));
 	}
 	eval $end if $b_log;
-	return @rows;
+	return ($type eq 'arr') ? @rows : \@rows;
 }
 
 # args: 1 - string value to glob
@@ -4303,12 +4304,13 @@ sub program_version_pkg  {
 
 # arg: 1 - full file path, returns array of file lines.
 # 2 - optionsl, strip and clean data
-# 3 - optional, return specific index, if it exists, else undef
+# 3 - optional: undef|arr|ref|index return specific index, if it exists, else undef
 # note: chomp has to chomp the entire action, not just <$fh>
 sub reader {
 	eval $start if $b_log;
-	my ($file,$strip,$index) = @_;
+	my ($file,$strip,$type) = @_;
 	return if !$file || ! -r $file; # not all OS respect -r tests!!
+	$type //= 'arr';
 	my ($error,@rows);
 	open(my $fh, '<', $file) or $error = $!; # $fh always non null, even on error
 	if ($error){
@@ -4328,8 +4330,10 @@ sub reader {
 		}
 	}
 	eval $end if $b_log;
+	return @rows if $type eq 'arr';
+	return \@rows if $type eq 'ref';
 	# note: returns undef scalar value if $rows[index] does not exist
-	return (defined $index) ? $rows[$index] : @rows;
+	return $rows[$type];
 }
 
 # args: 1 - the file to create if not exists
@@ -9335,14 +9339,14 @@ sub cpuinfo_data_grabber {
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
 		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
 	}
-	my @raw = main::reader($file);
-	@raw = map {$_ =~ s/^\s*$/~~~/;$_;} @raw;
-	push(@raw,'~~~') if @raw;
+	my $raw = main::reader($file,'','ref');
+	@$raw = map {$_ =~ s/^\s*$/~~~/;$_;} @$raw;
+	push(@$raw,'~~~') if @$raw;
 	my ($b_processor,$key,$value);
 	my ($i) = (0);
 	my @key_tests = ('firmware','hardware','mmu','model','motherboard',
 	 'platform','system type','timebase');
-	foreach my $row (@raw){
+	foreach my $row (@$raw){
 		($key,$value) = split(/\s*:\s*/,$row,2);
 		next if !defined $key;
 		# ARM: 'Hardware' can appear in processor block; system type (mips)
@@ -14548,10 +14552,10 @@ sub interface_glx_output {
 	eval $start if $b_log;
 	my ($program,$rows,$num) = @_;
 	# NOTE: glxinfo -B is not always available, unfortunately
-	my @glxinfo = main::grabber("$program $display_opt 2>/dev/null");
+	my $glxinfo = main::grabber("$program $display_opt 2>/dev/null",'','','ref');
 	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
 	# my @glxinfo = main::reader($file);
-	if (!@glxinfo){
+	if (!@$glxinfo){
 		my $type = 'gl-console';
 		if ($b_root){
 			$type = 'gl-root-display';
@@ -14564,11 +14568,11 @@ sub interface_glx_output {
 		});
 		return;
 	}
-	# print join("\n", @glxinfo),"\n";
+	# print join("\n", @$glxinfo),"\n";
 	my $compat_version = '';
 	my ($b_compat,$b_nogl,@core_profile_version,@direct_render,@renderer,
 	@opengl_version,@working);
-	foreach (@glxinfo){
+	foreach (@$glxinfo){
 		next if /^\s/;
 		if (/^opengl renderer/i){
 			@working = split(/:\s*/, $_, 2);
@@ -14813,19 +14817,19 @@ sub wayland_data_advanced {
 sub wlinfo_data {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my (@data,%mon,@temp,$ref);
+	my ($data,%mon,@temp,$ref);
 	my ($b_iwlo,$b_izxdg,$file,$hz,$id,$pos_x,$pos_y,$res_x,$res_y,$scale);
 	if (!$fake{'wl-info'}){
 		undef $monitor_ids;
-		@data = main::grabber("$program 2>/dev/null",'','strip');
+		$data = main::grabber("$program 2>/dev/null",'','strip','ref');
 	}
 	else {
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/weston-info-2-mon-1.txt";
-		@data = main::reader($file,'strip');
+		$data = main::reader($file,'strip','ref');
 	}
-	print 'wayland/weston-info raw: ', Data::Dumper::Dumper \@data if $dbg[46]; 
-	main::log_data('dump','@data', \@data) if $b_log;
-	foreach (@data){
+	print 'wayland/weston-info raw: ', Data::Dumper::Dumper $data if $dbg[46]; 
+	main::log_data('dump','@$data', $data) if $b_log;
+	foreach (@$data){
 		# print 'l: ', $_,"\n";
 		if (/^interface: 'wl_output', version: \d+, name: (\d+)$/){
 			$b_iwlo = 1;
@@ -15056,25 +15060,25 @@ sub wlrrandr_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my ($file,$hz,$id,$info,$model,$pos_x,$pos_y,$res_x,$res_y,$scale,$serial);
-	my (@data,@temp);
+	my ($data,@temp);
 	if (!$fake{'wlr-randr'}){
-		@data = main::grabber("$program 2>/dev/null",'','strip');
+		$data = main::grabber("$program 2>/dev/null",'','strip','ref');
 	}
 	else {
 		undef $monitor_ids;
 		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/wlr-randr-2-monitor-1.txt";
-		@data = main::reader($file,'strip');
+		$data = main::reader($file,'strip','ref');
 	}
-	foreach (@data){
+	foreach (@$data){
 		push(@temp,'~~') if /^([A-Z]+-[ABID\d-]+)\s['"]/i;
 		push(@temp,$_);
 	}
 	push(@temp,'~~') if @temp;
-	@data = @temp;
-	$b_wayland_data = 1 if scalar @data > 4;
-	print 'wlr-randr: ', Data::Dumper::Dumper \@data if $dbg[46]; 
-	main::log_data('dump','@data', \@data) if $b_log;
-	foreach (@data){
+	@$data = @temp;
+	$b_wayland_data = 1 if scalar @$data > 4;
+	print 'wlr-randr: ', Data::Dumper::Dumper $data if $dbg[46]; 
+	main::log_data('dump','@$data', $data) if $b_log;
+	foreach (@$data){
 		if ($_ eq '~~' && $id){
 			$monitor_ids->{$id}{'hz'} = $hz;
 			$monitor_ids->{$id}{'model'} = $model if $model && !$monitor_ids->{$id}{'model'};
@@ -15171,15 +15175,15 @@ sub xdpyinfo_data {
 	my ($diagonal,$diagonal_m,$dpi) = ('','','');
 	my ($screen_id,$screen,@working);
 	my ($res_x,$res_y,$size_x,$size_x_i,$size_y,$size_y_i);
-	my @xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip');
-	# @xdpyinfo = map {s/^\s+//;$_} @xdpyinfo if @xdpyinfo;
-	# print join("\n",@xdpyinfo), "\n";
+	my $xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip','ref');
+	# @$xdpyinfo = map {s/^\s+//;$_} @$xdpyinfo if @$xdpyinfo;
+	# print join("\n",@$xdpyinfo), "\n";
 	# X vendor and version detection.
 	# new method added since radeon and X.org and the disappearance of 
 	# <X server name> version : ...etc. Later on, the normal textual version string 
 	# returned, e.g. like: X.Org version: 6.8.2 
 	# A failover mechanism is in place: if $version empty, release number parsed instead
-	foreach (@xdpyinfo){
+	foreach (@$xdpyinfo){
 		@working = split(/:\s+/, $_);
 		next if (($graphics{'screens'} && $working[0] !~ /^(dimensions$|screen\s#)/) || !$working[0]);
 		# print "$_\n";
@@ -15263,18 +15267,18 @@ sub xrandr_data {
 	my ($diagonal,$diagonal_m,$dpi,$monitor_id,$pos_x,$pos_y,$primary);
 	my ($res_x,$res_x_max,$res_y,$res_y_max);
 	my ($screen_id,$set_as,$size_x,$size_x_i,$size_y,$size_y_i,$x_screen);
-	my (@ids,%monitors,@xrandr_screens,@xrandr);
+	my (@ids,%monitors,@xrandr_screens,$xrandr);
 	if (!$fake{'xrandr'}){
-		@xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip');
+		$xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip','ref');
 	}
 	else {
-		# @xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip');
-		@xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-2.txt",'strip');
+		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip','ref');
+		$xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-2.txt",'strip','ref');
 	}
 	# $graphics{'dimensions'} = (\@dimensions);
 	# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
 	# multiple screens from different video cards
-	foreach (@xrandr){
+	foreach (@$xrandr){
 		# note: no mm as with xdpyinfo
 		# Screen 0: minimum 320 x 200, current 2560 x 1024, maximum 8192 x 8192
 		if (/^Screen ([0-9]+):/){
@@ -15561,7 +15565,7 @@ sub display_drivers_x {
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-gm10.log";
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/xorg-multi-driver-1.log";
 		}
-		my @xorg = main::reader($log);
+		my $xorg = main::reader($log,'','ref');
 		# list is from sgfxi plus non-free drivers, plus ARM drivers. 
 		# Don't use ati. It's just a wrapper for: r128, mach64, radeon
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc
@@ -15572,10 +15576,11 @@ sub display_drivers_x {
 		s3virge s3 savage siliconmotion sisimedia sisusb sis 
 		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx tdfx tga trident tseng 
 		unichrome v4l vboxvideo vesa vga via vmware vmwgfx voodoo));
+		$list = qr/$list/;
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
 		# @xorg = grep {/Failed|Unload|Loading/} @xorg;
-		foreach (@xorg){
+		foreach (@$xorg){
 			next if !/Failed|Unload|Loading/;
 			# print "$_\n";
 			# note that in file names, driver is always lower case
@@ -26506,9 +26511,9 @@ sub set {
 sub lspci_data {
 	eval $start if $b_log;
 	my ($busid_full,$subsystem,$subsystem_id);
-	my @data = pci_grabber('lspci');
-	# print Data::Dumper::Dumper \@data;
-	foreach (@data){
+	my $data = pci_grabber('lspci');
+	# print Data::Dumper::Dumper $data;
+	foreach (@$data){
 		# print "$_\n";
 		if ($device){
 			if ($_ eq '~'){
@@ -26641,8 +26646,8 @@ sub lspci_n_data {
 #     subclass   = ethernet
 sub pciconf_data {
 	eval $start if $b_log;
-	my @data = pci_grabber('pciconf');
-	foreach (@data){
+	my $data = pci_grabber('pciconf');
+	foreach (@$data){
 		if ($driver){
 			if ($_ eq '~'){
 				$vendor = main::clean($vendor);
@@ -26714,9 +26719,9 @@ sub pciconf_data {
 
 sub pcidump_data {
 	eval $start if $b_log;
-	my @data = pci_grabber('pcidump');
+	my $data = pci_grabber('pcidump');
 	main::set_dboot_data() if !$loaded{'dboot'};
-	foreach (@data){
+	foreach (@$data){
 		if ($_ eq '~' && $busid && $device){
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu,'','','',$serial);
@@ -26763,9 +26768,9 @@ sub pcidump_driver {
 }
 sub pcictl_data {
 	eval $start if $b_log;
-	my @data = pci_grabber('pcictl');
-	my @data2 = pci_grabber('pcictl-n');
-	foreach (@data){
+	my $data = pci_grabber('pcictl');
+	my $data2 = pci_grabber('pcictl-n');
+	foreach (@$data){
 		if ($_ eq '~' && $busid && $device){
 			@temp = ($type,$type_id,$busid,$busid_nu,$device,$vendor_id,$chip_id,
 			$rev,$port,$driver,$modules,$driver_nu);
@@ -26788,7 +26793,7 @@ sub pcictl_data {
 			$busid = $1;
 			$busid_nu = $2;
 			$device = main::clean($3);
-			my $working = (grep {/^${busid}:${busid_nu}:\s/} @data2)[0];
+			my $working = (grep {/^${busid}:${busid_nu}:\s/} @$data2)[0];
 			if ($working && 
 			 $working =~ /^${busid}:${busid_nu}:\s+0x([0-9a-f]{4})([0-9a-f]{4})\s+\(0x([0-9a-f]{2})([0-9a-f]{2})[0-9a-f]+\)/){
 				$vendor_id = $1;
@@ -26806,32 +26811,32 @@ sub pcictl_data {
 sub pci_grabber {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($args,$path,$pattern,@data,@working);
+	my ($args,$path,$pattern,$data,@working);
 	if ($program eq 'lspci'){
 		# 2.2.8 lspci did not support -k, added in 2.2.9, but -v turned on -k 
 		$args = ' -nnv';
 		$path = $alerts{'lspci'}->{'path'};
-		$pattern = '^[0-9a-f]+:';
+		$pattern = qr/^[0-9a-f]+:/;
 	}
 	elsif ($program eq 'pciconf'){
 		$args = ' -lv';
 		$path = $alerts{'pciconf'}->{'path'};
-		$pattern = '^([^@]+)\@pci';
+		$pattern = qr/^([^@]+)\@pci/;
 	}
 	elsif ($program eq 'pcidump'){
 		$args = ' -v';
 		$path = $alerts{'pcidump'}->{'path'};
-		$pattern = '^[0-9a-f]+:';
+		$pattern = qr/^[0-9a-f]+:/;
 	}
 	elsif ($program eq 'pcictl'){
 		$args = ' pci0 list -N';
 		$path = $alerts{'pcictl'}->{'path'};
-		$pattern = '^[0-9a-f:]+:';
+		$pattern = qr/^[0-9a-f:]+:/;
 	}
 	elsif ($program eq 'pcictl-n'){
 		$args = ' pci0 list -n';
 		$path = $alerts{'pcictl'}->{'path'};
-		$pattern = '^[0-9a-f:]+:';
+		$pattern = qr/^[0-9a-f:]+:/;
 	}
 	if ($fake{'lspci'} || $fake{'pciconf'} || $fake{'pcictl'} || $fake{'pcidump'}){
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
@@ -26843,14 +26848,14 @@ sub pci_grabber {
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/ben81-hwraid-lspci-nnv.txt";
 		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/gx78b-lspci-nnv.txt";
-		# @data = main::reader($file,'strip');
+		# $data = main::reader($file,'strip','ref');
 	}
 	else {
-		@data = main::grabber("$path $args 2>/dev/null",'','strip');
+		$data = main::grabber("$path $args 2>/dev/null",'','strip','ref');
 	}
-	if (@data){
-		$use{'pci-tool'} = 1 if scalar @data > 10;
-		foreach (@data){
+	if (@$data){
+		$use{'pci-tool'} = 1 if scalar @$data > 10;
+		foreach (@$data){
 			# this is the group separator and assign trigger
 			if ($_ =~ /$pattern/i){
 				push(@working, '~');
@@ -26861,7 +26866,7 @@ sub pci_grabber {
 	}
 	print Data::Dumper::Dumper \@working if $dbg[30];
 	eval $end if $b_log;
-	return @working;
+	return \@working;
 }
 
 sub soc_data {
@@ -30152,13 +30157,13 @@ sub get_pcie_data {
 
 sub set_ps_aux {
 	eval $start if $b_log;
-	my ($header,@ps,@temp);
+	my ($header,$ps,@temp);
 	# note: some ps cut off output based on terminal width
 	# ww sets width unlimited
 	$loaded{'ps-aux'} = 1;
-	@ps = grabber("ps wwaux 2>/dev/null",'','strip');
-	if (@ps){
-		$header = shift @ps; # get rid of header row
+	$ps = grabber("ps wwaux 2>/dev/null",'','strip','ref');
+	if (@$ps){
+		$header = shift @$ps; # get rid of header row
 		# handle busy box, which has 3 columns, regular ps aux has 11
 		# avoid deprecated implicit split error in older Perls
 		@temp = split(/\s+/, $header);
@@ -30168,8 +30173,8 @@ sub set_ps_aux {
 		my $version = qx(ps --version 2>&1);
 		$b_busybox_ps = 1 if $version =~ /busybox/i;
 	}
-	return if !@ps; # note: mips/openwrt ps has no 'a'
-	for (@ps){
+	return if !@$ps; # note: mips/openwrt ps has no 'a'
+	for (@$ps){
 		next if !$_;
 		next if $self_name eq 'inxi' && /\/$self_name\b/;
 		$_ = lc;
@@ -30264,6 +30269,7 @@ sub set_ps_gui {
 		weston wio\+? wxr[cd] xuake));
 		$matches .= $wl_compositors;
 	}
+	$matches = qr/$matches/;
 	foreach (@ps_cmd){
 		if (/^(|[\S]*\/)($matches)(\/|\s|$)/){
 			$working = $2;
