@@ -2103,6 +2103,7 @@ sub system_data {
 	['strings','present'],
 	['sysctl','-a'],
 	['systemctl','--version'],
+	['systemctl','get-default'],
 	['systemctl','list-units'],
 	['systemctl','list-units --type=target'],
 	['systemd-detect-virt',''],
@@ -2128,17 +2129,18 @@ sub system_files {
 	copy_files(\@files, 'repo');
 	# chdir "/etc";
 	@files = main::globber('/etc/*[-_]{[rR]elease,[vV]ersion,issue}*');
-	push(@files, '/etc/issue');
-	push(@files, '/etc/lsb-release');
-	push(@files, '/etc/os-release');
-	push(@files, '/system/build.prop');# android data file, requires rooted
-	push(@files, '/var/log/installer/oem-id'); # ubuntu only for oem installs?
+	push(@files, '/etc/issue','
+	/etc/lsb-release',
+	'/etc/os-release',
+	'/system/build.prop', # android data file, requires rooted
+	'/var/log/installer/oem-id'); # ubuntu only for oem installs?
 	copy_files(\@files,'system-distro');
 	@files = main::globber('/etc/upstream[-_]{[rR]elease,[vV]ersion}/*');
 	copy_files(\@files,'system-distro');
 	@files = main::globber('/etc/calamares/branding/*/branding.desc');
 	copy_files(\@files,'system-distro');
 	@files = (
+	'/etc/systemd/system/default.target',
 	'/proc/1/comm',
 	'/proc/cmdline',
 	'/proc/cpuinfo',
@@ -30310,7 +30312,7 @@ sub get_runlevel_default {
 		# faster to read than run
 		if (-e $systemd){
 			$default = readlink($systemd);
-			$default =~ s/.*\/// if $default; 
+			$default =~ s/(.*\/|\.target$)//g if $default; 
 		}
 		if (!$default){
 			$default = (grabber("$program get-default 2>/dev/null"))[0];
