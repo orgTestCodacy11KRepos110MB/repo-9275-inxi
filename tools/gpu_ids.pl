@@ -131,7 +131,7 @@ my $amd_data = {
 	},
 	'08' => {
 	'arch' => 'Rage 8',
-	'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10|M10',
+	'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10',
 	'code' => 'R300',
 	'process' => 'TSMC 130nm',
 	'years' => '2002-07',
