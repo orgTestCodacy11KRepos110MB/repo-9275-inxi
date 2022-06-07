@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.16';
-my $self_date='2022-06-04';
-my $self_patch='28';
+my $self_date='2022-06-07';
+my $self_patch='29';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -69,7 +69,7 @@ if (eval {require OpenBSD::Pledge}){
 }
 
 ## Self data
-my ($self_path,$user_config_dir,$user_config_file,$user_data_dir);
+my ($fake_data_dir,$self_path,$user_config_dir,$user_config_file,$user_data_dir);
 
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,,%cpuinfo_machine,%disks_bsd,
@@ -669,6 +669,7 @@ sub set_user_paths {
 		# system 'rm', '-Rf', "$ENV{'HOME'}/.$self_name";
 		# print "WOULD: Moved data dir $ENV{'HOME'}/.$self_name to $user_data_dir\n";
 	}
+	$fake_data_dir = "$ENV{'HOME'}/bin/scripts/inxi/data";
 	$log_file="$user_data_dir/$self_name.log";
 	# system 'echo', "$ENV{'HOME'}/.$self_name/* $user_data_dir";
 	# print "scd: $user_config_dir sdd: $user_data_dir \n";
@@ -1211,6 +1212,8 @@ sub process_item {
 			$val = main::set_perl_downloader($val);
 			%dl = ('dl' => $val, $val => 1);
 		}}
+	elsif ($key eq 'FAKE_DATA_DIR'){
+		$fake_data_dir = $val}
 	elsif ($key eq 'FILTER_STRING'){
 		$filter_string = $val}
 	elsif ($key eq 'LANGUAGE'){
@@ -2792,6 +2795,8 @@ sub error_handler {
 			$errno=51; "There was an error moving files: $one\nError: $two" }
 		elsif ($err eq 'write'){ 
 			$errno=52; "Failed writing file: $one - Error: $two!" }
+		elsif ($err eq 'dir-missing'){ 
+			$errno=53; "Directory supplied for option $one does not exist:\n $two" }
 		## Downloaders
 		elsif ($err eq 'missing-downloader'){ 
 			$errno=60; "Downloader program $two could not be located on your system." }
@@ -5172,6 +5177,14 @@ sub get {
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
+	'fake-data-dir:s' => sub {
+		my ($opt,$arg) = @_;
+		if (-d $arg){
+			$fake_data_dir = $arg;
+		}
+		else {
+			main::error_handler('dir-not-exist', $opt, $arg);
+		}},
 	'force:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -5237,14 +5250,6 @@ sub get {
 		undef %risc;
 		$risc{'id'} = 'mips';
 		$risc{'mips'} = 1;},
-	'output:s' => sub {
-		my ($opt,$arg) = @_;
-		if ($arg =~ /^(json|screen|xml)$/){
-			$output_type = $arg;
-		}
-		else {
-			main::error_handler('bad-arg', $opt, $arg);
-		}},
 	'no-dig' => sub {
 		$force{'no-dig'} = 1;},
 	'no-doas' => sub {
@@ -5260,6 +5265,14 @@ sub get {
 		$use{'no-ssl'} = 1;},
 	'no-sudo' => sub {
 		$force{'no-sudo'} = 1;},
+	'output:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg =~ /^(json|screen|xml)$/){
+			$output_type = $arg;
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
 	'output-file:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -9294,52 +9307,52 @@ sub cpuinfo_data_grabber {
 	# use --arm flag when testing arm cpus, and --fake-cpu to trigger fake data
 	if ($fake{'cpu'}){
 		## CPU sys/cpuinfo pairs:
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-pine64-cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-amd-phenom-chrisretusn-cpuinfo-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/android-pocom3-fake-cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/arm-pine64-cpuinfo-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/arm-riscyslack2-cpuinfo-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/ppc-stuntkidz~cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/riscv-unmatched-2021~cpuinfo-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~cpuinfo-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-amd-phenom-chrisretusn-cpuinfo-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-cpuinfo.txt";
 		## ARM/MIPS
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-4-core-pinebook-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv6-single-core-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-dual-core-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/armv7-new-format-model-name-single-core.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-2-die-96-core-rk01.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/arm/arm-shevaplug-1.2ghz.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/mips/mips-mainusg-cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/arm/arm-4-core-pinebook-1.txt";
+		# $file = "$fake_data_dir/cpu/arm/armv6-single-core-1.txt";
+		# $file = "$fake_data_dir/cpu/arm/armv7-dual-core-1.txt";
+		# $file = "$fake_data_dir/cpu/arm/armv7-new-format-model-name-single-core.txt";
+		# $file = "$fake_data_dir/cpu/arm/arm-2-die-96-core-rk01.txt";
+		# $file = "$fake_data_dir/cpu/arm/arm-shevaplug-1.2ghz.txt";
+		# $file = "$fake_data_dir/cpu/mips/mips-mainusg-cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/ppc/ppc-debian-ppc64-cpuinfo.txt";
 		## x86
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/16-core-32-mt-ryzen.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-16-core-epyc-abucodonosor.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/2-core-probook-antix.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-jean-antix.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-althlon-mjro.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-apu-vc-box.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/amd/4-core-a10-5800k-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/1-core-486-fourtysixandtwo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-ht-atom-bruh.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/core-2-i3.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/8-core-i7-damentz64.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-10-core-xeon-ht.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
+		# $file = "$fake_data_dir/cpu/amd/16-core-32-mt-ryzen.txt";
+		# $file = "$fake_data_dir/cpu/amd/2-16-core-epyc-abucodonosor.txt";
+		# $file = "$fake_data_dir/cpu/amd/2-core-probook-antix.txt";
+		# $file = "$fake_data_dir/cpu/amd/4-core-jean-antix.txt";
+		# $file = "$fake_data_dir/cpu/amd/4-core-althlon-mjro.txt";
+		# $file = "$fake_data_dir/cpu/amd/4-core-apu-vc-box.txt";
+		# $file = "$fake_data_dir/cpu/amd/4-core-a10-5800k-1.txt";
+		# $file = "$fake_data_dir/cpu/intel/1-core-486-fourtysixandtwo.txt";
+		# $file = "$fake_data_dir/cpu/intel/2-core-ht-atom-bruh.txt";
+		# $file = "$fake_data_dir/cpu/intel/core-2-i3.txt";
+		# $file = "$fake_data_dir/cpu/intel/8-core-i7-damentz64.txt";
+		# $file = "$fake_data_dir/cpu/intel/2-10-core-xeon-ht.txt";
+		# $file = "$fake_data_dir/cpu/intel/4-core-xeon-fake-dual-die-zyanya.txt";
+		# $file = "$fake_data_dir/cpu/intel/2-core-i5-fake-dual-die-hek.txt";
+		# $file = "$fake_data_dir/cpu/intel/2-1-core-xeon-vm-vs2017.txt";
+		# $file = "$fake_data_dir/cpu/intel/4-1-core-xeon-vps-frodo1.txt";
+		# $file = "$fake_data_dir/cpu/intel/4-6-core-xeon-no-mt-lathander.txt";
 		## Elbrus
 		# $$cpu_type = 'elbrus'; # uncomment to test elbrus
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/elbrus-2c3/cpuinfo.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE1C-8.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2CDSP-4.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xE2S4-3-monocub.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/1xMBE8C-7.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xEL2S4-3.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE8C-7.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/4xE2CDSP-4.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/elbrus/cpuinfo.e8c2.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/elbrus-2c3/cpuinfo.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/1xE1C-8.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/1xE2CDSP-4.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/1xE2S4-3-monocub.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/1xMBE8C-7.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/4xEL2S4-3.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/4xE8C-7.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/4xE2CDSP-4.txt";
+		# $file = "$fake_data_dir/cpu/elbrus/cpuinfo.e8c2.txt";
 	}
 	my $raw = main::reader($file,'','ref');
 	@$raw = map {$_ =~ s/^\s*$/~~~/;$_;} @$raw;
@@ -9565,14 +9578,14 @@ sub sys_data_grabber {
 	if ($fake{'cpu'}){
 		# my $file;
 		## CPU sys/cpuinfo pairs:
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/android-pocom3-fake-sys.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-pine64-sys-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/ppc-stuntkidz~sys.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/riscv-unmatched-2021~sys-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~sys-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-amd-phenom-chrisretusn-sys-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-sys.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/android-pocom3-fake-sys.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/arm-pine64-sys-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/arm-riscyslack2-sys-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/ppc-stuntkidz~sys.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/riscv-unmatched-2021~sys-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-brickwizard-atom-n270~sys-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-amd-phenom-chrisretusn-sys-1.txt";
+		# $file = "$fake_data_dir/cpu/sys-ci-pairs/x86-drgibbon-intel-i7-sys.txt";
 		# @files = main::reader($file);
 	}
 	# There's a massive time hit reading full globbed set of files, so grab and 
@@ -14555,7 +14568,7 @@ sub interface_glx_output {
 	my ($program,$rows,$num) = @_;
 	# NOTE: glxinfo -B is not always available, unfortunately
 	my $glxinfo = main::grabber("$program $display_opt 2>/dev/null",'','','ref');
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/graphics/glxinfo/glxinfo-ssh-centos.txt";
+	# my $file = "$fake_data_dir/graphics/glxinfo/glxinfo-ssh-centos.txt";
 	# my @glxinfo = main::reader($file);
 	if (!@$glxinfo){
 		my $type = 'gl-console';
@@ -14826,7 +14839,7 @@ sub wlinfo_data {
 		$data = main::grabber("$program 2>/dev/null",'','strip','ref');
 	}
 	else {
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/weston-info-2-mon-1.txt";
+		$file = "$fake_data_dir/wayland/weston-info-2-mon-1.txt";
 		$data = main::reader($file,'strip','ref');
 	}
 	print 'wayland/weston-info raw: ', Data::Dumper::Dumper $data if $dbg[46]; 
@@ -14960,7 +14973,7 @@ sub swaymsg_data {
 	}
 	else {
 		undef $monitor_ids;
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/swaymsg-2-monitor-1.txt";
+		$file = "$fake_data_dir/wayland/swaymsg-2-monitor-1.txt";
 		@data = main::reader($file,'strip');
 	}
 	print 'swaymsg: ', Data::Dumper::Dumper \@data if $dbg[46]; 
@@ -15068,7 +15081,7 @@ sub wlrrandr_data {
 	}
 	else {
 		undef $monitor_ids;
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/wayland/wlr-randr-2-monitor-1.txt";
+		$file = "$fake_data_dir/wayland/wlr-randr-2-monitor-1.txt";
 		$data = main::reader($file,'strip','ref');
 	}
 	foreach (@$data){
@@ -17060,7 +17073,7 @@ sub lvm_data {
 	PartitionData::set() if !$loaded{'partition-data'};
 	main::set_mapper() if !$loaded{'mapper'};
 	if ($fake{'logical'}){
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lvm/lvs-test-1.txt";
+		# my $file = "$fake_data_dir/lvm/lvs-test-1.txt";
 		# @data = main::reader($file,'strip');
 	}
 	else {
@@ -17425,8 +17438,8 @@ sub machine_data_fruid {
 	}
 	else {
 		# my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/fruid/fruid-e904-1_full.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/fruid/fruid-e804-1_full.txt";
+		# $file = "$fake_data_dir/fruid/fruid-e904-1_full.txt";
+		# $file = "$fake_data_dir/fruid/fruid-e804-1_full.txt";
 		# @fruid = main::reader($file,'strip');
 	}
 	# print Data::Dumper::Dumper \@fruid;
@@ -18996,8 +19009,8 @@ sub set_partitions {
 	}
 	else {
 		 my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kTP-cygwin-1.txt";
-		 $file = "$ENV{'HOME'}/bin/scripts/inxi/data/df/df-kT-wrapped-1.txt";
+		# $file = "$fake_data_dir/df/df-kTP-cygwin-1.txt";
+		 $file = "$fake_data_dir/df/df-kT-wrapped-1.txt";
 		 @partitions_working = main::reader($file);
 	}
 	# print Data::Dumper::Dumper \@partitions_working;
@@ -20441,14 +20454,14 @@ sub md_data {
 	my ($mdstat) = @_;
 	my $j = 0;
 	if ($fake{'raid-md'}){
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-4-device-1.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-rebuild-1.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-mirror-fserver2-1.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-abucodonosor.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-2-raid10-ant.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-weird-syntax.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-active-syntax.txt";
-		#$mdstat = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/md-inactive-active-spare-syntax.txt";
+		#$mdstat = "$fake_data_dir/raid/md-4-device-1.txt";
+		#$mdstat = "$fake_data_dir/raid/md-rebuild-1.txt";
+		#$mdstat = "$fake_data_dir/raid/md-2-mirror-fserver2-1.txt";
+		#$mdstat = "$fake_data_dir/raid/md-2-raid10-abucodonosor.txt";
+		#$mdstat = "$fake_data_dir/raid/md-2-raid10-ant.txt";
+		#$mdstat = "$fake_data_dir/raid/md-inactive-weird-syntax.txt";
+		#$mdstat = "$fake_data_dir/raid/md-inactive-active-syntax.txt";
+		#$mdstat = "$fake_data_dir/raid/md-inactive-active-spare-syntax.txt";
 	}
 	my @working = main::reader($mdstat,'strip');
 	# print Data::Dumper::Dumper \@working;
@@ -20732,11 +20745,11 @@ sub zfs_data {
 	my ($i,$j,$k) = (0,0,0);
 	if ($fake{'raid-zfs'}){
 		# my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-1-mirror-main-solestar.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-2-mirror-main-solestar.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-tank-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-gojev-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-list-v-w-spares-1.txt";
+		# $file = "$fake_data_dir/raid/zpool-list-1-mirror-main-solestar.txt";
+		# $file = "$fake_data_dir/raid/zpool-list-2-mirror-main-solestar.txt";
+		# $file = "$fake_data_dir/raid/zpool-list-v-tank-1.txt";
+		# $file = "$fake_data_dir/raid/zpool-list-v-gojev-1.txt";
+		# $file = "$fake_data_dir/raid/zpool-list-v-w-spares-1.txt";
 		#@working = main::reader($file);$zpool = '';
 	}
 	else {
@@ -20934,9 +20947,9 @@ sub zfs_status {
 		$k = 0;
 		if ($fake{'raid-zfs'}){
 			my $file;
-			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-1-mirror-main-solestar.txt";
-			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-2-mirror-main-solestar.txt";
-			# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/raid/zpool-status-tank-1.txt";
+			# $file = "$fake_data_dir/raid/zpool-status-1-mirror-main-solestar.txt";
+			# $file = "$fake_data_dir/raid/zpool-status-2-mirror-main-solestar.txt";
+			# $file = "$fake_data_dir/raid/zpool-status-tank-1.txt";
 			#@pool_status = main::reader($file,'strip');
 		}
 		else {
@@ -22058,7 +22071,7 @@ sub get_repos_linux {
 			$data = repo_builder($_,'apt','^\s*(deb|rpm)') if -r $_;
 			push(@$rows,@$data);
 		}
-		#@files = main::globber("$ENV{'HOME'}/bin/scripts/inxi/data/repo/apt/*.sources");
+		#@files = main::globber("$fake_data_dir/repo/apt/*.sources");
 		@files = main::globber("$apt.d/*.sources");
 		main::log_data('data',"apt deb822 repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		foreach $file (@files){
@@ -22249,7 +22262,7 @@ sub get_repos_linux {
 			push(@files, main::globber("$zypp_repo_dir*.repo"));
 			main::log_data('data',"zypp repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		}
- 		# push(@files, "$ENV{'HOME'}/bin/scripts/inxi/data/repo/yum/rpmfusion-nonfree-1.repo");
+ 		# push(@files, "$fake_data_dir/repo/yum/rpmfusion-nonfree-1.repo");
 		if (@files){
 			foreach (sort @files){
 				@data2 = main::reader($_);
@@ -23043,15 +23056,15 @@ sub ipmi_data {
 	my ($b_ipmitool,$i_key,$i_value,$i_unit);
 	my $sensors = {};
 	if ($fake{'ipmi'}){
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmitool-sensor-tyan-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-lathander.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-zwerg.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ipmitool/ipmi-sensors-arm-server-1.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensor-tyan-1.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-lathander.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-zwerg.txt";
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-arm-server-1.txt";
 		# @data = main::reader($file);
 		# ($b_ipmitool,$i_key,$i_value,$i_unit) = (0,1,3,4); # ipmi-sensors
 		# ($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2); # ipmitool sensors
@@ -23418,19 +23431,19 @@ sub load_lm_sensors {
 	my (@sensors_data,@values);
 	my ($adapter,$holder,$type) = ('','','');
 		if ($fake{'sensors'}){
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/peci-tin-geggo.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-w-other-biker.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-asus-chassis-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-devnull-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-jammin1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-mx-incorrect-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-maximus-arch-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/kernel-58-sensors-ant-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-zenpower-nvme-2.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-pch-intel-1.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-ppc-sr71.txt";
-		 my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sensors/sensors-applesmc-1.txt";
+		# my $file = "$fake_data_dir/sensors/amdgpu-w-fan-speed-stretch-k10.txt";
+		# my $file = "$fake_data_dir/sensors/peci-tin-geggo.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-w-other-biker.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-asus-chassis-1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-devnull-1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-jammin1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-mx-incorrect-1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-maximus-arch-1.txt";
+		# my $file = "$fake_data_dir/sensors/kernel-58-sensors-ant-1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-zenpower-nvme-2.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-pch-intel-1.txt";
+		# my $file = "$fake_data_dir/sensors/sensors-ppc-sr71.txt";
+		 my $file = "$fake_data_dir/sensors/sensors-applesmc-1.txt";
 		 @sensors_data = main::reader($file);
 	}
 	else {
@@ -25318,10 +25331,10 @@ sub download_weather {
 	$url = "https://smxi.org/opt/xr2.php?loc=$location->[0]&src=$weather_source";
 	$ua = 'weather';
 	if ($fake{'weather'}){
-		# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
-		# my $file2 = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/feed-oslo-1.xml";
+		# my $file2 = "$fake_data_dir/weather/weather-1.xml";
+		# my $file2 = "$fake_data_dir/weather/feed-oslo-1.xml";
 		# local $/;
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/weather-1.xml";
+		# my $file = "$fake_data_dir/weather/weather-1.xml";
 		# open(my $fh, '<', $file) or die "can't open $file: $!";
 		# $temp = <$fh>;
 	}
@@ -25396,7 +25409,7 @@ sub get_location {
 		my $url = "http://geoip.ubuntu.com/lookup";
 		#	{
 		#		local $/;
-		#		my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/weather/location-1.xml";
+		#		my $file = "$fake_data_dir/weather/location-1.xml";
 		#		open(my $fh, '<', $file) or die "can't open $file: $!";
 		#		$temp = <$fh>;
 		#	}
@@ -25627,14 +25640,14 @@ sub set_dboot_data {
 		$file = $system_files{'dmesg-boot'};
 	}
 	else {
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/bsd-disks-diabolus.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-disks-solestar.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/freebsd-enceladus-1.txt";
+		# $file = "$fake_data_dir/dmesg-boot/bsd-disks-diabolus.txt";
+		# $file = "$fake_data_dir/dmesg-boot/freebsd-disks-solestar.txt";
+		# $file = "$fake_data_dir/dmesg-boot/freebsd-enceladus-1.txt";
 		## matches: toshiba: openbsd-5.6-sysctl-2.txt
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
+		# $file = "$fake_data_dir/dmesg-boot/openbsd-5.6-dmesg.boot-1.txt";
 		## matches: compaq: openbsd-5.6-sysctl-1.txt"
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-dmesg.boot-1.txt";
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
+		# $file = "$fake_data_dir/dmesg-boot/openbsd-dmesg.boot-1.txt";
+		$file = "$fake_data_dir/dmesg-boot/openbsd-6.8-battery-sensors-1.txt";
 	}
 	if ($file){
 		return if ! -r $file;
@@ -26618,8 +26631,8 @@ sub lspci_n_data {
 		$b_lspci_n = 1;
 		my (@data);
 		if ($fake{'lspci'}){
-			# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-n.txt";
-			# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/ben81-hwraid-lspci-n.txt";
+			# my $file = "$fake_data_dir/lspci/steve-mint-topaz-lspci-n.txt";
+			# my $file = "$fake_data_dir/lspci/ben81-hwraid-lspci-n.txt";
 			# @data = main::reader($file,'strip');
 		}
 		else {
@@ -26841,15 +26854,15 @@ sub pci_grabber {
 		$pattern = qr/^[0-9a-f:]+:/;
 	}
 	if ($fake{'lspci'} || $fake{'pciconf'} || $fake{'pcictl'} || $fake{'pcidump'}){
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pciconf/pci-freebsd-8.2-2";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcidump/pci-openbsd-6.1-vm.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/pcictl/pci-netbsd-9.1-vm.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/racermach-1-knnv.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/rk016013-knnv.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/kot--book-lspci-nnv.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/steve-mint-topaz-lspci-nnkv.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/ben81-hwraid-lspci-nnv.txt";
-		# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/lspci/gx78b-lspci-nnv.txt";
+		# my $file = "$fake_data_dir/pciconf/pci-freebsd-8.2-2";
+		# my $file = "$fake_data_dir/pcidump/pci-openbsd-6.1-vm.txt";
+		# my $file = "$fake_data_dir/pcictl/pci-netbsd-9.1-vm.txt";
+		# my $file = "$fake_data_dir/lspci/racermach-1-knnv.txt";
+		# my $file = "$fake_data_dir/lspci/rk016013-knnv.txt";
+		# my $file = "$fake_data_dir/lspci/kot--book-lspci-nnv.txt";
+		# my $file = "$fake_data_dir/lspci/steve-mint-topaz-lspci-nnkv.txt";
+		# my $file = "$fake_data_dir/lspci/ben81-hwraid-lspci-nnv.txt";
+		# my $file = "$fake_data_dir/lspci/gx78b-lspci-nnv.txt";
 		# $data = main::reader($file,'strip','ref');
 	}
 	else {
@@ -28264,17 +28277,17 @@ sub generate_data {
 	my ($content,@data,@working,$type,$handle);
 	if ($fake{'dmidecode'}){
 		my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/pci-freebsd-8.2-2";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-loki-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-t41-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-mint-20180106.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-vmware-ram-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-tyan-4408.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/dmidecode-speed-configured-2.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/ram/00srv-dmidecode-mushkin-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-slots-pcix-pcie-1.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/dmidecode/dmidecode-Microknopix-pci-vga-types-5-6-16-17.txt";
+		# $file = "$fake_data_dir/dmidecode/pci-freebsd-8.2-2";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-loki-1.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-t41-1.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-mint-20180106.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-vmware-ram-1.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-tyan-4408.txt";
+		# $file = "$fake_data_dir/ram/dmidecode-speed-configured-1.txt";
+		# $file = "$fake_data_dir/ram/dmidecode-speed-configured-2.txt";
+		# $file = "$fake_data_dir/ram/00srv-dmidecode-mushkin-1.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-slots-pcix-pcie-1.txt";
+		# $file = "$fake_data_dir/dmidecode/dmidecode-Microknopix-pci-vga-types-5-6-16-17.txt";
 		# open(my $fh, '<', $file) or die "can't open $file: $!";
 		# chomp(@data = <$fh>);
 	}
@@ -28566,8 +28579,8 @@ sub set {
 sub set_ip_addr {
 	eval $start if $b_log;
 	my @data = main::grabber($alerts{'ip'}->{'path'} . " addr 2>/dev/null",'\n','strip');
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/if/scope-ipaddr-1.txt";
-	# my $file = "$ENV{'HOME'}/bin/scripts/inxi/data/networking/ip-addr-blue-advance.txt";
+	# my $file = "$fake_data_dir/if/scope-ipaddr-1.txt";
+	# my $file = "$fake_data_dir/networking/ip-addr-blue-advance.txt";
 	# my @data = reader($file,'strip') or die $!;
 	my ($b_skip,$broadcast,$if,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	foreach (@data){
@@ -28620,7 +28633,7 @@ sub set_ip_addr {
 sub set_ifconfig {
 	eval $start if $b_log;
 	my @data = main::grabber($alerts{'ifconfig'}->{'path'} . " 2>/dev/null",'\n','');
-	# my @data = reader("$ENV{'HOME'}/bin/scripts/inxi/data/if/vps-ifconfig-1.txt",'') or die $!;
+	# my @data = reader("$fake_data_dir/if/vps-ifconfig-1.txt",'') or die $!;
 	my ($b_skip,$broadcast,$if,@ips_bsd,$ip,@ips,$scope,$if_id,$type,@temp,@temp2);
 	my ($state,$speed,$duplex,$mac);
 	foreach (@data){
@@ -30043,7 +30056,7 @@ sub proc_data {
 	eval $start if $b_log;
 	my $file = $_[0];
 	if ($fake{'partitions'}){
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/proc-partitions-1.txt";
+		# $file = "$fake_data_dir/proc-partitions-1.txt";
 	}
 	my @parts = main::reader($file,'strip');
 	# print Data::Dumper::Dumper \@parts;
@@ -30858,13 +30871,13 @@ sub set_sysctl_data {
 	}
 	else {
 		my $file;
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd_6.1sysctl_lenovot500_user.txt";
+		# $file = "$fake_data_dir/sysctl/obsd_6.1_sysctl_soekris6501_root.txt";
+		# $file = "$fake_data_dir/sysctl/obsd_6.1sysctl_lenovot500_user.txt";
 		## matches: compaq: openbsd-dmesg.boot-1.txt
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-1.txt"; 
+		# $file = "$fake_data_dir/sysctl/openbsd-5.6-sysctl-1.txt"; 
 		## matches: toshiba: openbsd-5.6-dmesg.boot-1.txt
-		# $file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/openbsd-5.6-sysctl-2.txt"; 
-		$file = "$ENV{'HOME'}/bin/scripts/inxi/data/sysctl/obsd-6.8-sysctl-a-battery-sensor-1.txt"; 
+		# $file = "$fake_data_dir/sysctl/openbsd-5.6-sysctl-2.txt"; 
+		$file = "$fake_data_dir/sysctl/obsd-6.8-sysctl-a-battery-sensor-1.txt"; 
 		@temp = reader($file);
 	}
 	foreach (@temp){
@@ -31410,13 +31423,13 @@ sub usb_grabber {
 	else {
 		my $file;
 		if ($fake{'usbdevs'}){
-			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/bsd-usbdevs-v-1.txt";
+			$file = "$fake_data_dir/lsusb/bsd-usbdevs-v-1.txt";
 		}
 		elsif ($fake{'usbconfig'}){
-			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/bsd-usbconfig-list-v-1.txt";
+			$file = "$fake_data_dir/lsusb/bsd-usbconfig-list-v-1.txt";
 		}
 		else {
-			$file = "$ENV{'HOME'}/bin/scripts/inxi/data/lsusb/mdmarmer-lsusb.txt";
+			$file = "$fake_data_dir/lsusb/mdmarmer-lsusb.txt";
 		}
 		@data = main::reader($file,'strip');
 	}
