@@ -144,6 +144,31 @@ pinxi ram section.
 
 ================================================================================
 
+DATA:
+
+The inxi-perl/data/ directory contains the raw data used by --fake data feature.
+Only use if you are developing pinxi actively, they are very useful. These were
+released publicly 2022-06, and will get more over time. They were previously not
+shared, but it's actually quite difficult to work on some features of inxi 
+without having the ready access to debugger data. 
+
+Note that location of this directory in pinxi defaults to:
+
+$HOME/bin/scripts/inxi/data 
+
+but you can change it to be wherever you want with the global configuration 
+item:  
+
+FAKE_DATA_DIR=[full path to data dir, do not end with slash]
+
+You can test this path with --fake-data-dir [path]. Use /etc/pinxi.conf to set
+path so that it's global.
+
+Some of the data is more general data, not meant to be inserted as fake data, 
+but most is fake data to emulate various systems and features.
+
+================================================================================
+
 BASIC IDEA:
 
 I was sufficiently impressed switching from xiin python script to creating two 
