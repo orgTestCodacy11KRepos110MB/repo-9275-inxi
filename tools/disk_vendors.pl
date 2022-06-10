@@ -12,7 +12,7 @@
 ## This tool is what is used to create the disk vendor data. It uses a huge set 
 ## of raw disk data, and tests the set_vendors() matching tables against that 
 ## list. You can extend that list simply be adding the full disk name string 
-## into the list, specify USB: or non as you'll see inthe disks.txt file.
+## into the list, specify USB: or non as you'll see in the disks.txt file.
 ## Because of the nature of disk names, there's always going be a big set that
 ## cannot be matched, but overall the results using this method are quite good.
 
