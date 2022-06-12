@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.17';
-my $self_date='2022-06-10';
-my $self_patch='01';
+my $self_date='2022-06-12';
+my $self_patch='02';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -4110,6 +4110,7 @@ sub set_program_values {
 	'qingy' => ['^qingy',0,'0','qingy',0,1,0,'',''], # unverified
 	'sddm' => ['^sddm',0,'0','SDDM',0,1,0,'',''],
 	'slim' => ['slim version',3,'-v','SLiM',0,1,0,'',''],
+	'slimski' => ['slim version',0,'-v','slimski',0,1,0,'',''], # slim fork, unverified
 	'tbsm' => ['^tbsm',0,'0','tbsm',0,1,0,'',''], # unverified
 	'tdm' => ['^tdm',0,'0','TDM',0,1,0,'',''],
 	'udm' => ['^udm',0,'0','udm',0,1,0,'',''],
@@ -12294,11 +12295,10 @@ sub proc_data_advanced {
 		}
 		main::log_data('data',"working path: $working_path") if $b_log;
 		if ($b_admin && -e "/sys/block/"){
-			my $block = block_data($drives->[$i]{'id'});
-			$drives->[$i]{'block-logical'} = $block->[0];
-			$drives->[$i]{'block-physical'} = $block->[1];
+			($drives->[$i]{'block-logical'},$drives->[$i]{'block-physical'}) = @{block_data($drives->[$i]{'id'})};
 		}
-		if ($block_type && @$scsi && @by_id && ! -e "${working_path}model" && ! -e "${working_path}name"){
+		if ($block_type && $scsi && @$scsi && @by_id && ! -e "${working_path}model" && 
+		! -e "${working_path}name"){
 			## ok, ok, it's incomprehensible, search /dev/disk/by-id for a line that contains the
 			# discovered disk name AND ends with the correct identifier, sdx
 			# get rid of whitespace for some drive names and ids, and extra data after - in name
@@ -12354,7 +12354,8 @@ sub proc_data_advanced {
 		if ($extra > 0){
 			$drives->[$i]{'temp'} = hdd_temp("$drives->[$i]{'id'}");
 			if ($extra > 1){
-				my $speed_data = device_speed($drives->[$i]{'id'});
+				my $speed_data = drive_speed($drives->[$i]{'id'});
+				# only assign if defined / not 0
 				$drives->[$i]{'speed'} = $speed_data->[0] if $speed_data->[0];
 				$drives->[$i]{'lanes'} = $speed_data->[1] if $speed_data->[1];
 				if (@$disk_data && $disk_data->[2]){
@@ -13771,7 +13772,6 @@ sub block_data {
 	eval $start if $b_log;
 	my ($id) = @_;
 	# 0: logical block size 1: disk physical block size/partition block size;
-	my @blocks = (0,0); 
 	my ($block_log,$block_size) = (0,0);
 	# my $path_size = "/sys/block/$id/size";
 	my $path_log_block = "/sys/block/$id/queue/logical_block_size";
@@ -13783,15 +13783,15 @@ sub block_data {
 	$block_log = main::reader($path_log_block,'',0) if  -r $path_log_block;
 	$block_size = main::reader($path_phy_block,'',0) if -r $path_phy_block;
 	# print "l-b: $block_log p-b: $block_size raw: $size_raw\n";
-	@blocks = ($block_log,$block_size); 
-	main::log_data('dump','@blocks',\@blocks) if $b_log;
+	my $blocks = [$block_log,$block_size]; 
+	main::log_data('dump','@blocks',$blocks) if $b_log;
 	eval $end if $b_log;
-	return \@blocks;
+	return $blocks;
 }
-sub device_speed {
+sub drive_speed {
 	eval $start if $b_log;
 	my ($device) = @_;
-	my ($b_nvme,$lanes,$speed,@data);
+	my ($b_nvme,$lanes,$speed);
 	my $working = Cwd::abs_path("/sys/class/block/$device");
 	# print "$working\n";
 	if ($working){
@@ -13846,10 +13846,9 @@ sub device_speed {
 			}
 		}
 	}
-	@data = ($speed,$lanes);
 	# print "$working $speed\n";
 	eval $end if $b_log;
-	return \@data;
+	return [$speed,$lanes];
 }
 }
 
@@ -27526,8 +27525,8 @@ sub get_display_manager {
 	# greetd frontends: agreety dlm gtkgreet qtgreet tuigreet wlgreet
 	# mlogin may be mlogind, not verified
 	my @dms = qw(brzdm cdm clogin emptty entranced gdm gdm3 greetd kdm kdm3 ldm 
-	lightdm lxdm ly mdm mlogin nodm pcdm qingy sddm slim tbsm tdm udm wdm xdm 
-	xenodm xlogin);
+	lightdm lxdm ly mdm mlogin nodm pcdm qingy sddm slim slimski tbsm tdm udm wdm 
+	xdm xenodm xlogin);
 	# these are the only one I know of so far that have version info. xlogin /
 	# clogin do, -V, brzdm -v, but syntax not verified.
 	my @dms_version = qw(gdm gdm3 lightdm ly slim);
