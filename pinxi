@@ -12157,7 +12157,7 @@ sub drive_data {
 	}
 	if ($b_admin){
 		if ($alerts{'smartctl'} && $alerts{'smartctl'}->{'action'} eq 'use'){
-			$data = smartctl_data($data);
+			smartctl_data($data);
 		}
 		else {
 			$smartctl_missing = $alerts{'smartctl'}->{'message'};
@@ -12971,7 +12971,6 @@ sub smartctl_data {
 	}
 	print Data::Dumper::Dumper $data if $dbg[19];
 	eval $end if $b_log;
-	return \@$data;
 }
 
 # check for usb/firewire/[and thunderbolt when data found]
@@ -13014,29 +13013,30 @@ sub peripheral_data {
 sub disk_data_advanced {
 	eval $start if $b_log;
 	my ($set_cmd,$id) = @_;
-	my ($cmd,$pt,$program,@data,@return);
+	my ($cmd,$pt,$program,@data);
+	my $advanced = [];
 	if ($set_cmd ne 'unset'){
-		$return[0] = $set_cmd;
+		$advanced->[0] = $set_cmd;
 	}
 	else {
 		# runs as user, but is SLOW: udisksctl info -b /dev/sda
 		# line: org.freedesktop.UDisks2.PartitionTable:
 		# Type:               dos
 		if ($program = main::check_program('udevadm')){
-			$return[0] = "$program info -q property -n ";
+			$advanced->[0] = "$program info -q property -n ";
 		}
 		elsif ($b_root && -e "/lib/udev/udisks-part-id"){
-			$return[0] = "/lib/udev/udisks-part-id /dev/";
+			$advanced->[0] = "/lib/udev/udisks-part-id /dev/";
 		}
 		elsif ($b_root && ($program = main::check_program('fdisk'))){
-			$return[0] = "$program -l /dev/";
+			$advanced->[0] = "$program -l /dev/";
 		}
-		if (!$return[0]){
-			$return[0] = 'na'
+		if (!$advanced->[0]){
+			$advanced->[0] = 'na'
 		}
 	}
-	if ($return[0] ne 'na'){
-		$cmd = "$return[0]$id 2>&1";
+	if ($advanced->[0] ne 'na'){
+		$cmd = "$advanced->[0]$id 2>&1";
 		main::log_data('cmd',$cmd) if $b_log;
 		@data = main::grabber($cmd);
 		# for pre ~ 2.30 fdisk did not show gpt, but did show gpt scheme error, so
@@ -13044,33 +13044,33 @@ sub disk_data_advanced {
 		if ($cmd =~ /fdisk/){
 			foreach (@data){
 				if (/^WARNING:\s+GPT/){
-					$return[1] = 'gpt';
+					$advanced->[1] = 'gpt';
 					last;
 				}
 				elsif (/^Disklabel\stype:\s*(.+)/i){
-					$return[1] = $1;
+					$advanced->[1] = $1;
 					last;
 				}
 			}
-			$return[1] = 'dos' if !$return[1];
+			$advanced->[1] = 'dos' if !$advanced->[1];
 		}
 		else {
 			foreach (@data){
 				if (/^(UDISKS_PARTITION_TABLE_SCHEME|ID_PART_TABLE_TYPE)/){
 					my @working = split('=', $_);
-					$return[1] = $working[1];
+					$advanced->[1] = $working[1];
 				}
 				elsif (/^ID_ATA_ROTATION_RATE_RPM/){
 					my @working = split('=', $_);
-					$return[2] = $working[1];
+					$advanced->[2] = $working[1];
 				}
-				last if defined $return[1] && defined $return[2];
+				last if defined $advanced->[1] && defined $advanced->[2];
 			}
 		}
-		$return[1] = 'mbr' if $return[1] && lc($return[1]) eq 'dos';
+		$advanced->[1] = 'mbr' if $advanced->[1] && lc($advanced->[1]) eq 'dos';
 	}
 	eval $end if $b_log;
-	return \@return;
+	return $advanced;
 }
 sub scsi_data {
 	eval $start if $b_log;
@@ -14126,7 +14126,7 @@ sub display_output(){
 			# print "$server_string\n";
 		}
 		if (!$graphics{'protocol'} && !$server_string && !$graphics{'x-server'} && 
-		!$x_drivers){
+		!@$x_drivers){
 			$server_string = main::message('display-server');
 			push(@$rows,{
 			main::key($num++,1,1,'Display') => '',
@@ -14170,7 +14170,7 @@ sub display_output(){
 			# note: if no xorg log, and if wayland, there will be no xorg drivers, 
 			# obviously, so we use the last driver found on the card section in that case.
 			# those come from lscpi kernel drivers so there should be no xorg/wayland issues.
-			if (!$x_drivers || !$x_drivers->[0]){
+			if (!@$x_drivers || !$x_drivers->[0]){
 				# Fallback: specific case: in Arch/Manjaro gdm run systems, their Xorg.0.log is 
 				# located inside this directory, which is not readable unless you are root
 				# Normally Arch gdm log is here: ~/.local/share/xorg/Xorg.1.log
@@ -14197,10 +14197,10 @@ sub display_output(){
 			else {
 				my $gpu_drivers = gpu_drivers_sys('all');
 				my $note_indent = 4;
-				if ($gpu_drivers || $x_drivers){
+				if (@$gpu_drivers || @$x_drivers){
 					$rows->[$j]{main::key($num++,1,2,'driver')} = '';
 					# The only wayland setups with x drivers have xorg, transitional that is.
-					if ($x_drivers){
+					if (@$x_drivers){
 						$rows->[$j]{main::key($num++,1,3,'X')} = '';
 						my $driver = ($x_drivers->[0]) ? $x_drivers->[0] : 'N/A';
 						$rows->[$j]{main::key($num++,1,4,'loaded')} = $driver;
@@ -14215,8 +14215,8 @@ sub display_output(){
 						}
 					}
 					my $drivers;
-					if ($gpu_drivers){
-						$drivers = join(',',@{$gpu_drivers});
+					if (@$gpu_drivers){
+						$drivers = join(',',@$gpu_drivers);
 					}
 					else {
 						$drivers = ($graphics{'gpu-drivers'}) ? join(',',@{$graphics{'gpu-drivers'}}): 'N/A';
@@ -15548,7 +15548,8 @@ sub display_protocol {
 sub gpu_drivers_sys {
 	eval $start if $b_log;
 	my ($id) = @_;
-	my ($driver,@drivers);
+	my ($driver);
+	my $drivers = [];
 	# we only want list of drivers for cards with a connected monitor, and inactive
 	# ports are already removed by the 'all' stage.
 	foreach my $port (keys %{$monitor_ids}){
@@ -15560,20 +15561,21 @@ sub gpu_drivers_sys {
 		}
 		else {
 			foreach $driver (@{$monitor_ids->{$port}{'drivers'}}){
-				push(@drivers,$driver);
+				push(@$drivers,$driver);
 			}
 		}
 	}
-	if (@drivers){
-		@drivers = sort(@drivers);
-		main::uniq(\@drivers);
+	if (@$drivers){
+		@$drivers = sort(@$drivers);
+		main::uniq($drivers);
 	}
 	eval $end if $b_log;
-	@drivers ? return \@drivers : return;
+	return $drivers;
 }
 sub display_drivers_x {
 	eval $start if $b_log;
-	my ($driver,@driver_data,,%drivers);
+	my ($driver,%drivers);
+	my $driver_data = [];
 	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
 	if (my $log = $system_files{'xorg-log'}){
 		if ($fake{'xorg-log'}){
@@ -15665,11 +15667,11 @@ sub display_drivers_x {
 			}
 		}
 		if ($loaded || $unloaded || $failed || $alternate){
-			@driver_data = ($loaded,$unloaded,$failed,$alternate);
+			@$driver_data = ($loaded,$unloaded,$failed,$alternate);
 		}
 	}
 	eval $end if $b_log;
-	@driver_data ? return \@driver_data : return;
+	return $driver_data;
 }
 
 ## GPU DATA ##
@@ -16747,7 +16749,8 @@ sub flip_size_x_y {
 ## COMPOSITOR DATA ##
 sub set_compositor_data {
 	eval $start if $b_log;
-	if (my $compositors = get_compositors()){
+	my $compositors = get_compositors();
+	if (@$compositors){
 		my @data;
 		foreach my $compositor (@$compositors){
 			# gnome-shell is incredibly slow to return version
@@ -16766,7 +16769,7 @@ sub set_compositor_data {
 }
 sub get_compositors {
 	eval $start if $b_log;
-	my @found;
+	my $found = [];
 	main::set_ps_gui() if !$loaded{'ps-gui'};
 	if (@ps_gui){
 		# ORDER MATTES!
@@ -16781,13 +16784,13 @@ sub get_compositors {
 		my $matches = join('|',@compositors) . $wl_compositors;
 		foreach my $psg (@ps_gui){
 			if ($psg =~ /^($matches)$/){
-				push(@found,$1);
+				push(@$found,$1);
 			}
 		}
 	}
-	main::log_data('dump','compositors:', \@found) if $b_log;
+	main::log_data('dump','$found compositors:', $found) if $b_log;
 	eval $end if $b_log;
-	(@found) ? return \@found : return;
+	return $found;
 }
 
 ## UTILITIES ##
@@ -23985,7 +23988,7 @@ sub get {
 			slot_data_sys();
 		}
 		$data = slot_data_dmi();
-		slot_output($rows,$data) if $data;
+		slot_output($rows,$data) if @$data;
 		if (!@$rows){
 			my $key = 'Message';
 			push(@$rows, {
@@ -24089,7 +24092,7 @@ sub children_output {
 sub slot_data_dmi {
 	eval $start if $b_log;
 	my $i = 0;
-	my @slots;
+	my $slots = [];
 	foreach my $slot_data (@dmi){
 		next if $slot_data->[0] != 9;
 		my (%data,@extra);
@@ -24190,12 +24193,12 @@ sub slot_data_dmi {
 			@extra = grep {$_ ne $data{'pci'}} @extra;
 		}
 		$data{'extra'} = [@extra] if @extra;
-		push(@slots,{%data}) if %data;
+		push(@$slots,{%data}) if %data;
 	}
-	print '@slots: ',  Data::Dumper::Dumper \@slots if $dbg[48];
-	main::log_data('dump','@slots final',\@slots) if $b_log;
+	print '@$slots: ',  Data::Dumper::Dumper $slots if $dbg[48];
+	main::log_data('dump','@$slots final',$slots) if $b_log;
 	eval $end if $b_log;
-	return \@slots if @slots;
+	return $slots;
 }
 sub slot_data_sys {
 	eval $start if $b_log;
@@ -24489,7 +24492,8 @@ sub create_output {
 }
 sub proc_data {
 	eval $start if $b_log;
-	my ($dev_mapped,$fs,$label,$maj_min,$size,$uuid,$part,@unmounted);
+	my ($dev_mapped,$fs,$label,$maj_min,$size,$uuid,$part);
+	my $unmounted = [];
 	# last filters to make sure these are dumped
 	my @filters = ('scd[0-9]+','sr[0-9]+','cdrom[0-9]*','cdrw[0-9]*',
 	'dvd[0-9]*','dvdrw[0-9]*','fd[0-9]','ram[0-9]*');
@@ -24551,7 +24555,7 @@ sub proc_data {
 				$uuid = $temp[2] if $temp[2];
 			}
 			$maj_min = "$row->[0]:$row->[1]" if !$maj_min;
-			push(@unmounted, {
+			push(@$unmounted, {
 			'dev-base' => $row->[-1],
 			'dev-mapped' => $dev_mapped,
 			'fs' => $fs,
@@ -24562,14 +24566,15 @@ sub proc_data {
 			});
 		}
 	}
-	print Data::Dumper::Dumper \@unmounted if $dbg[35];
-	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
+	print Data::Dumper::Dumper $unmounted if $dbg[35];
+	main::log_data('dump','@$unmounted',$unmounted) if $b_log;
 	eval $end if $b_log;
-	return \@unmounted;
+	return $unmounted;
 }
 sub bsd_data {
 	eval $start if $b_log;
-	my ($fs,$label,$size,$uuid,%part,@unmounted);
+	my ($fs,$label,$size,$uuid,%part);
+	my $unmounted = [];
 	PartitionItem::set_partitions() if !$loaded{'set-partitions'};
 	RaidItem::raid_data() if !$loaded{'raid'};
 	my $mounted = get_mounted();
@@ -24583,7 +24588,7 @@ sub bsd_data {
 				$size = $disks_bsd{$id}->{'partitions'}{$part}{'size'};
 				$uuid = $disks_bsd{$id}->{'partitions'}{$part}{'uuid'};
 				# $fs = unmounted_filesystem($part) if !$fs;
-				push(@unmounted, {
+				push(@$unmounted, {
 				'dev-base' => $part,
 				'dev-mapped' => '',
 				'fs' => $fs,
@@ -24595,21 +24600,22 @@ sub bsd_data {
 			}
 		}
 	}
-	print Data::Dumper::Dumper \@unmounted if $dbg[35];
-	main::log_data('dump','@unmounted',\@unmounted) if $b_log;
+	print Data::Dumper::Dumper $unmounted if $dbg[35];
+	main::log_data('dump','@$unmounted',$unmounted) if $b_log;
 	eval $end if $b_log;
-	return \@unmounted;
+	return $unmounted;
 }
 sub get_mounted {
 	eval $start if $b_log;
-	my (@arrays,@mounted);
+	my (@arrays);
+	my $mounted = [];
 	foreach my $row (@partitions){
-		push(@mounted, $row->{'dev-base'}) if $row->{'dev-base'};
+		push(@$mounted, $row->{'dev-base'}) if $row->{'dev-base'};
 	}
 	# print Data::Dumper::Dumper \@zfs_raid;
 	foreach my $row ((@btrfs_raid,@lvm_raid,@md_raid,@soft_raid,@zfs_raid)){
 		# we want to not show md0 etc in unmounted report
-		push(@mounted, $row->{'id'}) if $row->{'id'}; 
+		push(@$mounted, $row->{'id'}) if $row->{'id'}; 
 		# print Data::Dumper::Dumper $row;
 		# row->arrays->components: zfs; row->components: lvm,mdraid,softraid
 		if ($row->{'arrays'} && ref $row->{'arrays'} eq 'ARRAY'){
@@ -24626,12 +24632,12 @@ sub get_mounted {
 			foreach my $component (@components){
 				# md has ~, not zfs,lvm,softraid
 				my $temp = (split('~', $component->[0]))[0]; 
-				push(@mounted, $temp);
+				push(@$mounted, $temp);
 			}
 		}
 	}
 	eval $end if $b_log;
-	return \@mounted;
+	return $mounted;
 }
 # bsds do not seem to return any useful data so only for linux
 sub unmounted_filesystem {
@@ -25328,7 +25334,8 @@ sub get_weather {
 sub download_weather {
 	eval $start if $b_log;
 	my ($now,$file_cached,$location) = @_;
-	my (@weather,$temp,$ua,$url);
+	my ($temp,$ua,$url);
+	my $weather = [];
 	$url = "https://smxi.org/opt/xr2.php?loc=$location->[0]&src=$weather_source";
 	$ua = 'weather';
 	if ($fake{'weather'}){
@@ -25342,12 +25349,12 @@ sub download_weather {
 	else {
 		$temp = main::download_file('stdout',$url,'',$ua);
 	}
-	@weather = split('\n', $temp) if $temp;
-	unshift(@weather, "timestamp^^$now");
-	main::writer($file_cached,\@weather);
+	@$weather = split('\n', $temp) if $temp;
+	unshift(@$weather, "timestamp^^$now");
+	main::writer($file_cached,$weather);
 	# print "$file_cached: download/cleaned\n";
 	eval $end if $b_log;
-	return \@weather;
+	return $weather;
 }
 # resolve wide character issue, if detected, switch to iso 
 # date format, we won't try to be too clever here.
@@ -26827,7 +26834,8 @@ sub pcictl_data {
 sub pci_grabber {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($args,$path,$pattern,$data,@working);
+	my ($args,$path,$pattern,$data);
+	my $working = [];
 	if ($program eq 'lspci'){
 		# 2.2.8 lspci did not support -k, added in 2.2.9, but -v turned on -k 
 		$args = ' -nnv';
@@ -26874,15 +26882,15 @@ sub pci_grabber {
 		foreach (@$data){
 			# this is the group separator and assign trigger
 			if ($_ =~ /$pattern/i){
-				push(@working, '~');
+				push(@$working, '~');
 			}
-			push(@working, $_);
+			push(@$working, $_);
 		}
-		push(@working, '~');
+		push(@$working, '~');
 	}
-	print Data::Dumper::Dumper \@working if $dbg[30];
+	print Data::Dumper::Dumper $working if $dbg[30];
 	eval $end if $b_log;
-	return \@working;
+	return $working;
 }
 
 sub soc_data {
@@ -27517,7 +27525,8 @@ sub set_gpart_data {
 
 sub get_display_manager {
 	eval $start if $b_log;
-	my (@data,@found,@glob,$link,$path,@temp);
+	my (@data,@glob,$link,$path,@temp);
+	my $found = [];
 	# ldm - LTSP display manager. Note that sddm does not appear to have a .pid 
 	# extension in Arch. Guessing on cdm, qingy. pcdm uses vt, PCDM-vt9.pid
 	# Not verified: qingy emptty; greetd.run verified, but alternate:
@@ -27583,29 +27592,29 @@ sub get_display_manager {
 		if (scalar @dms > 1 && (my $temp = ServiceData::get('status',$dm))){
 			$dm_info[2] = message('stopped') if $temp && $temp =~ /stopped|disabled/;
 		}
-		push(@found,[@dm_info]);
+		push(@$found,[@dm_info]);
 	}
-	if (!@found){
+	if (!@$found){
 		# ly does not have a run/pid file
 		if (grep {$_ eq 'ly'} @ps_gui){
 			@data = program_data('ly','ly',3);
 			$dm_info[0] = $data[0];
 			$dm_info[1] = $data[1];
-			$found[0] = [@dm_info];
+			$found->[0] = [@dm_info];
 		}
 		elsif (grep {/startx$/} @ps_gui){
-			$found[0] = ['startx'];
+			$found->[0] = ['startx'];
 		}
 		elsif (grep {$_ eq 'xinit'} @ps_gui){
-			$found[0] = ['xinit'];
+			$found->[0] = ['xinit'];
 		}
 	}
 	# might add this in, but the rate of new dm's makes it more likely it's an 
 	# unknown dm, so we'll keep output to N/A
 	# print Data::Dumper::Dumper \@found;
-	log_data('dump','display manager: @found',\@found) if $b_log;
+	log_data('dump','display manager: @$found',$found) if $b_log;
 	eval $end if $b_log;
-	return \@found if @found;
+	return $found;
 }
 
 ## DistroData
@@ -28759,25 +28768,25 @@ sub get_kernel_bits {
 sub get_kernel_data {
 	eval $start if $b_log;
 	my ($ksplice) = ('');
-	my @kernel;
+	my $kernel = [];
 	# Linux; yawn; 4.9.0-3.1-liquorix-686-pae; #1 ZEN SMP PREEMPT liquorix 4.9-4 (2017-01-14); i686
 	# FreeBSD; siwi.pair.com; 8.2-STABLE; FreeBSD 8.2-STABLE #0: Tue May 31 14:36:14 EDT 2016     erik5@iddhi.pair.com:/usr/obj/usr/src/sys/82PAIRx-AMD64; amd64
 	if (@uname){
-		$kernel[0] = $uname[2];
-		if ((my $program = check_program('uptrack-uname')) && $kernel[0]){
+		$kernel->[0] = $uname[2];
+		if ((my $program = check_program('uptrack-uname')) && $kernel->[0]){
 			$ksplice = qx($program -rm);
 			$ksplice = trimmer($ksplice);
-			$kernel[0] = $ksplice . ' (ksplice)' if $ksplice;
+			$kernel->[0] = $ksplice . ' (ksplice)' if $ksplice;
 		}
-		$kernel[1] = $uname[-1];
+		$kernel->[1] = $uname[-1];
 	}
 	# we want these to have values to save validation checks for output
-	$kernel[0] ||= 'N/A';
-	$kernel[1] ||= 'N/A';
-	log_data('data',"kernel: " . join('; ', @kernel) . " ksplice: $ksplice") if $b_log;
+	$kernel->[0] ||= 'N/A';
+	$kernel->[1] ||= 'N/A';
+	log_data('data',"kernel: " . join('; ', $kernel) . " ksplice: $ksplice") if $b_log;
 	log_data('dump','perl @uname', \@uname) if $b_log;
 	eval $end if $b_log;
-	return \@kernel;
+	return $kernel;
 }
 
 ## KernelParameters
@@ -32399,8 +32408,8 @@ sub system_item {
 		}
 		my $dms = main::get_display_manager();
 		# note: version only present if proper extra level so no need to test again
-		if ($dms || $desktop_key ne 'Console'){
-			if ($dms && scalar @{$dms} > 1){
+		if (@$dms || $desktop_key ne 'Console'){
+			if (@$dms && scalar @$dms > 1){
 				my $i = 0;
 				$data{$data_name}->[$index]{main::key($num++,1,$ind_dm,$dm_key)} = '';
 				foreach my $dm_data (@{$dms}){
