@@ -36,8 +36,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'cpu_arch.pl';
-my $self_version = '1.0';
-my $self_date = '2022-05-31';
+my $self_version = '1.1';
+my $self_date = '2022-06-13';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
@@ -162,7 +162,11 @@ sub cp_cpu_arch {
 				$arch = 'K8 rev.E';
 				$process = 'AMD 65-130nm';
 				$year = '';}
-			elsif ($model =~ /^(41|43|48|4B|4C|4F|5D|5F|68|6B|6C|6F|7C|7F|C1)$/){
+			elsif ($model =~ /^(7F)$/){
+				$arch = 'K8 rev.F+';
+				$process = 'AMD 65nm';
+				$year = '2005';}
+			elsif ($model =~ /^(41|43|48|4B|4C|4F|5D|5F|68|6B|6C|6F|7C|C1)$/){
 				$arch = 'K8 rev.F+';
 				$process = 'AMD 65-130nm';
 				$year = '';}
