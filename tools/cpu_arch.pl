@@ -153,8 +153,19 @@ sub cp_cpu_arch {
 				$process = 'AMD 130-250nm';
 				$year = '';}
 		}
+		# note: family F K8 needs granular breakdowns, was a long lived family
 		elsif ($family eq 'F'){
-			if ($model =~ /^(4|5|7|8|B|C|E|F|14|15|17|18|1B|1C|1F)$/){
+			# positive IDs, but sub arch difficult, can be stepping based
+			if ($model =~ /^(1C)$/){
+				$arch = 'K8'; # Palermo
+				$process = 'AMD 90nm';
+				$year = '2001';}
+			elsif ($model =~ /^(7F)$/){
+				$arch = 'K8 rev.F+'; # Lima
+				$process = 'AMD 65nm';
+				$year = '2005';}
+			# generic IDs, try to reduce these to solid over time
+			elsif ($model =~ /^(4|5|7|8|B|C|E|F|14|15|17|18|1B|1F)$/){
 				$arch = 'K8';
 				$process = 'AMD 65-130nm';
 				$year = '';}
@@ -162,10 +173,6 @@ sub cp_cpu_arch {
 				$arch = 'K8 rev.E';
 				$process = 'AMD 65-130nm';
 				$year = '';}
-			elsif ($model =~ /^(7F)$/){
-				$arch = 'K8 rev.F+';
-				$process = 'AMD 65nm';
-				$year = '2005';}
 			elsif ($model =~ /^(41|43|48|4B|4C|4F|5D|5F|68|6B|6C|6F|7C|C1)$/){
 				$arch = 'K8 rev.F+';
 				$process = 'AMD 65-130nm';
