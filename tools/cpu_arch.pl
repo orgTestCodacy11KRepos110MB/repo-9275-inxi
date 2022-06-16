@@ -156,8 +156,12 @@ sub cp_cpu_arch {
 		# note: family F K8 needs granular breakdowns, was a long lived family
 		elsif ($family eq 'F'){
 			# positive IDs, but sub arch difficult, can be stepping based
-			if ($model =~ /^(1C)$/){
-				$arch = 'K8'; # Palermo
+			if ($model =~ /^(7)$/){
+				$arch = 'K8'; # clawhammer
+				$process = 'AMD 130nm';
+				$year = '2004';}
+			elsif ($model =~ /^(1C|2F)$/){
+				$arch = 'K8'; # 1C:Palermo;2F:Venice_st:Ah
 				$process = 'AMD 90nm';
 				$year = '2001';}
 			elsif ($model =~ /^(7F)$/){
@@ -165,11 +169,11 @@ sub cp_cpu_arch {
 				$process = 'AMD 65nm';
 				$year = '2005';}
 			# generic IDs, try to reduce these to solid over time
-			elsif ($model =~ /^(4|5|7|8|B|C|E|F|14|15|17|18|1B|1F)$/){
+			elsif ($model =~ /^(4|5|8|B|C|E|F|14|15|17|18|1B|1F)$/){
 				$arch = 'K8';
 				$process = 'AMD 65-130nm';
 				$year = '';}
-			elsif ($model =~ /^(21|23|24|25|27|28|2C|2F)$/){
+			elsif ($model =~ /^(21|23|24|25|27|28|2C)$/){
 				$arch = 'K8 rev.E';
 				$process = 'AMD 65-130nm';
 				$year = '';}
@@ -338,9 +342,9 @@ sub cp_cpu_arch {
 		else {
 			$arch='ARM';}
 	}
-# 	elsif ($type eq 'ppc'){
-# 		$arch='PPC';
-# 	}
+	#	elsif ($type eq 'ppc'){
+	#		$arch='PPC';
+	#	}
 	# aka VIA
 	elsif ($type eq 'centaur'){ 
 		if ($family eq '5'){
