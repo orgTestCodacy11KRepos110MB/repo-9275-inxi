@@ -333,7 +333,7 @@ sub cp_cpu_arch {
 				$note = $check;
 				$process = 'TSMC n5 (5nm)';
 				$year = '2021-22';}
-			# Zen 5: TSCM n3
+			# Zen 5: TSMC n3
 		}
 	}
 	elsif ($type eq 'arm'){
