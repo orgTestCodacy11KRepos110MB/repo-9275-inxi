@@ -187,14 +187,18 @@ sub cp_cpu_arch {
 				$year = '';}
 		}
 		elsif ($family eq '10'){
-			if ($model =~ /^(2|4|5|6|8|9|A)$/){
+			if ($model =~ /^(6)$/){
+				$arch = 'K10';  # 6:2:Regor
+				$process = 'AMD 45nm';
+				$year = '2009-14';}
+			elsif ($model =~ /^(2|4|5|8|9|A)$/){
 				$arch = 'K10';
 				$process = 'AMD 32-65nm';
-				$year = '2007-12';}
+				$year = '2007-14';}
 			else {
 				$arch = 'K10';
 				$process = 'AMD 32-65nm';
-				$year = '2007-12';}
+				$year = '2007-14';}
 		}
 		# very loose, all stepping 1: covers athlon x2, sempron, turion x2
 		# years unclear, could be 2005 start, or 2008
