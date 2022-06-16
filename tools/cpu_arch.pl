@@ -708,7 +708,7 @@ sub cp_cpu_arch {
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Meteor Lake';
 			#	$process = 'Intel 4';}
-			# Granite Rapids: INtel 3 (7nm)
+			# Granite Rapids: Intel 3 (7nm)
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';

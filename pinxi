@@ -48,9 +48,9 @@ use POSIX qw(ceil uname strftime ttyname);
 
 ## INXI INFO ##
 my $self_name='pinxi';
-my $self_version='3.3.18';
-my $self_date='2022-06-15';
-my $self_patch='03';
+my $self_version='3.3.19';
+my $self_date='2022-06-16';
+my $self_patch='01';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -10971,7 +10971,7 @@ sub cp_cpu_arch {
 				$note = $check;
 				$process = 'TSMC n5 (5nm)';
 				$year = '2021-22';}
-			# Zen 5: TSCM n3
+			# Zen 5: TSMC n3
 		}
 	}
 	elsif ($type eq 'arm'){
@@ -22093,16 +22093,22 @@ sub get_repos_linux {
 		my $counter = 0;
 		@files = main::globber("$apt.d/*.list");
 		push(@files, $apt);
+		# prefilter list for logging
+		@files = grep {-f $_} @files; # may not have $apt file.
 		main::log_data('data',"apt repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		foreach (sort @files){
-			# altlinux/pclinuxos use rpms in apt files
+			# altlinux/pclinuxos use rpms in apt files, -r to be on safe side
 			if (-r $_){
 				$data = repo_builder($_,'apt','^\s*(deb|rpm)');
 				push(@$rows,@$data);
 			}
 		}
-		#@files = main::globber("$fake_data_dir/repo/apt/*.sources");
+		# @files = main::globber("$fake_data_dir/repo/apt/*.sources");
 		@files = main::globber("$apt.d/*.sources");
+		# prefilter list for logging, sometimes globber returns non-prsent files.
+		@files = grep {-f $_} @files;
+		# @files = ("$fake_data_dir/repo/apt/deb822-u193-3.sources",
+		# "$fake_data_dir/repo/apt/deb822-u193-3.sourcesdeb822-u193-4-signed-by.sources");
 		main::log_data('data',"apt deb822 repo files:\n" . main::joiner(\@files, "\n", 'unset')) if $b_log;
 		foreach $file (@files){
 			# critical: whitespace is the separator, no logical ordering of 
@@ -22149,14 +22155,12 @@ sub get_repos_linux {
 					$apt_types = '';
 					$b_apt_enabled = 1;
 				}
-				# print "row:$row\n";
 				elsif ($row =~ /^Types:\s*(.*)/i){
-					# print "ath:$type_holder\n";
+					# print "1:$1\n";
 					$apt_types = $1;
 				}
 				elsif ($row =~ /^Enabled:\s*(.*)/i){
-					my $status = $1;
-					$b_apt_enabled = ($status =~ /\b(disable|false|off|no|without)\b/i) ? 0: 1;
+					$b_apt_enabled = ($1 =~ /\b(disable|false|off|no|without)\b/i) ? 0: 1;
 				}
 				elsif ($row =~ /^[^#]+:\//){
 					my $url = $row;
@@ -22460,8 +22464,10 @@ sub get_repos_linux {
 	}
 	# TinyCore 
 	if (-e $tce_app || -f $tce_file || -f $tce_file2){
-		$data = repo_builder($tce_file,'tce','^\s*[^#]+');
-		push(@$rows,@$data);
+		if (-f $tce_file){
+			$data = repo_builder($tce_file,'tce','^\s*[^#]+');
+			push(@$rows,@$data);
+		}
 		if (-f $tce_file2){
 			$data = repo_builder($tce_file2,'tce','^\s*[^#]+');
 			push(@$rows,@$data);
