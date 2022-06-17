@@ -114,72 +114,80 @@ sub cp_cpu_arch {
 				$year = '1995-99';}
 		}
 		elsif ($family eq '5'){
+			## verified
 			if ($model =~ /^(0|1|2|3)$/){
 				$arch = 'K5';
-				$process = 'AMD 350-500nm';
-				$year = '1996';}
-			elsif ($model =~ /^(6|7)$/){
+				$process = 'AMD 350nm';
+				$year = '1996-97';}
+			elsif ($model =~ /^(6)$/){
 				$arch = 'K6';
-				$process = 'AMD ' . ($model eq '6') ? '350nm' : '250nm';
+				$process = 'AMD 350nm';
+				$year = '1997-98';}
+			elsif ($model =~ /^(7)$/){
+				$arch = 'K6';
+				$process = 'AMD 250nm';
 				$year = '1997-98';}
 			elsif ($model =~ /^(8)$/){
 				$arch = 'K6-2';
 				$process = 'AMD 250nm';
 				$year = '1998-2003';}
-			elsif ($model =~ /^(9|D)$/){
+			elsif ($model =~ /^(9)$/){
 				$arch = 'K6-3';
-				$process = 'AMD 180-250nm';
+				$process = 'AMD 250nm';
 				$year = '1999-2003';}
+			elsif ($model =~ /^(D)$/){
+				$arch = 'K6-3';
+				$process = 'AMD 180nm';
+				$year = '1999-2003';}
+			## unverified
 			elsif ($model =~ /^(A)$/){
-				$arch = 'Geode';
+				$arch = 'K6 Geode';
 				$process = 'AMD 150-350nm';
-				$year = '';} # dates uncertain, 1999 start
+				$year = '1999';} # dates uncertain, 1999 start
+			## fallback
+			else {
+				$arch = 'K6';
+				$process = 'AMD 250-350nm';
+				$year = '1999-2003';}
 		}
 		elsif ($family eq '6'){
 			## verified
-			if ($model =~ /^(6)$/){
-				$arch = 'K7'; # 6:2:Palomino, duron
-				$process = 'AMD 180nm';
-				$year = '2002-04';}
-			elsif ($model =~ /^(8)$/){
-				$arch = 'K7'; # 8:1:thoroughbred, duron
-				$process = 'AMD 130nm';
-				$year = '2002-04';}
-			## to confirm
-			elsif ($model =~ /^(1|2)$/){
-				$arch = 'K7'; # Athlon Classic
-				$process = 'AMD 180-250nm';
-				$year = '1999-2002';}
-			elsif ($model =~ /^(3|4)$/){
-				$arch = 'K7'; # Thunderbird
+			if ($model =~ /^(1)$/){
+				$arch = 'K7'; # 1:2:argon
+				$process = 'AMD 250nm';
+				$year = '1999-2001';}
+			elsif ($model =~ /^(2|3|4|6)$/){
+				# 3:0:duron;3:1:spitfire;4:2,4:thunderbird; 6:2:Palomino, duron; 2:1:Pluto
+				$arch = 'K7'; 
 				$process = 'AMD 180nm';
 				$year = '2000-01';}
-			elsif ($model =~ /^(7|A)$/){
-				$arch = 'K7'; #  Palomino+; athlon xp
-				$process = 'AMD 130-180nm';
-				$year = '2001-04';}
+			elsif ($model =~ /^(7|8|A)$/){
+				$arch = 'K7'; # 7:0,1:Morgan;8:1:thoroughbred,duron-applebred; A:0:barton
+				$process = 'AMD 130nm';
+				$year = '2002-04';}
+			## fallback
 			else {
 				$arch = 'K7';
-				$process = 'AMD 130-250nm';
+				$process = 'AMD 130-180nm';
 				$year = '2001-04';}
 		}
 		# note: family F K8 needs granular breakdowns, was a long lived family
 		elsif ($family eq 'F'){
-			# positive IDs, but sub arch difficult, stepping based
-			if ($model =~ /^(7|C)$/){
-				$arch = 'K8'; # 7:A:clawhammer ADA3500DEP4AS; C:0:NewCastle
+			## verified
+			if ($model =~ /^(4|7|C)$/){
+				$arch = 'K8'; # 4:0:clawhammer;7:A:clawhammer ADA3500DEP4AS; C:0:NewCastle
 				$process = 'AMD 130nm';
 				$year = '2004-05';}
 			elsif ($model =~ /^(1C|23|28|2F)$/){
-				$arch = 'K8'; # 1C:Palermo;2F:A:Venice; 28:1:Manchester; 23:2:Toledo
+				$arch = 'K8'; # 1C:Palermo;2F:2:Venice; 28:1:Manchester; 23:2:Toledo
 				$process = 'AMD 90nm';
 				$year = '2004-06';}
 			elsif ($model =~ /^(6B|7F)$/){
-				$arch = 'K8'; # 7F::Lima; 68:1:Brisbane
+				$arch = 'K8'; # 7F:2:Lima; 68:1:Brisbane
 				$process = 'AMD 65nm';
 				$year = '2005-06';}
-			## to confirm
-			elsif ($model =~ /^(4|5|8|B|E|F|14|15|17|18|1B|1F)$/){
+			## unconfirmed
+			elsif ($model =~ /^(5|8|B|E|F|14|15|17|18|1B|1F)$/){
 				$arch = 'K8';
 				$process = 'AMD 65-130nm';
 				$year = '';}
@@ -191,44 +199,48 @@ sub cp_cpu_arch {
 				$arch = 'K8'; # rev.F+
 				$process = 'AMD 65-130nm';
 				$year = '';}
+			## fallback
 			else {
 				$arch = 'K8';
 				$process = 'AMD 65-130nm';
-				$year = '';}
+				$year = '2004-2008';}
 		}
 		elsif ($family eq '10'){
-			if ($model =~ /^(6)$/){
-				$arch = 'K10';  # 6:2:Regor
+			## verified
+			if ($model =~ /^(2)$/){
+				$arch = 'K10'; # 2:2:budapest;2:1,3:barcelona
+				$process = 'AMD 65nm';
+				$year = '2007-08';}
+			elsif ($model =~ /^(4|5|6|8|9|A)$/){
+				# 4:2:Suzuka;5:2,3:propus;6:2:Regor;8:0:Istanbul;9:1:maranello
+				$arch = 'K10';  
 				$process = 'AMD 45nm';
-				$year = '2009-14';}
-			elsif ($model =~ /^(2|4|5|8|9|A)$/){
-				$arch = 'K10';
-				$process = 'AMD 32-65nm';
-				$year = '2007-14';}
+				$year = '2009-12';}
+			## fallback
 			else {
 				$arch = 'K10';
-				$process = 'AMD 32-65nm';
-				$year = '2007-14';}
+				$process = 'AMD 45-65nm';
+				$year = '2007-12';}
 		}
 		# very loose, all stepping 1: covers athlon x2, sempron, turion x2
 		# years unclear, could be 2005 start, or 2008
 		elsif ($family eq '11'){
 			if ($model =~ /^(3)$/){
-				$arch = 'Athlon X2/Turion X2'; # unclear: K8 or K10
+				$arch = 'K11 Turion X2'; # mix of K8/K10
 				$note = $check;
-				$process = 'AMD 45-90nm';
+				$process = 'AMD 65-90nm';
 				$year = ''; } 
 		}
 		# might also need cache handling like 14/16
 		elsif ($family eq '12'){
 			if ($model =~ /^(1)$/){
-				$arch = 'Fusion';
+				$arch = 'K12 Fusion'; # K10 based apu, llano
 				$process = 'GF 32nm';
-				$year = '';}
+				$year = '2011';} # check years
 			else {
-				$arch = 'Fusion';
+				$arch = 'K12 Fusion';
 				$process = 'GF 32nm';
-				$year = '';}
+				$year = '2011';} # check years
 		}
 		# SOC, apu
 		elsif ($family eq '14'){
