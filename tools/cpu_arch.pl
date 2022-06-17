@@ -175,7 +175,7 @@ sub cp_cpu_arch {
 				$process = 'AMD 90nm';
 				$year = '2004-06';}
 			elsif ($model =~ /^(6B|7F)$/){
-				$arch = 'K8'; # Lima; 68:1:Brisbane
+				$arch = 'K8'; # 7F::Lima; 68:1:Brisbane
 				$process = 'AMD 65nm';
 				$year = '2005-06';}
 			## to confirm

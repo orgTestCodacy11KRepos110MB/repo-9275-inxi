@@ -126,15 +126,15 @@ sub verify {
 	die "\n'pinxi' has errors!" if $exit_status;
 	say 'passed';
 	print "Testing 'pinxi -b'... ";
-	$exit_status = system("$file_pinxi -b >/dev/null");
+	$exit_status = system("$file_pinxi -b 1>/dev/null");
 	die "\n'pinxi -b' has errors!" if $exit_status;
 	say 'passed';
 	print "Testing 'pinxi -F'... ";
-	$exit_status = system("$file_pinxi -F >/dev/null");
+	$exit_status = system("$file_pinxi -F 1>/dev/null");
 	die "\n'pinxi -F' has errors!" if $exit_status;
 	say 'passed';
 	print "Testing 'pinxi -v8'... ";
-	$exit_status = system("$file_pinxi -v8 >/dev/null");
+	$exit_status = system("$file_pinxi -v8 1>/dev/null");
 	die "\n'pinxi -v8' has errors!" if $exit_status;
 	say 'passed';
 	print "Checking pinxi version against local version: $version... ";
