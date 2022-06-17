@@ -169,29 +169,30 @@ sub cp_cpu_arch {
 			else {
 				$arch = 'K7';
 				$process = 'AMD 130-180nm';
-				$year = '2001-04';}
+				$year = '2003-14';}
 		}
 		# note: family F K8 needs granular breakdowns, was a long lived family
 		elsif ($family eq 'F'){
 			## verified
-			if ($model =~ /^(4|7|C)$/){
+			if ($model =~ /^(4|5|7|C)$/){
 				$arch = 'K8'; # 4:0:clawhammer;7:A:clawhammer ADA3500DEP4AS; C:0:NewCastle
 				$process = 'AMD 130nm';
 				$year = '2004-05';}
-			elsif ($model =~ /^(1C|23|28|2F)$/){
-				$arch = 'K8'; # 1C:Palermo;2F:2:Venice; 28:1:Manchester; 23:2:Toledo
+			elsif ($model =~ /^(1C|21|23|27|28|2F)$/){
+				# 1C:Palermo;21:0,2:denmark..;2F:2:Venice; 28:1:Manchester; 23:2:Toledo
+				$arch = 'K8'; 
 				$process = 'AMD 90nm';
 				$year = '2004-06';}
 			elsif ($model =~ /^(6B|7F)$/){
 				$arch = 'K8'; # 7F:2:Lima; 68:1:Brisbane
 				$process = 'AMD 65nm';
-				$year = '2005-06';}
+				$year = '2005-08';}
 			## unconfirmed
-			elsif ($model =~ /^(5|8|B|E|F|14|15|17|18|1B|1F)$/){
+			elsif ($model =~ /^(8|B|E|F|14|15|17|18|1B|1F)$/){
 				$arch = 'K8';
 				$process = 'AMD 65-130nm';
 				$year = '';}
-			elsif ($model =~ /^(21|24|25|27|2C)$/){
+			elsif ($model =~ /^(24|25|2C)$/){
 				$arch = 'K8'; # rev.E 
 				$process = 'AMD 65-130nm';
 				$year = '';}
@@ -205,6 +206,7 @@ sub cp_cpu_arch {
 				$process = 'AMD 65-130nm';
 				$year = '2004-2008';}
 		}
+		# K9 was planned but skipped
 		elsif ($family eq '10'){
 			## verified
 			if ($model =~ /^(2)$/){
@@ -215,12 +217,12 @@ sub cp_cpu_arch {
 				# 4:2:Suzuka;5:2,3:propus;6:2:Regor;8:0:Istanbul;9:1:maranello
 				$arch = 'K10';  
 				$process = 'AMD 45nm';
-				$year = '2009-12';}
+				$year = '2009-13';}
 			## fallback
 			else {
 				$arch = 'K10';
 				$process = 'AMD 45-65nm';
-				$year = '2007-12';}
+				$year = '2007-13';}
 		}
 		# very loose, all stepping 1: covers athlon x2, sempron, turion x2
 		# years unclear, could be 2005 start, or 2008
@@ -335,9 +337,9 @@ sub cp_cpu_arch {
 			$process = 'GF 14nm';
 			$year = '';}
 		elsif ($family eq '19'){
-			# ext model 7,8, but no base models yet
+			# ext model 6,7, but no base models yet
 			# 10 engineering sample
-			if ($model =~ /^(10|7\d|8\d)$/){
+			if ($model =~ /^(10|6\d|7\d)$/){
 				$arch = 'Zen 4';
 				$gen = '5';
 				$process = 'TSMC n5 (5nm)';
