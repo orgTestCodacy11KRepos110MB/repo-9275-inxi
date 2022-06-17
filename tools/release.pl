@@ -218,7 +218,7 @@ sub options {
 		push(@errors,"-d, -r, -V were not selected. Nothing to do.");
 	}
 	if ($b_sync && !$b_docs){
-		push(@errors,"It is not safe to release -r without -d updates.");
+		push(@errors,"It is not safe to sync -s without -d updates.");
 	}
 	if (@errors){
 		print "Sorry, Options Error:\n* ";
