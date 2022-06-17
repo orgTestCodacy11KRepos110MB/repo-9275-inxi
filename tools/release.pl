@@ -137,6 +137,20 @@ sub verify {
 	$exit_status = system("$file_pinxi -v8 >/dev/null");
 	die "\n'pinxi -v8' has errors!" if $exit_status;
 	say 'passed';
+	print "Checking pinxi version against local version: $version... ";
+	my @data = reader($file_pinxi);
+	foreach (@data){
+		if (/^my \$self_version='([^'']+)'/){
+			if ($1 ne $version){
+				say "\npinxi version $1 does not equal $version!";
+				exit 1;
+			}
+			else {
+				say "versions match";
+			}
+			last;
+		}
+	}
 	say "All pinxi verification tests passed.";
 }
 sub sync_inxi {
