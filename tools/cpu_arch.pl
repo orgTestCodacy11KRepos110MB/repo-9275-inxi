@@ -36,8 +36,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'cpu_arch.pl';
-my $self_version = '1.1';
-my $self_date = '2022-06-13';
+my $self_version = '1.2';
+my $self_date = '2022-06-17';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
