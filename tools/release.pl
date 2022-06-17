@@ -89,7 +89,7 @@ sub copy_files {
 		$file =~ s/-temp//;
 		copy($temp,$file) or die " Copy to $file failed...";
 	}
-	say "Files copied\n";
+	say "Files copied";
 }
 sub process {
 	say $line;
@@ -254,9 +254,11 @@ sub main {
 		copy_files();
 		process();
 	}
-	if ($b_sync || $b_verify){
+	if ($b_verify){
 		verify();
-		sync_inxi() if $b_sync;
+	}
+	if ($b_sync){
+		sync_inxi();
 	}
 	finalize();
 }
