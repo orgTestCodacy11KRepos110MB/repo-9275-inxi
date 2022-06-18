@@ -104,6 +104,7 @@ sub set_ram_vendor_ids {
 	'01f4' => 'Transcend',# confirmed
 	'02fe' => 'Elpida',# confirmed
 	'0314' => 'Mushkin',# confirmed
+	'0420' => 'Chips and Technologies',
 	'1014' => 'IBM',
 	'1099' => 'Samsung',
 	'10c3' => 'Samsung',
