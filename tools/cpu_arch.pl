@@ -261,7 +261,7 @@ sub cp_cpu_arch {
 				$arch = 'Bulldozer';
 				$process = 'GF 32nm';
 				$year = '2011';}
-			# note: only 2,11,13 confirmed
+			# note: only 2,10,13 confirmed
 			elsif ($model =~ /^(2|10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F)$/){
 				$arch = 'Piledriver';
 				$process = 'GF 32nm';
