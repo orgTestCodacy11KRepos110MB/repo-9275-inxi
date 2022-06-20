@@ -27,8 +27,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'disk_vendors.pl';
-my $self_version = '1.4';
-my $self_date = '2022-06-09';
+my $self_version = '1.5';
+my $self_date = '2022-06-20';
 
 my $disks_raw = 'lists/disks.full';
 my $disks_unhandled = 'lists/disks.unhandled';
@@ -532,7 +532,7 @@ sub set_disk_vendors {
 	eval $end if $b_log;
 }
 ## END DISK VENDOR BLOCK ##
-# r
+# 
 # You should not need to change device_vendor(), but if you do, make sure to 
 #  also change the version in pinxi at the same time.
 sub disk_vendor {
@@ -545,6 +545,8 @@ sub disk_vendor {
 	# $model = 'H10 HBRPEKNX0202A NVMe INTEL 512GB';
 	# $model = 'Patriot Memory';
 	set_disk_vendors() if !$vendors;
+	# prefilter this one, some usb enclosurs and wrong master/slave hdd show default
+	$model =~ s/^Initio[\s_]//i;
 	foreach my $row (@$vendors){
 		if ($model =~ /$row->[0]/i || ($row->[3] && $serial && $serial =~ /$row->[3]/)){
 			$vendor = $row->[2];
