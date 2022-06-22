@@ -545,7 +545,7 @@ sub cp_cpu_arch {
 				$year = '';}
 			elsif ($model =~ /^(6)$/){
 				$arch = 'P6 II Mendocino';
-				$process = 'Intel 250nm';
+				$process = 'Intel 250nm'; # 6:5:celeron-mendo
 				$year = '1999';}
 			elsif ($model =~ /^(7)$/){
 				$arch = 'P6 III Katmai';
