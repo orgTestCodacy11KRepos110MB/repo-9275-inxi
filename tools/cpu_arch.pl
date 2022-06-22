@@ -173,13 +173,15 @@ sub cp_cpu_arch {
 		}
 		# note: family F K8 needs granular breakdowns, was a long lived family
 		elsif ($family eq 'F'){
-			## verified
-			if ($model =~ /^(4|5|7|8|C)$/){
+			## verified 
+			# check: B|E|F
+			if ($model =~ /^(4|5|7|8|B|C|E|F)$/){
 				# 4:0:clawhammer;5:8:sledgehammer;8:2,4:8:dubin;7:A;C:0:NewCastle;
 				$arch = 'K8'; 
 				$process = 'AMD 130nm';
 				$year = '2004-05';}
-			elsif ($model =~ /^(15|1C|1F|21|23|24|27|28|2C|2F|37|3F|41|43|4C|4F|5F|C1)$/){
+			# check: 14|17|18|1B|25|48|4B|5D
+			elsif ($model =~ /^(14|15|17|18|1B|1C|1F|21|23|24|25|27|28|2C|2F|37|3F|41|43|48|4B|4C|4F|5D|5F|C1)$/){
 				# 1C:0,2C:2:Palermo;21:0,2,23:2:denmark;1F:0:winchester;2F:2:Venice;
 				# 27:1,37:2:san diego;28:1,3F:2:Manchester;23:2:Toledo;$F:2,5F:2,3:Orleans;
 				# 5F:2:Manila?;37:2;C1:3:windsor fx;43:2,3:santa ana;41:2:santa rosa;
@@ -191,11 +193,6 @@ sub cp_cpu_arch {
 				$arch = 'K8'; # 7F:1,2:Lima; 68:1,6B:1,2:Brisbane;6F:2:conesus;7C:2:sherman
 				$process = 'AMD 65nm';
 				$year = '2005-08';}
-			## unconfirmed
-			elsif ($model =~ /^(B|E|F|14|17|18|1B|25|48|4B|5D)$/){
-				$arch = 'K8';
-				$process = 'AMD 65-130nm';
-				$year = '';}
 			## fallback
 			else {
 				$arch = 'K8';
