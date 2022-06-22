@@ -187,21 +187,13 @@ sub cp_cpu_arch {
 				$arch = 'K8'; 
 				$process = 'AMD 90nm';
 				$year = '2004-06';}
-			elsif ($model =~ /^(6B|6C|6F|7C|7F)$/){
+			elsif ($model =~ /^(68|6B|6C|6F|7C|7F)$/){
 				$arch = 'K8'; # 7F:1,2:Lima; 68:1,6B:1,2:Brisbane;6F:2:conesus;7C:2:sherman
 				$process = 'AMD 65nm';
 				$year = '2005-08';}
 			## unconfirmed
-			elsif ($model =~ /^(B|E|F|14|17|18|1B)$/){
+			elsif ($model =~ /^(B|E|F|14|17|18|1B|25|48|4B|5D)$/){
 				$arch = 'K8';
-				$process = 'AMD 65-130nm';
-				$year = '';}
-			elsif ($model =~ /^(25)$/){
-				$arch = 'K8'; # rev.E 
-				$process = 'AMD 65-130nm';
-				$year = '';}
-			elsif ($model =~ /^(48|4B|5D|68)$/){
-				$arch = 'K8'; # rev.F+
 				$process = 'AMD 65-130nm';
 				$year = '';}
 			## fallback
