@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.19';
-my $self_date='2022-06-20';
-my $self_patch='04';
+my $self_date='2022-06-23';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -30486,12 +30486,15 @@ sub process_status {
 	elsif ($key eq 'rcctl'){
 		$cmd = "$service_tool{$key}->[0] check $service";
 	}
-	# elsif ($key eq 'initctl'){
-	#	$cmd = "$service_tool{$key}->[0] status $service";
-	# }
-	# dragonfly/netbsd/freebsd have this
+	# dragonfly/netbsd/freebsd have this. We prefer service over following since
+	# if it is present, the assumption is that it is being used, though multi id
+	# is probably better.
 	elsif ($key eq 'service'){
 		$cmd = "$service_tool{$key}->[0] $service status";
+	}
+	# upstart, legacy, and finit
+	elsif ($key eq 'initctl'){
+		$cmd = "$service_tool{$key}->[0] status $service";
 	}
 	# runit
 	elsif ($key eq 'sv'){
@@ -30536,6 +30539,12 @@ sub process_status {
 			$value = lc($1) if $1 && (!$result || $result ne 'disabled');
 			$value = $translate{$value} if $value && $translate{$value};
 			$result .= ",$value" if ($result && $value);
+			last;
+		}
+		# Status : running
+		elsif ($working[0] eq 'Status'){
+			$result = lc($working[1]);
+			$result = $translate{$result} if $translate{$result};
 			last;
 		}
 		# valid syntax, but service does not exist
