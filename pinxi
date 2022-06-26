@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.19';
-my $self_date='2022-06-23';
-my $self_patch='05';
+my $self_date='2022-06-26';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -7090,7 +7090,7 @@ sub print_data {
 	my ($hash_id,$holder,$start,$start2,$start_holder) = ('','','','','');
 	my $indent = $size{'indent'};
 	my (%ids);
-	my ($b_container,$b_ni2,$holder2,$key,$line,$val2,$val3);
+	my ($b_container,$b_long_value,$b_ni2,$holder2,$key,$line,$val2,$val3);
 	# these 2 sets are single logic items
 	my $b_single = ($size{'max-cols'} == 1) ? 1: 0;
 	my ($b_row1,$indent_2,$indent_use,$indentx) = (1,0,0,0);
@@ -7149,6 +7149,7 @@ sub print_data {
 				($counter,$b_row1,$split_count) = (0,1,0);
 				foreach my $key2 (sort {substr($a,0,3) <=> substr($b,0,3)} keys %$val1){
 					($hash_id,$b_container,$indentx,$key) = (split('#', $key2));
+					$b_long_value = 0;
 					if (!$b_single){
 						$indent_use = ($b_row1 || $b_ni2) ? $indent: $indent_2;
 					}
@@ -7196,7 +7197,7 @@ sub print_data {
 						my @values = split(/\s+/, $val2);
 						$val3 = shift @values;
 						$start2 = "$colors{'c1'}$key$sep{'s2'}$colors{'c2'} $val3 ";
-						$holder2 = '';
+						$b_long_value = 1;
 						# case where not first item in line, but when key+first word added,
 						# is wider than max width.
 						if ($holder && 
@@ -7240,7 +7241,9 @@ sub print_data {
 								$holder2 =~ s/\s+$//;
 								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n","$start","$holder$holder2");
 								print_line($line);
+								# make sure wrapped value is indented correctly! 
 								$b_row1 = 0;
+								$indent_use = ($b_row1) ? $indent : $indent_2;
 								$holder = '';
 								$holder2 = "$_ ";
 								# print "h2: $holder2\n";
@@ -7251,14 +7254,21 @@ sub print_data {
 						}
 						if ($holder2 !~ /^\s*$/){
 							# print "p-2: r1: $b_row1 iu: $indent_use\n";
-							$holder2 =~ s/\s+$//;
-							$holder2 = "$colors{'c2'}$holder2";
-							$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n","$start","$holder$holder2");
-							print_line($line);
-							$b_row1 = 0;
-							$holder = '';
+							# we don't want to start a new line, continue until full length.
+							if ($b_long_value){
+								$holder2 = "$colors{'c2'}$holder2";
+								$holder = $holder2;
+							}
+							else {
+								$holder2 =~ s/\s+$//;
+								$holder2 = "$colors{'c2'}$holder2";
+								$line = sprintf("%-${indent_use}s%s$colors{'cn'}\n","$start","$holder$holder2");
+								print_line($line);
+								$b_row1 = 0;
+								$holder = '';
+								$length = $indent_use;
+							}
 							$holder2 = '';
-							$length = $indent_use;
 							$start2 = '';
 							$start = '';
 						}
