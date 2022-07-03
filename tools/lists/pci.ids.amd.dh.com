@@ -1,7 +1,7 @@
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CAB0	RS100 Host Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CAB2	RS200 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CAB3	RS250 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CBB2	RS200 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC04	Theater 506 USB	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC05	Theater 506 USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC06	Theater 506 External USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC07	Theater 506 External USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC08	Theater 506A World-Wide Analog Decoder + Demodulator	Vendor Device
@@ -13,6 +13,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC0D	Theater 506A USB	Vendor Dev
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC0E	Theater 506A External USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC0F	Theater 506A External USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC12	Theater HD T507 (DVB-T) TV tuner/capture device	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CAB0	RS100 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	CAB2	RS200 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAE8	Fiji HDMI/DP Audio [Radeon R9 Nano / FURY/FURY X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAF0	Ellesmere HDMI Audio [Radeon RX 470/480 / 570/580/590]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAF8	Vega 10 HDMI Audio [Radeon Vega 56/64]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB00	Baffin HDMI/DP Audio [Radeon RX 550 640SP / RX 560/560X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB08	Polaris 22 HDMI Audio	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB10	Lexa HDMI Audio	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB18	Vega 12 HDMI Audio	Vendor Device
@@ -22,22 +28,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC00	Theater 506 World-Wide Anal
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC01	Theater 506 World-Wide Analog Decoder	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC02	TV Wonder HD 600 PCIe	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC03	Theater 506 PCIe	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC04	Theater 506 USB	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AC05	Theater 506 USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB28	Navi 21/23 HDMI/DP Audio Controller	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAB0	Oland/Hainan/Cape Verde/Pitcairn HDMI Audio [Radeon HD 7000 Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAB8	Tiran HDMI Audio	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAC0	Tobago HDMI Audio [Radeon R7 360 / R9 360 OEM]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAC8	Hawaii HDMI Audio [Radeon R9 290/290X / 390/390X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAD8	Tonga HDMI Audio [Radeon R9 285/380]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAE0	Baffin HDMI/DP Audio [Radeon RX 550 640SP / RX 560/560X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAE8	Fiji HDMI/DP Audio [Radeon R9 Nano / FURY/FURY X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAF0	Ellesmere HDMI Audio [Radeon RX 470/480 / 570/580/590]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAF8	Vega 10 HDMI Audio [Radeon Vega 56/64]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AB00	Baffin HDMI/DP Audio [Radeon RX 550 640SP / RX 560/560X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA30	RV770 HDMI Audio [Radeon HD 4850/4870]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA38	RV710/730 HDMI Audio [Radeon HD 4000 series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA50	Cypress HDMI Audio [Radeon HD 5830/5850/5870 / 6850/6870 Rebrand]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA58	Juniper HDMI Audio [Radeon HD 5700 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA60	Redwood HDMI Audio [Radeon HD 5000 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA68	Cedar HDMI Audio [Radeon HD 5400/6300/7300 Series]	Vendor Device
@@ -46,6 +37,14 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA88	Barts HDMI Audio [Radeon HD
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA90	Turks HDMI Audio [Radeon HD 6500/6600 / 6700M Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA98	Caicos HDMI Audio [Radeon HD 6450 / 7450/8450/8490 OEM / R5 230/235/235X OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAA0	Tahiti HDMI Audio [Radeon HD 7870 XT / 7950/7970]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAB0	Oland/Hainan/Cape Verde/Pitcairn HDMI Audio [Radeon HD 7000 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAB8	Tiran HDMI Audio	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAC0	Tobago HDMI Audio [Radeon R7 360 / R9 360 OEM]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAC8	Hawaii HDMI Audio [Radeon R9 290/290X / 390/390X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAD8	Tonga HDMI Audio [Radeon R9 285/380]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AAE0	Baffin HDMI/DP Audio [Radeon RX 550 640SP / RX 560/560X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	999D	Richland [Radeon HD 8550D]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	99A0	Trinity 2 [Radeon HD 7520G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	99A2	Trinity 2 [Radeon HD 7420G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	99A4	Trinity 2 [Radeon HD 7400G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA00	R600 HDMI Audio [Radeon HD 2900 GT/PRO/XT]	Vendor Device
@@ -55,6 +54,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA10	RV610 HDMI Audio [Radeon HD
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA18	RV670/680 HDMI Audio [Radeon HD 3690/3800 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA20	RV635 HDMI Audio [Radeon HD 3650/3730/3750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA28	RV620 HDMI Audio [Radeon HD 3450/3470/3550/3570]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA30	RV770 HDMI Audio [Radeon HD 4850/4870]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA38	RV710/730 HDMI Audio [Radeon HD 4000 series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	AA50	Cypress HDMI Audio [Radeon HD 5830/5850/5870 / 6850/6870 Rebrand]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9990	Trinity 2 [Radeon HD 7520G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9991	Trinity 2 [Radeon HD 7540D]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9992	Trinity 2 [Radeon HD 7420G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9993	Trinity 2 [Radeon HD 7480D]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9994	Trinity 2 [Radeon HD 7400G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9995	Richland [Radeon HD 8450G]	Vendor Device
@@ -65,8 +70,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9999	Richland [Radeon HD 8510G]	
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	999A	Richland [Radeon HD 8410G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	999B	Richland [Radeon HD 8310G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	999C	Richland [Radeon HD 8650D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	999D	Richland [Radeon HD 8550D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	99A0	Trinity 2 [Radeon HD 7520G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990D	Richland [Radeon HD 8550G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990E	Richland [Radeon HD 8570D]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990F	Richland [Radeon HD 8610G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9910	Trinity [Radeon HD 7660G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9913	Trinity [Radeon HD 7640G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9917	Trinity [Radeon HD 7620G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9918	Trinity [Radeon HD 7600G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9919	Trinity [Radeon HD 7500G]	Vendor Device
@@ -78,9 +86,13 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9923	Starsha2 [Kingston/Clayton]
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9924	Gladius	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9925	Kingston/Clayton/Jupiter/Gladius/Montego HDMI Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9926	Jupiter	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9990	Trinity 2 [Radeon HD 7520G]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9991	Trinity 2 [Radeon HD 7540D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9992	Trinity 2 [Radeon HD 7420G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9874	Wani [Radeon R5/R6/R7 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9890	Amur	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	98C0	Nolan	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	98E4	Stoney [Radeon R2/R3/R4/R5 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9900	Trinity [Radeon HD 7660G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9901	Trinity [Radeon HD 7660D]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9902	Trinity HDMI Audio Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9903	Trinity [Radeon HD 7640G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9904	Trinity [Radeon HD 7560D]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9905	Trinity GL [FirePro A300]	Vendor Device
@@ -91,11 +103,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9909	Trinity [Radeon HD 7500G]	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990A	Trinity [Radeon HD 7500G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990B	Richland [Radeon HD 8650G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990C	Richland [Radeon HD 8670D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990D	Richland [Radeon HD 8550G]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990E	Richland [Radeon HD 8570D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	990F	Richland [Radeon HD 8610G]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9910	Trinity [Radeon HD 7660G]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9913	Trinity [Radeon HD 7640G]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9851	Mullins [Radeon R4/R5 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9852	Mullins [Radeon R2 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9853	Mullins [Radeon R2 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9854	Mullins [Radeon R3E Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9855	Mullins [Radeon R6 Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9856	Mullins [Radeon R1E/R2E Graphics]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9857	Mullins [Radeon APU XX-2200M with R2 Graphics]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9858	Mullins	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9859	Mullins	Vendor Device
@@ -105,13 +118,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	985C	Mullins	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	985D	Mullins	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	985E	Mullins	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	985F	Mullins	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9874	Wani [Radeon R5/R6/R7 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9890	Amur	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	98C0	Nolan	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	98E4	Stoney [Radeon R2/R3/R4/R5 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9900	Trinity [Radeon HD 7660G]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9901	Trinity [Radeon HD 7660D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9902	Trinity HDMI Audio Controller	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9808	Wrestler [Radeon HD 7340]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9809	Wrestler [Radeon HD 7310]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	980A	Wrestler [Radeon HD 7290]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9830	Kabini [Radeon HD 8400 / R3 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9831	Kabini [Radeon HD 8400E]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9832	Kabini [Radeon HD 8330]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9833	Kabini [Radeon HD 8330E]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9834	Kabini [Radeon HD 8210]	Vendor Device
@@ -123,12 +134,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9839	Kabini [Radeon HD 8180]	Ven
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	983D	Temash [Radeon HD 8250/8280G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9840	Kabini HDMI/DP Audio	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9850	Mullins [Radeon R3 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9851	Mullins [Radeon R4/R5 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9852	Mullins [Radeon R2 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9853	Mullins [Radeon R2 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9854	Mullins [Radeon R3E Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9855	Mullins [Radeon R6 Graphics]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9856	Mullins [Radeon R1E/R2E Graphics]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964F	Sumo	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	970F	RS880 HDMI Audio [Radeon HD 4200 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9710	RS880 [Radeon HD 4200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9712	RS880M [Mobility Radeon HD 4225/4250]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9713	RS880M [Mobility Radeon HD 4100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9714	RS880 [Radeon HD 4290]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9715	RS880 [Radeon HD 4250]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9802	Wrestler [Radeon HD 6310]	Vendor Device
@@ -137,11 +147,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9804	Wrestler [Radeon HD 6250]	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9805	Wrestler [Radeon HD 6250]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9806	Wrestler [Radeon HD 6320]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9807	Wrestler [Radeon HD 6290]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9808	Wrestler [Radeon HD 7340]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9809	Wrestler [Radeon HD 7310]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	980A	Wrestler [Radeon HD 7290]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9830	Kabini [Radeon HD 8400 / R3 Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9831	Kabini [Radeon HD 8400E]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9643	SuperSumo [Radeon HD 6380G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9644	SuperSumo [Radeon HD 6410D]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9645	SuperSumo [Radeon HD 6410D]	Vendor Device
@@ -152,14 +157,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964A	Sumo [Radeon HD 6530D]	Vend
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964B	Sumo	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964C	Sumo	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964E	Sumo	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	964F	Sumo	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	970F	RS880 HDMI Audio [Radeon HD 4200 Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9710	RS880 [Radeon HD 4200]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9712	RS880M [Mobility Radeon HD 4225/4250]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9713	RS880M [Mobility Radeon HD 4100]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9616	RS780L [Radeon 3000]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9640	Sumo [Radeon HD 6550D]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9641	Sumo [Radeon HD 6620G]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9642	SuperSumo [Radeon HD 6370D]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9615	RS780E [Radeon HD 3200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C2	RV620/M82 [Mobility Radeon HD 3410/3430]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C4	RV620/M82 [Mobility Radeon HD 3450/3470]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C5	RV620 LE [Radeon HD 3450]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C6	RV620 LE [Radeon HD 3450 AGP]	Vendor Device
@@ -173,12 +176,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9611	RS780C [Radeon 3100]	Vendor
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9612	RS780M [Mobility Radeon HD 3200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9613	RS780MC [Mobility Radeon HD 3100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9614	RS780D [Radeon HD 3300]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9616	RS780L [Radeon 3000]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9640	Sumo [Radeon HD 6550D]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9587	RV630 PRO [Radeon HD 2600 PRO AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9588	RV630 XT [Radeon HD 2600 XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9589	RV630 PRO [Radeon HD 2600 PRO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	958A	RV630 [Radeon HD 2600 X2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	958B	RV630/M76 [Mobility Radeon HD 2600 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	958C	RV630 GL [FireGL V5600]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	958D	RV630 GL [FireGL V3600]	Vendor Device
@@ -190,7 +187,17 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9597	RV635 PRO [Radeon HD 3650 A
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9598	RV635 [Radeon HD 3650/3750/4570/4580]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9599	RV635 PRO [Radeon HD 3650 AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C0	RV620 PRO [Radeon HD 3470]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	95C2	RV620/M82 [Mobility Radeon HD 3410/3430]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	955F	RV710/M92 [Mobility Radeon HD 4330]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9580	RV630 [Radeon HD 2600 PRO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9581	RV630/M76 [Mobility Radeon HD 2600]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9583	RV630/M76 [Mobility Radeon HD 2600 XT/2700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9586	RV630 XT [Radeon HD 2600 XT AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9587	RV630 PRO [Radeon HD 2600 PRO AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9588	RV630 XT [Radeon HD 2600 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9589	RV630 PRO [Radeon HD 2600 PRO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	958A	RV630 [Radeon HD 2600 X2]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	950F	R680 [Radeon HD 3870 X2]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9511	RV670 GL [FireGL V7700]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9513	RV670 [Radeon HD 3850 X2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9515	RV670 PRO [Radeon HD 3850 AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9519	RV670 GL [FireStream 9170]	Vendor Device
@@ -200,11 +207,10 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9552	RV710/M92 [Mobility Radeon 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9553	RV710/M92 [Mobility Radeon HD 4530/4570/545v]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9555	RV710/M92 [Mobility Radeon HD 4350/4550]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9557	RV711/M93 GL [FirePro RG220]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	955F	RV710/M92 [Mobility Radeon HD 4330]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9580	RV630 [Radeon HD 2600 PRO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9581	RV630/M76 [Mobility Radeon HD 2600]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9583	RV630/M76 [Mobility Radeon HD 2600 XT/2700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9586	RV630 XT [Radeon HD 2600 XT AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C7	RV610 [Radeon HD 2350]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C8	RV610/M74 [Mobility Radeon HD 2400 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C9	RV610/M72-S [Mobility Radeon HD 2400]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94CB	RV610 [Radeon E2400]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94CC	RV610 LE [Radeon HD 2400 PRO PCI]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9500	RV670 [Radeon HD 3850 X2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9501	RV670 [Radeon HD 3870]	Vendor Device
@@ -214,8 +220,8 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9506	RV670/M88 [Mobility Radeon 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9507	RV670 [Radeon HD 3830]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9508	RV670/M88-XT [Mobility Radeon HD 3870]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9509	RV670/M88 [Mobility Radeon HD 3870 X2]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	950F	R680 [Radeon HD 3870 X2]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9511	RV670 GL [FireGL V7700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	949E	RV730 GL [FirePro V5700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	949F	RV730 GL [FirePro V3750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94A0	RV740/M97 [Mobility Radeon HD 4830]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94A1	RV740/M97-XT [Mobility Radeon HD 4860]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94A3	RV740/M97 GL [FirePro M7740]	Vendor Device
@@ -225,14 +231,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C1	RV610 [Radeon HD 2400 PRO/X
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C3	RV610 [Radeon HD 2400 PRO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C4	RV610 LE [Radeon HD 2400 PRO AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C5	RV610 [Radeon HD 2400 LE]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C7	RV610 [Radeon HD 2350]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C8	RV610/M74 [Mobility Radeon HD 2400 XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94C9	RV610/M72-S [Mobility Radeon HD 2400]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	94CB	RV610 [Radeon E2400]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9452	RV770 GL [FireStream 9250]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9456	RV770 GL [FirePro V8700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	945A	RV770/M98-XT [Mobility Radeon HD 4870]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9460	RV790 [Radeon HD 4890]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9462	RV790 [Radeon HD 4860]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	946A	RV770 GL [FirePro M7750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9480	RV730/M96 [Mobility Radeon HD 4650/5165]	Vendor Device
@@ -243,8 +241,17 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9491	RV730/M96-CSP [Radeon E4690
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9495	RV730 [Radeon HD 4600 AGP Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9498	RV730 PRO [Radeon HD 4650]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	949C	RV730 GL [FirePro V7750]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	949E	RV730 GL [FirePro V5700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	949F	RV730 GL [FirePro V3750]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9446	RV770 GL [FirePro V7760]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944A	RV770/M98L [Mobility Radeon HD 4850]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944B	RV770/M98 [Mobility Radeon HD 4850 X2]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944C	RV770 LE [Radeon HD 4830]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944E	RV770 CE [Radeon HD 4710]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9450	RV770 GL [FireStream 9270]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9452	RV770 GL [FireStream 9250]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9456	RV770 GL [FirePro V8700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	945A	RV770/M98-XT [Mobility Radeon HD 4870]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9460	RV790 [Radeon HD 4890]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9401	R600 [Radeon HD 2900 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9403	R600 [Radeon HD 2900 PRO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9405	R600 [Radeon HD 2900 GT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	940A	R600 GL [FireGL V8650]	Vendor Device
@@ -255,13 +262,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9441	R700 [Radeon HD 4870 X2]	Ve
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9442	RV770 [Radeon HD 4850]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9443	R700 [Radeon HD 4850 X2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9444	RV770 GL [FirePro V8750]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9446	RV770 GL [FirePro V7760]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944A	RV770/M98L [Mobility Radeon HD 4850]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944B	RV770/M98 [Mobility Radeon HD 4850 X2]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944C	RV770 LE [Radeon HD 4830]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	944E	RV770 CE [Radeon HD 4710]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9450	RV770 GL [FireStream 9270]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	791E	RS690 [Radeon X1200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	791F	RS690M [Radeon Xpress 1200/1250/1270]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7930	RS600 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7932	RS600 PCI to PCI Bridge (Internal gfx)	Vendor Device
@@ -275,7 +275,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7941	RS600 [Radeon Xpress 1250]	
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7942	RS600M [Radeon Xpress 1250]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	796E	RS740 [Radeon 2100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9400	R600 [Radeon HD 2900 PRO/XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	9401	R600 [Radeon HD 2900 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7833	RS350 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7834	RS350 [Radeon 9100 PRO/XT IGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7835	RS350M [Mobility Radeon 9000 IGP]	Vendor Device
@@ -289,9 +288,14 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7916	RS690 PCI to PCI Bridge (PC
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7917	RS690 PCI to PCI Bridge (PCI Express Port 3)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	743F	Navi 24 [Radeon RX 6400 / 6500 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7919	RS690 HDMI Audio [Radeon Xpress 1200 Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	740F	Aldebaran	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	791E	RS690 [Radeon X1200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7422	Navi 24 [Radeon PRO W6400]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7423	Navi 24 [Radeon PRO W6300/W6300M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7424	Navi 24 [Radeon RX 6300]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73EF	Navi 23 [Radeon RX 6650 XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73AB	Navi 21 Pro-XLA [Radeon Pro W6800X/Radeon Pro W6800X Duo]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73AE	Navi 21 [Radeon Pro V620 MxGPU]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73CE	Navi22-XL SRIOV MxGPU	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7421	Navi 24 [Radeon PRO W6500M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73AF	Navi 21 [Radeon RX 6900 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73BF	Navi 21 [Radeon RX 6800/6800 XT / 6900 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73C4	Navi 22 USB	Vendor Device
@@ -304,13 +308,15 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73E3	Navi 23 WKS-XL [Radeon PRO 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73E4	Navi 23 USB	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7408	Aldebaran	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	740C	Aldebaran	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	740F	Aldebaran	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	731F	Navi 10 [Radeon RX 5600 OEM/5600 XT / 5700/5700 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7340	Navi 14 [Radeon RX 5500/5500M / Pro 5500M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7341	Navi 14 [Radeon Pro W5500]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7347	Navi 14 [Radeon Pro W5500M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	734F	Navi 14 [Radeon Pro W5300M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7360	Navi 12 [Radeon Pro 5600M / V520]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7360	Navi 12 [Radeon Pro 5600M/V520/BC-160]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73A5	Navi 21 [Radeon RX 6950 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73A1	Navi 21 [Radeon Pro V620]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7362	Navi 12 [Radeon Pro V520]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7388	Arcturus GL-XL	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	738C	Arcturus GL-XL [Instinct MI100]	Vendor Device
@@ -318,6 +324,8 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	738E	Arcturus GL-XL [Instinct MI
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73A2	Navi 21 Pro-XTA [Radeon Pro W6900X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73A3	Navi 21 GL-XL [Radeon PRO W6800]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73A4	Navi 21 USB	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	73AB	Navi 21 Pro-XLA [Radeon Pro W6800X/Radeon Pro W6800X Duo]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	724E	R580 GL [FireGL V7350]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7269	R580 [Radeon X1900 XT] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	726B	R580 [Radeon X1900 GT] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	726E	R580 [AMD Stream Processor] (Secondary)	Vendor Device
@@ -332,7 +340,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	72B3	RV560 [Radeon X1650 GT] (Se
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7300	Fiji [Radeon R9 FURY / NANO Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7310	Navi 10 [Radeon Pro W5700X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7312	Navi 10 [Radeon Pro W5700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	731E	TDC-150	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7314	Navi 10 USB	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71D6	RV530/M66-XT [Mobility Radeon X1700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71DE	RV530/M66 [Mobility Radeon X1700/X2500]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E0	RV530 [Radeon X1600] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E1	RV535 [Radeon X1650 PRO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E2	RV530 [Radeon X1600] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E6	RV530 [Radeon X1650] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E7	RV535 [Radeon X1650 PRO] (Secondary)	Vendor Device
@@ -344,7 +357,10 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7244	R580+ [Radeon X1950 XT]	Ven
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7248	R580 [Radeon X1950]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7249	R580 [Radeon X1900 XT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	724B	R580 [Radeon X1900 GT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	724E	R580 GL [FireGL V7350]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71BB	RV516 GL [FireMV 2250] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C0	RV530 [Radeon X1600 XT/X1650 GTO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C1	RV535 [Radeon X1650 PRO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C2	RV530 [Radeon X1600 PRO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C4	RV530/M56 GL [Mobility FireGL V5200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C5	RV530/M56-P [Mobility Radeon X1600]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C6	RV530LE [Radeon X1600/X1650 PRO]	Vendor Device
@@ -353,12 +369,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71CE	RV530 [Radeon X1300 XT/X160
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71D2	RV530 GL [FireGL V3400]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71D4	RV530/M66 GL [Mobility FireGL V5250]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71D5	RV530/M66-P [Mobility Radeon X1700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71D6	RV530/M66-XT [Mobility Radeon X1700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71DE	RV530/M66 [Mobility Radeon X1700/X2500]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E0	RV530 [Radeon X1600] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71E1	RV535 [Radeon X1650 PRO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C3	RV530 [Radeon X1600 PRO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	718D	RV516/M64-CSP128 [Mobility Radeon X1450]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7193	RV516 [Radeon X1550 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7196	RV516/M62-S [Mobility Radeon X1350]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	719B	RV516 GL [FireMV 2250]	Vendor Device
@@ -367,10 +378,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71A0	RV516 [Radeon X1300/X1550 S
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71A1	RV516 [Radeon X1600/X1650 Series] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71A3	RV516 [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71A7	RV516 [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71BB	RV516 GL [FireMV 2250] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C0	RV530 [Radeon X1600 XT/X1650 GTO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C1	RV535 [Radeon X1650 PRO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	71C2	RV530 [Radeon X1600 PRO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7162	RV515 PRO [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7163	RV505 [Radeon X1550 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7166	RV515 [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7167	RV515 [Radeon X1550 64-bit] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7172	RV515 GL [FireGL V3300] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7173	RV515 GL [FireGL V3350] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7181	RV516 [Radeon X1600/X1650 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7183	RV516 [Radeon X1300/X1550 Series]	Vendor Device
@@ -380,17 +392,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7188	RV516/M64-S [Mobility Radeo
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	718A	RV516/M64 [Mobility Radeon X2300]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	718B	RV516/M62 [Mobility Radeon X1350]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	718C	RV516/M62-CSP64 [Mobility Radeon X1350]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	714A	RV515/M52 [Mobility Radeon X1300]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7152	RV515 GL [FireGL V3300]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7153	RV515 GL [FireGL V3350]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	715F	RV505 CE [Radeon X1550 64-bit]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7162	RV515 PRO [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7163	RV505 [Radeon X1550 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7166	RV515 [Radeon X1300/X1550 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7167	RV515 [Radeon X1550 64-bit] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7172	RV515 GL [FireGL V3300] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	710F	R520 GL [FireGL V7350]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7120	R520 [Radeon X1800] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	718D	RV516/M64-CSP128 [Mobility Radeon X1450]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7124	R520 GL [FireGL V7200] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7129	R520 [Radeon X1800] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	712E	R520 GL [FireGL V7300] (Secondary)	Vendor Device
@@ -402,9 +404,10 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7145	RV515/M54 [Mobility Radeon 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7146	RV515 [Radeon X1300/X1550]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7147	RV505 [Radeon X1550 64-bit]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7149	RV515/M52 [Mobility Radeon X1300]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A1	Vega 12	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A2	Vega 12	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A3	Vega 12	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	714A	RV515/M52 [Mobility Radeon X1300]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7152	RV515 GL [FireGL V3300]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7153	RV515 GL [FireGL V3350]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	715F	RV505 CE [Radeon X1550 64-bit]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69AF	Vega 12 [Radeon Pro Vega 20]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6FDF	Polaris 20 XL [Radeon RX 580 2048SP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	700F	RS100 AGP Bridge	Vendor Device
@@ -417,9 +420,8 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7109	R520 [Radeon X1800 XL]	Vend
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	710A	R520 [Radeon X1800 GTO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	710B	R520 [Radeon X1800 GTO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	710E	R520 GL [FireGL V7300]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694C	Polaris 22 XT [Radeon RX Vega M GH]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694E	Polaris 22 XL [Radeon RX Vega M GL]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694F	Polaris 22 MGL XL [Radeon Pro WX Vega M GL]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	710F	R520 GL [FireGL V7350]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	7120	R520 [Radeon X1800] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6980	Polaris12	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6981	Lexa XT [Radeon PRO WX 3200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6985	Lexa XT [Radeon PRO WX 3100]	Vendor Device
@@ -428,10 +430,10 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6987	Lexa [Radeon 540X/550X/630 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6995	Lexa XT [Radeon PRO WX 2100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	699F	Lexa PRO [Radeon 540/540X/550/550X / RX 540X/550/550X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A0	Vega 12	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A1	Vega 12	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A2	Vega 12	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	69A3	Vega 12	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	698F	Lexa XT [Radeon PRO WX 3100 / Barco MXRT 4700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	693B	Tonga PRO GL [FirePro W7100 / Barco MXRT-7600]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68FA	Cedar [Radeon HD 7350/8350 / R5 220]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68FE	Cedar LE	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6900	Topaz XT [Radeon R7 M260/M265 / M340/M360 / M440/M445 / 530/535 / 620/625 Mobile]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6901	Topaz PRO [Radeon R5 M255]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6907	Meso XT [Radeon R5 M315]	Vendor Device
@@ -442,11 +444,28 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	692B	Tonga PRO GL [FirePro W7100
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	692F	Tonga XTV GL [FirePro S7150V]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6938	Tonga XT / Amethyst XT [Radeon R9 380X / R9 M295X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6939	Tonga PRO [Radeon R9 285/380]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694C	Polaris 22 XT [Radeon RX Vega M GH]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694E	Polaris 22 XL [Radeon RX Vega M GL]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	694F	Polaris 22 MGL XL [Radeon Pro WX Vega M GL]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	693B	Tonga PRO GL [FirePro W7100 / Barco MXRT-7600]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68FA	Cedar [Radeon HD 7350/8350 / R5 220]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68FE	Cedar LE	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E0	Park [Mobility Radeon HD 5430/5450/5470]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E1	Park [Mobility Radeon HD 5430]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E4	Robson CE [Radeon HD 6370M/7370M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E5	Robson LE [Radeon HD 6330M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E8	Cedar	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E9	Cedar [ATI FirePro (FireGL) Graphics Adapter]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68F1	Cedar GL [FirePro 2460]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68F2	Cedar GL [FirePro 2270]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68F8	Cedar [Radeon HD 7300 Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68F9	Cedar [Radeon HD 5000/6000/7350/8350 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A8	Granville [Radeon HD 6850M/6870M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A9	Juniper XT [FirePro V5800]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68B8	Juniper XT [Radeon HD 5770]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68B9	Juniper LE [Radeon HD 5670 640SP Edition]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68BA	Juniper XT [Radeon HD 6770]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68BE	Juniper PRO [Radeon HD 5750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68BF	Juniper PRO [Radeon HD 6750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68C0	Madison [Mobility Radeon HD 5730 / 6570M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68C1	Madison [Mobility Radeon HD 5650/5750 / 6530M/6550M]	Vendor Device
@@ -457,11 +476,9 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68D8	Redwood XT [Radeon HD 5670/
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68D9	Redwood PRO [Radeon HD 5550/5570/5630/6510/6610/7570]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68DA	Redwood LE [Radeon HD 5550/5570/5630/6390/6490/7570]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68DE	Redwood	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E0	Park [Mobility Radeon HD 5430/5450/5470]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E1	Park [Mobility Radeon HD 5430]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E4	Robson CE [Radeon HD 6370M/7370M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E5	Robson LE [Radeon HD 6330M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68E8	Cedar	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6889	Cypress PRO [FirePro V7800]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	688A	Cypress XT [FirePro V9800]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	688C	Cypress XT GL [FireStream 9370]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	688D	Cypress PRO GL [FireStream 9350]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6898	Cypress XT [Radeon HD 5870]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6899	Cypress PRO [Radeon HD 5850]	Vendor Device
@@ -471,12 +488,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	689D	Hemlock [Radeon HD 5970]	Ve
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	689E	Cypress LE [Radeon HD 5830]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A0	Broadway XT [Mobility Radeon HD 5870]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A1	Broadway PRO [Mobility Radeon HD 5850]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A8	Granville [Radeon HD 6850M/6870M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68A9	Juniper XT [FirePro V5800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68B8	Juniper XT [Radeon HD 5770]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68B9	Juniper LE [Radeon HD 5670 640SP Edition]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68BA	Juniper XT [Radeon HD 6770]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	68BE	Juniper PRO [Radeon HD 5750]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6869	Vega 10 XGA [Radeon Pro Vega 48]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	686A	Vega 10 LEA	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	686B	Vega 10 XTXA [Radeon Pro Vega 64X]	Vendor Device
@@ -489,13 +500,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	686C	Vega 10 [Radeon Instinct MI
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	687F	Vega 10 XL/XT [Radeon RX Vega 56/64]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6880	Lexington [Radeon HD 6550M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6888	Cypress XT [FirePro V8800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6889	Cypress PRO [FirePro V7800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	688A	Cypress XT [FirePro V9800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	688C	Cypress XT GL [FireStream 9370]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682C	Cape Verde GL [FirePro W4100]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682D	Chelsea XT GL [FirePro M4000]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682F	Chelsea LP [Radeon HD 7730M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6835	Cape Verde PRX [Radeon R9 255 OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6837	Cape Verde LE [Radeon HD 7730/8730]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	683D	Cape Verde XT [Radeon HD 7770/8760 / R7 250X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	683F	Cape Verde PRO [Radeon HD 7750/8740 / R7 250E]	Vendor Device
@@ -507,6 +511,16 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6860	Vega 10 [Radeon Instinct MI
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6861	Vega 10 XT [Radeon PRO WX 9100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6862	Vega 10 XT [Radeon PRO SSG]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6863	Vega 10 XTX [Radeon Vega Frontier Edition]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6826	Chelsea LP [Radeon HD 7700M Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6827	Heathrow PRO [Radeon HD 7850M/8850M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6828	Cape Verde PRO [FirePro W600]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6829	Cape Verde	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682A	Venus PRO	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682B	Cape Verde PRO / Venus LE / Tropo PRO-L [Radeon HD 8830M / R7 250 / R7 M465X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682C	Cape Verde GL [FirePro W4100]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682D	Chelsea XT GL [FirePro M4000]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682F	Chelsea LP [Radeon HD 7730M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6835	Cape Verde PRX [Radeon R9 255 OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6811	Curacao PRO [Radeon R7 370 / R9 270/370 OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6816	Pitcairn	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6817	Pitcairn	Vendor Device
@@ -517,16 +531,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6821	Venus XT [Radeon HD 8870M /
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6822	Venus PRO [Radeon E8860]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6823	Venus PRO [Radeon HD 8850M / R9 M265X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6825	Heathrow XT [Radeon HD 7870M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6826	Chelsea LP [Radeon HD 7700M Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6827	Heathrow PRO [Radeon HD 7850M/8850M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6828	Cape Verde PRO [FirePro W600]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6829	Cape Verde	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682A	Venus PRO	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	682B	Cape Verde PRO / Venus LE / Tropo PRO-L [Radeon HD 8830M / R7 250 / R7 M465X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67DF	Ellesmere [Radeon RX 470/480/570/570X/580/580X/590]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E0	Baffin [Radeon Pro WX 4170]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E1	Baffin [Polaris11]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E3	Baffin [Radeon Pro WX 4100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E8	Baffin [Radeon Pro WX 4130/4150]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E9	Baffin [Polaris11]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67EB	Baffin [Radeon Pro V5300X]	Vendor Device
@@ -539,6 +543,15 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6806	Neptune	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6808	Pitcairn XT GL [FirePro W7000]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6809	Pitcairn LE GL [FirePro W5000]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6810	Curacao XT / Trinidad XT [Radeon R7 370 / R9 270X/370X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CA	Ellesmere [Polaris10]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CC	Ellesmere [Polaris10]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CF	Ellesmere [Polaris10]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67D0	Ellesmere [Radeon Pro V7300X / V7350x2]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67DF	Ellesmere [Radeon RX 470/480/570/570X/580/580X/590]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E0	Baffin [Radeon Pro WX 4170]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E1	Baffin [Polaris11]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67E3	Baffin [Radeon Pro WX 4100]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67D4	Ellesmere [Radeon Pro WX 7100 / Barco MXRT-8700]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67D7	Ellesmere [Radeon Pro WX 5100 / Barco MXRT-6700]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67A8	Hawaii	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67A9	Hawaii	Vendor Device
@@ -551,18 +564,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67C0	Ellesmere [Radeon Pro WX 71
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67C2	Ellesmere [Radeon Pro V7300X / V7350x2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67C4	Ellesmere [Radeon Pro WX 7100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67C7	Ellesmere [Radeon Pro WX 5100]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CA	Ellesmere [Polaris10]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CC	Ellesmere [Polaris10]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67CF	Ellesmere [Polaris10]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67D0	Ellesmere [Radeon Pro V7300X / V7350x2]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67B8	Hawaii XT [Radeon R9 290X Engineering Sample]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67D4	Ellesmere [Radeon Pro WX 7100 / Barco MXRT-8700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6771	Caicos XTX [Radeon HD 8490 / R5 235X OEM]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6772	Caicos [Radeon HD 7450A]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6778	Caicos XT [Radeon HD 7470/8470 / R5 235/310 OEM]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6779	Caicos [Radeon HD 6450/7450/8450 / R5 230 OEM]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	677B	Caicos PRO [Radeon HD 7450]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6780	Tahiti XT GL [FirePro W9000]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6784	Tahiti [FirePro Series Graphics Adapter]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6788	Tahiti [FirePro Series Graphics Adapter]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	678A	Tahiti PRO GL [FirePro Series]	Vendor Device
@@ -574,6 +576,24 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	679F	Tahiti	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67A0	Hawaii XT GL [FirePro W9100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67A1	Hawaii PRO GL [FirePro W8100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	67A2	Hawaii GL	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6763	Seymour [Radeon E6460]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6764	Seymour [Radeon HD 6400M Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6765	Seymour [Radeon HD 6400M Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6766	Caicos	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6767	Caicos	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6768	Caicos	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6770	Caicos [Radeon HD 6450A/7450A]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6771	Caicos XTX [Radeon HD 8490 / R5 235X OEM]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6772	Caicos [Radeon HD 7450A]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6778	Caicos XT [Radeon HD 7470/8470 / R5 235/310 OEM]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6779	Caicos [Radeon HD 6450/7450/8450 / R5 230 OEM]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	677B	Caicos PRO [Radeon HD 7450]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6780	Tahiti XT GL [FirePro W9000]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6741	Whistler [Radeon HD 6630M/6650M/6750M/7670M/7690M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6742	Whistler LE [Radeon HD 6610M/7610M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6743	Whistler [Radeon E6760]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6749	Turks GL [FirePro V4900]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	674A	Turks GL [FirePro V3900]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6750	Onega [Radeon HD 6650A/7650A]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6751	Turks [Radeon HD 7650A/7670A]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6758	Turks XT [Radeon HD 6670/7670]	Vendor Device
@@ -583,25 +603,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	675D	Turks PRO [Radeon HD 7570]	
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	675F	Turks LE [Radeon HD 5570/6510/7510/8510]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6760	Seymour [Radeon HD 6400M/7400M Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6761	Seymour LP [Radeon HD 6430M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6763	Seymour [Radeon E6460]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6764	Seymour [Radeon HD 6400M Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6765	Seymour [Radeon HD 6400M Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6766	Caicos	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6767	Caicos	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6768	Caicos	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6770	Caicos [Radeon HD 6450A/7450A]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6738	Barts XT [Radeon HD 6870]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6739	Barts PRO [Radeon HD 6850]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	673E	Barts LE [Radeon HD 6790]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6740	Whistler [Radeon HD 6730M/6770M/7690M XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6741	Whistler [Radeon HD 6630M/6650M/6750M/7670M/7690M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6742	Whistler LE [Radeon HD 6610M/7610M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6743	Whistler [Radeon E6760]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6749	Turks GL [FirePro V4900]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	674A	Turks GL [FirePro V3900]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	666F	Sun LE [Radeon HD 8550M / R5 M230]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A0	Vega 20 [Radeon Instinct]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A1	Vega 20 [Radeon Pro VII/Radeon Instinct MI50 32GB]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A2	Vega 20	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A3	Vega 20 [Radeon Pro Vega II/Radeon Pro Vega II Duo]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A7	Vega 20 [Radeon Pro Vega 20]	Vendor Device
@@ -614,6 +615,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	671C	Antilles [Radeon HD 6990]	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	671D	Antilles [Radeon HD 6990]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	671F	Cayman CE [Radeon HD 6930]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6720	Blackcomb [Radeon HD 6970M/6990M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6738	Barts XT [Radeon HD 6870]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6739	Barts PRO [Radeon HD 6850]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	673E	Barts LE [Radeon HD 6790]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6740	Whistler [Radeon HD 6730M/6770M/7690M XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6649	Bonaire [FirePro W5100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6650	Bonaire	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6651	Bonaire	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6658	Bonaire XTX [Radeon R7 260X/360]	Vendor Device
@@ -625,6 +631,16 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6663	Sun PRO [Radeon HD 8570A/85
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6664	Jet XT [Radeon R5 M240]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6665	Jet PRO [Radeon R5 M230 / R7 M260DX / Radeon 520 Mobile]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6667	Jet ULT [Radeon R5 M230]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	666F	Sun LE [Radeon HD 8550M / R5 M230]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A0	Vega 20 [Radeon Instinct]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	66A1	Vega 20 [Radeon Pro VII/Radeon Instinct MI50 32GB]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	664D	Bonaire [FirePro W5100 / Barco MXRT-5600]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6601	Mars [Radeon HD 8730M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6604	Opal XT [Radeon R7 M265/M365X/M465]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6605	Opal PRO [Radeon R7 M260X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6606	Mars XTX [Radeon HD 8790M]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6607	Mars LE [Radeon HD 8530M / R5 M240]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6608	Oland GL [FirePro W2100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6610	Oland XT [Radeon HD 8670 / R5 340X OEM / R7 250/350/350X OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6611	Oland [Radeon HD 8570 / R5 430 OEM / R7 240/340 / Radeon 520 OEM]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6613	Oland PRO [Radeon R7 240/340 / Radeon 520]	Vendor Device
@@ -633,23 +649,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6640	Saturn XT [FirePro M6100]	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6641	Saturn PRO [Radeon HD 8930M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6646	Bonaire XT [Radeon R9 M280X]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6647	Saturn PRO/XT [Radeon R9 M270X/M280X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6649	Bonaire [FirePro W5100]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	664D	Bonaire [FirePro W5100 / Barco MXRT-5600]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4F	RV410 [Radeon X700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E6B	RV410 [Radeon X700 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E6D	RV410 [Radeon X700] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5F57	R423 [Radeon X800 XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6600	Mars [Radeon HD 8670A/8670M/8750M / R7 M370]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6601	Mars [Radeon HD 8730M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6604	Opal XT [Radeon R7 M265/M365X/M465]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6605	Opal PRO [Radeon R7 M260X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6606	Mars XTX [Radeon HD 8790M]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6607	Mars LE [Radeon HD 8530M / R5 M240]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6608	Oland GL [FirePro W2100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6609	Oland GL [FirePro W2100 / Barco MXRT 2600]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D57	R423 [Radeon X800 XT]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D6D	R480 [Radeon X850 XT Platinum Edition] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D6F	R480 [Radeon X800 GTO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D72	R480 [Radeon X850 XT] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D77	R423 [Radeon X800 XT] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E48	RV410 GL [FireGL V5000]	Vendor Device
@@ -658,6 +658,20 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4A	RV410 [Radeon X700 XT]	Vend
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4B	RV410 [Radeon X700 PRO]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4C	RV410 [Radeon X700 SE]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4D	RV410 [Radeon X700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E4F	RV410 [Radeon X700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E6B	RV410 [Radeon X700 PRO] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5E6D	RV410 [Radeon X700] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5F57	R423 [Radeon X800 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	6600	Mars [Radeon HD 8670A/8670M/8750M / R7 M370]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D50	R480 GL [FireGL V7200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D52	R480 [Radeon X850 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D57	R423 [Radeon X800 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D6D	R480 [Radeon X850 XT Platinum Edition] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D6F	R480 [Radeon X800 GTO] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B70	RV370 [Radeon X300 SE]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B72	RV380 [Radeon X300/X550/X1050 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B73	RV370 [Radeon X300/X550/X1050 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B74	RV370 GL [FireGL V3100] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B75	RV370 GL [FireMV 2200] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5C61	RV280/M9+ [Mobility Radeon 9200 AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5C63	RV280/M9+ [Mobility Radeon 9200 AGP]	Vendor Device
@@ -669,8 +683,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D4A	R423/M28 [Mobility Radeon X
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D4D	R480 [Radeon X850 XT Platinum Edition]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D4E	R480 [Radeon X850 SE]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D4F	R480 [Radeon X800 GTO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D50	R480 GL [FireGL V7200]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5D52	R480 [Radeon X850 XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A38	RC4xx/RS4xx PCI Express Port 3	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A39	RC4xx/RS4xx PCI Express Port 4	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A3F	RC4xx/RS4xx PCI Bridge [int gfx]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A41	RS400 [Radeon Xpress 200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A42	RS400M [Radeon Xpress 200M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A61	RC410 [Radeon Xpress 200/1100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A62	RC410M [Mobility Radeon Xpress 200M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B60	RV370 [Radeon X300]	Vendor Device
@@ -679,10 +696,11 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B63	RV370 [Radeon X300/X550/X10
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B64	RV370 GL [FireGL V3100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B65	RV370 GL [FireMV 2200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B66	RV370X	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B70	RV370 [Radeon X300 SE]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B72	RV380 [Radeon X300/X550/X1050 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B73	RV370 [Radeon X300/X550/X1050 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5B74	RV370 GL [FireGL V3100] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A19	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 1)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1A	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 2)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1B	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 3)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1C	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 4)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1D	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 5)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1E	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP2 Port 0)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1F	RD890/RD990 PCI to PCI bridge (PCI Express GFX2 port 0)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A20	RD890/RD990 PCI to PCI bridge (PCI Express GFX2 port 1)	Vendor Device
@@ -692,25 +710,19 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A33	RS400 Host Bridge	Vendor De
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A34	RS4xx PCI Express Port [ext gfx]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A36	RC4xx/RS4xx PCI Express Port 1	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A37	RC4xx/RS4xx PCI Express Port 2	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A38	RC4xx/RS4xx PCI Express Port 3	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A39	RC4xx/RS4xx PCI Express Port 4	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A3F	RC4xx/RS4xx PCI Bridge [int gfx]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A41	RS400 [Radeon Xpress 200]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A42	RS400M [Radeon Xpress 200M]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A13	RD890S/SR5650 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A14	RD9x0/RX980 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A15	RD890 PCI to PCI bridge (PCI express gpp port A)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A16	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GFX port 0)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A17	RD890/RD9x0 PCI to PCI bridge (PCI Express GFX port 1)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A18	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 0)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A19	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 1)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1A	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 2)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1B	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 3)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1C	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 4)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A1D	RD890/RD9x0/RX980 PCI to PCI bridge (PCI Express GPP Port 5)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597F	RD790 PCI to PCI bridge (PCI express gpp port F)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5980	RD790 PCI to PCI bridge (external gfx1 port A)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5981	RD790 PCI to PCI bridge (external gfx1 port B)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5982	RD790 PCI to PCI bridge (NB-SB link)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A10	RD890 Northbridge only dual slot (2x16) PCI-e GFX Hydra part	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A11	RD890 Northbridge only single slot PCI-e GFX Hydra part	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A12	RD890 Northbridge only dual slot (2x8) PCI-e GFX Hydra part	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5964	RV280 [Radeon 9200 SE]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5965	RV280 GL [FireMV 2200 PCI]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5974	RS482/RS485 [Radeon Xpress 1100/1150]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5975	RS482M [Mobility Radeon Xpress 200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5978	RX780/RD790 PCI to PCI bridge (external gfx0 port A)	Vendor Device
@@ -720,19 +732,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597B	RX780/RD790 PCI to PCI brid
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597C	RD790 PCI to PCI bridge (PCI express gpp port C)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597D	RX780/RD790 PCI to PCI bridge (PCI express gpp port D)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597E	RD790 PCI to PCI bridge (PCI express gpp port E)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	597F	RD790 PCI to PCI bridge (PCI express gpp port F)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5980	RD790 PCI to PCI bridge (external gfx1 port A)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5981	RD790 PCI to PCI bridge (external gfx1 port B)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5982	RD790 PCI to PCI bridge (NB-SB link)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A10	RD890 Northbridge only dual slot (2x16) PCI-e GFX Hydra part	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5A11	RD890 Northbridge only single slot PCI-e GFX Hydra part	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5835	RS300M [Mobility Radeon 9100 IGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5838	RS300 AGP Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5854	RS480 [Radeon Xpress 200 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5874	RS480 [Radeon Xpress 1150] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5940	RV280 [Radeon 9200 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5941	RV280 [Radeon 9200] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5944	RV280 [Radeon 9200 SE PCI]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5950	RS480/RS482/RS485 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5951	RX480/RX482 Host Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5952	RD580 Host Bridge	Vendor Device
@@ -744,6 +743,24 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5958	RD780 Host Bridge	Vendor De
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5960	RV280 [Radeon 9200 PRO / 9250]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5961	RV280 [Radeon 9200]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5962	RV280 [Radeon 9200]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5964	RV280 [Radeon 9200 SE]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5965	RV280 GL [FireMV 2200 PCI]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5656	Mach64 VT4 [Video Xpression+]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5657	RV410 [Radeon X550 XTX / X700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5830	RS300 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5831	RS300 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5832	RS300 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5833	RS300 Host Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5834	RS300 [Radeon 9100 IGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5835	RS300M [Mobility Radeon 9100 IGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5838	RS300 AGP Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5854	RS480 [Radeon Xpress 200 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5874	RS480 [Radeon Xpress 1150] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5940	RV280 [Radeon 9200 PRO] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5941	RV280 [Radeon 9200] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5944	RV280 [Radeon 9200 SE PCI]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5551	R423 GL [FireGL V5100]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5569	R423 [Radeon X800 PRO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	556B	R423 [Radeon X800 GT] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	556D	R480 [Radeon X800 GTO2/XL] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	556F	R430 [Radeon X800] (Secondary)	Vendor Device
@@ -754,17 +771,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5652	RV410/M26 [Mobility Radeon 
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5653	RV410/M26 [Mobility Radeon X700]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5654	Mach64 VT [Video Xpression]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5655	264VT3 [Mach64 VT3]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5656	Mach64 VT4 [Video Xpression+]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5657	RV410 [Radeon X550 XTX / X700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5830	RS300 Host Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5831	RS300 Host Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5832	RS300 Host Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5833	RS300 Host Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5834	RS300 [Radeon 9100 IGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	524C	Rage 128 VR AGP	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	534D	Rage 128 4X AGP 4x	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5354	Mach 64 VT	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5446	Rage 128 PRO Ultra AGP 4x	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5452	Rage 128 PRO Ultra4XL VR-R AGP	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5460	RV370/M22 [Mobility Radeon X300]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5461	RV370/M22 [Mobility Radeon X300]	Vendor Device
@@ -777,15 +783,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	554D	R480 [Radeon X800 GTO2/XL]	
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	554E	R430 [All-In-Wonder X800 GT]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	554F	R430 [Radeon X800]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5550	R423 GL [FireGL V7100]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5551	R423 GL [FireGL V5100]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5569	R423 [Radeon X800 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4F73	RV250 [Radeon 9000 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5044	All-In-Wonder 128 PCI	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5046	Rage 4 [Rage 128 PRO AGP 4X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5050	Rage 4 [Rage 128 PRO PCI / Xpert 128 PCI]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5052	Rage 4 [Rage 128 PRO AGP 4X]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5144	R100 [Radeon 7200 / All-In-Wonder Radeon]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5148	R200 GL [FireGL 8800]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	514C	R200 [Radeon 8500/8500 LE]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	514D	R200 [Radeon 9100]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5157	RV200 [Radeon 7500/7500 LE]	Vendor Device
@@ -794,8 +791,20 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	515E	ES1000	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5245	Rage 128 GL PCI	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5246	Rage 128 (Rage 4) series	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	524B	Rage 128 VR PCI	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E49	R350 [Radeon 9800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E4A	R360 [Radeon 9800 XXL/XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	524C	Rage 128 VR AGP	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	534D	Rage 128 4X AGP 4x	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5354	Mach 64 VT	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5446	Rage 128 PRO Ultra AGP 4x	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E6A	RV350 [Radeon 9800 XT] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E71	RV350/M10 [Mobility Radeon 9600] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4F72	RV250 [Radeon 9000 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4F73	RV250 [Radeon 9000 Series] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5044	All-In-Wonder 128 PCI	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5046	Rage 4 [Rage 128 PRO AGP 4X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5050	Rage 4 [Rage 128 PRO PCI / Xpert 128 PCI]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5052	Rage 4 [Rage 128 PRO AGP 4X]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5144	R100 [Radeon 7200 / All-In-Wonder Radeon]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	5148	R200 GL [FireGL 8800]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E4B	R350 GL [FireGL X2 AGP Pro]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E50	RV350/M10 / RV360/M11 [Mobility Radeon 9600 (PRO) / 9700]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E51	RV350 [Radeon 9550/9600/X1050 Series]	Vendor Device
@@ -808,9 +817,22 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E66	RV350 [Radeon 9600] (Second
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E67	R300 GL [FireGL X1] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E68	R350 [Radeon 9800 PRO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E69	R350 [Radeon 9800] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E6A	RV350 [Radeon 9800 XT] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E71	RV350/M10 [Mobility Radeon 9600] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4F72	RV250 [Radeon 9000 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D46	Rage Mobility 128 AGP 4X/Mobility M4	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D52	Theater 550 PRO PCI [ATI TV Wonder 550]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D53	Theater 550 PRO PCIe	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E44	R300 [Radeon 9700/9700 PRO]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E45	R300 [Radeon 9500 PRO/9700]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E46	R300 [Radeon 9600 TX]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E47	R300 GL [FireGL X1]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E48	R350 [Radeon 9800 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E49	R350 [Radeon 9800]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E4A	R360 [Radeon 9800 XXL/XT]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B6B	R481 [Radeon X850 PRO AGP] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B6C	R481 [Radeon X850 XT Platinum Edition AGP] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C42	Mach64 LT [3D Rage LT PRO AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C46	Rage Mobility 128 AGP 2X/Mobility M3	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C47	3D Rage IIC PCI / Mobility Radeon 7500/7500C	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C49	3D Rage LT PRO PCI	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C4D	Rage Mobility AGP 2x Series	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C50	Rage 3 LT [3D Rage LT PRO PCI]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C52	M1 [Rage Mobility-M1 PCI]	Vendor Device
@@ -820,14 +842,13 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C58	RV200/M7 GL [Mobility FireG
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C59	RV100/M6 [Rage/Radeon Mobility Series]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C66	RV250/M9 GL [Mobility FireGL 9000/Radeon 9000]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C6E	RV250/M9 [Mobility Radeon 9000] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D46	Rage Mobility 128 AGP 4X/Mobility M4	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D52	Theater 550 PRO PCI [ATI TV Wonder 550]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4D53	Theater 550 PRO PCIe	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E44	R300 [Radeon 9700/9700 PRO]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E45	R300 [Radeon 9500 PRO/9700]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E46	R300 [Radeon 9600 TX]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E47	R300 GL [FireGL X1]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4E48	R350 [Radeon 9800 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4A	R420 [Radeon X800 GT AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4B	R420 [Radeon X800 AGP Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4D	R420 GL [FireGL X3-256]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4E	RV420/M18 [Mobility Radeon 9800]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4F	R420 [Radeon X850 AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A50	R420 [Radeon X800 XT Platinum Edition AGP]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A54	R420 [Radeon X800 VE AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A69	R420 [Radeon X800 PRO/GTO] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A6A	R420 [Radeon X800] (Secondary)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A6B	R420 [Radeon X800 XT AGP] (Secondary)	Vendor Device
@@ -837,33 +858,6 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B49	R481 [Radeon X850 XT AGP]	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B4B	R481 [Radeon X850 PRO AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B4C	R481 [Radeon X850 XT Platinum Edition AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B69	R481 [Radeon X850 XT AGP] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B6B	R481 [Radeon X850 PRO AGP] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4B6C	R481 [Radeon X850 XT Platinum Edition AGP] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C42	Mach64 LT [3D Rage LT PRO AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C46	Rage Mobility 128 AGP 2X/Mobility M3	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C47	3D Rage IIC PCI / Mobility Radeon 7500/7500C	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4C49	3D Rage LT PRO PCI	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4886	Xilleon 233 HBIU for X233	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4887	Xilleon 233 USB 1.1 for X233	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4888	Xilleon 143 HBIU for X143	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4889	Xilleon 143 HBIU for X143L	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	488A	Xilleon 143 HBIU for X143S	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4966	RV250 [Radeon 9000 Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	496E	RV250 [Radeon 9000] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A49	R420 [Radeon X800 PRO/GTO AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4A	R420 [Radeon X800 GT AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4B	R420 [Radeon X800 AGP Series]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4D	R420 GL [FireGL X3-256]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4E	RV420/M18 [Mobility Radeon 9800]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A4F	R420 [Radeon X850 AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A50	R420 [Radeon X800 XT Platinum Edition AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A54	R420 [Radeon X800 VE AGP]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4873	Xilleon 244/245 HBIU for X244/X245	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4874	Xilleon 234/235 USB 1.1 for X234/X235	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4875	Xilleon 260 HBIU for X260	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4876	Xilleon 260 IDE for X260	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4877	Xilleon 244/245 USB 1.1 for X244/X245	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4878	Xilleon 270 HBIU for X270	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	487B	Xilleon 242 HBIU for X242	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	487D	Xilleon 242 USB 1.1 for X242	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4880	Xilleon 254 HBIU for X254	Vendor Device
@@ -872,13 +866,14 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4882	Xilleon 255 HBIU for X255	V
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4883	Xilleon 255 USB 1.1 for X255	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4884	Xilleon 243 HBIU for X243	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4885	Xilleon 243 USB 1.1 for X243	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4863	Xilleon 210 DAIO-0 for X210	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4864	Xilleon 210 DAIO-1 for X210	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4865	Xilleon 226 HBIU for X226	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4866	Xilleon 226 IDE for X226	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4867	Xilleon 226 USB for X226	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4868	Xilleon 226 DAIO-0 for X226	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4869	Xilleon 226 DAIO-1 for X226	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4886	Xilleon 233 HBIU for X233	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4887	Xilleon 233 USB 1.1 for X233	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4888	Xilleon 143 HBIU for X143	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4889	Xilleon 143 HBIU for X143L	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	488A	Xilleon 143 HBIU for X143S	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4966	RV250 [Radeon 9000 Series]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	496E	RV250 [Radeon 9000] (Secondary)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4A49	R420 [Radeon X800 PRO/GTO AGP]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	486A	Xilleon 240S HBIU for X240S	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	486B	Xilleon 240H HBIU for X240H	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	486C	Xilleon 240S USB for X240S	Vendor Device
@@ -888,12 +883,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	486F	Xilleon 260 USB 1.1 for X26
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4870	Xilleon 250 HBIU for X250	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4871	Xilleon 250 IDE for X250	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4872	Xilleon 234/235 HBIU for X234/X235	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4849	Xilleon 220 DAIO-1 for HDTV2	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	484A	Xilleon 220 LPC for HDTV2	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4850	Xilleon 215 HBIU for X215	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4851	Xilleon 215 IDE for X215	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4852	Xilleon 215 USB for X215	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4853	Xilleon 215 DAIO-0 for X215	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4873	Xilleon 244/245 HBIU for X244/X245	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4874	Xilleon 234/235 USB 1.1 for X234/X235	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4875	Xilleon 260 HBIU for X260	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4876	Xilleon 260 IDE for X260	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4877	Xilleon 244/245 USB 1.1 for X244/X245	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4878	Xilleon 270 HBIU for X270	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4854	Xilleon 215 DAIO-1 for X215	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4855	Xilleon 225 HBIU for X225	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4856	Xilleon 225 IDE for X225	Vendor Device
@@ -903,7 +898,13 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4859	Xilleon 225 DAIO-1 for X225
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4860	Xilleon 210 HBIU for X210	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4861	Xilleon 210 IDE for X210	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4862	Xilleon 210 USB for X210	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4753	Rage XC	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4863	Xilleon 210 DAIO-0 for X210	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4864	Xilleon 210 DAIO-1 for X210	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4865	Xilleon 226 HBIU for X226	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4866	Xilleon 226 IDE for X226	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4867	Xilleon 226 USB for X226	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4868	Xilleon 226 DAIO-0 for X226	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4869	Xilleon 226 DAIO-1 for X226	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4754	Mach64 GT/GT-B [3D Rage I/II]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4755	Mach64 GT-B [3D Rage II+ DVD]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4756	Rage 2 [3D Rage IIC PCI]	Vendor Device
@@ -915,6 +916,12 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4845	Xilleon 220 HBIU for HDTV2	
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4846	Xilleon 220 IDE for HDTV2	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4847	Xilleon 220 USB for HDTV2	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4848	Xilleon 220 DAIO-0 for HDTV2	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4849	Xilleon 220 DAIO-1 for HDTV2	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	484A	Xilleon 220 LPC for HDTV2	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4850	Xilleon 215 HBIU for X215	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4851	Xilleon 215 IDE for X215	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4852	Xilleon 215 USB for X215	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4853	Xilleon 215 DAIO-0 for X215	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	43A2	SB900 PCI to PCI bridge (PCIE port 2)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	43A3	SB900 PCI to PCI bridge (PCIE port 3)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4437	RS250 [Mobility Radeon 7000 IGP]	Vendor Device
@@ -930,6 +937,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	474E	Rage XC AGP	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	474F	Rage XL	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4750	3D Rage Pro PCI	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4752	Rage 3 [Rage XL PCI]	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4753	Rage XC	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	438D	SB600 PCI to LPC Bridge	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	438E	SB600 AC97 Modem	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4390	SB7x0/SB8x0/SB9x0 SATA Controller [IDE mode]	Vendor Device
@@ -946,6 +954,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	439C	SB7x0/SB8x0/SB9x0 IDE Contr
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	439D	SB7x0/SB8x0/SB9x0 LPC host controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	43A0	SB700/SB800/SB900 PCI to PCI bridge (PCIE port 0)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	43A1	SB700/SB800/SB900 PCI to PCI bridge (PCIE port 1)	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4379	IXP SB4x0 Serial ATA Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	437A	IXP SB400 Serial ATA Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	437B	IXP SB4x0 High Definition Audio Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4380	SB600 Non-Raid-5 SATA	Vendor Device
@@ -962,7 +971,7 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	438A	SB600 USB (OHCI3)	Vendor De
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	438B	SB600 USB (OHCI4)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	438C	SB600 IDE	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4378	IXP SB400 AC'97 Modem Controller	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4379	IXP SB4x0 Serial ATA Controller	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4365	SB300 USB Controller (EHCI)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4367	SB300 USB Controller (EHCI)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4368	SB300 USB Controller (EHCI)	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4369	SB300 IDE Controller	Vendor Device
@@ -977,6 +986,9 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4374	IXP SB4x0 USB Host Controll
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4375	IXP SB4x0 USB Host Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4376	IXP SB4x0 IDE Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4377	IXP SB4x0 PCI-ISA Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4341	SB200 AC97 Audio Controller	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4342	SB200 PCI to PCI Bridge	Vendor Device
+PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4345	SB200 EHCI USB Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4346	Crayola 6 [XENOS Parent Die (XBOX 360)]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4347	SB200 OHCI USB Controller #1	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4348	SB200 OHCI USB Controller #2	Vendor Device
@@ -986,15 +998,3 @@ PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	434D	SB200 AC97 Modem Controller
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4353	SB200 SMBus Controller	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4354	215CT [Mach64 CT PCI]	Vendor Device
 PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4358	Mach64 CX [Graphics Xpression]	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4361	SB300 AC'97 Audio Controller	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4362	SB300 PCI to PCI Bridge	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4363	SB300 SMBus Controller	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4365	SB300 USB Controller (EHCI)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4164	R300 [Radeon 9500 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4165	R300 [Radeon 9700 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4166	R300 [Radeon 9700 PRO] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4168	RV350 [Radeon 9800 SE] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4170	RV350 [Radeon 9550/9600/X1050 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4171	RV350 [Radeon 9600] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4172	RV350 [Radeon 9600/X1050 Series] (Secondary)	Vendor Device
-PCI	1002	Advanced Micro Devices, Inc. [AMD/ATI]	4173	RV350 [Radeon 9550] (Secondary)	Vendor Device

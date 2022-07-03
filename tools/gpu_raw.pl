@@ -80,7 +80,7 @@ my $jobs = {
 'start' => '8086',
 'unless' => 'Graphic',
 },
-# source: https://devicehunt.com/search/type/pci/vendor/1002/device/any
+# source: https://devicehunt.com/search/type/pci/vendor/8086/device/any
 {
 'file' => 'lists/pci.ids.intel.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
