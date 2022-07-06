@@ -28614,6 +28614,10 @@ sub get_init_data {
 				$init_version = program_version($program,'^Finit','2','-v',1);
 			}
 		}
+		# nosh can map service manager to systemctl, service, rcctl, at least.
+		elsif ($comm =~ /^nosh/){
+			$init = 'nosh';
+		}
 		# missing data: note, runit can install as a dependency without being the 
 		# init system: http://smarden.org/runit/sv.8.html
 		# NOTE: the proc test won't work on bsds, so if runit is used on bsds we 
@@ -28640,6 +28644,7 @@ sub get_init_data {
 		elsif (check_program('launchctl')){
 			$init = 'launchd';
 		}
+		# could be nosh or runit as well for BSDs, not handled yet
 		elsif (-f '/etc/inittab'){
 			$init = 'SysVinit';
 			if (check_program('strings')){
@@ -30543,9 +30548,9 @@ sub process_status {
 	elsif ($key eq 'sv'){
 		$cmd = "$service_tool{$key}->[0] status $service";
 	}
-	# s6: note, shows s6-svc but uses s6-svstat; -n makes human-readable. Needs 
+	# s6: note, shows s6-rc but uses s6-svstat; -n makes human-readable. Needs 
 	# real data samples before adding.
-	# elsif ($key eq 's6-svc'){
+	# elsif ($key eq 's6-rc'){
 	#	$cmd = "$service_tool{$key}->[0] $service";
 	# }
 	# check or status or onestatus (netbsd)
@@ -30566,7 +30571,7 @@ sub process_status {
 			$result = 'not found';
 		}
 	}
-	@data = main::grabber("$cmd  2>&1",'','strip') if $cmd;
+	@data = main::grabber("$cmd 2>&1",'','strip') if $cmd;
 	# @data = ('bluetooth is running.');
 	print "key: $key\n", Data::Dumper::Dumper \@data if $dbg[29];
 	main::log_data('dump','service @data',\@data) if $b_log;
@@ -30662,7 +30667,7 @@ sub set {
 	}
 	# needs data, never seen output, but report if present
 	elsif ($path = main::check_program('s6-svstat')){
-		%service_tool = ('s6-svc' => [$path,'s6-svc']);
+		%service_tool = ('s6-rc' => [$path,'s6-rc']);
 	}
 	# make it last in tools, need more data
 	elsif ($path = main::check_program('initctl')){
