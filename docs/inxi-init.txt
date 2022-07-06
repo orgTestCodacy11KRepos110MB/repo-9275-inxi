@@ -10,6 +10,38 @@ DATE:    2022-07-05
 Docs:
 See: docs/inxi-data.txt - more active, and maybe more init data.
 
+----------------------------------------
+Comments:
+
+================================================================================
+
+Sections:
+1. INIT SYSTEMS
+  BSD INIT
+  EPOCH
+  FINIT
+  LAUNCHD
+  OPENRC / RC / /etc/rc.d
+  NOSH
+  RUNIT
+  S6
+  SHEPHERD
+  SYSTEMD
+  SYSVINIT
+  UPSTART
+2. SERVICE TOOLS
+  /etc/init.d
+  /etc/rc.d
+  initctl [upstart, finit, mapped for nosh]
+  launchctl
+  rcctl 
+  rc-service
+  s6-rc / s6-svstat
+  service [BSD]
+  service [Linux, mapped for nosh]
+  sv [runit]
+  systemctl [systemd, mapped for nosh]
+  
 ================================================================================
 INIT SYSTEMS
 --------------------------------------------------------------------------------
@@ -39,7 +71,9 @@ init
 Service tools:
  OpenBSD: rcctl
  FreeBSD/NetBSD: service (maybe)
- GhostBSD: rc-service (maybe)
+ GhostBSD: rc-service (maybe, also used by gentoo)
+ 
+See: OpenRC/ /etc/rc.d / rcctl
 
 ----------------------------------------
 Version Data
@@ -56,6 +90,10 @@ http://universe2.us/epoch.html
 and our irc channel is #epoch on irc.freenode.net.
 
 http://unix.stackexchange.com/questions/18209/bash-detect-init-system
+
+----------------------------------------
+Service Tool
+----------------------------------------
 
 Service tool: unknown
 
@@ -76,6 +114,10 @@ https://www.linuxquestions.org/questions/showthread.php?p=6363561#post6363561
 
 Uses initctl, which was a tool from Upstart, but don't have enough test data as
 of 2022-07-05 to be certain of states. 
+
+----------------------------------------
+Service Tool
+----------------------------------------
 
 Service tool: initctl
 
@@ -98,6 +140,10 @@ LAUNCHD
 
 Test for launchctl to see if present.
 
+----------------------------------------
+Service Tool
+----------------------------------------
+
 Service tool: launchctl (presumably, no data)
 
 ----------------------------------------
@@ -107,14 +153,20 @@ Version Data
 no data available yet.
 
 ========================================
-OPENRC / RC
+OPENRC / RC / /etc/rc.d
 ----------------------------------------
 
 Not an init, just rc system
 
 check if: /run/openrc exists
 
-Service tool: rc-service [ghostbsd/gentoo]
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Tool: rc-service [ghostbsd/gentoo]
+Tool: service [Nomad, FreeBSD]
+Tool: /etc/rc.d [OpenBSD, if rcctl not found]
 
 ----------------------------------------
 Version Data
@@ -131,6 +183,10 @@ NOSH
 ----------------------------------------
 
 https://jdebp.uk/Softwares/nosh/
+
+----------------------------------------
+Service Tool
+----------------------------------------
 
 Service tool: can map to systemctl, service, rcctl.
 
@@ -160,7 +216,18 @@ on bsds, runit-init replaces /sbin/init I think, on linux, it's a symbolic link.
 /etc/runit/ (directory)
 /sbin/sv also, not sure which does what for runit-init or sv
 
-Service tool: sv (I think, not positive)
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Service tool: sv [confirm]
+
+----------------------------------------
+get_init_data()
+----------------------------------------
+
+missing data: note, runit can install as a dependency without being the 
+init system: http://smarden.org/runit/sv.8.html
 
 ----------------------------------------
 Version Data
@@ -180,6 +247,10 @@ https://skarnet.org/software/s6-rc/
 # ok docs, at least they give examples
 https://wiki.artixlinux.org/Main/S6
 
+----------------------------------------
+Service Tool
+----------------------------------------
+
 Service tool: s6-rc (no data)
  Note: tool is s6-rc, but status report tool is s6-svstat, but no data from it.
 
@@ -194,6 +265,10 @@ SHEPHERD
 ----------------------------------------
 
 No real info on this one yet beyond having seen a --version output.
+
+----------------------------------------
+Service Tool
+----------------------------------------
 
 Service tool: unknown
 
@@ -210,7 +285,11 @@ Don't have sample, but it's the 4th word
 SYSTEMD
 ----------------------------------------
 
-Service tool: systemctl
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Tool: systemctl 
 
 ----------------------------------------
 Version Data
@@ -219,13 +298,34 @@ Version Data
 systemd --version
 systemd 204
 +PAM +LIBWRAP +AUDIT +SELINUX +IMA +SYSVINIT +LIBCRYPTSETUP +GCRYPT +ACL +XZ
+
+========================================
+SYSVINIT
+----------------------------------------
+
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Tool: /etc/init.d/* commands direct
+Tool: service [often]
+
+----------------------------------------
+Version Data
+----------------------------------------
+
+Sometimes can get it with 'strings', works in debian for example.
  
 ========================================
 UPSTART
 ----------------------------------------
 
-Service tool: service (most commonly used I think)
-Service tool: initctl
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Tool: service (most commonly used I think)
+Tool: initctl
 
 ----------------------------------------
 Version Data
@@ -240,21 +340,277 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 /sbin/init --version
 init (upstart 1.12.1)
 
-========================================
-SYSVINIT
-----------------------------------------
+================================================================================
+SERVICE TOOLS
+--------------------------------------------------------------------------------
 
-Service tool: /etc/init.d/* commands direct
-Service tool: service [often]
-
-----------------------------------------
-Version Data
-----------------------------------------
-
-Sometimes can get it with 'strings', works in debian for example.
+Note: all service commands use redirect of stderr to stdout to get errors, 
+because most send to stderr when service not found or present in system.
 
 ========================================
+/etc/init.d
+----------------------------------------
 
+Check, probably the same as service [Linux], but confirm
+
+========================================
+/etc/rc.d
+----------------------------------------
+
+init [BSD]: tool: /etc/rc.d source: /etc/rc.d/
+
+----------------------------------------
+OpenBSD 6.3/6.8
+----------------------------------------
+
+[loaded]
+/etc/rc.d/ntpd check
+ntpd(ok)
+
+[stopped]
+/etc/rc.d/ntpd check
+ntpd(failed)
+
+[not exist]
+/etc/rc.d/ntp check
+ksh: /etc/rc.d/ntp: not found
+
+[unknown directive]
+/etc/rc.d/sshd fred
+usage: /etc/rc.d/sshd [-df] start|stop|restart|reload|check
+
+========================================
+initctl (Upstart, finit, mapped for nosh)
+----------------------------------------
+
+On slackware:
+
+initctl status php-fpm
+     Status : running
+   Identity : php-fpm
+Description : PHP-FPM
+     Origin : /etc/finit.d/php-fpm.conf
+Environment : 
+Condition(s): <+net/lo/up>
+    Command : php-fpm -F
+   PID file : /run/php-fpm.pid
+        PID : 605
+       User : root
+      Group : root
+     Uptime : 2 hour 56 min 20 sec
+   Restarts : 0 (0/10)
+  Runlevels : [--2345----]
+     Memory : 45.8M
+     CGroup : /system/php-fpm cpu 0-5 [100, max] mem [0, max]
+              └─ 605 php-fpm 
+
+========================================
+launchctl
+----------------------------------------
+
+No data, this may never come to true existence. It's a BSD project, but who 
+knows where it will end up, not OpenBSD, if FreeBSD doesn't do it, who will?
+
+========================================
+rcctl 
+----------------------------------------
+
+OpenBSD:
+
+See /etc/rc.d, I believe it's the same, will double check.
+
+========================================
+rc-service
+----------------------------------------
+
+init [BSD]: tool: rc-service source: /etc/rc.d/
+
+----------------------------------------
+OpenRC
+----------------------------------------
+
+GhostBSD 21.01.20
+
+Could also use just /etc/rc.d/<service> <command> but mappings may  not
+always be the same.
+
+----------------------------------------
+
+[running]
+rc-service ntpd status
+ * status: started 
+
+[stopped]
+rc-service ntpd status
+ * status: stopped 
+
+[unrecognized rc-service directive]
+rc-service ntpd disable
+ * ntpd: unknown function 'disable'
+
+[not exist]
+rc-service ntp status
+ * rc-service: service 'ntp' does not exist 
+
+========================================
+s6-rc / s6-svstat [s6]
+----------------------------------------
+
+We use s6-svstat to get the status data, but no samples yet. s6-rc is the 
+actual tool to control the services though.
+
+========================================
+service [BSD]
+----------------------------------------
+
+init [BSD]: tool: service source: /etc/rc.d/
+
+----------------------------------------
+Nomad 1.4 / FreeBSD 12.2
+----------------------------------------
+
+[loaded]
+service ntpd status
+ntpd is running as pid 1046
+
+[stopped]
+service ntpd status
+ntpd is not running
+
+[disabled]
+Cannot 'status' ntpd. Set ntpd_enable to YES in /etc/rc.conf or use 'onestatus' instead of status
+
+[not exist]
+service ntp status
+ntp does not exist in /etc/rc.d or the local startup
+directories (/usr.local/etc/rc.d), or is not executable
+
+----------------------------------------
+NetBSD 9.1
+----------------------------------------
+
+[running]
+/usr/sbin/service ntpd status
+ntpd is running as pid 311.
+
+[stopped]
+/usr/sbin/service ntpd status
+ntpd is not running.
+
+[unknown command]
+/usr/sbin/service ntpd disable
+/etc/rc.d/ntpd: unknown directive 'disable'
+Usage: /etc/rc.d/ntpd [fast|force|one](start stop restart rcvar status poll)
+
+[not exists]
+/usr/sbin/service ntp status
+ntp does not exist in /etc/rc.d
+
+========================================
+service [Linux, mapped for nosh]
+----------------------------------------
+
+Tool: service source: /etc/init.d
+
+Old antiX 17.1 / debian stretch
+
+----------------------------------------
+
+[stopped]
+service elogind status
+[FAIL] elogind is not running ... failed!
+
+[started]
+service cron status
+[ ok ] cron is running 
+(note the space around the 'ok')
+
+[not exists]
+service ntpd status
+ntpd: unrecognized service
+
+========================================
+sv [runit]
+----------------------------------------
+
+runit: tool: sv source: /etc/sv/
+
+Void Linux [earlier versions at least]
+
+----------------------------------------
+
+[running]
+sv status udevd
+run: udevd: (pid 631) 641s
+
+[down, enabled]
+sv status sshd
+down: sshd: 9s, normally up
+
+[not exist]
+sv status ntpd
+fail: ntpd: unable to change to service directory: file does not exist
+
+[unknown directive]
+sv fred sshd
+usage: sv [-v] [-w sec] command service
+
+========================================
+systemctl [systemd, mapped for nosh]
+----------------------------------------
+
+syntax: systemctl [start|stop|status] <service>
+note: presence or absence of 'd' creates odd results
+
+----------------------------------------
+
+[loaded]
+systemctl status bluetooth
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; enabled; vendor preset: enabled)
+     Active: active (running) since Sun 2021-03-07 22:17:52 PST; 1 day 14h ago
+       Docs: man:bluetoothd(8)
+   Main PID: 1046 (bluetoothd)
+     Status: "Running"
+      Tasks: 1 (limit: 38452)
+     Memory: 5.0M
+     CGroup: /system.slice/bluetooth.service
+             └─1046 /usr/libexec/bluetooth/bluetoothd
+
+Warning: some journal files were not opened due to insufficient permissions.
+
+[stopped]
+systemctl status bluetooth
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; enabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:bluetoothd(8)
+
+[disabled]
+● bluetooth.service - Bluetooth service
+     Loaded: loaded (/lib/systemd/system/bluetooth.service; disabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:bluetoothd(8)
+
+[not exists]
+systemctl status bluetoothd
+Unit bluetoothd.service could not be found.
+
+[unknown directive]
+systemctl fred bluetooth
+Unknown command verb fred.
+
+========================================
+
+----------------------------------------
+
+
+========================================
+
+----------------------------------------
+
+----------------------------------------
+Service Tool
 ----------------------------------------
 
 ----------------------------------------
