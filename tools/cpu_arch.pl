@@ -504,8 +504,20 @@ sub cp_cpu_arch {
 	}
 	elsif ($type eq 'intel'){
 		if ($family eq '4'){
-			if ($model =~ /^(0|1|2|3|4|5|6|7|8|9)$/){
-				$arch = '486';
+			if ($model =~ /^(0|1|2)$/){
+				$arch = 'i486';
+				$process = '1000nm'; # 33mhz
+				$year = '1989-98';}
+			elsif ($model =~ /^(3)$/){
+				$arch = 'i486';
+				$process = '800nm'; # 66mhz
+				$year = '1992-98';}
+			elsif ($model =~ /^(4|5|6|7|8|9)$/){
+				$arch = 'i486';
+				$process = '600nm'; # 100mhz
+				$year = '1993-98';}
+			else {
+				$arch = 'i486';
 				$process = '600-1000nm';
 				$year = '1989-98';}
 		}
@@ -518,7 +530,7 @@ sub cp_cpu_arch {
 				$year = '1993-94';}
 			elsif ($model =~ /^(2)$/){
 				$arch = 'P5'; # 2:5:MMX
-				 # 2:C:350; 2:1,4,5,6:600;
+				 # 2:C:350[or 600]; 2:1,4,5,6:600;but: 
 				if ($stepping > 9){
 					$process = 'Intel 350nm';
 					$year = '1996-2000';}
@@ -583,7 +595,7 @@ sub cp_cpu_arch {
 				$process = 'Intel 180-250nm';
 				$year = '1999';}
 			elsif ($model =~ /^(B)$/){
-				$arch = 'P6 III Tualitin';
+				$arch = 'P6 III Tualitin'; # 6:B:1,4
 				$process = 'Intel 130nm';
 				$year = '2001';}
 			elsif ($model =~ /^(D)$/){
@@ -595,7 +607,7 @@ sub cp_cpu_arch {
 				$process = 'Intel 65nm';
 				$year = '2006-08';}
 			elsif ($model =~ /^(F|16)$/){
-				$arch = 'Core2 Merom';
+				$arch = 'Core2 Merom'; # 16:1:conroe-l[65nm]
 				$process = 'Intel 65nm';
 				$year = '2006-09';}
 			elsif ($model =~ /^(15)$/){
@@ -607,7 +619,7 @@ sub cp_cpu_arch {
 				$process = 'Intel 45nm';
 				$year = '2007-08';}
 			elsif ($model =~ /^(17)$/){
-				$arch = 'Penryn Yorkfield';
+				$arch = 'Penryn'; # 17:A:Core 2,Celeron-wolfdale,yorkfield
 				$process = 'Intel 45nm';
 				$year = '2008';}
 			# had 25 also, but that's westmere, at least for stepping 2
@@ -808,8 +820,8 @@ sub cp_cpu_arch {
 				$process = 'Intel 90nm';
 				$year = '2004-06';} # 6? Nocona
 			elsif ($model =~ /^(4)$/){
-				if ($stepping == 1){
-					$arch = 'Netburst Prescott';
+				if ($stepping < 10){
+					$arch = 'Netburst Prescott'; # 4:1,9:prescott
 					$process = 'Intel 90nm';
 					$year = '2004-06';} 
 				else {
