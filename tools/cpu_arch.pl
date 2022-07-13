@@ -36,8 +36,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'cpu_arch.pl';
-my $self_version = '1.2';
-my $self_date = '2022-06-17';
+my $self_version = '1.3';
+my $self_date = '2022-07-13';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
@@ -850,12 +850,13 @@ sub cp_cpu_arch {
 		}
 		# gen 1 had no gen, only 3 digits: Core i5-661 Core i5-655K; Core i5 M 520
 		# EXCEPT gen 1: Core i7-720QM Core i7-740QM Core i7-840QM
-		# 2nd: Core i5-2390T Core i7-11700F Core i5-8400
+		# 2nd: Core i5-2390T Core i7-11700F Core i5-8400 
+		# 2nd variants: Core i7-1165G7
 		if ($name){
 			if ($name =~ /\bi[357][\s-]([A-Z][\s-]?)?(\d{3}([^\d]|\b)|[78][24]00M)/){
 				$gen = ($gen) ? "$gen (core 1)": 'core 1';
 			}
-			elsif ($name =~ /\bi[3579][\s-]([A-Z][\s-]?)?([2-9]|1[0-4])\d{3}/){
+			elsif ($name =~ /\bi[3579][\s-]([A-Z][\s-]?)?([2-9]|1[0-4])(\d{3}|\d{2}[A-Z]\d)/){
 				$gen = ($gen) ? "$gen (core $2)" : "core $2";
 			}
 		}
