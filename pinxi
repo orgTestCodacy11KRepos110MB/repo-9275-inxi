@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.19';
-my $self_date='2022-07-17';
-my $self_patch='12';
+my $self_date='2022-07-20';
+my $self_patch='13';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -11417,11 +11417,11 @@ sub cp_cpu_arch {
 				$year = '2021';}
 			## IDS UNKNOWN, release late 2022
 			# elsif ($model =~ /^()$/){
-			#	$arch = 'Raptor Lake'; #
+			#	$arch = 'Raptor Lake'; # launch 2022-10?
 			#	$process = 'Intel 7 (10nm)';}
 			# elsif ($model =~ /^()$/){
-			#	$arch = 'Meteor Lake';
-			#	$process = 'Intel 4';}
+			#	$arch = 'Meteor Lake'; # announced TSMC 5n, not Intel 4, launch 2023
+			#	$process = 'TSMC 5n';}
 			# Granite Rapids: Intel 3 (7nm)
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
@@ -28093,6 +28093,8 @@ sub system_base {
 	my $base_osr = 'aptosid|grml|q4os|siduction|bodhi'; 
 	# osr base, distro id in issue
 	my $base_osr_issue = 'grml|linux lite|openmediavault'; 
+	# osr has distro name but has fedora centos redhat ID_LIKE and VERSION_ID same
+	my $base_osr_redhat = 'almalinux|centos|rocky'; 
 	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
 	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
 	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
@@ -28129,6 +28131,9 @@ sub system_base {
 		# must go before base_osr_ubuntu test
 		elsif (grep {/($base_debian_version_osr)/i} @osr){
 			$system_base = debian_id();
+		}
+		elsif (grep {/($base_osr_redhat)/i} @osr){
+			$base_type = 'rhel';
 		}
 		elsif (grep {/($base_osr_ubuntu)/i} @osr){
 			$base_type = 'ubuntu';
@@ -28260,7 +28265,13 @@ sub get_os_release {
 					$working[1] =~ s/^(debian|ubuntu\sdebian|debian\subuntu)/ubuntu/; 
 					$working[1] = 'ubuntu' if $working[1] eq 'debian';
 				}
-				$base_name = ucfirst($working[1]);
+				if ($base_type eq 'rhel' && $working[1] =~ /$base_type/i){
+					$base_name = 'RHEL';
+					$base_version = $version_id if $version_id;
+				}
+				else {
+					$base_name = ucfirst($working[1]);
+				}
 			}
 			elsif ($base_type eq 'ubuntu' && $working[0] eq 'UBUNTU_CODENAME' && $working[1]){
 				$base_version = ucfirst($working[1]);
@@ -28295,7 +28306,11 @@ sub get_os_release {
 	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
 	else {
 		# mint 17 used ubuntu os-release, so won't have $base_version
-		if ($base_name && $base_version){
+		if ($base_name && $base_type eq 'rhel'){
+			$distro = $base_name;
+			$distro .= ' ' . $version_id if $version_id; 
+		}
+		elsif ($base_name && $base_version){
 			$base_id = ubuntu_id($base_version) if $base_type eq 'ubuntu' && $base_version;
 			$base_id = '' if $base_id && "$base_name$base_version" =~ /$base_id/;
 			$base_id .= ' ' if $base_id;
