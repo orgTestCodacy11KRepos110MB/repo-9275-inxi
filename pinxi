@@ -1508,41 +1508,7 @@ sub new {
 
 sub run_debugger {
 	print "Starting $self_name debugging data collector...\n";
-	print "Loading required debugger Perl File:: modules... \n";
-	# Fedora/Redhat doesn't include File::Find File::Copy in 
-	# core modules. why? Or rather, they deliberately removed them.
-	if (main::check_perl_module('File::Find')){
-		File::Find->import;
-	}
-	else {
-		main::error_handler('required-module', 'File', 'File::Find');
-	}
-	if (main::check_perl_module('File::Copy')){
-		File::Copy->import;
-	}
-	else {
-		main::error_handler('required-module', 'File', 'File::Copy');
-	}
-	if (main::check_perl_module('File::Spec::Functions')){
-		File::Spec::Functions->import;
-	}
-	else {
-		main::error_handler('required-module', 'File', 'File::Spec::Functions');
-	}
-	if ($debugger{'level'} > 20){
-		if (main::check_perl_module('Net::FTP')){
-			Net::FTP->import;
-		}
-		else {
-			main::error_handler('required-module', 'Net', 'Net::FTP');
-		}
-	}
-	if ($debugger{'level'} > 19){
-		# astoundingly, rhel 9 and variants are shipping without tar in minimal install
-		if (!main::check_program('tar')){
-			main::error_handler('required-program', 'tar', 'debugger');
-		}
-	}
+	check_required_items();
 	create_debug_directory();
 	print "Note: for dmidecode, smartctl, lvm data you must be root.\n" if !$b_root;
 	print $line3;
@@ -1586,7 +1552,44 @@ sub run_debugger {
 	print $line3;
 	compress_dir();
 }
-
+sub check_required_items {
+	print "Loading required debugger Perl File:: modules... \n";
+	# Fedora/Redhat doesn't include File::Find File::Copy in 
+	# core modules. why? Or rather, they deliberately removed them.
+	if (main::check_perl_module('File::Find')){
+		File::Find->import;
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Find');
+	}
+	if (main::check_perl_module('File::Copy')){
+		File::Copy->import;
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Copy');
+	}
+	if (main::check_perl_module('File::Spec::Functions')){
+		File::Spec::Functions->import;
+	}
+	else {
+		main::error_handler('required-module', 'File', 'File::Spec::Functions');
+	}
+	if ($debugger{'level'} > 20){
+		if (main::check_perl_module('Net::FTP')){
+			Net::FTP->import;
+		}
+		else {
+			main::error_handler('required-module', 'Net', 'Net::FTP');
+		}
+	}
+	print "Checking basic core system programs exist... \n";
+	if ($debugger{'level'} > 19){
+		# astoundingly, rhel 9 and variants are shipping without tar in minimal install
+		if (!main::check_program('tar')){
+			main::error_handler('required-program', 'tar', 'debugger');
+		}
+	}
+}
 sub create_debug_directory {
 	my $host = main::get_hostname();
 	$host =~ s/ /-/g;
