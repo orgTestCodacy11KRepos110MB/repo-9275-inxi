@@ -84,21 +84,21 @@ my $amd_data = {
 	'years' => '1992-97',
 	},
 	'02' => {
-	'arch' => 'Rage 2',
+	'arch' => 'Rage-2',
 	'pattern' => 'Rage 2|3D Rage IIC',
-	'code' => 'Rage 2',
+	'code' => 'Rage-2',
 	'process' => 'TSMC 500nm',
 	'years' => '1996',
 	},
 	'03' => {
-	'arch' => 'Rage 3',
+	'arch' => 'Rage-3',
 	'pattern' => 'Rage (3|XL)|3D Rage (PRO)',
-	'code' => 'Rage 3',
+	'code' => 'Rage-3',
 	'process' => 'TSMC 350nm',
 	'years' => '1997-99',
 	},
 	'04' => {
-	'arch' => 'Rage 4',
+	'arch' => 'Rage-4',
 	'pattern' => 'Rage[\s-](4|128|Fury|X[CL]|RS[67]\d|RV410|Mobility[\s-]?(128|CL|M[1-4]?|P))|^Rage Mobility|All-In-Wonder 128',
 	'code' => 'Rage 4',
 	'process' => 'TSMC 250-350nm',
@@ -115,7 +115,7 @@ my $amd_data = {
 	},
 	# rage 5 was game cube flipper chip 2000
 	'06' => {
-	'arch' => 'Rage 6',
+	'arch' => 'Rage-6',
 	'pattern' => 'Rage 6|RV?100|RS2[05]0M?|Radeon 7[02]\d{2}|M6|ES1000',
 	'code' => 'R100',
 	'process' => 'TSMC 180nm',
@@ -123,21 +123,21 @@ my $amd_data = {
 	},
 	# |Radeon (7[3-9]{2}|8\d{3}|9[5-9]\d{2}
 	'07' => {
-	'arch' => 'Rage 7',
+	'arch' => 'Rage-7',
 	'pattern' => 'RV?2\d{2}|RC22\d{2}|RS100|RS3[05]0M?|FireGL 88\d{2}|X1\d{3}|FireGL 9[5-9]\d{2}|Mobility Radeon 9[01]\d{2}|M[79]\+?',
 	'code' => 'R200',
 	'process' => 'TSMC 150nm',
 	'years' => '2001-06',
 	},
 	'08' => {
-	'arch' => 'Rage 8',
+	'arch' => 'Rage-8',
 	'pattern' => 'R3[0-5]0|RC4[1]0|RC410M?|RS400M?|RV350|M10',
 	'code' => 'R300',
 	'process' => 'TSMC 130nm',
 	'years' => '2002-07',
 	},
 	'09' => {
-	'arch' => 'Rage 9',
+	'arch' => 'Rage-9',
 	'pattern' => 'RV?3[6-9]\d[MX]?|RS48\dM?|M(1[12]2[24])Radeon 9[6-9]\d{2}|X(10|[2356])\d{2}|FireGL V3[12]\d{2}',
 	'code' => 'Radeon IGP',
 	'process' => 'TSMC 110nm',
@@ -166,7 +166,7 @@ my $amd_data = {
 	},
 	# llano, ontario, zacate apu
 	'13' => {
-	'arch' => 'TeraScale 2',
+	'arch' => 'TeraScale-2',
 	'pattern' => 'Barts|Blackcomb|Broadway|Caicos|Capilano|Cedar|Cypress|Evergreen|Granville|Hemlock|Juniper|Latte|Lexington|Llano|Loveland|Madison|Onega|Ontario|Park|Pinewood|Redwood|Robson|Seymour|(Super)?Sumo|Thames|Turks|Whistler|Wrestler|Zacate|HD (64|74)\d{2}M|E76\d{2}',
 	'code' => 'Evergreen',
 	'process' => 'TSMC 32-40nm',
@@ -174,14 +174,14 @@ my $amd_data = {
 	},
 	# trinity, richland apu
 	'14' => {
-	'arch' => 'TeraScale 3',
+	'arch' => 'TeraScale-3',
 	'pattern' => 'Northern Islands|Antilles|Cayman|Devastator|Richland|Scrapper|Trinity|HD\s?69\s{2}|HD\s?[456]\d{2}G?|FirePro A3\d{2}',
 	'code' => 'Northern Islands',
 	'process' => 'TSMC 32nm',
 	'years' => '2010-13',
 	},
 	'15' => {
-	'arch' => 'GCN 1',
+	'arch' => 'GCN-1',
 	'pattern' => 'Southern Islands|Banks|Cape Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
 	'code' => 'Southern Islands',
 	'process' => 'TSMC 28nm',
@@ -189,7 +189,7 @@ my $amd_data = {
 	},
 	# beema, mullins, kabini, kaveri, temash apu
 	'16' => {
-	'arch' => 'GCN 2',
+	'arch' => 'GCN-2',
 	'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
 	'code' => 'Sea Islands',
 	'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
@@ -197,7 +197,7 @@ my $amd_data = {
 	},
 	# carrizo, bristol, prairie, stoney ridge apu
 	'17' => {
-	'arch' => 'GCN 3',
+	'arch' => 'GCN-3',
 	'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
 	'code' => 'Volcanic Islands',
 	'process' => 'TSMC 28nm',
@@ -205,7 +205,7 @@ my $amd_data = {
 	},
 	# Anubis, Arlene, Gladius, Pooky apu
 	'18' => {
-	'arch' => 'GCN 4',
+	'arch' => 'GCN-4',
 	'pattern' => 'Arctic Islands|Arlene|Anubis|Baffin|Ellesmere|Garfield|Gladius|Lexa|Polaris\s?(1\d|2[0123]|3[01])*|Pooky',
 	'code' => 'Arctic Islands',
 	'process' => 'GF 14nm',# 
@@ -214,15 +214,15 @@ my $amd_data = {
 	# needs to go before 5 to catch the vega > 1
 	# cezanne, lucienne, renoir apu
 	'19' => {
-	'arch' => 'GCN 5.1',
+	'arch' => 'GCN-5.1',
 	'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
-	'code' => 'Vega 2',
+	'code' => 'Vega-2',
 	'process' =>  'TSMC n7 (7nm)',
 	'years' => '2018-21',
 	},
 	# raven ridge, dali, picasso, kestrel apu
 	'20' => {
-	'arch' => 'GCN 5',
+	'arch' => 'GCN-5',
 	'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
 	'code' => 'Vega',
 	'process' =>  'GF 14nm',
@@ -231,7 +231,7 @@ my $amd_data = {
 	# rdna gaming
 	# Cyan Skillfish apu
 	'21' => {
-	'arch' => 'RDNA 1',
+	'arch' => 'RDNA-1',
 	'pattern' => 'Navi\s?1\d|Cyan\s?Skillfish|Ariel|Arden',
 	'code' => 'Navi',
 	'process' => 'TSMC n7 (7nm)',
@@ -239,32 +239,32 @@ my $amd_data = {
 	},
 	# Barcelo, Lockhart, Mendocino, Oberon, Rembrandt, Scarlett, Van Gogh apu
 	'22' => {
-	'arch' => 'RDNA 2',
+	'arch' => 'RDNA-2',
 	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
-	'code' => 'Navi 2x',
+	'code' => 'Navi-2x',
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020-22',
 	},
 	# phoenix apu
 	'23' => {
-	'arch' => 'RDNA 3',
+	'arch' => 'RDNA-3',
 	'pattern' => 'Navi\s?3\d\b|Phoenix|RX 7[78]\d{2} XT',
-	'code' => 'Navi 3x',
+	'code' => 'Navi-3x',
 	'process' => 'TSMC n5 (5nm)',
 	'years' => '2022+',
 	},
 	# cdna data center
 	'24' => {
-	'arch' => 'CDNA 1',
+	'arch' => 'CDNA-1',
 	'pattern' => 'Arcturus|Instinct MI1\d{2}',
-	'code' => 'Instinct MI1xx',
+	'code' => 'Instinct-MI1xx',
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020',
 	},
 	'25' => {
-	'arch' => 'CDNA 2',
+	'arch' => 'CDNA-2',
 	'pattern' => 'Aldebaran|Instinct MI2\d{2}X?',
-	'code' => 'Instinct MI2xx',
+	'code' => 'Instinct-MI2xx',
 	'process' => 'TSMC n6 (7nm)',
 	'years' => '2021-22+',
 	},
