@@ -274,7 +274,7 @@ my $intel_data = {
 	'intel' => {
 	'file' => 'gpu.intel.full.sort',
 	'00' => {
-	'arch' => 'Gen1',
+	'arch' => 'Gen-1',
 	'pattern' => '8275{2}|8281[05]\w?|i8(15|30)|Almador|Coloma|Portola|Solano|Whitney',
 	'code' => '',
 	'process' => 'Intel 150nm',
@@ -289,28 +289,28 @@ my $intel_data = {
 	'years' => '1998',
 	},
 	'02' => {
-	'arch' => 'Gen2',
+	'arch' => 'Gen-2',
 	'pattern' => '(82)?865G|828[34]\dM|8285\d|i85\d(GM?)?|Brookdale|Springdale|Extreme Graphics',
 	'code' => '',
 	'process' => 'Intel 130nm',
 	'years' => '2002-03',
 	},
 	'03' => {
-	'arch' => 'Gen3',
+	'arch' => 'Gen-3',
 	'pattern' => '(82)?91[05]GM?|Grantsdale|Alviso|GMA\s?900',
 	'code' => '',
 	'process' => 'Intel 130nm',
 	'years' => '2004-05',
 	},
 	'04' => {
-	'arch' => 'Gen3.5',
+	'arch' => 'Gen-3.5',
 	'pattern' => '(82)?94[56]G[A-Z]*|Lakeport|Calistoga|GMA\s?950',
 	'code' => '',
 	'process' => 'Intel 90nm',
 	'years' => '2005-06',
 	},
 	'05' => {
-	'arch' => 'Gen4',
+	'arch' => 'Gen-4',
 	'pattern' => '82[GQ]96[35]|(82)?(G3[135]|Q3[35])|GME?965E?|Bear\s?Lake|Broadwater|Crestline|Pineview|Santa\s?Rosa|GMA X?3[01]00\w*',
 	'code' => '',
 	'process' => 'Intel 65n',
@@ -325,7 +325,7 @@ my $intel_data = {
 	'years' => '2008-10',
 	},
 	'07' => {
-	'arch' => 'Gen5',
+	'arch' => 'Gen-5',
 	'pattern' => '4 Series|Cantiga|Eagle\s?Lake|Montevina|GMA X?4[57]00\w*',
 	'code' => '',
 	'process' => 'Intel 45nm',
@@ -340,7 +340,7 @@ my $intel_data = {
 	'years' => '2008-10',
 	},
 	'09' => {
-	'arch' => 'Gen5.75',
+	'arch' => 'Gen-5.75',
 	'pattern' => '1st Generation|Iron\s?Lake|Westmere|Core Processor Integrated Graphics Controller',
 	'code' => '',
 	'process' => 'Intel 45nm',
@@ -354,28 +354,28 @@ my $intel_data = {
 	'years' => '2012-13',
 	},
 	'11' => {
-	'arch' => 'Gen6',
+	'arch' => 'Gen-6',
 	'pattern' => '2nd Gen(eration)?|Z2760|Sandy\s?Bridge',
 	'code' => '',
 	'process' => 'Intel 32nm',
 	'years' => '2011',
 	},
 	'12' => {
-	'arch' => 'Gen7',
+	'arch' => 'Gen-7',
 	'pattern' => '3rd Gen(eration)?|Ivy\s?Bridge',
 	'code' => '',
 	'process' => 'Intel 22nm',
 	'years' => '2012-13',
 	},
 	'13' => {
-	'arch' => 'Gen7.5',
+	'arch' => 'Gen-7.5',
 	'pattern' => '4th Gen(eration)?|Haswell',
 	'code' => '',
 	'process' => 'Intel 22nm',
 	'years' => '2013',
 	},
 	'14' => {
-	'arch' => 'Gen8',
+	'arch' => 'Gen-8',
 	'pattern' => '5th Gen(eration)?|E8000|J3xxx/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
 	'code' => '',
 	'process' => 'Intel 14nm',
@@ -383,14 +383,14 @@ my $intel_data = {
 	},
 	#  kaby/coffee lake had early and refresh, refresh is 9.5
 	'15' => {
-	'arch' => 'Gen9',
+	'arch' => 'Gen-9',
 	'pattern' => '6th Gen(eration)?|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
 	'code' => '',
 	'process' => 'Intel 14n',
 	'years' => '2015-16',
 	},
 	'16' => {
-	'arch' => 'Gen9.5',
+	'arch' => 'Gen-9.5',
 	'pattern' => '7th Gen(eration)?|(Kaby|Coffee|Comet|Whiskey)\s?Lake|Goldmont (\+|Plus)|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?6\d{2}',
 	'code' => '',
 	'process' => 'Intel 14nm',
@@ -398,7 +398,7 @@ my $intel_data = {
 	},
 	# cancelled
 	'17' => {
-	'arch' => 'Gen10',
+	'arch' => 'Gen-10',
 	'pattern' => '8th Gen(eration)?|Cannon\s?Lake',
 	'code' => '',
 	'process' => 'Intel 10nm',
@@ -406,14 +406,14 @@ my $intel_data = {
 	},
 	# Intel Xe-LP
 	'18' => {
-	'arch' => 'Gen11',
+	'arch' => 'Gen-11',
 	'pattern' => '9th Gen(eration)?|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G[77]',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2019-21',
 	},
 	'19' => {
-	'arch' => 'Gen12.1',
+	'arch' => 'Gen-12.1',
 	'pattern' => 'DG1|Iris Xe Graphics G[47]|Iris Xe Max Graphics|(Rocket|Tiger)\s?Lake',
 	'code' => '',
 	'process' => 'Intel 10nm',
@@ -421,14 +421,14 @@ my $intel_data = {
 	},
 	# Intel Xe 
 	'20' => {
-	'arch' => 'Gen12.2',
+	'arch' => 'Gen-12.2',
 	'pattern' => '10th Gen(eration)?|(Alder)\s?Lake|Iris Xe Graphics 80EU',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2021-22+',
 	},
 	'21' => {
-	'arch' => 'Gen12.5',
+	'arch' => 'Gen-12.5',
 	'pattern' => 'Arctic',
 	'code' => 'Arctic Sound',
 	'process' => 'Intel 10nm',
@@ -445,7 +445,7 @@ my $intel_data = {
 	# needs more info, are these going to be half tsmc, half intel? 
 	# https://en.wikipedia.org/wiki/Intel_Arc and TPU don't fully agree
 	'23' => {
-	'arch' => 'Gen12.7',
+	'arch' => 'Gen-12.7',
 	'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
 	'code' => 'Alchemist',
 	'process' => 'TSMC n6 (7nm)', 
