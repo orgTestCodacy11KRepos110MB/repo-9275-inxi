@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.19';
-my $self_date='2022-07-21';
-my $self_patch='14';
+my $self_date='2022-07-24';
+my $self_patch='15';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -26023,7 +26023,9 @@ sub get_kde_trinity_data {
 		$kded = $program;
 		$kded_name = 'kded';
 	}
-	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || (grep {/^tde/} @ps_gui)){
+	# note: if TDM is used to start kde, can pass ps tde test
+	if ($desktop_session eq 'trinity' || $xdg_desktop eq 'trinity' || 
+	(!$desktop_session && !$xdg_desktop && (grep {/^tde/} @ps_gui))){
 		$desktop->[0] = 'Trinity';
 		if ($program = main::check_program('kdesktop')){
 			@version_data = main::grabber("$program --version 2>/dev/null");
@@ -26038,7 +26040,8 @@ sub get_kde_trinity_data {
 	# KDE_SESSION_VERSION is the integer version of the desktop
 	# NOTE: as of plasma 5, the tool: about-distro MAY be available, that will show
 	# actual desktop data, so once that's in debian/ubuntu, if it gets in, add that test
-	elsif ($xdg_desktop eq 'kde' || $kde_session_version){
+	elsif ($desktop_session eq 'kde-plasma' || $xdg_desktop eq 'kde' || 
+	$kde_session_version){
 		if ($kde_session_version && $kde_session_version <= 4){
 			@data = ($kded_name) ? main::program_values($kded_name) : ();
 			if (@data){
@@ -26076,7 +26079,7 @@ sub get_kde_trinity_data {
 			$desktop->[0] = 'KDE Plasma';
 		}
 		if (!$desktop->[1]){
-			$desktop->[1] = ($kde_session_version) ? $kde_session_version: main::message('unknown-desktop-version');
+			$desktop->[1] = ($kde_session_version) ? $kde_session_version : main::message('unknown-desktop-version');
 		}
 		# print Data::Dumper::Dumper \@version_data;
 		if ($extra > 1){
