@@ -27,8 +27,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'disk_vendors.pl';
-my $self_version = '1.5';
-my $self_date = '2022-06-20';
+my $self_version = '1.6';
+my $self_date = '2022-07-27';
 
 my $disks_raw = 'lists/disks.full';
 my $disks_unhandled = 'lists/disks.unhandled';
@@ -84,7 +84,7 @@ sub set_disk_vendors {
 	# MAB3045SP shows as HP or Fujitsu, probably HP branded fujitsu
 	['^(MAB\d)','^(HP\b|FUJITSU)','Fujitsu/HP',''],
 	# note: 2012:  wdc bought hgst
-	['^(HGST|Touro|54[15]0|7250|HC[CT]\d)','^HGST','HGST (Hitachi)',''], # HGST HUA
+	['^(DKR|HGST|Touro|54[15]0|7250|HC[CT]\d)','^HGST','HGST (Hitachi)',''], # HGST HUA
 	['^((ATA\s)?Hitachi|HCS|HD[PST]|DK\d|IC|(HDD\s)?HT|HU|HMS|HDE|0G\d|IHAT)','Hitachi','Hitachi',''], 
 	# vb: VB0250EAVER but clashes with vbox; HP_SSD_S700_120G ;GB0500EAFYL GB starter too generic?
 	['^(HP\b|[MV]B[0-6]|G[BJ]\d|DF\d|F[BK]|0-9]|MM\d{4}|PSS|XR\d{4}|c350|v\d{3}[bgorw]$|x\d{3}[w]$|VK0|HC[CPY]\d|EX9\d\d)','^HP','HP',''], 
@@ -93,7 +93,7 @@ sub set_disk_vendors {
 	['^STmagic','^STmagic','STmagic',''],
 	['^(STMicro|SMI|CBA)','^(STMicroelectronics|SMI)','SMI (STMicroelectronics)',''],
 	# note M2 M3 is usually maxtor, but can be samsung. Can conflict with Team: TM\d{4}|
-	['^(MAXTOR|Atlas|E0\d0L|L(250|500)|[KL]0[1-9]|Y\d{3}[A-Z]|STM\d|F\d{3}L)','^MAXTOR','Maxtor',''], 
+	['^(MAXTOR|Atlas|4R\d{2}|E0\d0L|L(250|500)|[KL]0[1-9]|Y\d{3}[A-Z]|STM\d|F\d{3}L)','^MAXTOR','Maxtor',''], 
 	# OCZSSD2-2VTXE120G is OCZ-VERTEX2_3.5
 	['^(OCZ|Agility|APOC|D2|DEN|DEN|DRSAK|EC188|FTNC|GFGC|MANG|MMOC|NIMC|NIMR|PSIR|RALLY2|TALOS2|TMSC|TRSAK|VERTEX|Trion|Onyx|Vector[\s-]?15)','^OCZ[\s-]','OCZ',''],
 	['^(OWC|Aura|Mercury[\s-]?(Electra|Extreme))','^OWC\b','OWC',''],
@@ -265,7 +265,7 @@ sub set_disk_vendors {
 	['^Hypertec','^Hypertec','Hypertec',''],
 	['^HyperX','^HyperX','HyperX',''],
 	['^(Hyundai|Sapphire)','^Hyundai','Hyundai',''],
-	['^(IBM|DT|ESA[1-9])','^IBM','IBM',''], 
+	['^(IBM|DT|ESA[1-9]|ServeRaid)','^IBM','IBM',''], # M5110 too common
 	['^IEI Tech','^IEI Tech(\.|nology)?( Corp(\.|oration)?)?','IEI Technology',''],
 	['^(IGEL|UD Pocket)','^IGEL','IGEL',''],
 	['^(Imation|Nano\s?Pro|HQT)','^Imation(\sImation)?','Imation',''], # Imation_ImationFlashDrive; TF20 is imation/tdk
@@ -291,6 +291,7 @@ sub set_disk_vendors {
 	['^(Iomega|ZIP\b|Clik!)','^Iomega','Iomega',''], 
 	['^ISOCOM','^ISOCOM','ISOCOM (Shenzhen Longsys Electronics)',''],
 	['^iTE[\s-]*Tech','^iTE[\s-]*Tech(nology)?','iTE Tech',''],
+	['^(James[\s-]?Donkey|JD\d)','^James[\s-]?Donkey','James Donkey',''], 
 	['^(Jaster|JS\d)','^Jaster','Jaster',''], 
 	['^JingX','^JingX','JingX',''], #JingX 120G SSD - not confirmed, but guessing
 	['^Jingyi','^Jingyi','Jingyi',''],
@@ -298,6 +299,7 @@ sub set_disk_vendors {
 	['^JMicron','^JMicron(\s?Tech(nology)?)?','JMicron Tech',''], #JMicron H/W raid
 	['^Kazuk','^Kazuk','Kazuk',''],
 	['(\bKDI\b|^OM3P)','\bKDI\b','KDI',''],
+	['^KLLISRE','^KLLISRE','KLLISRE',''],
 	['^KimMIDI','^KimMIDI','KimMIDI',''],
 	['^Kimtigo','^Kimtigo','Kimtigo',''],
 	['^Kingbank','^Kingbank','Kingbank',''],
@@ -308,7 +310,7 @@ sub set_disk_vendors {
 	['^Kingrich','^Kingrich','Kingrich',''],
 	['^Kingsand','^Kingsand','Kingsand',''],
 	['KING\s?SHA\s?RE','KING\s?SHA\s?RE','KingShare',''],
-	['^(KingSpec|ACSC|KS[DQ]|N[ET]-\d|P3$|P4\b|PA[_-]?(18|25)|Q-180|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
+	['^(KingSpec|ACSC|C3000|KS[DQ]|N[ET]-\d|P3$|P4\b|PA[_-]?(18|25)|Q-180|T-(3260|64|128)|Z(\d\s|F\d))','^KingSpec','KingSpec',''],
 	['^KingSSD','^KingSSD','KingSSD',''],
 	# kingwin docking, not actual drive
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
@@ -319,9 +321,11 @@ sub set_disk_vendors {
 	['^(KUAIKAI|MSAM)','^KUAIKAI','KuaKai',''],
 	['(KUIJIA|DAHUA)','^KUIJIA','KUIJIA',''],
 	['^KUNUP','^KUNUP','KUNUP',''],
+	['^KUU','^KUU\b','KUU',''], # KUU-128GB
 	['^(Lacie|P92|itsaKey|iamaKey)','^Lacie','LaCie',''],
 	['^LANBO','^LANBO','LANBO',''],
 	['^LANTIC','^LANTIC','Lantic',''],
+	['^Lapcare','^Lapcare','Lapcare',''],
 	['^(Lazos|L-?ISS)','^Lazos','Lazos',''],
 	['^LDLC','^LDLC','LDLC',''],
 	# LENSE30512GMSP34MEAT3TA / UMIS RPITJ256PED2MWX
@@ -377,9 +381,11 @@ sub set_disk_vendors {
 	['^MSI\b','^MSI\b','MSI',''],
 	['^MTASE','^MTASE','MTASE',''],
 	['^MTRON','^MTRON','MTRON',''],
-	['^(MyDigitalSSD|BP4)','^MyDigitalSSD','MyDigitalSSD',''], # BP4 = BulletProof4
+	['^(MyDigitalSSD|BP[4X])','^MyDigitalSSD','MyDigitalSSD',''], # BP4 = BulletProof4
+	['^(Myson)','^Myson([\s-]?Century)?([\s-]?Inc\.?)?','Myson Century',''],
 	['^(Neo\s*Forza|NFS\d)','^Neo\s*Forza','Neo Forza',''],
 	['^(Netac|S535N)','^Netac','Netac',''],
+	['^NFHK','^NFHK','NFHK',''],
 	# NGFF is a type, like msata, sata
 	['^Nik','^Nikimi','Nikimi',''],
 	['^NOREL','^NOREL(SYS)?','NorelSys',''],
@@ -395,6 +401,7 @@ sub set_disk_vendors {
 	['^(Patriot|PS[8F]|P2\d{2}|PBT|VPN|Viper|Burst|Blast|Blaze|Pyro|Ignite)','^Patriot([-\s]?Memory)?','Patriot',''],#Viper M.2 VPN100
 	['^PERC\b','','Dell PowerEdge RAID Card',''], # ssd 
 	['(PHISON[\s-]?|ESR\d)','PHISON[\s-]?','Phison',''],# E12-256G-PHISON-SSD-B3-BB1
+	['^(Pichau[\s-]?Gaming|PG\d{2})','^Pichau[\s-]?Gaming','Pichau Gaming',''],
 	['^Pioneer','Pioneer','Pioneer',''],
 	['^Platinet','Platinet','Platinet',''],
 	['^(PLEXTOR|PX-)','^PLEXTOR','Plextor',''],
@@ -410,6 +417,7 @@ sub set_disk_vendors {
 	['^(Ramaxel|RT|RM|RPF|RDM)','^Ramaxel','Ramaxel',''],
 	['^(Ramsta|R[1-9])','^Ramsta','Ramsta',''],
 	['^(Realtek|RTL)','^Realtek','Realtek',''],
+	['^(Reletech)','^Reletech','Reletech',''], # id: P400 but that's too short
 	['^RENICE','^RENICE','Renice',''],
 	['^RevuAhn','^RevuAhn','RevuAhn',''],
 	['^(Ricoh|R5)','^Ricoh','Ricoh',''],
@@ -467,6 +475,7 @@ sub set_disk_vendors {
 	['^Tele2','^Tele2','Tele2',''],
 	['^Teleplan','^Teleplan','Teleplan',''],
 	['^TEUTONS','^TEUTONS','TEUTONS',''],
+	['^(Textorm)','^Textorm','Textorm',''], # B5 too short
 	['^THU','^THU','THU',''],
 	['^Tigo','^Tigo','Tigo',''],
 	['^(Timetec|35TT)','^Timetec','Timetec',''],
@@ -481,6 +490,7 @@ sub set_disk_vendors {
 	# note: udisk means usb disk, it's not a vendor ID
 	['^UDinfo','^UDinfo','UDinfo',''],
 	['^UMAX','^UMAX','UMAX',''],
+	['^(UMIS|RP[IJ]TJ)','^UMIS','UMIS',''],
 	['^USBTech','^USBTech','USBTech',''],
 	['^(UNIC2)','^UNIC2','UNIC2',''],
 	['^(UG|Unigen)','^Unigen','Unigen',''],
@@ -501,7 +511,10 @@ sub set_disk_vendors {
 	['^Walton','^Walton','Walton',''],
 	['^(Wearable|Air-?Stash)','^Wearable','Wearable',''],
 	['^Wellcomm','^Wellcomm','Wellcomm',''],
+	['^(wicgtyp|N900)','^wicgtyp','wicgtyp',''],
 	['^Wilk','^Wilk','Wilk',''],
+	['^(WinMemory|SWG\d)','^WinMemory','WinMemory',''],
+	['^(Winton|WT\d{2})','^Winton','Winton',''],
 	['^WPC','^WPC','WPC',''], # WPC-240GB
 	['^(Wortmann(\sAG)?|Terra\s?US)','^Wortmann(\sAG)?','Wortmann AG',''],
 	['^(XinTop|XT-)','^XinTop','XinTop',''],
@@ -721,7 +734,7 @@ sub show_options {
 	say "                 the first iteration creating the new master unhandled.";
 	say "-v,--version   - Show tool version and date.";
 	say '';
-	say "Note: make sure to run vendors.pl on new datasets 1x, then with -u again";
+	say "Note: make sure to run $self_name on new datasets 1x, then with -u again";
 	say "to get rid of some duplicates that the first pass doesn't get. Use -u";
 	say "after the first non -u run, after that you will be working only with the";
 	say "unhandled list, which is much faster.";
