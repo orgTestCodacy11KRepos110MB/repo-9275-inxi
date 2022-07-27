@@ -18,12 +18,12 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'release.pl';
-my $self_version = '1.0';
-my $self_date = '2022-06-16';
+my $self_version = '1.1';
+my $self_date = '2022-07-27';
 
 ## Update these to release date and version
-my $date = '2022-06-16';
-my $version = '3.3.19';
+my $date = '2022-07-27';
+my $version = '3.3.20';
 
 # note: you need to make a symbolic link from real html /docs/ directory to here:
 my $dev = "$ENV{'HOME'}/bin/scripts/inxi/svn/branches/inxi-perl/";
@@ -74,7 +74,7 @@ sub update_temp_files {
 		@data = reader($file);
 		@data = map {
 		$_ =~ s/^inxi version: .*/inxi version: $version/;
-		$_ =~ s/^inxi date: .*/innxi date: $date/;
+		$_ =~ s/^inxi date: .*/inxi date: $date/;
 		$_} @data;
 		writer(\@data,$file);
 	}
