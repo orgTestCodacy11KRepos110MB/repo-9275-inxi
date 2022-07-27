@@ -237,10 +237,10 @@ my $amd_data = {
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2019-20',
 	},
-	# Barcelo, Lockhart, Mendocino, Oberon, Rembrandt, Scarlett, Van Gogh apu
+	# Barcelo, Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
 	'22' => {
 	'arch' => 'RDNA-2',
-	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
+	'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 	'code' => 'Navi-2x',
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020-22',
@@ -319,7 +319,7 @@ my $intel_data = {
 	# Intel Atom Z520
 	'06' => {
 	'arch' => 'PowerVR SGX535',
-	'pattern' => 'Auburn|Poulsbo|Lincroft|GMA [56]00|Z520|Atom (Processor\s)?[DN][45]\w{2}',
+	'pattern' => 'Auburn|Poulsbo|Lincroft|Moorestown|GMA [56]00|Z520|Atom (Processor\s)?[DN][45]\w{2}',
 	'code' => '',
 	'process' => 'Intel 45-130nm',
 	'years' => '2008-10',
@@ -334,7 +334,7 @@ my $intel_data = {
 	# atom d2xxx/n2xxxx released 2012, assuming d2550 at 32nm is this
 	'08' => {
 	'arch' => 'PowerVR SGX545',
-	'pattern' => 'GMA 36\d0|Atom (Processor\s)?D2\w{3}/N2\w{3}|Cedarview',
+	'pattern' => 'GMA 36\d0|Cloverview|Cedarview|Atom (Processor\s)?D2\w{3}\/N2\w{3}',
 	'code' => '',
 	'process' => 'Intel 65nm',
 	'years' => '2008-10',
@@ -353,6 +353,8 @@ my $intel_data = {
 	'process' => 'Intel 22nm',
 	'years' => '2012-13',
 	},
+	# don't use v2,3,4, it's not clear for xeon
+	#|\bv2\b.*Graphics Xeon E3-12\d{2}.*Graphics| E3-12xx goes from sandybridge to kaby lake
 	'11' => {
 	'arch' => 'Gen-6',
 	'pattern' => '2nd Gen(eration)?|Z2760|Sandy\s?Bridge',
@@ -367,6 +369,7 @@ my $intel_data = {
 	'process' => 'Intel 22nm',
 	'years' => '2012-13',
 	},
+	# \bv4\b.*Graphics|
 	'13' => {
 	'arch' => 'Gen-7.5',
 	'pattern' => '4th Gen(eration)?|Haswell',
@@ -376,7 +379,7 @@ my $intel_data = {
 	},
 	'14' => {
 	'arch' => 'Gen-8',
-	'pattern' => '5th Gen(eration)?|E8000|J3xxx/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
+	'pattern' => '5th Gen(eration)?|E8000|J3xxx\/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
 	'code' => '',
 	'process' => 'Intel 14nm',
 	'years' => '2014-15',
@@ -407,7 +410,7 @@ my $intel_data = {
 	# Intel Xe-LP
 	'18' => {
 	'arch' => 'Gen-11',
-	'pattern' => '9th Gen(eration)?|(Ice|Jasper)\s?Lake|Crystal\s?Well|Iris Plus Graphics G[77]',
+	'pattern' => '9th Gen(eration)?|(Elkhart|Ice|Jasper)\s?Lake|Lakefield|Crystal\s?Well|Iris Plus Graphics G[77]',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2019-21',
@@ -449,6 +452,14 @@ my $intel_data = {
 	'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
 	'code' => 'Alchemist',
 	'process' => 'TSMC n6 (7nm)', 
+	'years' => '2022+',
+	},
+	# this is not fully verified re gen and process, but is out as of 2022-07
+	'24' => {
+	'arch' => 'Gen-13',
+	'pattern' => 'Raptor Lake',
+	'code' => '',
+	'process' => 'Intel 7 (10nm)', 
 	'years' => '2022+',
 	},
 	# coming: Battlemage, Celestial, and Druid  (2025)
