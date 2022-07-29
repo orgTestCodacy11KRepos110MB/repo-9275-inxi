@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.20';
-my $self_date='2022-07-27';
-my $self_patch='01';
+my $self_date='2022-07-29';
+my $self_patch='02';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5852,6 +5852,7 @@ sub show_options {
 	['2', '-A', '', "Chip vendor:product ID for each audio device; PCIe speed,
 	lanes (if found)."],
 	['2', '-B', '', "Serial number."],
+	['2', '-C', '', "Add microarchitecture level."],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available); disk duid (some BSDs)."],
 	['2', '-E', '', "Chip vendor:product ID, LMP subversion; PCIe speed, lanes 
@@ -8726,10 +8727,13 @@ sub full_output {
 		if ($cpu->{'arch-note'}){
 			$rows->[$j]{main::key($num++,0,3,'note')} = $cpu->{'arch-note'};
 		}
+		if ($b_admin && $cpu->{'gen'}){
+			$rows->[$j]{main::key($num++,0,3,'gen')} = $cpu->{'gen'};
+		}
+		if ($extra > 1 && $properties->{'arch-level'}){
+			$rows->[$j]{main::key($num++,0,2,'level')} = $properties->{'arch-level'};
+		}
 		if ($b_admin){
-			if ($cpu->{'gen'}){
-				$rows->[$j]{main::key($num++,0,3,'gen')} = $cpu->{'gen'};
-			}
 			if ($cpu->{'year'}){
 				$rows->[$j]{main::key($num++,0,2,'built')} = $cpu->{'year'};
 			}
@@ -8752,7 +8756,6 @@ sub full_output {
 		elsif (defined $cpu->{'revision'}){
 			$rows->[$j]{main::key($num++,0,2,'rev')} = $cpu->{'revision'};
 		}
-		
 		if (!%risc && $cpu->{'type'} ne 'elbrus'){
 			$cpu->{'microcode'} = ($cpu->{'microcode'}) ? '0x' . $cpu->{'microcode'} :  'N/A';
 			$rows->[$j]{main::key($num++,0,2,'microcode')} = $cpu->{'microcode'};
@@ -10141,7 +10144,7 @@ sub dmidecode_data {
 ## CPU PROPERTIES MAIN ##
 sub cpu_properties {
 	my ($cpu) = @_;
-	my ($cpu_sys);
+	my ($cpu_sys,$arch_level);
 	my $dmi_data = {};
 	my $tests = {};
 	my $caches = {
@@ -10272,10 +10275,17 @@ sub cpu_properties {
  	if (!$bits_sys && !%risc && $cpu->{'flags'}){
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
+	# must run after to make sure we have cpu bits
+	if (!%risc && $bits_sys && $bits_sys == 64 && $cpu->{'flags'}){
+		$arch_level = cp_cpu_level(
+		$cpu->{'flags'}
+		);
+	}
 	## END SPEED/BITS ##
 	
 	## LOAD %cpu_properties
 	my $cpu_properties = {
+	'arch-level' => $arch_level,
 	'avg-speed-key' => $speed_info->{'avg-speed-key'},
 	'bits-sys' => $bits_sys,
 	'cache' => $caches->{'cache'},
@@ -11530,6 +11540,30 @@ sub cp_cpu_arch {
 	return [$arch,$note,$process,$gen,$year];
 }
 ## END CPU ARCH ##
+
+# Only AMD/Intel 64 bit cpus
+sub cp_cpu_level {
+	eval $start if $b_log;
+	my ($flags) = @_;
+	my $level;
+	if ($flags =~ /AVX512/i){
+		$level = 'v4';
+	}
+	# ~2015: Haswell and Excavator
+	elsif ($flags =~ /\b(AVX2|BMI[12]|F16C|FMA|LZCNT|MOVBE|OSXSAVE)\b/i){
+		$level = 'v3';
+	}
+	# !2009: Nehalem and Jaguar
+	elsif ($flags =~ /\b(CMPXCHG16B|[LS]AHF|POPCNT|SSS?E3|SSE4_[12])\b/i){
+		$level = 'v2';
+	}
+	# baseline: all x86_64 cpus
+	elsif ($flags =~ /\b(CX8|FPU|FXSR|MMX|OSFXSR|SCE|SSE2?)\b/i){
+		$level = 'v1';
+	}
+	eval $end if $b_log;
+	return $level;
+}
 sub cp_cpu_topology {
 	my ($counts,$topology) = @_;
 	my @alpha = qw(Single Dual Triple Quad);
