@@ -37,7 +37,8 @@ my $html_options_temp="${dev}smxi.org-docs/inxi-options-temp.htm";
 my $html_man="${dev}smxi.org-docs/inxi-man.htm";
 my $html_man_temp="${dev}smxi.org-docs/inxi-man-temp.htm";
 
-my ($b_docs,$b_sync,$b_verify,$changelog,$man,$options,@data);
+my ($b_docs,$b_sync,$b_verify);
+my ($changelog_contents,$man_contents,$options_contents,@data);
 my $line = '------------------------------------------------------------------';
 
 sub validate_man {
@@ -51,20 +52,22 @@ sub validate_man {
 sub load_data {
 	say $line;
 	print "Loading changelog, help, and man data... ";
-	$changelog = join("\n",reader($file_changelog));
-	die "\n\@changelog raw data empty!" if !$changelog;
+	$changelog_contents = join("\n",reader($file_changelog));
+	die "\n\@changelog raw data empty!" if !$changelog_contents;
+	$changelog_contents =~ s/</&lt;/g;
+	$changelog_contents =~ s/>/&gt;/g;
 	my $cmd = "mman -Thtml ${dev}pinxi.1 | sed -e '/^<!DOCTYPE/,/^<body/{/^<!DOCTYPE/!{/^<body/!d}}' -e '/^<!DOCTYPE/d' -e '/^<body/d'";
 	#  -e '/^\s*<br\/>\s*$/d'; -e '/<\/body/d' -e '/<\/html/d'
-	$man = qx($cmd);
-	@data = split("\n",$man);
+	$man_contents = qx($cmd);
+	@data = split("\n",$man_contents);
 	@data = map {
 	$_ =~ s%\s*<br/>%%;
 	$_ =~ s%(</body>|</html>)%%;
 	$_} @data;
-	$man = join("\n",@data);
-	die "\n\$man data is empty!" if !$man;
-	$options = qx(pinxi -yh | sed 's/pinxi/inxi/g');
-	die "\n\$options raw date empty!" if !$options;
+	$man_contents = join("\n",@data);
+	die "\n\$man_contents data is empty!" if !$man_contents;
+	$options_contents = qx(pinxi -yh | sed 's/pinxi/inxi/g');
+	die "\n\$options raw date empty!" if !$options_contents;
 	say "data loaded";
 }
 sub update_temp_files {
@@ -95,13 +98,14 @@ sub process {
 	say $line;
 	say "Updating HTML content...";
 	my %process = (
-	'changelog' => [$html_changelog,$changelog],
-	'man' => [$html_man,$man],
-	'options' => [$html_options,$options],
+	'changelog' => [$html_changelog,$changelog_contents],
+	'man' => [$html_man,$man_contents],
+	'options' => [$html_options,$options_contents],
 	);
 	foreach my $key (sort keys %process){
 		say "\n Working on $key file...";
 		@data = reader($process{$key}->[0]);
+		# replace %%% with contents of file
 		@data = map {
 		if ($_ eq '%%%'){
 			$_ = $process{$key}->[1];
