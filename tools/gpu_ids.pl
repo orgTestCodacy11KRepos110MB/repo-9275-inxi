@@ -462,7 +462,7 @@ my $intel_data = {
 	'process' => 'Intel 7 (10nm)', 
 	'years' => '2022+',
 	},
-	# coming: Battlemage, Celestial, and Druid  (2025)
+	# coming: Battlemage, Celestial, and Druid (2025)
 },
 };
 
