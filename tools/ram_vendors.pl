@@ -41,7 +41,7 @@ my $options = '';
 # no testing samples yet, fill in as needed.
 # [0]: string to test, [1]: vendor ID
 my $tests = [
-['',''],
+['K3LK7K70BM-BGCP000',''],
 ['',''],
 ['',''],
 ['',''],
@@ -86,7 +86,7 @@ sub set_ram_vendors {
 	# before patriot just in case
 	['^(MN\d|PNY)','PNY\s','PNY',''],
 	['^(P[A-Z]|Patriot)','Patriot','Patriot',''],
-	['^(K[1-6][ABT]|K[1-6][\d]{3}|M[\d]{3}[A-Z]|Samsung)','Samsung','Samsung',''],
+	['^(K[1-6][ABLT]|K\d|M[\d]{3}[A-Z]|Samsung)','Samsung','Samsung',''],
 	['^(SP|Silicon[\s-]?Power)','Silicon[\s-]?Power','Silicon Power',''],
 	['^(STK|Simtek)','Simtek','Simtek',''],
 	['^(HM[ACT]|SK[\s-]?Hynix)','SK[\s-]?Hynix','SK-Hynix',''],
