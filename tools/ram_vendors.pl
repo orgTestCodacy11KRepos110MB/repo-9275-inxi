@@ -42,7 +42,7 @@ my $options = '';
 # [0]: string to test, [1]: vendor ID
 my $tests = [
 ['K3LK7K70BM-BGCP000',''],
-['',''],
+['','196e'],
 ['',''],
 ['',''],
 ['',''],
@@ -168,24 +168,28 @@ sub process {
 	say "Starting ram vendor / model tests.";
 	say $line;
 	foreach my $item (@$tests){
-		next if !$item->[0];
-		my $result = ram_vendor($item->[0]);
-		if ($result->[0]){
-			say "Model string match found for $item->[0]:";
-			say "  vendor: $result->[0]";
-			say "  model: $result->[1]";
+		my $result;
+		if ($item->[0]){
+			$result = ram_vendor($item->[0]);
+			if ($result->[0]){
+				say "Model string match found for $item->[0]:";
+				say "  vendor: $result->[0]";
+				say "  model: $result->[1]";
+			}
+			else {
+				say "No model string match found for: $item->[0]";
+			}
 		}
-		else {
-			say "No model string match found for: $item->[0]";
+		if ($item->[1] && !$result->[0]){
+			if ($vendor_ids->{$item->[1]}){
+				say "Vendor ID match found for $item->[1]:";
+				say "  vendor: $vendor_ids->{$item->[1]}";
+			}
+			else {
+				say "No vendor ID match found for: $item->[1]";
+			}
 		}
-		next if !$item->[1] || $result->[0];
-		if ($vendor_ids->{$item->[1]}){
-			say "Vendor ID match found for $item->[1]:";
-			say "  vendor: $vendor_ids->{$item->[1]}";
-		}
-		else {
-			say "No vendor ID match found for: $item->[1]";
-		}
+		next;
 	}
 	say $line;
 	say "Completed tests.";
