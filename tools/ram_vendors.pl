@@ -27,8 +27,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'ram_vendors.pl';
-my $self_version = '1.0';
-my $self_date = '2022-05-30';
+my $self_version = '1.1';
+my $self_date = '2022-08-06';
 
 my ($b_log,$end,$start);
 my ($vendors,$vendor_ids);
@@ -171,16 +171,24 @@ sub process {
 		next if !$item->[0];
 		my $result = ram_vendor($item->[0]);
 		if ($result->[0]){
-			say "Match found for $item->[0]:";
+			say "Model string match found for $item->[0]:";
 			say "  vendor: $result->[0]";
 			say "  model: $result->[1]";
 		}
 		else {
-			say "No result found for: $item->[0]";
+			say "No model string match found for: $item->[0]";
+		}
+		next if !$item->[1] || $result->[0];
+		if ($vendor_ids->{$item->[1]}){
+			say "Vendor ID match found for $item->[1]:";
+			say "  vendor: $vendor_ids->{$item->[1]}";
+		}
+		else {
+			say "No vendor ID match found for: $item->[1]";
 		}
 	}
 	say $line;
-	say "Complated tests.";
+	say "Completed tests.";
 }
 
 sub options {
