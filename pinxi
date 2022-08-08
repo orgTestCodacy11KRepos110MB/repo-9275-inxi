@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.20';
-my $self_date='2022-08-06';
-my $self_patch='04';
+my $self_date='2022-08-07';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -29487,7 +29487,8 @@ sub package_counts {
 	eval $start if $b_log;
 	my ($type) = @_;
 	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
-	# 5: lib slice; 6: lib splitter; 7 - optional eval test
+	# 5: lib slice; 6: lib splitter; 7 - optional eval test; 
+	# 8: optional multi tool tests, use first detected as name to show
 	# needed: cards [nutyx], urpmq [mageia]
 	my @pkg_managers = (
 	['alps','alps','p','showinstalled',1,0,''],
@@ -29515,10 +29516,12 @@ sub package_counts {
 	# but pkgadd is also found in scratch
 	['pkgutils','pkginfo','p','-i',1,0,'','main::check_program(\'pkgadd\')'],
 	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
-	['pkgtool','pkgtool','d','/var/lib/pkgtools/packages/*',1,5,'\\/',
-	 '-d \'/var/lib/pkgtools/packages\''],
-	['pkgtool','pkgtool','d','/var/log/packages/*',1,4,'\\/',
-	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\''],
+	['pkgtool','installpkg','d','/var/lib/pkgtools/packages/*',1,5,'\\/',
+	 '-d \'/var/lib/pkgtools/packages\'',
+	 ['slackpkg','pkgtool','slapt-get','slpkg','swaret']],
+	['pkgtool','installpkg','d','/var/log/packages/*',1,4,'\\/',
+	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\'',
+	 ['slackpkg','pkgtool','slapt-get','slpkg','swaret']],
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
@@ -29527,9 +29530,7 @@ sub package_counts {
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
 	# note: slackpkg, slapt-get, spkg, and pkgtool all return the same count
-	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
-	# ['slackpkg','slackpkg','d','/var/lib/pkgtools/packages/*',1,5,'\\/',
-	# '-d \'/var/lib/pkgtools/packages\''],
+	# ['slackpkg','pkgtool','slapt-get','slpkg','swaret']],
 	# ['slapt-get','slapt-get','p','--installed',1,0,''],
 	# ['spkg','spkg','p','--installed',1,0,''],
 	['tce','tce-status','p','-i',1,0,''],
@@ -29561,6 +29562,15 @@ sub package_counts {
 				$count = scalar @list;
 				if ($b_admin && $count && $_->[4]){
 					$libs = count_libs(\@list,$_->[5],$_->[6]);
+				}
+				# if there is ambiguity about actual program installed, use this loop
+				if ($_->[8]){
+					foreach my $tool (@{$_->[8]}){
+						if (main::check_program($tool)){
+							$_->[0] = $tool;
+							last;
+						}
+					}
 				}
 				$counts{$_->[0]} = [$count,$libs];
 				$counts{'total'} += $count;
