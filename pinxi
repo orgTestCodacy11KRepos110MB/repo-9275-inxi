@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.20';
 my $self_date='2022-08-08';
-my $self_patch='07';
+my $self_patch='08';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6796,7 +6796,7 @@ sub message {
 	'pci-card-data' => 'No PCI device data found.',
 	'pci-card-data-root' => 'PCI device data requires root.',
 	'pci-slot-data' => 'No PCI Slot data found.',
-	'pm-disabled' => 'see --rpm',
+	'pm-rpm-disabled' => 'see --rpm',
 	'ps-data-null' => 'No process data available.',
 	'raid-data' => 'No RAID data found.',
 	'ram-data' => 'No RAM data found.',
@@ -29423,8 +29423,8 @@ sub get_module_version {
 # called from either -r or -Ix, -r precedes. 
 {
 package PackageData;
-my ($count,%counts,@list,$num,$program,$type);
-$counts{'total'} = 0;
+my ($count,$num,%pms,$type);
+$pms{'total'} = 0;
 sub get {
 	eval $start if $b_log;
 	# $num passed by reference to maintain incrementing where requested
@@ -29441,23 +29441,23 @@ sub create_output {
 	eval $start if $b_log;
 	my $output = $_[0];
 	my $total;
-	if ($counts{'total'}){
-		$total = $counts{'total'};
+	if ($pms{'total'}){
+		$total = $pms{'total'};
 	}
 	else {
-		if ($type eq 'inner' || $counts{'note'}){
+		if ($type eq 'inner' || $pms{'note'}){
 			$total = 'N/A';
 		}
 		else {
 			$total = main::message('package-data');
 		}
 	}
-	if ($counts{'total'} && $extra > 1){
-		delete $counts{'total'};
+	if ($pms{'total'} && $extra > 1){
+		delete $pms{'total'};
 		my $b_mismatch;
-		foreach (keys %counts){
+		foreach (keys %pms){
 			next if $_ eq 'note';
-			if ($counts{$_}->[0] && $counts{$_}->[0] != $total){
+			if ($pms{$_}->{'pkgs'} && $pms{$_}->{'pkgs'} != $total){
 				$b_mismatch = 1;
 				last;
 			}
@@ -29465,29 +29465,31 @@ sub create_output {
 		$total = '' if !$b_mismatch;
 	}
 	$output->{main::key($$num++,1,1,'Packages')} = $total;
-	# if blocked pm secondary, only show if admin
-	if ($counts{'note'} && (!$counts{'total'} || $b_admin || $total < 100)){
-		$output->{main::key($$num++,0,2,'note')} = $counts{'note'};
+	# if blocked pm secondary, only show if no total or improbable total
+	if ($pms{'note'} && $extra < 2 && (!$pms{'total'} || $total < 100)){
+		$output->{main::key($$num++,0,2,'note')} = $pms{'note'};
 	}
-	if ($extra > 1 && %counts){
-		foreach (sort keys %counts){
+	if ($extra > 1 && %pms){
+		foreach my $pm (sort keys %pms){
 			my ($cont,$ind) = (1,2);
-			# if package mgr command returns error, this will not be an array
-			next if ref $counts{$_} ne 'ARRAY';
-			if ($counts{$_}->[0] || $b_admin){
-				my $type = $_;
+			# if package mgr command returns error, this will not be a hash
+			next if ref $pms{$pm} ne 'HASH';
+			if ($pms{$pm}->{'pkgs'} || $b_admin || ($extra > 1 && $pms{$pm}->{'note'})){
+				my $type = $pm;
 				$type =~ s/^zzz-//; # get rid of the special sorters for items to show last
 				$output->{main::key($$num++,$cont,$ind,'pm')} = $type;
 				($cont,$ind) = (0,3);
-				$output->{main::key($$num++,($cont+1),$ind,'pkgs')} = $counts{$_}->[0];
-				if ($b_admin){
-					if ($counts{$_}->[1]){
-						$output->{main::key($$num++,$cont,($ind+1),'libs')} = $counts{$_}->[1];
+				if ($pms{$pm}->{'note'}){
+					$output->{main::key($$num++,$cont,$ind,'note')} = $pms{$pm}->{'note'};
+				}
+				else {
+					$output->{main::key($$num++,($cont+1),$ind,'pkgs')} = $pms{$pm}->{'pkgs'};
+					if ($b_admin && $pms{$pm}->{'libs'}){
+						$output->{main::key($$num++,$cont,($ind+1),'libs')} = $pms{$pm}->{'libs'};
 					}
-					if ($counts{$_}->[2]){
-						$output->{main::key($$num++,$cont,$ind,'tools')} = $counts{$_}->[2];
-					}
-					
+				}
+				if ($b_admin && $pms{$pm}->{'tools'}){
+					$output->{main::key($$num++,$cont,$ind,'tools')} = $pms{$pm}->{'tools'};
 				}
 			}
 		}
@@ -29542,8 +29544,8 @@ sub package_counts {
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	['rpm','rpm','force-pkg','-qa --nodigest --nosignature',1,0,'','',
-	 ['dnf','yum','zypper','packagekit','yast']],
+	['rpm','rpm','force','-qa --nodigest --nosignature',1,0,'','',
+	 ['dnf','packagekit','up2date','urpmi','yast','yum','zypper']],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
@@ -29559,55 +29561,77 @@ sub package_counts {
 	['zzz-flatpak','flatpak','p','list',0,0,''],
 	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
 	);
-	my ($libs,@tools);
-	foreach (@pkg_managers){
-		if ($program = main::check_program($_->[1])){
-			next if $_->[7] && !eval $_->[7];
-			my $error;
-			if ($_->[2] eq 'p' || ($_->[2] eq 'force-pkg' && $force{'pkg'})){
-				chomp(@list = qx($program $_->[3] 2>/dev/null));
+	my ($program);
+	foreach my $pm (@pkg_managers){
+		if ($program = main::check_program($pm->[1])){
+			next if $pm->[7] && !eval $pm->[7];
+			my ($error,$libs,@list,$pmts);
+			if ($pm->[2] eq 'p' || ($pm->[2] eq 'force' && check_run($pm))){
+				chomp(@list = qx($program $pm->[3] 2>/dev/null));
 			}
-			elsif ($_->[2] eq 'd'){
-				@list = main::globber($_->[3]);
+			elsif ($pm->[2] eq 'd'){
+				@list = main::globber($pm->[3]);
 			}
 			else {
-				undef @list;
-				$error = main::message('pm-disabled');
+				# update message() if pm other than rpm disabled by default
+				$error = main::message('pm-' . $pm->[1] . '-disabled');
 			}
-			($libs,@tools) = ();
+			$count = scalar @list;
 			# print Data::Dumper::Dumper \@list;
 			if (!$error){
-				$count = scalar @list;
-				if ($b_admin && $count && $_->[4]){
-					$libs = count_libs(\@list,$_->[5],$_->[6]);
+				if ($b_admin && $count && $pm->[4]){
+					$libs = count_libs(\@list,$pm->[5],$pm->[6]);
 				}
-				# if there is ambiguity about actual program installed, use this loop
-				if ($b_admin && $_->[8]){
-					foreach my $tool (@{$_->[8]}){
-						if (main::check_program($tool)){
-							push(@tools,$tool);
-						}
-					}
-				}
-				$counts{$_->[0]} = [$count,$libs,join(',',@tools)];
-				$counts{'total'} += $count;
 			}
 			else {
-				$counts{'note'} = $error;
+				$pms{'note'} = $error;
 			}
-			# print Data::Dumper::Dumper \%counts;
+			# if there is ambiguity about actual program installed, use this loop
+			if ($b_admin && $pm->[8]){
+				my @tools;
+				foreach my $tool (@{$pm->[8]}){
+					if (main::check_program($tool)){
+						push(@tools,$tool);
+					}
+				}
+				$pmts = join(',',@tools) if @tools;
+			}
+			$pms{$pm->[0]} = {
+			'pkgs' => $count,
+			'libs' => $libs,
+			'note' => $error,
+			'tools' => $pmts,
+			};
+			$pms{'total'} += $count;
+			# print Data::Dumper::Dumper \%pms;
 		}
 	}
-	# print Data::Dumper::Dumper \%counts;
-	main::log_data('dump','Package managers: %counts',\%counts) if $b_log;
+	# print Data::Dumper::Dumper \%pms;
+	main::log_data('dump','Package managers: %pms',\%pms) if $b_log;
 	eval $end if $b_log;
 }
 sub appimage_counts {
 	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
-		@list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
+		my @list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
 		$count = scalar @list;
-		$counts{'zzz-appimage'} = [$count,undef] if $count;
-		$counts{'total'} += $count;
+		$pms{'zzz-appimage'} = [$count,undef] if $count;
+		$pms{'total'} += $count;
+	}
+}
+sub check_run {
+	if ($force{'pkg'}){
+		return 1;
+	}
+	elsif (${_[0]}->[1] eq 'rpm'){
+		# testing for core wrappers for rpm, these should not be present in non
+		# redhat/suse based systems. mageia has urpmi, dnf, yum
+		foreach my $tool (('dnf','up2date','urpmi','yum','zypper')){
+			return 0 if main::check_program($tool);
+		}
+		# Note: test fails: apt-rpm (pclinuxos,alt linux), unknown how to detect
+		foreach my $tool (('dpkg','pacman','pkgtool')){
+			return 1 if main::check_program($tool);
+		}
 	}
 }
 sub count_libs {
