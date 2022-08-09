@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.20';
 my $self_date='2022-08-08';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5775,9 +5775,8 @@ sub show_options {
 	non-free driver info (Nvidia only); PCIe lanes-max: gen, speed, lanes (if 
 	relevant); list of alternate kernel modules/drivers for device(s) (if 
 	available); Monitor built year, gamma, screen ratio (if available)."],
-	['2', '-I', '', "As well as per package manager counts, also adds total
-	number of lib files found for each package manager if not -r; adds init
-	service tool."],
+	['2', '-I', '', "If not -r, adds to Packages total number of lib files found 
+	for each package manager and pm tools (if not -r); adds init service tool."],
 	['2', '-j,-p,-P', '', "For swap (if available): swappiness and vfs cache 
 	pressure, and if values are default or not."],
 	['2', '-L', '', "LV, Crypto, devices, components: add maj:min; show
@@ -29470,12 +29469,19 @@ sub create_output {
 			# if package mgr command returns error, this will not be an array
 			next if ref $counts{$_} ne 'ARRAY';
 			if ($counts{$_}->[0] || $b_admin){
-				my $key = $_;
-				$key =~ s/^zzz-//; # get rid of the special sorters for items to show last
-				$output->{main::key($$num++,$cont,$ind,$key)} = $counts{$_}->[0];
-				if ($b_admin && $counts{$_}->[1]){
-					($cont,$ind) = (0,3);
-					$output->{main::key($$num++,$cont,$ind,'lib')} = $counts{$_}->[1];
+				my $type = $_;
+				$type =~ s/^zzz-//; # get rid of the special sorters for items to show last
+				$output->{main::key($$num++,$cont,$ind,'type')} = $type;
+				($cont,$ind) = (0,3);
+				$output->{main::key($$num++,($cont+1),$ind,'pkgs')} = $counts{$_}->[0];
+				if ($b_admin){
+					if ($counts{$_}->[1]){
+						$output->{main::key($$num++,$cont,($ind+1),'libs')} = $counts{$_}->[1];
+					}
+					if ($counts{$_}->[2]){
+						$output->{main::key($$num++,$cont,$ind,'tools')} = $counts{$_}->[2];
+					}
+					
 				}
 			}
 		}
@@ -29494,7 +29500,8 @@ sub package_counts {
 	['alps','alps','p','showinstalled',1,0,''],
 	['apk','apk','p','info',1,0,''],
 	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
-	['apt','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,''],
+	['dpkg','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,'','',
+	 ['apt','apt-get','aptitude']],
 	# ['aptd','dpkg-query','d','/usr/lib/*',1,3,'\\/'],
 	# mutyx. do cards test because there is a very slow pkginfo python pkg mgr
 	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
@@ -29507,8 +29514,11 @@ sub package_counts {
 	['nix-sys','nix-store','p','-qR /run/current-system/sw',1,1,'-'], 
 	['nix-usr','nix-store','p','-qR ~/.nix-profile',1,1,'-'], 
 	['nix-default','nix-store','p','-qR /nix/var/nix/profiles/default',1,2,'-'], 
+	['opkg','opkg','p','list',1,0,''], # ubuntu based Security Onion
 	['pacman','pacman','p','-Qq --color never',1,0,'',
-	 '!main::check_program(\'pacman-g2\')'], # pacman-g2 has sym link to pacman
+	 '!main::check_program(\'pacman-g2\')', # pacman-g2 has sym link to pacman
+	 ['argon','aura','aurutils','cylon','octopi','pacaur','pakku','pamac','paru',
+	 'pikaur','trizen','yaourt','yay','yup']], 
 	['pacman-g2','pacman-g2','p','-Q',1,0,''],
 	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
 	['pkg_info','pkg_info','p','',1,0,''],
@@ -29517,15 +29527,16 @@ sub package_counts {
 	['pkgutils','pkginfo','p','-i',1,0,'','main::check_program(\'pkgadd\')'],
 	# slack 15 moves packages to /var/lib/pkgtools/packages but links to /var/log/packages
 	['pkgtool','installpkg','d','/var/lib/pkgtools/packages/*',1,5,'\\/',
-	 '-d \'/var/lib/pkgtools/packages\'',
-	 ['slackpkg','pkgtool']],
+	'-d \'/var/lib/pkgtools/packages\'',
+	 ['slackpkg','slapt-get','slpkg','swaret']],
 	['pkgtool','installpkg','d','/var/log/packages/*',1,4,'\\/',
-	 '! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\'',
-	 ['slackpkg','pkgtool']],
+	'! -d \'/var/lib/pkgtools/packages\' && -d \'/var/log/packages/\'',
+	 ['slackpkg','slapt-get','slpkg','swaret']],
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	['rpm','rpm','pkg','-qa --nodigest --nosignature',1,0,''],
+	['rpm','rpm','pkg','-qa --nodigest --nosignature',1,0,'','',
+	 ['dnf','yum','zypper']],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
@@ -29541,7 +29552,7 @@ sub package_counts {
 	['zzz-flatpak','flatpak','p','list',0,0,''],
 	['zzz-snap','snap','p','list',0,0,'','@ps_cmd && (grep {/\bsnapd\b/} @ps_cmd)'],
 	);
-	my $libs;
+	my ($libs,@tools);
 	foreach (@pkg_managers){
 		if ($program = main::check_program($_->[1])){
 			next if $_->[7] && !eval $_->[7];
@@ -29556,7 +29567,7 @@ sub package_counts {
 				undef @list;
 				$error = main::message('pm-disabled');
 			}
-			undef $libs;
+			($libs,@tools) = ();
 			# print Data::Dumper::Dumper \@list;
 			if (!$error){
 				$count = scalar @list;
@@ -29564,15 +29575,14 @@ sub package_counts {
 					$libs = count_libs(\@list,$_->[5],$_->[6]);
 				}
 				# if there is ambiguity about actual program installed, use this loop
-				if ($_->[8]){
+				if ($b_admin && $_->[8]){
 					foreach my $tool (@{$_->[8]}){
 						if (main::check_program($tool)){
-							$_->[0] = $tool;
-							last;
+							push(@tools,$tool);
 						}
 					}
 				}
-				$counts{$_->[0]} = [$count,$libs];
+				$counts{$_->[0]} = [$count,$libs,join(',',@tools)];
 				$counts{'total'} += $count;
 			}
 			else {
