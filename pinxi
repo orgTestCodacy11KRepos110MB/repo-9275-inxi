@@ -5219,8 +5219,8 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
-			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|package|rpm||usb-sys|vmstat|';
-			$wl .= 'wayland|wmctrl';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|rpm||usb-sys|';
+			$wl .= 'vmstat|wayland|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$force{lc($1)} = 1;
@@ -5318,7 +5318,7 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
 	'pkg|rpm' => sub {
-		$force{'package'} = 1;},
+		$force{'pkg'} = 1;},
 	'ppc' => sub {
 		undef %risc;
 		$risc{'id'} = 'ppc';
@@ -5427,6 +5427,10 @@ sub post_process {
 	}
 	$extra = 3 if $b_admin;
 	$show{'graphic-basic'} = 0 if $show{'graphic-full'} && $extra > 1;
+	if ($force{'rpm'}){
+		$force{'pkg'} = 1;
+		delete $force{'rpm'};
+	}
 	if ($use{'sensors-default'}){
 		@sensors_exclude = ();
 		@sensors_use = ();
@@ -29536,7 +29540,7 @@ sub package_counts {
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	['rpm','rpm','force','-qa --nodigest --nosignature',1,0,'','',
+	['rpm','rpm','force-pkg','-qa --nodigest --nosignature',1,0,'','',
 	 ['dnf','yum','zypper','packagekit','yast']],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
@@ -29558,7 +29562,7 @@ sub package_counts {
 		if ($program = main::check_program($_->[1])){
 			next if $_->[7] && !eval $_->[7];
 			my $error;
-			if ($_->[2] eq 'p' || ($_->[2] eq 'force' && $force{'package'})){
+			if ($_->[2] eq 'p' || ($_->[2] eq 'force-pkg' && $force{'pkg'})){
 				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
 			elsif ($_->[2] eq 'd'){
