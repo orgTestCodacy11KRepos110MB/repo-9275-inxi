@@ -5219,7 +5219,7 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
-			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|rpm|usb-sys|vmstat|';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|package|rpm||usb-sys|vmstat|';
 			$wl .= 'wayland|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -5318,7 +5318,7 @@ sub get {
 			main::error_handler('bad-arg', $opt, $arg);
 		}},
 	'pkg|rpm' => sub {
-		$force{'pkg'} = 1;},
+		$force{'package'} = 1;},
 	'ppc' => sub {
 		undef %risc;
 		$risc{'id'} = 'ppc';
@@ -29501,7 +29501,7 @@ sub package_counts {
 	['apk','apk','p','info',1,0,''],
 	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
 	['dpkg','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,'','',
-	 ['apt','apt-get','aptitude']],
+	 ['apt','apt-get','aptitude','synaptic']],
 	# ['aptd','dpkg-query','d','/usr/lib/*',1,3,'\\/'],
 	# mutyx. do cards test because there is a very slow pkginfo python pkg mgr
 	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
@@ -29517,6 +29517,7 @@ sub package_counts {
 	['opkg','opkg','p','list',1,0,''], # ubuntu based Security Onion
 	['pacman','pacman','p','-Qq --color never',1,0,'',
 	 '!main::check_program(\'pacman-g2\')', # pacman-g2 has sym link to pacman
+	 # these may need to be trimmed down depending on how useful/less some are
 	 ['argon','aura','aurutils','cylon','octopi','pacaur','pakku','pamac','paru',
 	 'pikaur','trizen','yaourt','yay','yup']], 
 	['pacman-g2','pacman-g2','p','-Q',1,0,''],
@@ -29535,8 +29536,8 @@ sub package_counts {
 	# rpm way too slow without nodigest/sig!! confirms packages exist
 	# but even with, MASSIVELY slow in some cases, > 20, 30 seconds!!!!
 	# find another way to get rpm package counts or don't show this feature for rpm!!
-	['rpm','rpm','pkg','-qa --nodigest --nosignature',1,0,'','',
-	 ['dnf','yum','zypper']],
+	['rpm','rpm','force','-qa --nodigest --nosignature',1,0,'','',
+	 ['dnf','yum','zypper','packagekit','yast']],
 	# scratch is a programming language too, with software called scratch
 	['scratch','pkgbuild','d','/var/lib/scratchpkg/index/*/.pkginfo',1,5,'\\/',
 	 '-d \'/var/lib/scratchpkg\''],
@@ -29557,7 +29558,7 @@ sub package_counts {
 		if ($program = main::check_program($_->[1])){
 			next if $_->[7] && !eval $_->[7];
 			my $error;
-			if ($_->[2] eq 'p' || ($_->[2] eq 'pkg' && $force{'pkg'})){
+			if ($_->[2] eq 'p' || ($_->[2] eq 'force' && $force{'package'})){
 				chomp(@list = qx($program $_->[3] 2>/dev/null));
 			}
 			elsif ($_->[2] eq 'd'){
