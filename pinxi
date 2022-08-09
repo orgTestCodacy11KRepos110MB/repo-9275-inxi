@@ -29441,13 +29441,13 @@ sub get {
 sub create_output {
 	eval $start if $b_log;
 	my $output = $_[0];
-	my $total;
+	my $total = '';
 	if ($pms{'total'}){
 		$total = $pms{'total'};
 	}
 	else {
 		if ($type eq 'inner' || $pms{'note'}){
-			$total = 'N/A';
+			$total = 'N/A' if $extra < 2;
 		}
 		else {
 			$total = main::message('package-data');
@@ -29480,17 +29480,18 @@ sub create_output {
 				$type =~ s/^zzz-//; # get rid of the special sorters for items to show last
 				$output->{main::key($$num++,$cont,$ind,'pm')} = $type;
 				($cont,$ind) = (0,3);
+				$pms{$pm}->{'pkgs'} = 'N/A' if $pms{$pm}->{'note'};
+				$output->{main::key($$num++,($cont+1),$ind,'pkgs')} = $pms{$pm}->{'pkgs'};
 				if ($pms{$pm}->{'note'}){
 					$output->{main::key($$num++,$cont,$ind,'note')} = $pms{$pm}->{'note'};
 				}
-				else {
-					$output->{main::key($$num++,($cont+1),$ind,'pkgs')} = $pms{$pm}->{'pkgs'};
-					if ($b_admin && $pms{$pm}->{'libs'}){
+				if ($b_admin ){
+					if ($pms{$pm}->{'libs'}){
 						$output->{main::key($$num++,$cont,($ind+1),'libs')} = $pms{$pm}->{'libs'};
 					}
-				}
-				if ($b_admin && $pms{$pm}->{'tools'}){
-					$output->{main::key($$num++,$cont,$ind,'tools')} = $pms{$pm}->{'tools'};
+					if ($pms{$pm}->{'tools'}){
+						$output->{main::key($$num++,$cont,$ind,'tools')} = $pms{$pm}->{'tools'};
+					}
 				}
 			}
 		}
@@ -29577,7 +29578,7 @@ sub package_counts {
 				# update message() if pm other than rpm disabled by default
 				$error = main::message('pm-' . $pm->[1] . '-disabled');
 			}
-			$count = scalar @list;
+			$count = scalar @list if !$error;
 			# print Data::Dumper::Dumper \@list;
 			if (!$error){
 				if ($b_admin && $count && $pm->[4]){
@@ -29603,7 +29604,7 @@ sub package_counts {
 			'note' => $error,
 			'tools' => $pmts,
 			};
-			$pms{'total'} += $count;
+			$pms{'total'} += $count if defined $count;
 			# print Data::Dumper::Dumper \%pms;
 		}
 	}
