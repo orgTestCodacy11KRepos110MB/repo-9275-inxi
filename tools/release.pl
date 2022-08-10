@@ -18,12 +18,12 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'release.pl';
-my $self_version = '1.1';
-my $self_date = '2022-07-27';
+my $self_version = '1.2';
+my $self_date = '2022-08-09';
 
 ## Update these to release date and version
-my $date = '2022-07-27';
-my $version = '3.3.20';
+my $date = '2022-08-20';
+my $version = '3.3.21';
 
 # note: you need to make a symbolic link from real html /docs/ directory to here:
 my $dev = "$ENV{'HOME'}/bin/scripts/inxi/svn/branches/inxi-perl/";
@@ -48,7 +48,6 @@ sub validate_man {
 	die "\n$file_pinxi.1 is invalid and gave errors!" if $invalid;
 	say "man file valid.";
 }
-
 sub load_data {
 	say $line;
 	print "Loading changelog, help, and man data... ";
@@ -57,7 +56,6 @@ sub load_data {
 	$changelog_contents =~ s/</&lt;/g;
 	$changelog_contents =~ s/>/&gt;/g;
 	my $cmd = "mman -Thtml ${dev}pinxi.1 | sed -e '/^<!DOCTYPE/,/^<body/{/^<!DOCTYPE/!{/^<body/!d}}' -e '/^<!DOCTYPE/d' -e '/^<body/d'";
-	#  -e '/^\s*<br\/>\s*$/d'; -e '/<\/body/d' -e '/<\/html/d'
 	$man_contents = qx($cmd);
 	@data = split("\n",$man_contents);
 	@data = map {
@@ -70,6 +68,7 @@ sub load_data {
 	die "\n\$options raw date empty!" if !$options_contents;
 	say "data loaded";
 }
+
 sub update_temp_files {
 	say $line;
 	say "Updating -temp.htm files with version/date...";
