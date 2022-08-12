@@ -28179,13 +28179,15 @@ sub system_base_bsd {
 
 sub system_base {
 	eval $start if $b_log;
-	my $base_arch_distro = 'anarchy|antergos|arch(bang|craft|labs|man|strike)|arco|artix';
+	my $base_distro_arch = 'anarchy|antergos|arch(bang|craft|labs|man|strike)|arco|artix';
 	# note: arch linux derived distro page claims kaos as arch derived but it is NOT
-	$base_arch_distro .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
-	$base_arch_distro .= '|mabox|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
-	$base_arch_distro .= '|puppyrus-?a|reborn|snal|talkingarch|ubos';
-	my $base_debian_version_distro = 'sidux';
-	my $base_debian_version_osr = '\belive|lmde|neptune|parrot|pureos|rescatux|septor|sparky|tails';
+	$base_distro_arch .= '|blackarch|bluestar|chakra|ctios|endeavour|garuda|hyperbola|linhes';
+	$base_distro_arch .= '|mabox|manjaro|mysys2|netrunner\s?rolling|ninja|obarun|parabola';
+	$base_distro_arch .= '|puppyrus-?a|reborn|snal|steamos|talkingarch|ubos';
+	my $base_file_debian_version = 'sidux';
+	# detect debian steamos before arch steamos
+	my $base_osr_debian_version = '\belive|lmde|neptune|parrot|pureos|rescatux|';
+	$base_osr_debian_version .= 'septor|sparky|steamos|tails';
 	# osr has base ids
 	my $base_default = 'antix-version|mx-version'; 
 	# base only found in issue
@@ -28196,11 +28198,9 @@ sub system_base {
 	my $base_osr = 'aptosid|bodhi|grml|q4os|siduction|slax'; 
 	# osr base, distro id in issue
 	my $base_osr_issue = 'grml|linux lite|openmediavault'; 
-	# osr has distro name but has arch ID_LIKE and VERSION_ID same
-	my $base_osr_arch = 'steamos'; 
 	# osr has distro name but has fedora centos redhat ID_LIKE and VERSION_ID same
 	my $base_osr_redhat = 'almalinux|centos|rocky'; 
-	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
+	# osr has distro name but has ubuntu ID_LIKE/UBUNTU_CODENAME
 	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
 	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
 	my $base_upstream_osr = '/etc/upstream-release/os-release';
@@ -28224,6 +28224,7 @@ sub system_base {
 	elsif (-r $base_upstream_lsb){
 		$system_base = get_lsb_release($base_upstream_lsb);
 	}
+	# probably no need for these @osr greps, just grep $distro instead?
 	if (!$system_base && @osr){
 		my ($base_type) = ('');
 		if ($etc_issue && (grep {/($base_issue)/i} @osr)){
@@ -28233,13 +28234,9 @@ sub system_base {
 		elsif (@distro_files && (grep {/($base_default)/} @distro_files)){
 			$base_type = 'default';
 		}
-		# must go before base_osr_ubuntu test
-		elsif (grep {/($base_debian_version_osr)/i} @osr){
+		# must go before base_osr_arch,ubuntu tests. For steamos, use fallback arch
+		elsif (grep {/($base_osr_debian_version)/i} @osr){
 			$system_base = debian_id();
-		}
-		# steamos used first debian, then arch
-		elsif ($distro && $distro =~ /($base_osr_arch)/i){
-			$base_type = 'arch';
 		}
 		elsif (grep {/($base_osr_redhat)/i} @osr){
 			$base_type = 'rhel';
@@ -28257,7 +28254,7 @@ sub system_base {
 		}
 	}
 	if (!$system_base && @distro_files && 
-	 (grep {/($base_debian_version_distro)/i} @distro_files)){
+	 (grep {/($base_file_debian_version)/i} @distro_files)){
 		$system_base = debian_id();
 	}
 	if (!$system_base && $lc_issue && $lc_issue =~ /($base_manual)/){
@@ -28269,7 +28266,7 @@ sub system_base {
 		);
 		$system_base = $manual{$id};
 	}
-	if (!$system_base && $distro && $distro =~ /^($base_arch_distro)/i){
+	if (!$system_base && $distro && $distro =~ /^($base_distro_arch)/i){
 		$system_base = 'Arch Linux';
 	}
 	if (!$system_base && $distro){
@@ -28425,9 +28422,12 @@ sub get_os_release {
 	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
 	else {
 		# mint 17 used ubuntu os-release, so won't have $base_version, steamos holo
-		if ($base_name && ($base_type eq 'rhel' || $base_type eq 'arch')){
+		if ($base_name && $base_type eq 'rhel'){
 			$distro = $base_name;
 			$distro .= ' ' . $version_id if $version_id; 
+		}
+		elsif ($base_name && $base_type eq 'arch'){
+			$distro = $base_name;
 		}
 		elsif ($base_name && $base_version){
 			$base_id = ubuntu_id($base_version) if $base_type eq 'ubuntu' && $base_version;
