@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.20';
-my $self_date='2022-08-10';
-my $self_patch='09';
+my $self_date='2022-08-12';
+my $self_patch='10';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -28196,6 +28196,8 @@ sub system_base {
 	my $base_osr = 'aptosid|bodhi|grml|q4os|siduction|slax'; 
 	# osr base, distro id in issue
 	my $base_osr_issue = 'grml|linux lite|openmediavault'; 
+	# osr has distro name but has arch ID_LIKE and VERSION_ID same
+	my $base_osr_arch = 'steamos'; 
 	# osr has distro name but has fedora centos redhat ID_LIKE and VERSION_ID same
 	my $base_osr_redhat = 'almalinux|centos|rocky'; 
 	# osr has distro name but has ubuntu  ID_LIKE/UBUNTU_CODENAME
@@ -28234,6 +28236,10 @@ sub system_base {
 		# must go before base_osr_ubuntu test
 		elsif (grep {/($base_debian_version_osr)/i} @osr){
 			$system_base = debian_id();
+		}
+		# steamos used first debian, then arch
+		elsif ($distro && $distro =~ /($base_osr_arch)/i){
+			$base_type = 'arch';
 		}
 		elsif (grep {/($base_osr_redhat)/i} @osr){
 			$base_type = 'rhel';
@@ -28337,8 +28343,9 @@ sub get_lsb_release {
 sub get_os_release {
 	eval $start if $b_log;
 	my ($base_type) = @_;
-	my ($base_id,$base_name,$base_version,$distro,$distro_name,$pretty_name,
-	$lc_name,$name,$version_name,$version_id) = ('','','','','','','','','','');
+	my ($base_id,$base_name,$base_version,$distro,$distro_name,
+	$name,$name_lc,$name_pretty,
+	$version_codename,$version_name,$version_id) = ('','','','','','','','','','','');
 	my @content = @osr;
 	main::log_data('dump','@content',\@content) if $b_log;
 	@content = map {s/\\||\"|[:\47]|^\s+|\s+$|n\/a//ig; $_} @content if @content;
@@ -28347,11 +28354,14 @@ sub get_os_release {
 		my @working = split(/\s*=\s*/, $_);
 		next if !$working[0];
 		if ($working[0] eq 'PRETTY_NAME' && $working[1]){
-			$pretty_name = $working[1];
+			$name_pretty = $working[1];
 		}
 		elsif ($working[0] eq 'NAME' && $working[1]){
 			$name = $working[1];
-			$lc_name = lc($name);
+			$name_lc = lc($name);
+		}
+		elsif ($working[0] eq 'VERSION_CODENAME' && $working[1]){
+			$version_codename = $working[1];
 		}
 		elsif ($working[0] eq 'VERSION' && $working[1]){
 			$version_name = $working[1];
@@ -28372,6 +28382,9 @@ sub get_os_release {
 					$base_name = 'RHEL';
 					$base_version = $version_id if $version_id;
 				}
+				elsif ($base_type eq 'arch' && $working[1] =~ /$base_type/i){
+					$base_name = 'Arch Linux';
+				}
 				else {
 					$base_name = ucfirst($working[1]);
 				}
@@ -28390,14 +28403,14 @@ sub get_os_release {
 	if (!$base_type){
 		if ($name && $version_name){
 			$distro = $name;
-			$distro = 'Arco Linux' if $lc_name =~ /^arco/;
+			$distro = 'Arco Linux' if $name_lc =~ /^arco/;
 			if ($version_id && $version_name !~ /$version_id/){
 				$distro .= ' ' . $version_id;
 			}
 			$distro .= " $version_name";
 		}
-		elsif ($pretty_name && ($pretty_name !~ /tumbleweed/i && $lc_name ne 'arcolinux')){
-			$distro = $pretty_name;
+		elsif ($name_pretty && ($name_pretty !~ /tumbleweed/i && $name_lc ne 'arcolinux')){
+			$distro = $name_pretty;
 		}
 		elsif ($name){
 			$distro = $name;
@@ -28405,11 +28418,14 @@ sub get_os_release {
 				$distro .= ' ' . $version_id;
 			}
 		}
+		if ($version_codename && $distro !~ /$version_codename/i){
+			$distro .= " $version_codename";
+		}
 	}
 	# note: mint has varying formats here, some have ubuntu as name, 17 and earlier
 	else {
-		# mint 17 used ubuntu os-release, so won't have $base_version
-		if ($base_name && $base_type eq 'rhel'){
+		# mint 17 used ubuntu os-release, so won't have $base_version, steamos holo
+		if ($base_name && ($base_type eq 'rhel' || $base_type eq 'arch')){
 			$distro = $base_name;
 			$distro .= ' ' . $version_id if $version_id; 
 		}
@@ -28419,12 +28435,12 @@ sub get_os_release {
 			$base_id .= ' ' if $base_id;
 			$distro = "$base_name $base_id$base_version";
 		}
-		elsif ($base_type eq 'default' && ($pretty_name || ($name && $version_name))){
-			$distro = ($name && $version_name) ? "$name $version_name" : $pretty_name;
+		elsif ($base_type eq 'default' && ($name_pretty || ($name && $version_name))){
+			$distro = ($name && $version_name) ? "$name $version_name" : $name_pretty;
 		}
 		# LMDE 2 has only limited data in os-release, no _LIKE values. 3 has like and debian_codename
-		elsif ($base_type eq 'ubuntu' && $lc_name =~ /^(debian|ubuntu)/ && ($pretty_name || ($name && $version_name))){
-			$distro = ($name && $version_name) ? "$name $version_name": $pretty_name;
+		elsif ($base_type eq 'ubuntu' && $name_lc =~ /^(debian|ubuntu)/ && ($name_pretty || ($name && $version_name))){
+			$distro = ($name && $version_name) ? "$name $version_name": $name_pretty;
 		}
 		elsif ($base_type eq 'debian' && $base_version){
 			$distro = debian_id($base_version);
