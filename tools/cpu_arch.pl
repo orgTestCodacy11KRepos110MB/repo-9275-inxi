@@ -755,16 +755,16 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(8F)$/){
 				$arch = 'Sapphire Rapids';
 				$process = 'Intel 7 (10nm ESF)';
-				$year = '2021';} # server
+				$year = '2021+';} # server
 			elsif ($model =~ /^(97|9A)$/){
 				$arch = 'Alder Lake'; # socket LG 1700
 				$process = 'Intel 7 (10nm ESF)';
-				$year = '2021';}
+				$year = '2021+';}
 			## IDS UNKNOWN, release late 2022
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
 			#	$process = 'Intel 7 (10nm)';
-			# $year = '2022';}
+			# $year = '2022+';}
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Meteor Lake'; # 14 gen
 			#	$process = 'Intel 4';}
