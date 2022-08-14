@@ -35,9 +35,10 @@ use Getopt::Long qw(GetOptions);
 Getopt::Long::Configure ('bundling', 'no_ignore_case', 
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
+# note; don't trust version number/dates here, just get latest commit version
 my $self_name = 'cpu_arch.pl';
-my $self_version = '1.3';
-my $self_date = '2022-07-13';
+my $self_version = '1.4';
+my $self_date = '2022-08-14';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
