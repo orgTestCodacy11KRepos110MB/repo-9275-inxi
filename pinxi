@@ -15986,10 +15986,11 @@ sub set_amd_data {
 	'years' => '2010-13',
 	},
 	{'arch' => 'GCN-1',
-	'ids' => '154c|6600|6601|6604|6605|6606|6607|6608|6609|6610|6611|6613|6631|' .
-	'6660|6663|6664|6665|6667|666f|6780|6784|6788|678a|6798|679a|679b|679e|679f|' .
-	'6800|6801|6802|6806|6808|6809|6810|6811|6816|6817|6818|6819|6820|6821|6822|' .
-	'6823|6825|6826|6827|6828|6829|682a|682b|682c|682d|682f|6835|6837|683d|683f',
+	'ids' => '154c|6600|6601|6604|6605|6606|6607|6608|6609|6610|6611|6613|6617|' .
+	'6631|6660|6663|6664|6665|6667|666f|6780|6784|6788|678a|6798|679a|679b|679e|' .
+	'679f|6800|6801|6802|6806|6808|6809|6810|6811|6816|6817|6818|6819|6820|6821|' .
+	'6822|6823|6825|6826|6827|6828|6829|682a|682b|682c|682d|682f|6835|6837|683d|' .
+	'683f',
 	'code' => 'Southern Islands',
 	'process' => 'TSMC 28nm',
 	'years' => '2011-20',
@@ -16188,7 +16189,7 @@ sub set_intel_data {
 	'years' => '2019-21',
 	},
 	{'arch' => 'Gen-12.1',
-	'ids' => '4905|4908|4c8a|4c8b|4c90|4c9a|9a40|9a49|9a60|9a68|9a70|9a78',
+	'ids' => '4905|4908|4909|4c8a|4c8b|4c90|4c9a|9a40|9a49|9a60|9a68|9a70|9a78',
 	'code' => '',
 	'process' => 'Intel 10nm',
 	'years' => '2020-21',
@@ -29523,6 +29524,7 @@ sub create_output {
 sub package_counts {
 	eval $start if $b_log;
 	my ($type) = @_;
+	my ($disc,$gs) = ('discover','gnome-software');
 	# 0: key; 1: program; 2: p/d; 3: arg/path; 4: 0/1 use lib; 
 	# 5: lib slice; 6: lib splitter; 7 - optional eval test; 
 	# 8: optional installed tool tests for -ra
@@ -29551,7 +29553,7 @@ sub package_counts {
 	 # these may need to be trimmed down depending on how useful/less some are
 	 ['argon','aura','aurutils','cylon','octopi','pacaur','pakku','pamac','paru',
 	 'pikaur','trizen','yaourt','yay','yup']], 
-	['pacman-g2','pacman-g2','p','-Q',1,0,''],
+	['pacman-g2','pacman-g2','p','-Q',1,0,'','',],
 	['pkg','pkg','d','/var/db/pkg/*',1,0,''], # 'pkg list' returns non programs
 	['pkg_info','pkg_info','p','',1,0,''],
 	# like cards, avoid pkginfo directly due to python pm being so slow
@@ -29576,7 +29578,7 @@ sub package_counts {
 	# ['slackpkg','pkgtool','slapt-get','slpkg','swaret']],
 	# ['slapt-get','slapt-get','p','--installed',1,0,''],
 	# ['spkg','spkg','p','--installed',1,0,''],
-	['tce','tce-status','p','-i',1,0,''],
+	['tce','tce-status','p','-i',1,0,'','',['apps','tce-load']],
 	# note: I believe mageia uses rpm internally but confirm
 	# ['urpmi','urpmq','p','??',1,0,''], 
 	['xbps','xbps-query','p','-l',1,1,''],
@@ -29617,7 +29619,24 @@ sub package_counts {
 						push(@tools,$tool);
 					}
 				}
-				$pmts = join(',',@tools) if @tools;
+				# only show gs/disc if tools found, and if not added before
+				if (@tools){
+					if ($disc){
+						if (main::check_program($disc)){
+							push(@tools,$disc);
+						}
+						# apt based name
+						elsif (main::check_program('plasma-' . $disc)){
+							push(@tools,'plasma-' . $disc);
+						}
+						$disc = '';
+					}
+					if ($gs && main::check_program($gs)){
+						push(@tools,$gs);
+						$gs = '';
+					}
+				}
+				$pmts = join(',',sort @tools) if @tools;
 			}
 			$pms{$pm->[0]} = {
 			'pkgs' => $count,
@@ -29655,7 +29674,8 @@ sub check_run {
 			return 0 if main::check_program($tool);
 		}
 		# Note: test fails: apt-rpm (pclinuxos,alt linux), unknown how to detect
-		foreach my $tool (('dpkg','pacman','pkgtool')){
+		# Add pm test if known to have rpm available.
+		foreach my $tool (('dpkg','pacman','pkgtool','tce-load')){
 			return 1 if main::check_program($tool);
 		}
 	}
