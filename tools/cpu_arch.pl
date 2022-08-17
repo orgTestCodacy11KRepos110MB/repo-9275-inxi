@@ -333,7 +333,7 @@ sub cp_cpu_arch {
 		elsif ($family eq '19'){
 			# ext model 6,7, but no base models yet
 			# 10 engineering sample
-			if ($model =~ /^(10|6\d|7\d)$/){
+			if ($model =~ /^(10|[67][0-9A-F])$/){
 				$arch = 'Zen 4';
 				$gen = '5';
 				$process = 'TSMC n5 (5nm)';
@@ -768,8 +768,8 @@ sub cp_cpu_arch {
 			# $year = '2022+';}
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Meteor Lake'; # 14 gen
-			#	$process = 'Intel 4';}
-			# Granite Rapids: Intel 3 (7nm)
+			#	$process = 'Intel 4 (7nm)';}
+			# Granite Rapids: Intel 3 (7nm+)
 			# Arrow Lake - 15 gen
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
