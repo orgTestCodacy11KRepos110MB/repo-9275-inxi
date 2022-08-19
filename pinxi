@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.20';
-my $self_date='2022-08-17';
-my $self_patch='12';
+my $self_date='2022-08-19';
+my $self_patch='13';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -23025,9 +23025,8 @@ my $sensors_raw = {};
 sub get {
 	eval $start if $b_log;
 	my ($b_data,$key1,$program,$val1,$sensors);
-	my $rows = [];
-	my $num = 0;
-	my $source = 'sensors';
+	my ($num,$rows) = (0,[]);
+	my $source = 'sensors'; # will trip some type output if ipmi + another type
 	# we're allowing 1 or 2 ipmi tools, first the gnu one, then the 
 	# almost certain to be present in BSDs
 	if ($fake{'ipmi'} || (main::globber('/dev/ipmi**') && 
@@ -23082,6 +23081,7 @@ sub get {
 				$val1 = main::message('sensors-data-linux');
 				push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 			}
+			
 		}
 	}
 	eval $end if $b_log;
@@ -23091,10 +23091,9 @@ sub sensors_output {
 	eval $start if $b_log;
 	my ($rows,$source,$sensors) = @_;
 	my ($b_result,@fan_default,@fan_main);
-	my ($data_source) = ('');
 	my $fan_number = 0;
 	my $num = 0;
-	my $j = 0;
+	my $j = scalar @$rows;
 	if (!$loaded{'gpu-data'} && 
 	($source eq 'sensors' || $source eq 'lm-sensors')){
 		gpu_sensor_data();
@@ -23106,7 +23105,7 @@ sub sensors_output {
 	my $cpu_temp = (defined $sensors->{'cpu-temp'}) ? $sensors->{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors->{'mobo-temp'}) ? $sensors->{'mobo-temp'} . $temp_unit: 'N/A';
 	my $cpu1_key = ($sensors->{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
-	$data_source = $source if ($source eq 'ipmi' || $source eq 'lm-sensors');
+	my $data_source = ($source eq 'ipmi' || $source eq 'lm-sensors') ? $source : '';
 	push(@$rows, {
 	main::key($num++,1,1,'System Temperatures') => $data_source,
 	main::key($num++,0,2,$cpu1_key) => $cpu_temp,
@@ -23262,17 +23261,19 @@ sub ipmi_data {
 	my $sensors = {};
 	if ($fake{'ipmi'}){
 		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-archerseven-1.txt";$program='ipmitool';
-		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-crazy-epyc-1.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-epyc-1.txt";$program='ipmitool';
 		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-RK016013.txt";$program='ipmitool';
 		# $file = "$fake_data_dir/ipmitool/ipmitool-sensors-freebsd-offsite-backup.txt";
-		# $file = "$fake_data_dir/ipmitool/ipmitool-sensor-tyan-1.txt";
-		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-crazy-epyc-1.txt";
-		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-lathander.txt";
-		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-zwerg.txt";
-		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-arm-server-1.txt";
-		# @data = main::reader($file);
+		 $file = "$fake_data_dir/ipmitool/ipmitool-sensor-shom-1.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensor-shom-2.txt";$program='ipmitool';
+		# $file = "$fake_data_dir/ipmitool/ipmitool-sensor-tyan-1.txt";$program='ipmitool';
+		 ($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2); # ipmitool sensors
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-epyc-1.txt";$program='ipmi-sensors';
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-lathander.txt";$program='ipmi-sensors';
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-zwerg.txt";$program='ipmi-sensors';
+		# $file = "$fake_data_dir/ipmitool/ipmi-sensors-arm-server-1.txt";$program='ipmi-sensors';
+		 @data = main::reader($file);
 		# ($b_ipmitool,$i_key,$i_value,$i_unit) = (0,1,3,4); # ipmi-sensors
-		# ($b_ipmitool,$i_key,$i_value,$i_unit) = (1,0,1,2); # ipmitool sensors
 	}
 	else {
 		if ($program =~ /ipmi-sensors$/){
@@ -23296,13 +23297,13 @@ sub ipmi_data {
 		# print "$row[$i_value]\n";
 		next if !main::is_numeric($row[$i_value]);
 		# print "$row[$i_key] - $row[$i_value]\n";
-		if (!$sensors->{'mobo-temp'} && $row[$i_key] =~ /^(MB_TEMP[0-9]|System[\s_]Temp|System[\s_]?Board([\s_]Temp)?)$/i){
+		if (!$sensors->{'mobo-temp'} && $row[$i_key] =~ /^(MB[\s_-]?TEMP[0-9]|System[\s_-]?Temp|System[\s_-]?Board([\s_-]?Temp)?)$/i){
 			$sensors->{'mobo-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors->{'temp-unit'} = set_temp_unit($sensors->{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif ($row[$i_key] =~ /^(System\s)?(Ambient)([\s_]Temp)?$/i){
+		elsif ($row[$i_key] =~ /^(System[\s_-]?)?(Ambient)([\s_-]?Temp)?$/i){
 			$sensors->{'ambient-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -23311,14 +23312,14 @@ sub ipmi_data {
 		# Platform Control Hub (PCH), it is the X370 chip on the Crosshair VI Hero.
 		# VRM: voltage regulator module
 		# NOTE: CPU0_TEMP CPU1_TEMP is possible, unfortunately; CPU Temp Interf 
-		elsif (!$sensors->{'cpu-temp'} && $row[$i_key] =~ /^CPU([01])?([\s_](below[\s_]Tmax|Temp))?$/i){
+		elsif (!$sensors->{'cpu-temp'} && $row[$i_key] =~ /^CPU[\s_-]?([01])?([\s_](below[\s_]Tmax|Temp))?$/i){
 			$b_cpu_0 = 1 if defined $1 && $1 == 0;
 			$sensors->{'cpu-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
 			$sensors->{'temp-unit'} = set_temp_unit($sensors->{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif ($row[$i_key] =~ /^CPU([1-4])([\s_](below[\s_]Tmax|Temp))?$/i){
+		elsif ($row[$i_key] =~ /^CPU[\s_-]?([1-4])([\s_](below[\s_]Tmax|Temp))?$/i){
 			$temp_working = $1;
 			$temp_working++ if $b_cpu_0;
 			$sensors->{"cpu${temp_working}-temp"} = int($row[$i_value]);
@@ -23327,7 +23328,7 @@ sub ipmi_data {
 			$sensors->{'temp-unit'} = set_temp_unit($sensors->{'temp-unit'},$working_unit) if $working_unit;
 		}
 		# for temp1/2 only use temp1/2 if they are null or greater than the last ones
-		elsif ($row[$i_key] =~ /^(MB[_]?TEMP1|Temp[\s_]1)$/i){
+		elsif ($row[$i_key] =~ /^(MB[\s_-]?TEMP1|Temp[\s_]1)$/i){
 			$temp_working = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -23355,8 +23356,8 @@ sub ipmi_data {
 			}
 			$sensors->{'temp-unit'} = set_temp_unit($sensors->{'temp-unit'},$working_unit) if $working_unit;
 		}
-		elsif (!$sensors->{'sodimm-temp'} && ($row[$i_key] =~ /^(DIMM[-_]([A-Z][0-9][-_])?[A-Z]?[0-9][A-Z]?)$/i ||
-		$row[$i_key] =~ /^DIMM[0-9] Area.*/)){
+		elsif (!$sensors->{'sodimm-temp'} && ($row[$i_key] =~ /^(DIMM[-_]([A-Z][0-9]+[-_])?[A-Z]?[0-9]+[A-Z]?)$/i ||
+		$row[$i_key] =~ /^DIMM\s?[0-9]+ (Area|Temp).*/)){
 			$sensors->{'sodimm-temp'} = int($row[$i_value]);
 			$working_unit = $row[$i_unit];
 			$working_unit =~ s/degrees\s// if $b_ipmitool; 
@@ -23398,13 +23399,13 @@ sub ipmi_data {
 			$sensors->{'fan-psu-2'} = int($row[$i_value]);
 		}
 		if ($extra > 0){
-			if ($row[$i_key] =~ /^((MAIN\s|P[_]?)?\+?12V|PSU[12]_VOUT)$/i){
+			if ($row[$i_key] =~ /^((.+\s|P[_]?)?\+?12V|PSU[12]_VOUT)$/i){
 				$sensors->{'volts-12'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^(MAIN\s5V|P5V|5VCC|5V( PG)?|5V_SB)$/i){
+			elsif ($row[$i_key] =~ /^(.+\s5V|P5V|5VCC|5V( PG)?|5V_SB)$/i){
 				$sensors->{'volts-5'} = $row[$i_value];
 			}
-			elsif ($row[$i_key] =~ /^(MAIN\s3\.3V|P3V3|3\.3VCC|3\.3V( PG)?|3V3_SB)$/i){
+			elsif ($row[$i_key] =~ /^(.+\s3\.3V|P3V3|3\.3VCC|3\.3V( PG)?|3V3_SB)$/i){
 				$sensors->{'volts-3.3'} = $row[$i_value];
 			}
 			elsif ($row[$i_key] =~ /^((P_)?VBAT|CMOS Battery|BATT 3.0V)$/i){
@@ -23995,7 +23996,7 @@ sub process_data {
 	for ($j = 1; $j <= $index_count_fan_default; $j++){
 		if (defined $fan_default[$j] && $fan_default[$j] > 5000 && !$fan_main[2]){
 			$fan_main[2] = $fan_default[$j];
-			$fan_default[$j] = '';
+			$fan_default[$j] = undef;
 			# then add one if required for output
 			if ($index_count_fan_main < 2){
 				$index_count_fan_main = 2;
