@@ -22,7 +22,7 @@ my $self_version = '1.2';
 my $self_date = '2022-08-09';
 
 ## Update these to release date and version
-my $date = '2022-08-20';
+my $date = '2022-08-22';
 my $version = '3.3.21';
 
 # note: you need to make a symbolic link from real html /docs/ directory to here:
