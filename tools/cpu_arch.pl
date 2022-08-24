@@ -37,8 +37,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 
 # note; don't trust version number/dates here, just get latest commit version
 my $self_name = 'cpu_arch.pl';
-my $self_version = '1.4';
-my $self_date = '2022-08-14';
+my $self_version = '1.5';
+my $self_date = '2022-08-24';
 
 my ($b_log,$end,$start);
 my $line = '------------------------------------------------------------------';
@@ -407,72 +407,73 @@ sub cp_cpu_arch {
 		}
 	}
 	# note, to test uncoment $cpu{'type'} = Elbrus in proc/cpuinfo logic
+	# ExpLicit Basic Resources Utilization Scheduling
 	elsif ($type eq 'elbrus'){ 
 		# E8CB
 		if ($family eq '4'){
 			if ($model eq '1'){
-				$arch = 'Elbrus';
-				$process = '';
-				$year = '';}
+				$arch = 'Elbrus 2000 (gen-1)';
+				$process = 'Mikron 130nm';
+				$year = '2005';}
 			elsif ($model eq '2'){
-				$arch = 'Elbrus-S';
-				$process = '';
-				$year = '';}
+				$arch = 'Elbrus-S (gen-2)';
+				$process = 'Mikron 90nm';
+				$year = '2010';}
 			elsif ($model eq '3'){
-				$arch = 'Elbrus-4C';
-				$process = '65nm';
-				$year = '';}
+				$arch = 'Elbrus-4C (gen-3)';
+				$process = 'TSMC 65nm';
+				$year = '2014';}
 			elsif ($model eq '4'){
-				$arch = 'Elbrus-2C+';
-				$process = '90nm';
-				$year = '';}
+				$arch = 'Elbrus-2C+ (gen-2)';
+				$process = 'Mikron 90nm';
+				$year = '2011';}
 			elsif ($model eq '6'){
-				$arch = 'Elbrus-2CM';
-				$process = '90nm';
-				$year = '';}
+				$arch = 'Elbrus-2CM (gen-2)';
+				$note = $check;
+				$process = 'Mikron 90nm';
+				$year = '2011 (?)';}
 			elsif ($model eq '7'){
 				if ($stepping >= 2){
-					$arch = 'Elbrus-8C1';
-					$process = '28nm';
-					$year = '';}
+					$arch = 'Elbrus-8C1 (gen-4)';
+					$process = 'TSMC 28nm';
+					$year = '2016';}
 				else {
-					$arch = 'Elbrus-8C';
-					$process = '28nm';
-					$year = '';}
+					$arch = 'Elbrus-8C (gen-4)';
+					$process = 'TSMC 28nm';
+					$year = '2016';}
 			} # note: stepping > 1 may be 8C1
 			elsif ($model eq '8'){
-				$arch = 'Elbrus-1C+';
+				$arch = 'Elbrus-1C+ (gen-4)';
 				$process = 'TSMC 40nm';
-				$year = '';}
+				$year = '2016';}
 			# 8C2 morphed out of E8CV, but the two were the same die
 			elsif ($model eq '9'){
-				$arch = 'Elbrus-8CV/8C2';
+				$arch = 'Elbrus-8CV/8C2 (gen-4/5)';
 				$process = 'TSMC 28nm';
 				$note = $check;
-				$year = '';}
+				$year = '2016/2020';}
 			elsif ($model eq 'A'){
-				$arch = 'Elbrus-12C';
-				$process = 'TSMC 16nm'; # guess
-				$year = '';}
+				$arch = 'Elbrus-12C (gen-6)';
+				$process = 'TSMC 16nm';
+				$year = '2021+';}
 			elsif ($model eq 'B'){
-				$arch = 'Elbrus-16C';
+				$arch = 'Elbrus-16C (gen-6)';
 				$process = 'TSMC 16nm';
-				$year = '';}
+				$year = '2021+';}
 			elsif ($model eq 'C'){
-				$arch = 'Elbrus-2C3';
+				$arch = 'Elbrus-2C3 (gen-6)';
 				$process = 'TSMC 16nm';
-				$year = '';}
+				$year = '2021+';}
 			else {
 				$arch = 'Elbrus-??';;
-				$year = '';
 				$note = $check;
 				$year = '';}
 		}
 		elsif ($family eq '5'){
 			if ($model eq '9'){
-				$arch = 'Elbrus-8C2';
+				$arch = 'Elbrus-8C2 (gen-4)';
 				$process = 'TSMC 28nm';
-				$year = '';}
+				$year = '2020';}
 			else {
 				$arch = 'Elbrus-??';
 				$note = $check;
@@ -481,17 +482,21 @@ sub cp_cpu_arch {
 		}
 		elsif ($family eq '6'){
 			if ($model eq 'A'){
-				$arch = 'Elbrus-12C';
-				$process = 'TSMC 16nm'; # guess
-				$year = '';}
+				$arch = 'Elbrus-12C (gen-6)';
+				$process = 'TSMC 16nm'; 
+				$year = '2021+';}
 			elsif ($model eq 'B'){
-				$arch = 'Elbrus-16C';
+				$arch = 'Elbrus-16C (gen-6)';
 				$process = 'TSMC 16nm';
-				$year = '';}
+				$year = '2021+';}
 			elsif ($model eq 'C'){
-				$arch = 'Elbrus-2C3';
+				$arch = 'Elbrus-2C3 (gen-6)';
 				$process = 'TSMC 16nm';
-				$year = '';}
+				$year = '2021+';}
+			# elsif ($model eq '??'){
+			#	$arch = 'Elbrus-32C (gen-7)';
+			#	$process = '?? 7nm';
+			#	$year = '2025';}
 			else {
 				$arch = 'Elbrus-??';
 				$note = $check;
