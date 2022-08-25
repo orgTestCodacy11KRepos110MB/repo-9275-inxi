@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.21';
 my $self_date='2022-08-24';
-my $self_patch='02';
+my $self_patch='03';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5194,7 +5194,7 @@ sub get {
 		if ($arg){
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|elbrus|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
-			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|swaymsg|sysctl|';
+			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|sensors-sys|swaymsg|sysctl|';
 			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wl-info|wlr-randr|xorg-log|xrandr';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -5220,7 +5220,7 @@ sub get {
 		my ($opt,$arg) = @_;
 		if ($arg){
 			my $wl = 'colors|cpuinfo|display|dmidecode|hddtemp|lsusb|man|meminfo|';
-			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|rpm||usb-sys|';
+			$wl .= 'no-dig|no-doas|no-html-wan|no-sudo|pkg|rpm|sensors-sys|usb-sys|';
 			$wl .= 'vmstat|wayland|wmctrl';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
@@ -6822,6 +6822,7 @@ sub message {
 	'sensors-data-bsd-ok' => 'No sensor data found. Are sensors present?',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
 	'sensors-data-linux' => 'No sensor data found. Is lm-sensors configured?',
+	'sensors-data-sys' => 'No sensor data found. /sys/class/hwmon has no data.',
 	'sensors-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
 	'smartctl-command' => 'A mandatory SMART command failed. Various possible causes.',
 	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
@@ -23029,7 +23030,7 @@ my $gpu_data = [];
 my $sensors_raw = {};
 sub get {
 	eval $start if $b_log;
-	my ($b_data,$key1,$program,$val1,$sensors);
+	my ($b_data,$key1,$message_type,$program,$val1,$sensors);
 	my ($num,$rows) = (0,[]);
 	my $source = 'sensors'; # will trip some type output if ipmi + another type
 	# we're allowing 1 or 2 ipmi tools, first the gnu one, then the 
@@ -23054,40 +23055,55 @@ sub get {
 			push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 		}
 	}
+	$b_data = 0;
 	if ($sysctl{'sensor'}){
 		$sensors = sysctl_data();
 		$b_data = sensors_output($rows,'sysctl-sensors',$sensors);
 		if (!$b_data){
 			$key1 = 'Message';
 			$val1 = main::message('sensors-data-bsd',$uname[0]);
-			push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 		}
 	}
 	else {
-		if (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
+		if (!$force{'sensors-sys'} && 
+		($fake{'sensors'} || $alerts{'sensors'}->{'action'} eq 'use')){
+			load_lm_sensors();
+			$sensors = linux_sensors_data();
+			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 1\n";
-			if ($bsd_type && $bsd_type =~ /^(free|open)bsd/){
+			if (!$b_data){
 				$key1 = 'Message';
-				$val1 = main::message('sensors-data-bsd-ok');
+				$val1 = main::message('sensors-data-linux');
 			}
-			else {
-				$key1 = $alerts{'sensors'}->{'action'};
-				$val1 = $alerts{'sensors'}->{'message'};
-				$key1 = ucfirst($key1);
-			}
-			push(@$rows,{main::key($num++,0,1,$key1) => $val1,});
 		}
-		else {
-			$sensors = lm_sensors_data();
+		if (!$b_data && -d '/sys/class/hwmon'){
+			# for i in $(ls /sys/class/hwmon/hwmon*/{name,temp*_{input,label}});do echo 'f: ' $i; cat $i; done
+			load_sys_data();
+			$sensors = linux_sensors_data();
 			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 2\n";
 			if (!$b_data){
 				$key1 = 'Message';
-				$val1 = main::message('sensors-data-linux');
-				push(@$rows,{main::key($num++,0,1,$key1) => $val1});
+				$val1 = main::message('sensors-data-sys');
 			}
-			
 		}
+		if (!$b_data){
+			if (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
+				# print "here 3\n";
+				if ($bsd_type && $bsd_type =~ /^(free|open)bsd/){
+					$key1 = 'Message';
+					$val1 = main::message('sensors-data-bsd-ok');
+				}
+				else {
+					$key1 = $alerts{'sensors'}->{'action'};
+					$val1 = $alerts{'sensors'}->{'message'};
+					$key1 = ucfirst($key1);
+				}
+			}
+		}
+	}
+	if (!$b_data){
+		push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 	}
 	eval $end if $b_log;
 	return $rows;
@@ -23440,12 +23456,11 @@ sub ipmi_data {
 	print Data::Dumper::Dumper $sensors if $dbg[31];
 	return $sensors;
 }
-sub lm_sensors_data {
+sub linux_sensors_data {
 	eval $start if $b_log;
 	my $sensors = {};
 	my ($sys_fan_nu)  = (0);
 	my ($adapter,$fan_working,$temp_working,$working_unit)  = ('','','','','');
-	load_lm_sensors();
 	foreach $adapter (keys %{$sensors_raw->{'main'}}){
 		next if !$adapter || ref $sensors_raw->{'main'}{$adapter} ne 'ARRAY';
 		# not sure why hwmon is excluded, forgot to add info in comments
@@ -23699,8 +23714,8 @@ sub load_lm_sensors {
 			elsif ($adapter =~ /^(.*hwmon)-/){
 				$type = 'hwmon';
 			}
-			# ath/iwl: wifi; enp/eno/eth: lan nic
-			elsif ($adapter =~ /^(ath|iwl|en[op][0-9]|eth)[\S]+-/){
+			# ath/iwl: wifi; enp/eno/eth/i350bb: lan nic
+			elsif ($adapter =~ /^(ath|i350bb|iwl|en[op][0-9]|eth)[\S]+-/){
 				$type = 'network';
 			}
 			# put last just in case some other sensor type above had intel in name
@@ -23729,6 +23744,118 @@ sub load_lm_sensors {
 	}
 	print 'lm sensors: ' , Data::Dumper::Dumper $sensors_raw if $dbg[18];
 	main::log_data('dump','lm-sensors data: %$sensors_raw',$sensors_raw) if $b_log;
+	eval $end if $b_log;
+}
+sub load_sys_data {
+	eval $start if $b_log;
+	my ($device,$mon,$name,$label,$unit,$value,@values,%hwmons);
+	my ($j,$holder,$sensor,$type) = (0,'','','');
+	my @hwmon = main::globber('/sys/class/hwmon/hwmon*/{name,device,{fan,in,temp}*_{input,label}}');
+	# print Data::Dumper::Dumper \@sensors_data;
+	@hwmon = sort @hwmon;
+	push(@hwmon,'END');
+	foreach my $item (@hwmon){
+		next if ! -e $item;
+		$item =~ m|/sys/class/hwmon/(hwmon\d+)/|;
+		$mon = $1;
+		$mon =~ s/hwmon(\d)$/hwmon0$1/ if $mon =~ /hwmon\d$/;
+		
+		if ($item =~ m/([^\/]+)_input$/){
+			$sensor = $1;
+			$value = main::reader($item,'strip',0);;
+		}
+		elsif ($item =~ m/([^\/]+)_label$/){
+			$sensor = $1;
+			$hwmons{$mon}->{'sensors'}[$j]{'label'} = main::reader($item,'strip',0);
+		}
+		if ($sensor && ($sensor ne $holder || $item eq 'END')){
+			# print "2: $mon :: $sensor :: $holder :: $item\n";
+			if ($value){
+				push(@{$hwmons{$mon}->{'sensors'}},{
+				'id' => $sensor,
+				'value' => $value,
+				});
+				$j = $#{$hwmons{$mon}->{'sensors'}};
+			}
+			$holder = $sensor;
+			($sensor,$value) = ('',undef,undef);
+		}
+		if (!defined $hwmons{$mon}){
+			$sensor = '';
+			$holder = '';
+			$j = 0;
+		}
+		# print "1: $mon :: $sensor :: $holder :: $item\n";
+		# print "$item\n";
+		if ($item =~ /name$/){
+			$name = main::reader($item,'strip',0);
+			if ($name =~ /^(drive|nvme)/){
+				$type = 'disk';
+			}
+			elsif ($name =~ /^(BAT)/){
+				$type = 'bat';
+			}
+			# intel on die io controller, like southbridge/northbridge used to be
+			elsif ($name =~ /^(pch)/){
+				$type = 'pch';
+			}
+			elsif ($name =~ /^(.*hwmon)/){
+				$type = 'hwmon';
+			}
+			# ath/iwl: wifi; enp/eno/eth/i350bb: lan nic
+			elsif ($name =~ /^(ath|i350|iwl|en[op][0-9]|eth)[\S]/){
+				$type = 'network';
+			}
+			# put last just in case some other sensor type above had intel in name
+			elsif ($name =~ /^(amdgpu|intel|nouveau|radeon)/){
+				$type = 'gpu';
+			}
+			elsif ($name =~ /^(acpitz)/ && $name !~ /^(acpitz-virtual)/ ){
+				$type = 'board';
+			}
+			else {
+				$type = 'main';
+			}
+			$hwmons{$mon}->{'name'} = $name;
+			$hwmons{$mon}->{'type'} = $type;
+		}
+		elsif ($item =~ /device$/){
+			$device = readlink($item);
+			$device =~ s|^.*/||;
+			$hwmons{$mon}->{'device'} = $device;
+		}
+		
+	}
+	# $sensors_raw->{$type}{$adapter} = [@values];
+	foreach my $hwmon (sort keys %hwmons){
+		my $adapter = $hwmons{$hwmon}->{'name'};
+		$hwmons{$hwmon}->{'device'} =~ s/^0000://;
+		$adapter .= '-' . $hwmons{$hwmon}->{'device'};
+		@values = ();
+		foreach my $item (@{$hwmons{$hwmon}->{'sensors'}}){
+			my $name = ($item->{'label'}) ? $item->{'label'}: $item->{'id'};
+			if ($item->{'id'} =~ /^temp/){
+				$unit = 'C';
+				$value = sprintf('%0.1f',$item->{'value'}/1000) + 0;
+			}
+			elsif (if ($item->{'id'} =~ /^fan/){){
+				$unit = 'RPM';
+				$value = sprintf('%0.0f',$item->{'value'}/1000) + 0;
+			}
+			elsif (if ($item->{'id'} =~ /^in\d/){){
+				$unit = 'V';
+				$value = sprintf('%0.0f',$item->{'value'}/1000) + 0;
+			}
+			my $string = $name . ':' . $value . " $unit";
+			push(@values,$string);
+		}
+		if (@values){
+			$sensors_raw->{$hwmons{$hwmon}->{'type'}}{$adapter} = [@values];
+		}
+	}
+	print '/sys/class/hwmon raw: ', Data::Dumper::Dumper \%hwmons if $dbg[18];
+	print '/sys/class/hwmon processed: ' , Data::Dumper::Dumper $sensors_raw if $dbg[18];
+	main::log_data('dump','/sys data: %$sensors_raw',$sensors_raw) if $b_log;
 	eval $end if $b_log;
 }
 
