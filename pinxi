@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-08-24';
-my $self_patch='03';
+my $self_date='2022-08-25';
+my $self_patch='04';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6819,10 +6819,12 @@ sub message {
 	'screen-wayland' => 'no compositor data',
 	'screen-xvesa' => 'no Xvesa data',
 	'sensors-data-bsd' => "$id sensor data found but not usable.",
-	'sensors-data-bsd-ok' => 'No sensor data found. Are sensors present?',
+	'sensors-data-bsd-ok' => 'No sensor data found. Are data sources present?',
+	'sensors-data-bsd-unsupported' => 'Sensor data not available. Unsupported BSD variant.',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
-	'sensors-data-linux' => 'No sensor data found. Is lm-sensors configured?',
+	'sensors-data-lm-sensors' => 'No sensor data found. Is lm-sensors configured?',
 	'sensors-data-sys' => 'No sensor data found. /sys/class/hwmon has no data.',
+	'sensors-data-sys-lm' => 'No sensor data found. No /sys/class/hwmon or lm-sensors data.',
 	'sensors-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
 	'smartctl-command' => 'A mandatory SMART command failed. Various possible causes.',
 	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
@@ -23030,8 +23032,9 @@ my $gpu_data = [];
 my $sensors_raw = {};
 sub get {
 	eval $start if $b_log;
-	my ($b_data,$key1,$message_type,$program,$val1,$sensors);
-	my ($num,$rows) = (0,[]);
+	my ($b_data,$b_ipmi,$b_lm_sensors,$b_sys);
+	my ($message_type,$program,$val1,$sensors);
+	my ($key1,$num,$rows) = ('Message',0,[]);
 	my $source = 'sensors'; # will trip some type output if ipmi + another type
 	# we're allowing 1 or 2 ipmi tools, first the gnu one, then the 
 	# almost certain to be present in BSDs
@@ -23042,26 +23045,33 @@ sub get {
 			$sensors = ipmi_data($program);
 			$b_data = sensors_output($rows,'ipmi',$sensors);
 			if (!$b_data){
-				$key1 = 'Message';
 				$val1 = main::message('sensors-data-ipmi');
-				# $val1 = main::message('dev');
 				push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 			}
-			$source = 'lm-sensors'; # trips per sensor type output
 		}
 		else {
 			$key1 = 'Permissions';
 			$val1 = main::message('sensors-ipmi-root');
 			push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 		}
+		$b_ipmi = 1;
 	}
 	$b_data = 0;
-	if ($sysctl{'sensor'}){
-		$sensors = sysctl_data();
-		$b_data = sensors_output($rows,'sysctl-sensors',$sensors);
-		if (!$b_data){
-			$key1 = 'Message';
-			$val1 = main::message('sensors-data-bsd',$uname[0]);
+	if ($bsd_type){
+		if ($sysctl{'sensor'}){
+			$sensors = sysctl_data();
+			$b_data = sensors_output($rows,'sysctl-sensors',$sensors);
+			if (!$b_data){
+				$val1 = main::message('sensors-data-bsd',$uname[0]);
+			}
+		}
+		else {
+			if ($bsd_type =~ /^(free|open)bsd/){
+				$val1 = main::message('sensors-data-bsd-ok');
+			}
+			else {
+				$val1 = main::message('sensors-data-bsd-unsupported');
+			}
 		}
 	}
 	else {
@@ -23069,36 +23079,43 @@ sub get {
 		($fake{'sensors'} || $alerts{'sensors'}->{'action'} eq 'use')){
 			load_lm_sensors();
 			$sensors = linux_sensors_data();
+			$source = 'lm-sensors' if $b_ipmi; # trips per sensor type output
 			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 1\n";
-			if (!$b_data){
-				$key1 = 'Message';
-				$val1 = main::message('sensors-data-linux');
-			}
+			$b_lm_sensors = 1 if !$b_data;
 		}
+		# given recency of full /sys data, we want to prefer lm-sensors for a long time
+		# and use /sys as a fallback. This will handle servers, which often do not
+		# have lm-sensors installed, but do have /sys hwmon data.
 		if (!$b_data && -d '/sys/class/hwmon'){
 			# for i in $(ls /sys/class/hwmon/hwmon*/{name,temp*_{input,label}});do echo 'f: ' $i; cat $i; done
 			load_sys_data();
 			$sensors = linux_sensors_data();
+			$source = '/sys'; # trips per sensor type output
 			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 2\n";
-			if (!$b_data){
-				$key1 = 'Message';
-				$val1 = main::message('sensors-data-sys');
-			}
+			$b_sys = 1 if !$b_data;
 		}
 		if (!$b_data){
-			if (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
-				# print "here 3\n";
-				if ($bsd_type && $bsd_type =~ /^(free|open)bsd/){
-					$key1 = 'Message';
-					$val1 = main::message('sensors-data-bsd-ok');
+			if ($b_lm_sensors || $b_sys){
+				if ($b_lm_sensors && $b_sys){
+					$val1 = main::message('sensors-data-sys-lm');
+				}
+				elsif ($b_lm_sensors){
+					$val1 = main::message('sensors-data-lm-sensors');
 				}
 				else {
-					$key1 = $alerts{'sensors'}->{'action'};
-					$val1 = $alerts{'sensors'}->{'message'};
-					$key1 = ucfirst($key1);
+					$val1 = main::message('sensors-data-sys');
 				}
+			}
+			elsif (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
+				# print "here 3\n";
+				$key1 = $alerts{'sensors'}->{'action'};
+				$key1 = ucfirst($key1);
+				$val1 = $alerts{'sensors'}->{'message'};
+			}
+			else {
+				$val1 = main::message('sensors-data-sys-lm');
 			}
 		}
 	}
@@ -23116,7 +23133,7 @@ sub sensors_output {
 	my $num = 0;
 	my $j = scalar @$rows;
 	if (!$loaded{'gpu-data'} && 
-	($source eq 'sensors' || $source eq 'lm-sensors')){
+	($source eq 'sensors' || $source eq 'lm-sensors' || $source eq '/sys')){
 		gpu_sensor_data();
 	}
 	# gpu sensors data might be present even if standard sensors data wasn't
@@ -23126,7 +23143,7 @@ sub sensors_output {
 	my $cpu_temp = (defined $sensors->{'cpu-temp'}) ? $sensors->{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors->{'mobo-temp'}) ? $sensors->{'mobo-temp'} . $temp_unit: 'N/A';
 	my $cpu1_key = ($sensors->{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
-	my $data_source = ($source eq 'ipmi' || $source eq 'lm-sensors') ? $source : '';
+	my $data_source = ($source eq 'ipmi' || $source eq 'lm-sensors' || $source eq '/sys') ? $source : '';
 	push(@$rows, {
 	main::key($num++,1,1,'System Temperatures') => $data_source,
 	main::key($num++,0,2,$cpu1_key) => $cpu_temp,
@@ -23759,14 +23776,17 @@ sub load_sys_data {
 		$item =~ m|/sys/class/hwmon/(hwmon\d+)/|;
 		$mon = $1;
 		$mon =~ s/hwmon(\d)$/hwmon0$1/ if $mon =~ /hwmon\d$/;
-		
 		if ($item =~ m/([^\/]+)_input$/){
 			$sensor = $1;
 			$value = main::reader($item,'strip',0);;
 		}
 		elsif ($item =~ m/([^\/]+)_label$/){
-			$sensor = $1;
-			$hwmons{$mon}->{'sensors'}[$j]{'label'} = main::reader($item,'strip',0);
+			 print "3: $mon :: $sensor :: $holder :: $item\n";
+			# if this doesn't match, something seriously wrong happened
+			if (defined $hwmons{$mon}->{'sensors'}[$j]{'id'}){
+				$sensor = $1;
+				$hwmons{$mon}->{'sensors'}[$j]{'label'} = main::reader($item,'strip',0);
+			}
 		}
 		if ($sensor && ($sensor ne $holder || $item eq 'END')){
 			# print "2: $mon :: $sensor :: $holder :: $item\n";
@@ -23792,7 +23812,7 @@ sub load_sys_data {
 			if ($name =~ /^(drive|nvme)/){
 				$type = 'disk';
 			}
-			elsif ($name =~ /^(BAT)/){
+			elsif ($name =~ /^(BAT)/i){
 				$type = 'bat';
 			}
 			# intel on die io controller, like southbridge/northbridge used to be
@@ -23844,7 +23864,7 @@ sub load_sys_data {
 			}
 			elsif ($item->{'id'} =~ /^in\d/){
 				$unit = 'V';
-				$value = sprintf('%0.0f',$item->{'value'}/1000) + 0;
+				$value = sprintf('%0.2f',$item->{'value'}/1000) + 0;
 			}
 			my $string = $name . ':' . $value . " $unit";
 			push(@values,$string);
