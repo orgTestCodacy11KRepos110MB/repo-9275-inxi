@@ -270,6 +270,8 @@ my $amd_data = {
 	},
 },
 };
+## No data on Chinese Biren GPU, but watch out for it. See inxi-graphics.txt
+## No date on Chinese InnoSilicon gaming gpu
 my $intel_data = {
 	'intel' => {
 	'file' => 'gpu.intel.full.sort',

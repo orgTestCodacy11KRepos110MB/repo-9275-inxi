@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-08-25';
-my $self_patch='04';
+my $self_date='2022-08-29';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -3007,7 +3007,7 @@ sub check_items {
 		}
 		else {
 			@data = qw(/dev /dev/disk/by-id /dev/disk/by-label /dev/disk/by-path 
-			/dev/disk/by-uuid /sys/class/dmi/id);
+			/dev/disk/by-uuid /sys/class/dmi/id /sys/class/hwmon);
 		}
 		$b_dir = 1;
 		$item = 'Directory';
@@ -3089,9 +3089,6 @@ sub item_data {
 	my ($type) = @_;
 	my $data = {
 	# Directory Data
-	'/sys/class/dmi/id' => {
-	'info' => '-M system, motherboard, bios',
-	},
 	'/dev' => {
 	'info' => '-l,-u,-o,-p,-P,-D disk partition data',
 	},
@@ -3112,6 +3109,12 @@ sub item_data {
 	},
 	'/sys' => {
 	'info' => '',
+	},
+	'/sys/class/dmi/id' => {
+	'info' => '-M system, motherboard, bios',
+	},
+	'/sys/class/hwmon' => {
+	'info' => '-s sensor data (fallback if no lm-sensors)',
 	},
 	# File Data
 	'/etc/lsb-release' => {
@@ -3377,7 +3380,7 @@ sub item_data {
 	'rpm' => 'systemd or sysvinit',
 	},
 	'sensors' => {
-	'info' => '-s sensors output',
+	'info' => '-s sensors output (optional, /sys supplies most)',
 	'info-bsd' => '',
 	'apt' => 'lm-sensors',
 	'pacman' => 'lm-sensors',
@@ -6822,10 +6825,10 @@ sub message {
 	'sensors-data-bsd-ok' => 'No sensor data found. Are data sources present?',
 	'sensors-data-bsd-unsupported' => 'Sensor data not available. Unsupported BSD variant.',
 	'sensors-data-ipmi' => 'No ipmi sensor data found.',
+	'sensors-data-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
 	'sensors-data-lm-sensors' => 'No sensor data found. Is lm-sensors configured?',
-	'sensors-data-sys' => 'No sensor data found. /sys/class/hwmon has no data.',
-	'sensors-data-sys-lm' => 'No sensor data found. No /sys/class/hwmon or lm-sensors data.',
-	'sensors-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
+	'sensors-data-sys' => 'No sensor data found in /sys/class/hwmon.',
+	'sensors-data-sys-lm' => 'No sensor data found using /sys/class/hwmon or lm-sensors.',
 	'smartctl-command' => 'A mandatory SMART command failed. Various possible causes.',
 	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
 	'smartctl-udma-crc' => 'Bad cable/connection?',
@@ -23051,7 +23054,7 @@ sub get {
 		}
 		else {
 			$key1 = 'Permissions';
-			$val1 = main::message('sensors-ipmi-root');
+			$val1 = main::message('sensors-data-ipmi-root');
 			push(@$rows,{main::key($num++,0,1,$key1) => $val1});
 		}
 		$b_ipmi = 1;
@@ -23846,8 +23849,9 @@ sub load_sys_data {
 			$device =~ s|^.*/||;
 			$hwmons{$mon}->{'device'} = $device;
 		}
-		
 	}
+	print '/sys/class/hwmon raw: ', Data::Dumper::Dumper \%hwmons if $dbg[18];
+	main::log_data('dump','/sys data raw: %hwmons',\%hwmons) if $b_log;
 	# $sensors_raw->{$type}{$adapter} = [@values];
 	foreach my $hwmon (sort keys %hwmons){
 		my $adapter = $hwmons{$hwmon}->{'name'};
@@ -23881,7 +23885,6 @@ sub load_sys_data {
 			$sensors_raw->{$hwmons{$hwmon}->{'type'}}{$adapter} = [@values];
 		}
 	}
-	print '/sys/class/hwmon raw: ', Data::Dumper::Dumper \%hwmons if $dbg[18];
 	print '/sys/class/hwmon processed: ' , Data::Dumper::Dumper $sensors_raw if $dbg[18];
 	main::log_data('dump','/sys data: %$sensors_raw',$sensors_raw) if $b_log;
 	eval $end if $b_log;

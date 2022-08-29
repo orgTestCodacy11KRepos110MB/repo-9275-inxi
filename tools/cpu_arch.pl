@@ -773,9 +773,11 @@ sub cp_cpu_arch {
 			# $year = '2022+';}
 			# elsif ($model =~ /^()$/){
 			#	$arch = 'Meteor Lake'; # 14 gen
-			#	$process = 'Intel 4 (7nm)';}
+			#	$process = 'Intel 4 (7nm)';
+			# $year = 2023;}
 			# Granite Rapids: Intel 3 (7nm+)
-			# Arrow Lake - 15 gen
+			# Arrow Lake - 15 gen, 20A (2nm), 2025
+			# Lunar Lake - 16 gn, 18A (1.8nm), 2025
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';
