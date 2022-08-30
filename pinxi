@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-08-29';
-my $self_patch='05';
+my $self_date='2022-08-30';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -23035,7 +23035,7 @@ my $gpu_data = [];
 my $sensors_raw = {};
 sub get {
 	eval $start if $b_log;
-	my ($b_data,$b_ipmi,$b_lm_sensors,$b_sys);
+	my ($b_data,$b_ipmi,$b_no_lm,$b_no_sys);
 	my ($message_type,$program,$val1,$sensors);
 	my ($key1,$num,$rows) = ('Message',0,[]);
 	my $source = 'sensors'; # will trip some type output if ipmi + another type
@@ -23049,13 +23049,19 @@ sub get {
 			$b_data = sensors_output($rows,'ipmi',$sensors);
 			if (!$b_data){
 				$val1 = main::message('sensors-data-ipmi');
-				push(@$rows,{main::key($num++,0,1,$key1) => $val1});
+				push(@$rows,{
+				main::key($num++,0,1,'Src') => 'ipmi',
+				main::key($num++,0,1,$key1) => $val1,
+				});
 			}
 		}
 		else {
 			$key1 = 'Permissions';
 			$val1 = main::message('sensors-data-ipmi-root');
-			push(@$rows,{main::key($num++,0,1,$key1) => $val1});
+			push(@$rows,{
+			main::key($num++,0,1,'Src') => 'ipmi',
+			main::key($num++,0,2,$key1) => $val1,
+			});
 		}
 		$b_ipmi = 1;
 	}
@@ -23063,7 +23069,8 @@ sub get {
 	if ($bsd_type){
 		if ($sysctl{'sensor'}){
 			$sensors = sysctl_data();
-			$b_data = sensors_output($rows,'sysctl-sensors',$sensors);
+			$source = 'sysctl';
+			$b_data = sensors_output($rows,$source,$sensors);
 			if (!$b_data){
 				$val1 = main::message('sensors-data-bsd',$uname[0]);
 			}
@@ -23085,26 +23092,26 @@ sub get {
 			$source = 'lm-sensors' if $b_ipmi; # trips per sensor type output
 			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 1\n";
-			$b_lm_sensors = 1 if !$b_data;
+			$b_no_lm = 1 if !$b_data;
 		}
 		# given recency of full /sys data, we want to prefer lm-sensors for a long time
 		# and use /sys as a fallback. This will handle servers, which often do not
 		# have lm-sensors installed, but do have /sys hwmon data.
 		if (!$b_data && -d '/sys/class/hwmon'){
-			# for i in $(ls /sys/class/hwmon/hwmon*/{name,temp*_{input,label}});do echo 'f: ' $i; cat $i; done
 			load_sys_data();
 			$sensors = linux_sensors_data();
 			$source = '/sys'; # trips per sensor type output
 			$b_data = sensors_output($rows,$source,$sensors);
 			# print "here 2\n";
-			$b_sys = 1 if !$b_data;
+			$b_no_sys = 1 if !$b_data;
 		}
 		if (!$b_data){
-			if ($b_lm_sensors || $b_sys){
-				if ($b_lm_sensors && $b_sys){
+			if ($b_no_lm || $b_no_sys){
+				if ($b_no_lm && $b_no_sys){
 					$val1 = main::message('sensors-data-sys-lm');
+					$source = 'lm-sensors+/sys';
 				}
-				elsif ($b_lm_sensors){
+				elsif ($b_no_lm){
 					$val1 = main::message('sensors-data-lm-sensors');
 				}
 				else {
@@ -23123,7 +23130,10 @@ sub get {
 		}
 	}
 	if (!$b_data){
-		push(@$rows,{main::key($num++,0,1,$key1) => $val1});
+		push(@$rows,{
+		main::key($num++,0,1,'Src') => $source,
+		main::key($num++,0,1,$key1) => $val1,
+		});
 	}
 	eval $end if $b_log;
 	return $rows;
@@ -23145,120 +23155,119 @@ sub sensors_output {
 	my $temp_unit  = (defined $sensors->{'temp-unit'}) ? " $sensors->{'temp-unit'}": '';
 	my $cpu_temp = (defined $sensors->{'cpu-temp'}) ? $sensors->{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors->{'mobo-temp'}) ? $sensors->{'mobo-temp'} . $temp_unit: 'N/A';
-	my $cpu1_key = ($sensors->{'cpu2-temp'}) ? 'cpu-1': 'cpu' ;
-	my $data_source = ($source eq 'ipmi' || $source eq 'lm-sensors' || $source eq '/sys') ? $source : '';
-	push(@$rows, {
-	main::key($num++,1,1,'System Temperatures') => $data_source,
-	main::key($num++,0,2,$cpu1_key) => $cpu_temp,
-	});
+	my $cpu1_key = ($sensors->{'cpu2-temp'}) ? 'cpu-1': 'cpu';
+	my ($l1,$l2,$l3) = (1,2,3);
+	if ($source eq 'ipmi' || $source eq 'lm-sensors' || $source eq '/sys'){
+		$rows->[$j]{main::key($num++,0,1,'Src')} = $source;
+		($l1,$l2,$l3) = (2,3,4);
+	}
+	$rows->[$j]{main::key($num++,1,$l1,'System Temperatures')} = '';
+	$rows->[$j]{main::key($num++,0,$l2,$cpu1_key)} = $cpu_temp;
 	if ($sensors->{'cpu2-temp'}){
-		$rows->[$j]{main::key($num++,0,2,'cpu-2')} = $sensors->{'cpu2-temp'} . $temp_unit;
+		$rows->[$j]{main::key($num++,0,$l2,'cpu-2')} = $sensors->{'cpu2-temp'} . $temp_unit;
 	}
 	if ($sensors->{'cpu3-temp'}){
-		$rows->[$j]{main::key($num++,0,2,'cpu-3')} = $sensors->{'cpu3-temp'} . $temp_unit;
+		$rows->[$j]{main::key($num++,0,$l2,'cpu-3')} = $sensors->{'cpu3-temp'} . $temp_unit;
 	}
 	if ($sensors->{'cpu4-temp'}){
-		$rows->[$j]{main::key($num++,0,2,'cpu-4')} = $sensors->{'cpu4-temp'} . $temp_unit;
+		$rows->[$j]{main::key($num++,0,$l2,'cpu-4')} = $sensors->{'cpu4-temp'} . $temp_unit;
 	}
 	if (defined $sensors->{'pch-temp'}){
 		my $pch_temp = $sensors->{'pch-temp'} . $temp_unit;
-		$rows->[$j]{main::key($num++,0,2,'pch')} = $pch_temp;
+		$rows->[$j]{main::key($num++,0,$l2,'pch')} = $pch_temp;
 	}
-	$rows->[$j]{main::key($num++,0,2,'mobo')} = $mobo_temp;
+	$rows->[$j]{main::key($num++,0,$l2,'mobo')} = $mobo_temp;
 	if (defined $sensors->{'sodimm-temp'}){
 		my $sodimm_temp = $sensors->{'sodimm-temp'} . $temp_unit;
-		$rows->[$j]{main::key($num++,0,2,'sodimm')} = $sodimm_temp;
+		$rows->[$j]{main::key($num++,0,$l2,'sodimm')} = $sodimm_temp;
 	}
 	if (defined $sensors->{'psu-temp'}){
 		my $psu_temp = $sensors->{'psu-temp'} . $temp_unit;
-		$rows->[$j]{main::key($num++,0,2,'psu')} = $psu_temp;
+		$rows->[$j]{main::key($num++,0,$l2,'psu')} = $psu_temp;
 	}
 	if (defined $sensors->{'ambient-temp'}){
 		my $ambient_temp = $sensors->{'ambient-temp'} . $temp_unit;
-		$rows->[$j]{main::key($num++,0,2,'ambient')} = $ambient_temp;
+		$rows->[$j]{main::key($num++,0,$l2,'ambient')} = $ambient_temp;
 	}
 	if (scalar @$gpu_data == 1 && defined $gpu_data->[0]{'temp'}){
 		my $gpu_temp = $gpu_data->[0]{'temp'};
 		my $gpu_type = $gpu_data->[0]{'type'};
 		my $gpu_unit = (defined  $gpu_data->[0]{'temp-unit'} && $gpu_temp) ? " $gpu_data->[0]{'temp-unit'}" : ' C';
-		$rows->[$j]{main::key($num++,1,2,'gpu')} = $gpu_type;
-		$rows->[$j]{main::key($num++,0,3,'temp')} = $gpu_temp . $gpu_unit;
+		$rows->[$j]{main::key($num++,1,$l2,'gpu')} = $gpu_type;
+		$rows->[$j]{main::key($num++,0,$l3,'temp')} = $gpu_temp . $gpu_unit;
 		if ($extra > 1 && $gpu_data->[0]{'temp-mem'}){
-			$rows->[$j]{main::key($num++,0,3,'mem')} = $gpu_data->[0]{'temp-mem'} . $gpu_unit;
+			$rows->[$j]{main::key($num++,0,$l3,'mem')} = $gpu_data->[0]{'temp-mem'} . $gpu_unit;
 		}
 	}
 	$j = scalar @$rows;
 	@fan_main = @{$sensors->{'fan-main'}} if $sensors->{'fan-main'};
 	@fan_default = @{$sensors->{'fan-default'}} if $sensors->{'fan-default'};
-	my $fan_def = ($data_source) ? $data_source : '';
-	if (!@fan_main && !@fan_default){
-		$fan_def = ($fan_def) ? "$data_source N/A" : 'N/A';
-	}
-	$rows->[$j]{main::key($num++,1,1,'Fan Speeds (RPM)')} = $fan_def;
+	my $fan_def = (!@fan_main && !@fan_default) ? 'N/A' : '';
+	$rows->[$j]{main::key($num++,1,$l1,'Fan Speeds (RPM)')} = $fan_def;
 	my $b_cpu = 0;
 	for (my $i = 0; $i < scalar @fan_main; $i++){
 		next if $i == 0;# starts at 1, not 0
 		if (defined $fan_main[$i]){
 			if ($i == 1 || ($i == 2 && !$b_cpu)){
-				$rows->[$j]{main::key($num++,0,2,'cpu')} = $fan_main[$i];
+				$rows->[$j]{main::key($num++,0,$l2,'cpu')} = $fan_main[$i];
 				$b_cpu = 1;
 			}
 			elsif ($i == 2 && $b_cpu){
-				$rows->[$j]{main::key($num++,0,2,'mobo')} = $fan_main[$i];
+				$rows->[$j]{main::key($num++,0,$l2,'mobo')} = $fan_main[$i];
 			}
 			elsif ($i == 3){
-				$rows->[$j]{main::key($num++,0,2,'psu')} = $fan_main[$i];
+				$rows->[$j]{main::key($num++,0,$l2,'psu')} = $fan_main[$i];
 			}
 			elsif ($i == 4){
-				$rows->[$j]{main::key($num++,0,2,'sodimm')} = $fan_main[$i];
+				$rows->[$j]{main::key($num++,0,$l2,'sodimm')} = $fan_main[$i];
 			}
 			elsif ($i > 4){
 				$fan_number = $i - 4;
-				$rows->[$j]{main::key($num++,0,2,"case-$fan_number")} = $fan_main[$i];
+				$rows->[$j]{main::key($num++,0,$l2,"case-$fan_number")} = $fan_main[$i];
 			}
 		}
 	}
 	for (my $i = 0; $i < scalar @fan_default; $i++){
 		next if $i == 0;# starts at 1, not 0
 		if (defined $fan_default[$i]){
-			$rows->[$j]{main::key($num++,0,2,"fan-$i")} = $fan_default[$i];
+			$rows->[$j]{main::key($num++,0,$l2,"fan-$i")} = $fan_default[$i];
 		}
 	}
-	$rows->[$j]{main::key($num++,0,2,'psu')} = $sensors->{'fan-psu'} if defined $sensors->{'fan-psu'};
-	$rows->[$j]{main::key($num++,0,2,'psu-1')} = $sensors->{'fan-psu1'} if defined $sensors->{'fan-psu1'};
-	$rows->[$j]{main::key($num++,0,2,'psu-2')} = $sensors->{'fan-psu2'} if defined $sensors->{'fan-psu2'};
+	$rows->[$j]{main::key($num++,0,$l2,'psu')} = $sensors->{'fan-psu'} if defined $sensors->{'fan-psu'};
+	$rows->[$j]{main::key($num++,0,$l2,'psu-1')} = $sensors->{'fan-psu1'} if defined $sensors->{'fan-psu1'};
+	$rows->[$j]{main::key($num++,0,$l2,'psu-2')} = $sensors->{'fan-psu2'} if defined $sensors->{'fan-psu2'};
 	# note: so far, only nvidia-settings returns speed, and that's in percent
 	if (scalar @$gpu_data == 1 && defined $gpu_data->[0]{'fan-speed'}){
 		my $gpu_fan = $gpu_data->[0]{'fan-speed'} . $gpu_data->[0]{'speed-unit'};
 		my $gpu_type = $gpu_data->[0]{'type'};
-		$rows->[$j]{main::key($num++,1,2,'gpu')} = $gpu_type;
-		$rows->[$j]{main::key($num++,0,3,'fan')} = $gpu_fan;
+		$rows->[$j]{main::key($num++,1,$l2,'gpu')} = $gpu_type;
+		$rows->[$j]{main::key($num++,0,$l3,'fan')} = $gpu_fan;
 	}
 	if (scalar @$gpu_data > 1){
 		$j = scalar @$rows;
-		$rows->[$j]{main::key($num++,1,1,'GPU')} = '';
+		$rows->[$j]{main::key($num++,1,$l1,'GPU')} = '';
 		my $gpu_unit = (defined $gpu_data->[0]{'temp-unit'}) ? " $gpu_data->[0]{'temp-unit'}" : ' C';
 		foreach my $info (@$gpu_data){
 			# speed unit is either '' or %
 			my $gpu_fan = (defined $info->{'fan-speed'}) ? $info->{'fan-speed'} . $info->{'speed-unit'}: undef;
 			my $gpu_type = $info->{'type'};
 			my $gpu_temp = (defined $info->{'temp'}) ? $info->{'temp'} . $gpu_unit: 'N/A';
-			$rows->[$j]{main::key($num++,1,2,'device')} = $gpu_type;
+			$rows->[$j]{main::key($num++,1,$l2,'device')} = $gpu_type;
 			if (defined $info->{'screen'}){
-				$rows->[$j]{main::key($num++,0,3,'screen')} = $info->{'screen'};
+				$rows->[$j]{main::key($num++,0,$l3,'screen')} = $info->{'screen'};
 			}
-			$rows->[$j]{main::key($num++,0,3,'temp')} = $gpu_temp;
+			$rows->[$j]{main::key($num++,0,$l3,'temp')} = $gpu_temp;
 			if ($extra > 1 && $info->{'temp-mem'}){
-				$rows->[$j]{main::key($num++,0,3,'mem')} = $info->{'temp-mem'} . $gpu_unit;
+				$rows->[$j]{main::key($num++,0,$l3,'mem')} = $info->{'temp-mem'} . $gpu_unit;
 			}
 			if (defined $gpu_fan){
-				$rows->[$j]{main::key($num++,0,3,'fan')} = $gpu_fan;
+				$rows->[$j]{main::key($num++,0,$l3,'fan')} = $gpu_fan;
 			}
 			if ($extra > 2 && $info->{'watts'}){
-				$rows->[$j]{main::key($num++,0,3,'watts')} = $info->{'watts'};
+				$rows->[$j]{main::key($num++,0,$l3,'watts')} = $info->{'watts'};
 			}
 			if ($extra > 2 && $info->{'mvolts'}){
-				$rows->[$j]{main::key($num++,0,3,'mV')} = $info->{'mvolts'};
+				$rows->[$j]{main::key($num++,0,$l3,'mV')} = $info->{'mvolts'};
 			}
 		}
 	}
@@ -23270,24 +23279,24 @@ sub sensors_output {
 		$sensors->{'volts-5'} ||= 'N/A';
 		$sensors->{'volts-3.3'} ||= 'N/A';
 		$sensors->{'volts-vbat'} ||= 'N/A';
-		$rows->[$j]{main::key($num++,1,1,'Power')} = $data_source;
-		$rows->[$j]{main::key($num++,0,2,'12v')} = $sensors->{'volts-12'};
-		$rows->[$j]{main::key($num++,0,2,'5v')} = $sensors->{'volts-5'};
-		$rows->[$j]{main::key($num++,0,2,'3.3v')} = $sensors->{'volts-3.3'};
-		$rows->[$j]{main::key($num++,0,2,'vbat')} = $sensors->{'volts-vbat'};
+		$rows->[$j]{main::key($num++,1,$l1,'Power')} = '';
+		$rows->[$j]{main::key($num++,0,$l2,'12v')} = $sensors->{'volts-12'};
+		$rows->[$j]{main::key($num++,0,$l2,'5v')} = $sensors->{'volts-5'};
+		$rows->[$j]{main::key($num++,0,$l2,'3.3v')} = $sensors->{'volts-3.3'};
+		$rows->[$j]{main::key($num++,0,$l2,'vbat')} = $sensors->{'volts-vbat'};
 		if ($extra > 1 && $source eq 'ipmi'){
 			$sensors->{'volts-dimm-p1'} ||= 'N/A';
 			$sensors->{'volts-dimm-p2'} ||= 'N/A';
-			$rows->[$j]{main::key($num++,0,2,'dimm-p1')} = $sensors->{'volts-dimm-p1'} if $sensors->{'volts-dimm-p1'};
-			$rows->[$j]{main::key($num++,0,2,'dimm-p2')} = $sensors->{'volts-dimm-p2'} if $sensors->{'volts-dimm-p2'};
-			$rows->[$j]{main::key($num++,0,2,'soc-p1')} = $sensors->{'volts-soc-p1'} if $sensors->{'volts-soc-p1'};
-			$rows->[$j]{main::key($num++,0,2,'soc-p2')} = $sensors->{'volts-soc-p2'} if $sensors->{'volts-soc-p2'};
+			$rows->[$j]{main::key($num++,0,$l2,'dimm-p1')} = $sensors->{'volts-dimm-p1'} if $sensors->{'volts-dimm-p1'};
+			$rows->[$j]{main::key($num++,0,$l2,'dimm-p2')} = $sensors->{'volts-dimm-p2'} if $sensors->{'volts-dimm-p2'};
+			$rows->[$j]{main::key($num++,0,$l2,'soc-p1')} = $sensors->{'volts-soc-p1'} if $sensors->{'volts-soc-p1'};
+			$rows->[$j]{main::key($num++,0,$l2,'soc-p2')} = $sensors->{'volts-soc-p2'} if $sensors->{'volts-soc-p2'};
 		}
 		if (scalar @$gpu_data == 1 && $extra > 2 && 
 		($gpu_data->[0]{'watts'} || $gpu_data->[0]{'mvolts'})){
-			$rows->[$j]{main::key($num++,1,2,'gpu')} = $gpu_data->[0]{'type'};
-			$rows->[$j]{main::key($num++,0,3,'watts')} = $gpu_data->[0]{'watts'} if $gpu_data->[0]{'watts'};
-			$rows->[$j]{main::key($num++,0,3,'mV')} = $gpu_data->[0]{'mvolts'} if $gpu_data->[0]{'mvolts'};
+			$rows->[$j]{main::key($num++,1,$l2,'gpu')} = $gpu_data->[0]{'type'};
+			$rows->[$j]{main::key($num++,0,$l3,'watts')} = $gpu_data->[0]{'watts'} if $gpu_data->[0]{'watts'};
+			$rows->[$j]{main::key($num++,0,$l3,'mV')} = $gpu_data->[0]{'mvolts'} if $gpu_data->[0]{'mvolts'};
 		}
 	}
 	eval $end if $b_log;
