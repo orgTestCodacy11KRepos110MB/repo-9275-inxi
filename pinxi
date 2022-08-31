@@ -2946,11 +2946,11 @@ sub check_items {
 	}
 	elsif ($type eq 'recommended display information programs'){
 		if ($bsd_type){
-			@data = qw(glxinfo wmctrl xdpyinfo xprop xrandr);
+			@data = qw(glxinfo wmctrl xdpyinfo xprop xdriinfo xrandr);
 			$info_os = 'info-bsd';
 		}
 		else {
-			@data = qw(glxinfo wmctrl xdpyinfo xprop xrandr);
+			@data = qw(glxinfo wmctrl xdpyinfo xprop xdriinfo xrandr);
 		}
 		$b_program = 1;
 		$item = 'Program';
@@ -3480,8 +3480,8 @@ sub item_data {
 	'rpm' => 'xorg-x11-utils (SUSE/Fedora?: xdpyinfo)',
 	},
 	'xdriinfo' => {
-	'info' => '-G (X) DRI driver',
-	'info-bsd' => '-G (X) DRI driver',
+	'info' => '-G (X) DRI driver (if missing, fallback to Xorg log)',
+	'info-bsd' => '-G (X) DRI driver (if missing, fallback to Xorg log',
 	'apt' => 'X11-utils',
 	'pacman' => 'xorg-xdriinfo',
 	'rpm' => 'xorg-x11-utils (SUSE/Fedora?: xdriinfo)',
@@ -15382,6 +15382,7 @@ sub display_data_x {
 	if ($prog_xrandr = main::check_program('xrandr')){
 		xrandr_data($prog_xrandr);
 	}
+	# if tool not installed, falls back to testing Xorg log file
 	if ($prog_xdriinfo = main::check_program('xdriinfo')){
 		xdriinfo_data($prog_xdriinfo);
 	}
@@ -15419,10 +15420,18 @@ sub xdriinfo_data {
 		}
 	}
 	if ($graphics{'screens'}){
+		# assign to the screen if it's found
 		foreach $screen (@{$graphics{'screens'}}){
 			if (defined $dri_drivers{$screen->{'screen'}} ){
-				push(@{$graphics{'dri-drivers'}},$dri_drivers{$screen->{'screen'}});
+				$screen->{'dri-driver'} = $dri_drivers{$screen->{'screen'}};
 			}
+		}
+	}
+	# now the display drivers
+	foreach $screen (sort keys %dri_drivers){
+		if (!$graphics{'dri-drivers'} || 
+		!(grep {$dri_drivers{$screen} eq $_} @{$graphics{'dri-drivers'}})){
+			push (@{$graphics{'dri-drivers'}},$dri_drivers{$screen});
 		}
 	}
 	print 'x dri driver: ', Data::Dumper::Dumper \%dri_drivers if $dbg[17];
@@ -15816,9 +15825,11 @@ sub gpu_drivers_sys {
 }
 sub display_drivers_x {
 	eval $start if $b_log;
-	my ($driver,%drivers);
+	my ($dri,$driver,%drivers);
 	my $driver_data = [];
 	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
+	# preferred source xdriinfo because it's current and accurate, but fallback here
+	my $b_use_dri = ($graphics{'dri-drivers'}) ? 0 : 1;
 	if (my $log = $system_files{'xorg-log'}){
 		if ($fake{'xorg-log'}){
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
@@ -15842,18 +15853,18 @@ sub display_drivers_x {
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
 		# @xorg = grep {/Failed|Unload|Loading/} @xorg;
-		foreach (@$xorg){
-			next if !/Failed|Unload|Loading/;
+		foreach my $line (@$xorg){
+			next if $line !~ /DRI driver|Failed|Unload|Loading/;
 			# print "$_\n";
 			# note that in file names, driver is always lower case
-			if (/\sLoading.*($list)_drv\.so$/i){
+			if ($line =~ /\sLoading.*($list)_drv\.so$/i){
 				$driver=lc($1);
 				# we get all the actually loaded drivers first, we will use this to compare the
 				# failed/unloaded, which have not always actually been truly loaded
 				$drivers{$driver}='loaded';
 			}
 			# openbsd uses UnloadModule: 
-			elsif (/(Unloading\s|UnloadModule).*\"?($list)(_drv\.so)?\"?$/i){
+			elsif ($line =~ /(Unloading\s|UnloadModule).*\"?($list)(_drv\.so)?\"?$/i){
 				$driver=lc($2);
 				# we get all the actually loaded drivers first, we will use this to compare the
 				# failed/unloaded, which have not always actually been truly loaded
@@ -15869,14 +15880,14 @@ sub display_drivers_x {
 			# (II) Unloading nouveau
 			# (II) Failed to load module "nouveau" (already loaded, 0)
 			# (II) LoadModule: "modesetting"
-			elsif (/Failed.*($list)\"?.*$/i){
+			elsif ($line =~ /Failed.*($list)\"?.*$/i){
 				# Set driver to lower case because sometimes it will show as 
 				# RADEON or NVIDIA in the actual x start
 				$driver=lc($1);
 				# we need to make sure that the driver has already been truly loaded, 
 				# not just discussed
 				if (exists $drivers{$driver} && $drivers{$driver} ne 'alternate'){
-					if ($_ !~ /\(already loaded/){
+					if ($line !~  /\(already loaded/){
 						$drivers{$driver}='failed';
 					}
 					# reset the previous line's 'unloaded' to 'loaded' as well
@@ -15884,8 +15895,14 @@ sub display_drivers_x {
 						$drivers{$driver}='loaded';
 					}
 				}
-				elsif ($_ =~ /module does not exist/){
+				elsif ($line =~ /module does not exist/){
 					$drivers{$driver}='alternate';
+				}
+			}
+			elsif ($b_use_dri && $line =~ /DRI driver:\s*(\S+)/i){
+				$dri = $1;
+				if (!$graphics{'dri-drivers'} || !(grep {$dri eq $_} @{$graphics{'dri-drivers'}})){
+					push(@{$graphics{'dri-drivers'}},$dri);
 				}
 			}
 		}
