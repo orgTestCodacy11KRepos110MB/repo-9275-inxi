@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.21';
 my $self_date='2022-08-30';
-my $self_patch='06';
+my $self_patch='07';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6026,9 +6026,9 @@ sub show_options {
 	['1', '', '--sensors-default', "Removes configuration item SENSORS_USE and 
 	SENSORS_EXCLUDE. Same as default behavior."],
 	['1', '', '--sensors-exclude', "[sensor[s] name, comma separated] Exclude 
-	supplied sensor array[s] for -s output (lm-sensors, Linux only)."],
+	supplied sensor array[s] for -s output (lm-sensors, /sys. Linux only)."],
 	['1', '', '--sensors-use', "[sensor[s] name, comma separated] Use only 
-	supplied sensor array[s] for -s output (lm-sensors, Linux only)."],
+	supplied sensor array[s] for -s output (lm-sensors, /sys. Linux only)."],
 	['1', '', '--sleep', "[0-x.x] Change CPU sleep time, in seconds, for -C 
 	(default:^$cpu_sleep). Allows system to catch up and show a more accurate CPU 
 	use. Example:^$self_name^-Cxxx^--sleep^0.15"],
@@ -23050,7 +23050,7 @@ sub get {
 			if (!$b_data){
 				$val1 = main::message('sensors-data-ipmi');
 				push(@$rows,{
-				main::key($num++,0,1,'Src') => 'ipmi',
+				main::key($num++,1,1,'Src') => 'ipmi',
 				main::key($num++,0,1,$key1) => $val1,
 				});
 			}
@@ -23059,7 +23059,7 @@ sub get {
 			$key1 = 'Permissions';
 			$val1 = main::message('sensors-data-ipmi-root');
 			push(@$rows,{
-			main::key($num++,0,1,'Src') => 'ipmi',
+			main::key($num++,1,1,'Src') => 'ipmi',
 			main::key($num++,0,2,$key1) => $val1,
 			});
 		}
@@ -23131,8 +23131,8 @@ sub get {
 	}
 	if (!$b_data){
 		push(@$rows,{
-		main::key($num++,0,1,'Src') => $source,
-		main::key($num++,0,1,$key1) => $val1,
+		main::key($num++,1,1,'Src') => $source,
+		main::key($num++,0,2,$key1) => $val1,
 		});
 	}
 	eval $end if $b_log;
@@ -23151,14 +23151,14 @@ sub sensors_output {
 	}
 	# gpu sensors data might be present even if standard sensors data wasn't
 	return if !%$sensors && !@$gpu_data;
-	$b_result = 1; ## need t trip data found conditions
+	$b_result = 1; ## need to trip data found conditions
 	my $temp_unit  = (defined $sensors->{'temp-unit'}) ? " $sensors->{'temp-unit'}": '';
 	my $cpu_temp = (defined $sensors->{'cpu-temp'}) ? $sensors->{'cpu-temp'} . $temp_unit: 'N/A';
 	my $mobo_temp = (defined $sensors->{'mobo-temp'}) ? $sensors->{'mobo-temp'} . $temp_unit: 'N/A';
 	my $cpu1_key = ($sensors->{'cpu2-temp'}) ? 'cpu-1': 'cpu';
 	my ($l1,$l2,$l3) = (1,2,3);
-	if ($source eq 'ipmi' || $source eq 'lm-sensors' || $source eq '/sys'){
-		$rows->[$j]{main::key($num++,0,1,'Src')} = $source;
+	if ($source ne 'sensors'){
+		$rows->[$j]{main::key($num++,1,1,'Src')} = $source;
 		($l1,$l2,$l3) = (2,3,4);
 	}
 	$rows->[$j]{main::key($num++,1,$l1,'System Temperatures')} = '';
@@ -23780,7 +23780,9 @@ sub load_sys_data {
 	eval $start if $b_log;
 	my ($device,$mon,$name,$label,$unit,$value,@values,%hwmons);
 	my ($j,$holder,$sensor,$type) = (0,'','','');
-	my @hwmon = main::globber('/sys/class/hwmon/hwmon*/{name,device,{fan,in,temp}*_{input,label}}');
+	my $glob = '/sys/class/hwmon/hwmon*/';
+	$glob .= '{name,device,{curr,fan,in,power,temp}*_{input,label}}';
+	my @hwmon = main::globber($glob);
 	# print Data::Dumper::Dumper \@sensors_data;
 	@hwmon = sort @hwmon;
 	push(@hwmon,'END');
@@ -23878,8 +23880,27 @@ sub load_sys_data {
 				$value = $item->{'value'};
 			}
 			elsif ($item->{'id'} =~ /^in\d/){
-				$unit = 'V';
-				$value = sprintf('%0.2f',$item->{'value'}/1000) + 0;
+				if ($hwmons{$hwmon}->{'type'} eq 'gpu'){
+					$unit = 'mV';
+					$value = $item->{'value'};
+				}
+				else {
+					$unit = 'V';
+					$value = sprintf('%0.2f',$item->{'value'}/1000) + 0;
+					if ($hwmons{$hwmon}->{'type'} eq 'main' && $name =~ /^in\d/){
+						if ($value >= 10 && $value <= 14){
+							$name = '12V';
+						}
+						elsif ($value >= 4 && $value <= 6){
+							$name = '5V';
+						}
+						# vbat can be 3, 3.3, but so can 3.3V board
+					}
+				}
+			}
+			elsif ($item->{'id'} =~ /^power/){
+				$unit = 'W';
+				$value = sprintf('%0.1f',$item->{'value'}/1000) + 0;
 			}
 			my $string = $name . ':' . $value . " $unit";
 			push(@values,$string);
@@ -23906,6 +23927,7 @@ sub sysctl_data {
 	my $sensors = {};
 	# assume always starts at 0, can't do dynamic because freebsd shows tz1 first
 	my $add = 1; 
+	print Data::Dumper::Dumper $sysctl{'sensor'} if $dbg[18];;
 	foreach (@{$sysctl{'sensor'}}){
 		my ($sensor,$type,$number,$value);
 		if (/^hw\.sensors\.([a-z]+)([0-9]+)\.(cpu|temp|fan|volt)([0-9])/){
