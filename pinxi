@@ -5805,7 +5805,8 @@ sub show_options {
 	['2', '-L', '', "For VG > LV, and other Devices, dm:"],
 	['2', '-m,--memory-modules', '', "Max memory module size (if available)."],
 	['2', '-N', '', "Specific vendor/product information (if relevant); 
-	PCI/USB ID of device; Version/port(s)/driver version (if available)."],
+	PCI/USB ID of device; Version/port(s)/driver version (if available); device
+	temperature (Linux, if found)."],
 	['2', '-o,-p,-P', '', "Add mapped: name if partition mapped."],
 	['2', '-r', '', "Packages, see -Ix."],
 	['2', '-R', '', "md-raid: second RAID Info line with extra data: 
@@ -18283,9 +18284,12 @@ sub device_output {
 		my $bus_id = 'N/A';
 		# note: for arm/mips we want to see the single item bus id, why not?
 		# note: we can have bus id: 0002 / 0 which is valid, but 0 / 0 is invalid
-		if (defined $row->[2] && $row->[2] ne '0' && defined $row->[3]){$bus_id = "$row->[2].$row->[3]"}
-		elsif (defined $row->[2] && $row->[2] ne '0'){$bus_id = $row->[2]}
-		elsif (defined $row->[3] && $row->[3] ne '0'){$bus_id = $row->[3]}
+		if (defined $row->[2] && $row->[2] ne '0' && defined $row->[3]){
+			$bus_id = "$row->[2].$row->[3]"}
+		elsif (defined $row->[2] && $row->[2] ne '0'){
+			$bus_id = $row->[2]}
+		elsif (defined $row->[3] && $row->[3] ne '0'){
+			$bus_id = $row->[3]}
 		if ($extra > 0){
 			if ($row->[9] && !$bsd_type){
 				my $version = main::get_module_version($row->[9]);
@@ -18301,7 +18305,9 @@ sub device_output {
 				main::get_pcie_data($bus_id,$j,$rows,\$num);
 			}
 			# as far as I know, wifi has no port, but in case it does in future, use it
-			$rows->[$j]{main::key($num++,0,2,'port')} = $row->[8] if (!$b_wifi || ($b_wifi && $row->[8] ne 'N/A'));
+			if (!$b_wifi || ($b_wifi && $row->[8] ne 'N/A')){
+				$rows->[$j]{main::key($num++,0,2,'port')} = $row->[8];
+			}
 			$rows->[$j]{main::key($num++,0,2,'bus-ID')} = $bus_id;
 		}
 		if ($extra > 1){
@@ -18309,6 +18315,12 @@ sub device_output {
 		}
 		if ($extra > 2 && $row->[1]){
 			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
+		}
+		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A'){
+			my $temp = get_temp($bus_id);
+			if ($temp){
+				$rows->[$j]{main::key($num++,0,2,'temp')} = $temp . ' C';
+			}
 		}
 		if ($show{'network-advanced'}){
 			my @data;
@@ -18722,6 +18734,20 @@ sub check_wifi {
 	my ($item) = @_;
 	my $b_wifi = ($item =~ /wireless|wi-?fi|wlan|802\.11|centrino/i) ? 1 : 0;
 	return $b_wifi;
+}
+# if > 1, returns first found, not going to be too granular with this yet.
+sub get_temp {
+	my $bus_id = $_[0];
+	my $glob = "/sys/devices/pci*/*/*:$bus_id/hwmon/hwmon*/temp*_input";
+	my @files = main::globber($glob);
+	my $temp;
+	foreach my $file (@files){
+		$temp = main::reader($file,'strip',0);
+		if ($temp){
+			$temp = sprintf('%0.1f',$temp/1000);
+			return $temp;
+		}
+	}
 }
 }
 
