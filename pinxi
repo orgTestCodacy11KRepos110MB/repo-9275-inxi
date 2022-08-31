@@ -23108,6 +23108,7 @@ sub file_path {
 package SensorItem;
 my $gpu_data = [];
 my $sensors_raw = {};
+my $max_fan = 15000;
 sub get {
 	eval $start if $b_log;
 	my ($b_data,$b_ipmi,$b_no_lm,$b_no_sys);
@@ -23386,7 +23387,7 @@ sub sensors_output {
 sub ipmi_data {
 	eval $start if $b_log;
 	my ($program) = @_;
-	my ($b_cpu_0,$cmd,$file,@data,$fan_working,@row,$sys_fan_nu,$temp_working,
+	my ($b_cpu_0,$cmd,$file,@data,$fan_working,@row,$speed,$sys_fan_nu,$temp_working,
 	$working_unit);
 	my ($b_ipmitool,$i_key,$i_value,$i_unit);
 	my $sensors = {};
@@ -23499,7 +23500,8 @@ sub ipmi_data {
 		# note: can be cpu fan:, cpu fan speed:, etc.
 		elsif ($row[$i_key] =~ /^(CPU|Processor)[\s_]Fan/i || 
 		$row[$i_key] =~ /^SYS\.[0-9][\s_]?\(CPU\s?0\)$/i){
-			$sensors->{'fan-main'}->[1] = int($row[$i_value]);
+			$speed = int($row[$i_value]);
+			$sensors->{'fan-main'}->[1] = $speed if $speed < $max_fan;
 		}
 		# note that the counters are dynamically set for fan numbers here
 		# otherwise you could overwrite eg aux fan2 with case fan2 in theory
@@ -23509,6 +23511,7 @@ sub ipmi_data {
 		elsif ($row[$i_key] =~ /^(SYS[\s_])?FAN[\s_]?([0-9A-F]+)/i){
 			$sys_fan_nu = hex($2);
 			$fan_working = int($row[$i_value]);
+			next if $fan_working > $max_fan;
 			$sensors->{'fan-default'} = () if !$sensors->{'fan-default'};
 			if ($sys_fan_nu =~ /^([0-9]+)$/){
 				# add to array if array index does not exist OR if number is > existing number
@@ -23523,13 +23526,16 @@ sub ipmi_data {
 			}
 		}
 		elsif ($row[$i_key] =~ /^(FAN PSU|PSU FAN)$/i){
-			$sensors->{'fan-psu'} = int($row[$i_value]);
+			$speed = int($row[$i_value]);
+			$sensors->{'fan-psu'} = $speed if $speed < $max_fan;
 		}
 		elsif ($row[$i_key] =~ /^(FAN PSU1|PSU1 FAN)$/i){
-			$sensors->{'fan-psu-1'} = int($row[$i_value]);
+			$speed = int($row[$i_value]);
+			$sensors->{'fan-psu-1'} = $speed if $speed < $max_fan;
 		}
 		elsif ($row[$i_key] =~ /^(FAN PSU2|PSU2 FAN)$/i){
-			$sensors->{'fan-psu-2'} = int($row[$i_value]);
+			$speed = int($row[$i_value]);
+			$sensors->{'fan-psu-2'} = $speed if $speed < $max_fan;
 		}
 		if ($extra > 0){
 			if ($row[$i_key] =~ /^((.+\s|P[_]?)?\+?12V|PSU[12]_VOUT)$/i){
@@ -23681,22 +23687,23 @@ sub linux_sensors_data {
 				$sensors->{'temp-unit'} = set_temp_unit($sensors->{'temp-unit'},$working_unit) if $working_unit;
 			}
 			# note: can be cpu fan:, cpu fan speed:, etc.
-			elsif (!$sensors->{'fan-main'}->[1] && $_ =~ /^F?(CPU|Processor).*:([0-9]+)[\s]RPM/i){
-				$sensors->{'fan-main'}->[1] = $2;
+			elsif (!defined $sensors->{'fan-main'}->[1] && $_ =~ /^F?(CPU|Processor).*:([0-9]+)[\s]RPM/i){
+				$sensors->{'fan-main'}->[1] = $2 if $2 < $max_fan;
 			}
-			elsif (!$sensors->{'fan-main'}->[2] && $_ =~ /^F?(M\/B|MB|SYS|Motherboard).*:([0-9]+)[\s]RPM/i){
-				$sensors->{'fan-main'}->[2] = $2;
+			elsif (!defined $sensors->{'fan-main'}->[2] && $_ =~ /^F?(M\/B|MB|SYS|Motherboard).*:([0-9]+)[\s]RPM/i){
+				$sensors->{'fan-main'}->[2] = $2 if $2 < $max_fan;
 			}
-			elsif (!$sensors->{'fan-main'}->[3] && $_ =~ /F?(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i){
-				$sensors->{'fan-main'}->[3] = $2;
+			elsif (!defined $sensors->{'fan-main'}->[3] && $_ =~ /F?(Power|P\/S|POWER).*:([0-9]+)[\s]RPM/i){
+				$sensors->{'fan-main'}->[3] = $2 if $2 < $max_fan;
 			}
-			elsif (!$sensors->{'fan-main'}->[4] && $_ =~ /F?(dimm|mem|sodimm).*:([0-9]+)[\s]RPM/i){
-				$sensors->{'fan-main'}->[4] = $2;
+			elsif (!defined $sensors->{'fan-main'}->[4] && $_ =~ /F?(dimm|mem|sodimm).*:([0-9]+)[\s]RPM/i){
+				$sensors->{'fan-main'}->[4] = $2 if $2 < $max_fan;
 			}
 			# note that the counters are dynamically set for fan numbers here
 			# otherwise you could overwrite eg aux fan2 with case fan2 in theory
 			# note: cpu/mobo/ps/sodimm are 1/2/3/4
 			elsif ($_ =~ /^F?(AUX|CASE|CHASSIS|FRONT|REAR).*:([0-9]+)[\s]RPM/i){
+				next if $2 > $max_fan;
 				$temp_working = $2;
 				for (my $i = 5; $i < 30; $i++){
 					next if defined $sensors->{'fan-main'}->[$i];
@@ -23708,9 +23715,10 @@ sub linux_sensors_data {
 			}
 			# in rare cases syntax is like: fan1: xxx RPM
 			elsif ($_ =~ /^FAN(1)?:([0-9]+)[\s]RPM/i){
-				$sensors->{'fan-default'}->[1] = $2;
+				$sensors->{'fan-default'}->[1] = $2 if $2 < $max_fan;
 			}
 			elsif ($_ =~ /^FAN([2-9]|1[0-9]).*:([0-9]+)[\s]RPM/i){
+				next if $2 > $max_fan;
 				$fan_working = $2;
 				$sys_fan_nu = $1;
 				if ($sys_fan_nu =~ /^([0-9]+)$/){
@@ -24051,7 +24059,7 @@ sub sysctl_data {
 				$sensors->{'temp' . $number} = $value;
 			}
 			elsif ($type eq 'fan' && !defined $sensors->{'fan-main'}->[$number]){
-				$sensors->{'fan-main'}->[$number] = $value;
+				$sensors->{'fan-main'}->[$number] = $value if $2 < $max_fan;
 			}
 			elsif ($type eq 'volt'){
 				if ($working =~ /\+3\.3V/i){
