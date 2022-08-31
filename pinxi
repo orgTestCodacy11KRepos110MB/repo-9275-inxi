@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-08-30';
-my $self_patch='07';
+my $self_date='2022-08-31';
+my $self_patch='08';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -1938,6 +1938,7 @@ sub display_data {
 	['weston','--version'],
 	['wlr-randr',''],
 	['xdpyinfo',''],
+	['xdriinfo',''],
 	['Xorg','-version'],
 	['xprop','-root'],
 	['xrandr',''],
@@ -6822,14 +6823,15 @@ sub message {
 	'root-suggested' => 'try sudo/root',# gdm only
 	'screen-wayland' => 'no compositor data',
 	'screen-xvesa' => 'no Xvesa data',
-	'sensors-data-bsd' => "$id sensor data found but not usable.",
-	'sensors-data-bsd-ok' => 'No sensor data found. Are data sources present?',
-	'sensors-data-bsd-unsupported' => 'Sensor data not available. Unsupported BSD variant.',
-	'sensors-data-ipmi' => 'No ipmi sensor data found.',
-	'sensors-data-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
-	'sensors-data-lm-sensors' => 'No sensor data found. Is lm-sensors configured?',
-	'sensors-data-sys' => 'No sensor data found in /sys/class/hwmon.',
-	'sensors-data-sys-lm' => 'No sensor data found using /sys/class/hwmon or lm-sensors.',
+	'sensor-data-bsd' => "$id sensor data found but not usable.",
+	'sensor-data-bsd-ok' => 'No sensor data found. Are data sources present?',
+	'sensor-data-bsd-unsupported' => 'Sensor data not available. Unsupported BSD variant.',
+	'sensor-data-ipmi' => 'No ipmi sensor data found.',
+	'sensor-data-ipmi-root' => 'Unable to run ipmi sensors. Root privileges required.',
+	'sensors-data-linux' => 'No sensor data found. Missing /sys/class/hwmon, lm-sensors.',
+	'sensor-data-lm-sensors' => 'No sensor data found. Is lm-sensors configured?',
+	'sensor-data-sys' => 'No sensor data found in /sys/class/hwmon.',
+	'sensor-data-sys-lm' => 'No sensor data found using /sys/class/hwmon or lm-sensors.',
 	'smartctl-command' => 'A mandatory SMART command failed. Various possible causes.',
 	'smartctl-open' => 'Unable to open device. Wrong device ID given?',
 	'smartctl-udma-crc' => 'Bad cable/connection?',
@@ -14407,6 +14409,17 @@ sub display_output(){
 							$rows->[$j]{main::key($num++,0,4,'alternate')} = $x_drivers->[3];
 						}
 					}
+					if ($graphics{'dri-drivers'}){
+						my (@found,@temp);
+						push(@temp,@$gpu_drivers) if @$gpu_drivers;
+						push(@temp,@$x_drivers) if @$x_drivers;
+						foreach my $test (@{$graphics{'dri-drivers'}}){
+							if (!grep {lc($_) eq lc($test)} @temp){
+								push(@found,$test);
+							}
+						}
+						$rows->[$j]{main::key($num++,1,3,'dri')} = join(',',@found) if @found;
+					}
 					my $drivers;
 					if (@$gpu_drivers){
 						$drivers = join(',',@$gpu_drivers);
@@ -15354,13 +15367,16 @@ sub get_model_serial {
 # DISPLAY DATA X.org ##
 sub display_data_x {
 	eval $start if $b_log;
-	my ($prog_xdpyinfo,$prog_xrandr);
+	my ($prog_xdpyinfo,$prog_xdriinfo,$prog_xrandr);
 	if ($prog_xdpyinfo = main::check_program('xdpyinfo')){
 		xdpyinfo_data($prog_xdpyinfo);
 	}
 	# print Data::Dumper::Dumper $graphics{'screens'};
 	if ($prog_xrandr = main::check_program('xrandr')){
 		xrandr_data($prog_xrandr);
+	}
+	if ($prog_xdriinfo = main::check_program('xdriinfo')){
+		xdriinfo_data($prog_xdriinfo);
 	}
 	if (!$graphics{'screens'}){
 		$graphics{'tty'} = tty_data();
@@ -15378,6 +15394,32 @@ sub display_data_x {
 	}
 	print 'Final display x: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
+	eval $end if $b_log;
+}
+sub xdriinfo_data {
+	eval $start if $b_log;
+	my $program = $_[0];
+	my (%dri_drivers,$screen,$xdriinfo);
+	if (!$fake{'xdriinfo'}){
+		$xdriinfo = main::grabber("$program $display_opt 2>/dev/null",'','strip','ref');
+	}
+	else {
+		# $xdriinfo = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip','ref');
+	}
+	foreach $screen (@$xdriinfo){
+		if ($screen =~ /^Screen (\d+):\s+(\S+)/){
+			$dri_drivers{$1} = $2;
+		}
+	}
+	if ($graphics{'screens'}){
+		foreach $screen (@{$graphics{'screens'}}){
+			if (defined $dri_drivers{$screen->{'screen'}} ){
+				push(@{$graphics{'dri-drivers'}},$dri_drivers{$screen->{'screen'}});
+			}
+		}
+	}
+	print 'x dri driver: ', Data::Dumper::Dumper \%dri_drivers if $dbg[17];
+	main::log_data('dump','%dri_drivers',\%dri_drivers) if $b_log;
 	eval $end if $b_log;
 }
 sub xdpyinfo_data {
@@ -15782,9 +15824,9 @@ sub display_drivers_x {
 		# list is from sgfxi plus non-free drivers, plus ARM drivers. 
 		# Don't use ati. It's just a wrapper for: r128, mach64, radeon
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc
-		chips cirrus cyrix etnaviv fbdev fbturbo fglrx geode glide glint 
+		chips cirrus crocus cyrix etnaviv fbdev fbturbo fglrx geode glide glint 
 		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
-		iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
+		iftv imstt intel iris ivtv mach64 mesa mga modesetting neomagic newport 
 		nouveau nsc nvidia nv openchrome r128 radeonhd radeon rendition 
 		s3virge s3 savage siliconmotion sisimedia sisusb sis 
 		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx tdfx tga trident tseng 
@@ -23074,7 +23116,7 @@ sub get {
 			$sensors = ipmi_data($program);
 			$b_data = sensors_output($rows,'ipmi',$sensors);
 			if (!$b_data){
-				$val1 = main::message('sensors-data-ipmi');
+				$val1 = main::message('sensor-data-ipmi');
 				push(@$rows,{
 				main::key($num++,1,1,'Src') => 'ipmi',
 				main::key($num++,0,1,$key1) => $val1,
@@ -23083,7 +23125,7 @@ sub get {
 		}
 		else {
 			$key1 = 'Permissions';
-			$val1 = main::message('sensors-data-ipmi-root');
+			$val1 = main::message('sensor-data-ipmi-root');
 			push(@$rows,{
 			main::key($num++,1,1,'Src') => 'ipmi',
 			main::key($num++,0,2,$key1) => $val1,
@@ -23095,18 +23137,21 @@ sub get {
 	if ($bsd_type){
 		if ($sysctl{'sensor'}){
 			$sensors = sysctl_data();
-			$source = 'sysctl';
+			$source = 'sysctl' if $b_ipmi;
 			$b_data = sensors_output($rows,$source,$sensors);
 			if (!$b_data){
-				$val1 = main::message('sensors-data-bsd',$uname[0]);
+				$source = 'sysctl';
+				$val1 = main::message('sensor-data-bsd',$uname[0]);
 			}
 		}
 		else {
 			if ($bsd_type =~ /^(free|open)bsd/){
-				$val1 = main::message('sensors-data-bsd-ok');
+				$source = 'sysctl';
+				$val1 = main::message('sensor-data-bsd-ok');
 			}
 			else {
-				$val1 = main::message('sensors-data-bsd-unsupported');
+				$source = 'N/A';
+				$val1 = main::message('sensor-data-bsd-unsupported');
 			}
 		}
 	}
@@ -23134,24 +23179,27 @@ sub get {
 		if (!$b_data){
 			if ($b_no_lm || $b_no_sys){
 				if ($b_no_lm && $b_no_sys){
-					$val1 = main::message('sensors-data-sys-lm');
 					$source = 'lm-sensors+/sys';
+					$val1 = main::message('sensor-data-sys-lm');
 				}
 				elsif ($b_no_lm){
-					$val1 = main::message('sensors-data-lm-sensors');
+					$source = 'lm-sensors';
+					$val1 = main::message('sensor-data-lm-sensors');
 				}
 				else {
-					$val1 = main::message('sensors-data-sys');
+					$val1 = main::message('sensor-data-sys');
 				}
 			}
 			elsif (!$fake{'sensors'} && $alerts{'sensors'}->{'action'} ne 'use'){
 				# print "here 3\n";
+				$source = 'lm-sensors';
 				$key1 = $alerts{'sensors'}->{'action'};
 				$key1 = ucfirst($key1);
 				$val1 = $alerts{'sensors'}->{'message'};
 			}
 			else {
-				$val1 = main::message('sensors-data-sys-lm');
+				$source = 'N/A';
+				$val1 = main::message('sensors-data-linux');
 			}
 		}
 	}
