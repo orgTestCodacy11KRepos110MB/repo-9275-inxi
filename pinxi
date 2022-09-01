@@ -15825,11 +15825,7 @@ sub gpu_drivers_sys {
 }
 sub display_drivers_x {
 	eval $start if $b_log;
-	my ($dri,$driver,%drivers);
 	my $driver_data = [];
-	my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
-	# preferred source xdriinfo because it's current and accurate, but fallback here
-	my $b_use_dri = ($graphics{'dri-drivers'}) ? 0 : 1;
 	if (my $log = $system_files{'xorg-log'}){
 		if ($fake{'xorg-log'}){
 			# $log = "$ENV{HOME}/bin/scripts/inxi/data/xorg-logs/Xorg.0-voyager-serena.log";
@@ -15850,11 +15846,20 @@ sub display_drivers_x {
 		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx tdfx tga trident tseng 
 		unichrome v4l vboxvideo vesa vga via vmware vmwgfx voodoo));
 		$list = qr/$list/; # i only added perl 5.14, don't use
+		my ($b_use_dri,$dri,$driver,%drivers);
+		my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
+		my $pattern = 'Failed|Unload|Loading';
+		# preferred source xdriinfo because it's current and accurate, but fallback here
+		if (!$graphics{'dri-drivers'}){
+			$b_use_dri = 1;
+			$pattern .= '|DRI driver:';
+		}
+		$pattern = qr/$pattern/;
 		# it's much cheaper to grab the simple pattern match then do the expensive one 
 		# in the main loop.
 		# @xorg = grep {/Failed|Unload|Loading/} @xorg;
 		foreach my $line (@$xorg){
-			next if $line !~ /DRI driver|Failed|Unload|Loading/;
+			next if $line !~ /$pattern/i;
 			# print "$_\n";
 			# note that in file names, driver is always lower case
 			if ($line =~ /\sLoading.*($list)_drv\.so$/i){
@@ -15901,12 +15906,13 @@ sub display_drivers_x {
 			}
 			elsif ($b_use_dri && $line =~ /DRI driver:\s*(\S+)/i){
 				$dri = $1;
-				if (!$graphics{'dri-drivers'} || !(grep {$dri eq $_} @{$graphics{'dri-drivers'}})){
+				if (!$graphics{'dri-drivers'} || 
+				!(grep {$dri eq $_} @{$graphics{'dri-drivers'}})){
 					push(@{$graphics{'dri-drivers'}},$dri);
 				}
 			}
 		}
-		my $sep = '';
+		$sep = '';
 		foreach (sort keys %drivers){
 			if ($drivers{$_} eq 'loaded'){
 				$sep = ($loaded) ? ',' : '';
@@ -24076,7 +24082,7 @@ sub sysctl_data {
 				$sensors->{'temp' . $number} = $value;
 			}
 			elsif ($type eq 'fan' && !defined $sensors->{'fan-main'}->[$number]){
-				$sensors->{'fan-main'}->[$number] = $value if $2 < $max_fan;
+				$sensors->{'fan-main'}->[$number] = $value if  $value < $max_fan;
 			}
 			elsif ($type eq 'volt'){
 				if ($working =~ /\+3\.3V/i){
