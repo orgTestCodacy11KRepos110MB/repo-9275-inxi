@@ -5801,7 +5801,8 @@ sub show_options {
 	LMP version."],
 	['2', '-G', '', "GPU arch (AMD/Intel/Nvidia only); Specific vendor/product 
 	information (if relevant); PCI/USB ID of device; Direct rendering status 
-	(in X); Screen number GPU is running on (Nvidia only)."],
+	(in X); Screen number GPU is running on (Nvidia only); device temp (Linux, 
+	if found)."],
 	['2', '-i', '', "For IPv6, show additional scope addresses: Global, Site, 
 	Temporary, Unknown. See --limit for large counts of IP addresses."],
 	['2', '-I', '', "Default system GCC. With -xx, also shows other installed 
@@ -14173,8 +14174,8 @@ sub device_output {
 				}
 			}
 		}
+		my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 		if ($extra > 0){
-			my $bus_id = (!$row->[2] && !$row->[3]) ? 'N/A' : "$row->[2].$row->[3]";
 			if ($extra > 1 && $bus_id ne 'N/A'){
 				main::get_pcie_data($bus_id,$j,$rows,\$num,'gpu');
 			}
@@ -14189,6 +14190,12 @@ sub device_output {
 		}
 		if ($extra > 2 && $row->[1]){
 			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
+		}
+		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A'){
+			my $temp = main::get_device_temp($bus_id);
+			if ($temp){
+				$rows->[$j]{main::key($num++,0,2,'temp')} = $temp . ' C';
+			}
 		}
 		# print "$row->[0]\n";
 	}
@@ -18389,7 +18396,7 @@ sub device_output {
 			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
 		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A'){
-			my $temp = get_temp($bus_id);
+			my $temp = main::get_device_temp($bus_id);
 			if ($temp){
 				$rows->[$j]{main::key($num++,0,2,'temp')} = $temp . ' C';
 			}
@@ -18806,20 +18813,6 @@ sub check_wifi {
 	my ($item) = @_;
 	my $b_wifi = ($item =~ /wireless|wi-?fi|wlan|802\.11|centrino/i) ? 1 : 0;
 	return $b_wifi;
-}
-# if > 1, returns first found, not going to be too granular with this yet.
-sub get_temp {
-	my $bus_id = $_[0];
-	my $glob = "/sys/devices/pci*/*/*:$bus_id/hwmon/hwmon*/temp*_input";
-	my @files = main::globber($glob);
-	my $temp;
-	foreach my $file (@files){
-		$temp = main::reader($file,'strip',0);
-		if ($temp){
-			$temp = sprintf('%0.1f',$temp/1000);
-			return $temp;
-		}
-	}
 }
 }
 
@@ -26990,6 +26983,7 @@ sub set_xprop {
 
 }
 
+## DeviceData
 # creates arrays: $devices{'audio'}; $devices{'graphics'}; $devices{'hwraid'}; 
 # $devices{'network'}; $devices{'timer'} and local @devices for logging/debugging
 # 0 type
@@ -27746,6 +27740,21 @@ sub pci_class {
 	eval $end if $b_log;
 	return $type;
 }
+}
+
+# if > 1, returns first found, not going to be too granular with this yet.
+sub get_device_temp {
+	my $bus_id = $_[0];
+	my $glob = "/sys/devices/pci*/*/*:$bus_id/hwmon/hwmon*/temp*_input";
+	my @files = main::globber($glob);
+	my $temp;
+	foreach my $file (@files){
+		$temp = main::reader($file,'strip',0);
+		if ($temp){
+			$temp = sprintf('%0.1f',$temp/1000);
+			return $temp;
+		}
+	}
 }
 
 ## DiskDataBSD
