@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.21';
 my $self_date='2022-08-31';
-my $self_patch='08';
+my $self_patch='09';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -14411,24 +14411,24 @@ sub display_output(){
 					# The only wayland setups with x drivers have xorg, transitional that is.
 					if (@$x_drivers){
 						$rows->[$j]{main::key($num++,1,3,'X')} = '';
-						my $driver = ($x_drivers->[0]) ? $x_drivers->[0] : 'N/A';
+						my $driver = ($x_drivers->[0]) ? join(',',@{$x_drivers->[0]}) : 'N/A';
 						$rows->[$j]{main::key($num++,1,4,'loaded')} = $driver;
 						if ($x_drivers->[1]){
-							$rows->[$j]{main::key($num++,0,4,'unloaded')} = $x_drivers->[1];
+							$rows->[$j]{main::key($num++,0,4,'unloaded')} = join(',',@{$x_drivers->[1]});
 						}
 						if ($x_drivers->[2]){
-							$rows->[$j]{main::key($num++,0,4,'failed')} = $x_drivers->[2];
+							$rows->[$j]{main::key($num++,0,4,'failed')} = join(',',@{$x_drivers->[2]});
 						}
 						if ($extra > 1 && $x_drivers->[3]){
-							$rows->[$j]{main::key($num++,0,4,'alternate')} = $x_drivers->[3];
+							$rows->[$j]{main::key($num++,0,4,'alternate')} = join(',',@{$x_drivers->[3]});
 						}
 					}
 					if ($graphics{'dri-drivers'}){
 						my (@found,@temp);
 						push(@temp,@$gpu_drivers) if @$gpu_drivers;
-						push(@temp,@$x_drivers) if @$x_drivers;
+						push(@temp,@{$x_drivers->[0]}) if $x_drivers && $x_drivers->[0];
 						foreach my $test (@{$graphics{'dri-drivers'}}){
-							if (!grep {lc($_) eq lc($test)} @temp){
+							if (!grep {$_ =~ /\b$test\b/} @temp){
 								push(@found,$test);
 							}
 						}
@@ -15854,7 +15854,7 @@ sub display_drivers_x {
 		unichrome v4l vboxvideo vesa vga via vmware vmwgfx voodoo));
 		$list = qr/$list/; # i only added perl 5.14, don't use
 		my ($b_use_dri,$dri,$driver,%drivers);
-		my ($alternate,$failed,$loaded,$sep,$unloaded) = ('','','','','');
+		my ($alternate,$failed,$loaded,$unloaded);
 		my $pattern = 'Failed|Unload|Loading';
 		# preferred source xdriinfo because it's current and accurate, but fallback here
 		if (!$graphics{'dri-drivers'}){
@@ -15919,23 +15919,18 @@ sub display_drivers_x {
 				}
 			}
 		}
-		$sep = '';
 		foreach (sort keys %drivers){
 			if ($drivers{$_} eq 'loaded'){
-				$sep = ($loaded) ? ',' : '';
-				$loaded .= $sep . $_;
+				push(@$loaded,$_);
 			}
 			elsif ($drivers{$_} eq 'unloaded'){
-				$sep = ($unloaded) ? ',' : '';
-				$unloaded .= $sep . $_;
+				push(@$unloaded,$_);
 			}
 			elsif ($drivers{$_} eq 'failed'){
-				$sep = ($failed) ? ',' : '';
-				$failed .= $sep . $_;
+				push(@$failed,$_);
 			}
 			elsif ($drivers{$_} eq 'alternate'){
-				$sep = ($alternate) ? ',' : '';
-				$alternate .= $sep . $_;
+				push(@$alternate,$_);
 			}
 		}
 		if ($loaded || $unloaded || $failed || $alternate){
