@@ -14191,7 +14191,7 @@ sub device_output {
 		if ($extra > 2 && $row->[1]){
 			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
-		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A'){
+		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A' && $bus_id =~ /\.0$/){
 			my $temp = main::get_device_temp($bus_id);
 			if ($temp){
 				$rows->[$j]{main::key($num++,0,2,'temp')} = $temp . ' C';
@@ -15845,9 +15845,9 @@ sub display_drivers_x {
 		# list is from sgfxi plus non-free drivers, plus ARM drivers. 
 		# Don't use ati. It's just a wrapper for: r128, mach64, radeon
 		my $list = join('|', qw(amdgpu apm ark armsoc atimisc
-		chips cirrus crocus cyrix etnaviv fbdev fbturbo fglrx geode glide glint 
+		chips cirrus cyrix etnaviv fbdev fbturbo fglrx geode glide glint 
 		i128 i740 i810-dec100 i810e i810 i815 i830 i845 i855 i865 i915 i945 i965 
-		iftv imstt intel iris ivtv mach64 mesa mga modesetting neomagic newport 
+		iftv imstt intel ivtv mach64 mesa mga modesetting neomagic newport 
 		nouveau nsc nvidia nv openchrome r128 radeonhd radeon rendition 
 		s3virge s3 savage siliconmotion sisimedia sisusb sis 
 		sunbw2 suncg14 suncg3 suncg6 sunffb sunleo suntcx tdfx tga trident tseng 
@@ -18395,7 +18395,7 @@ sub device_output {
 		if ($extra > 2 && $row->[1]){
 			$rows->[$j]{main::key($num++,0,2,'class-ID')} = $row->[1];
 		}
-		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A'){
+		if (!$bsd_type && $extra > 0 && $bus_id ne 'N/A' && $bus_id =~ /\.0$/){
 			my $temp = main::get_device_temp($bus_id);
 			if ($temp){
 				$rows->[$j]{main::key($num++,0,2,'temp')} = $temp . ' C';
@@ -27744,6 +27744,7 @@ sub pci_class {
 
 # if > 1, returns first found, not going to be too granular with this yet.
 sub get_device_temp {
+	eval $start if $b_log;
 	my $bus_id = $_[0];
 	my $glob = "/sys/devices/pci*/*/*:$bus_id/hwmon/hwmon*/temp*_input";
 	my @files = main::globber($glob);
@@ -27752,9 +27753,11 @@ sub get_device_temp {
 		$temp = main::reader($file,'strip',0);
 		if ($temp){
 			$temp = sprintf('%0.1f',$temp/1000);
-			return $temp;
+			last;
 		}
 	}
+	eval $end if $b_log;
+	return $temp;
 }
 
 ## DiskDataBSD
