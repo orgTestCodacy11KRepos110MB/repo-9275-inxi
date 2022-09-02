@@ -15426,7 +15426,7 @@ sub xdriinfo_data {
 	}
 	foreach $screen (@$xdriinfo){
 		if ($screen =~ /^Screen (\d+):\s+(\S+)/){
-			$dri_drivers{$1} = $2;
+			$dri_drivers{$1} = $2 if $2 !~ /^not\b/;
 		}
 	}
 	if ($graphics{'screens'}){
@@ -23894,6 +23894,11 @@ sub load_sys_data {
 		$item =~ m|/sys/class/hwmon/(hwmon\d+)/|;
 		$mon = $1;
 		$mon =~ s/hwmon(\d)$/hwmon0$1/ if $mon =~ /hwmon\d$/;
+		if (!defined $hwmons{$mon}){
+			$sensor = '';
+			$holder = '';
+			$j = 0;
+		}
 		if ($item =~ m/([^\/]+)_input$/){
 			$sensor = $1;
 			$value = main::reader($item,'strip',0);;
@@ -23901,6 +23906,7 @@ sub load_sys_data {
 		elsif ($item =~ m/([^\/]+)_label$/){
 			# print "3: $mon :: $sensor :: $holder :: $item\n";
 			# if this doesn't match, something seriously wrong happened
+			next if !$holder || $1 ne $holder;
 			if (defined $hwmons{$mon}->{'sensors'}[$j]{'id'}){
 				$sensor = $1;
 				$hwmons{$mon}->{'sensors'}[$j]{'label'} = main::reader($item,'strip',0);
@@ -23918,11 +23924,7 @@ sub load_sys_data {
 			$holder = $sensor;
 			($sensor,$value) = ('',undef,undef);
 		}
-		if (!defined $hwmons{$mon}){
-			$sensor = '';
-			$holder = '';
-			$j = 0;
-		}
+		
 		# print "1: $mon :: $sensor :: $holder :: $item\n";
 		# print "$item\n";
 		if ($item =~ /name$/){
