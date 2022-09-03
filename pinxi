@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-09-01';
-my $self_patch='11';
+my $self_date='2022-09-03';
+my $self_patch='12';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5351,6 +5351,8 @@ sub get {
 		else {
 			main::error_handler('bad-arg',$opt,$arg);
 		}},
+	'sensors-sys' => sub {
+		$force{'sensors-sys'} = 1;},
 	'sensors-use:s' => sub {
 		my ($opt,$arg) = @_;
 		if ($arg){
@@ -6800,6 +6802,7 @@ sub message {
 	'monitor-wayland' => 'no compositor data',
 	'note-check' => 'check',
 	'note-est' => 'est.',
+	'note-not-reliable' => 'not reliable',
 	'nv-current' => "current (as of $id)",
 	'nv-legacy-active' => "legacy-active (EOL~$id)", 
 	'nv-legacy-eol' => 'legacy (EOL)',
@@ -23355,8 +23358,8 @@ sub sensors_output {
 			if ($extra > 2 && $info->{'watts'}){
 				$rows->[$j]{main::key($num++,0,$l3,'watts')} = $info->{'watts'};
 			}
-			if ($extra > 2 && $info->{'mvolts'}){
-				$rows->[$j]{main::key($num++,0,$l3,'mV')} = $info->{'mvolts'};
+			if ($extra > 2 && $info->{'volts-gpu'}){
+				$rows->[$j]{main::key($num++,0,$l3,$info->{'volts-gpu'}[1])} = $info->{'volts-gpu'}[0];
 			}
 		}
 	}
@@ -23376,16 +23379,28 @@ sub sensors_output {
 		if ($extra > 1 && $source eq 'ipmi'){
 			$sensors->{'volts-dimm-p1'} ||= 'N/A';
 			$sensors->{'volts-dimm-p2'} ||= 'N/A';
-			$rows->[$j]{main::key($num++,0,$l2,'dimm-p1')} = $sensors->{'volts-dimm-p1'} if $sensors->{'volts-dimm-p1'};
-			$rows->[$j]{main::key($num++,0,$l2,'dimm-p2')} = $sensors->{'volts-dimm-p2'} if $sensors->{'volts-dimm-p2'};
-			$rows->[$j]{main::key($num++,0,$l2,'soc-p1')} = $sensors->{'volts-soc-p1'} if $sensors->{'volts-soc-p1'};
-			$rows->[$j]{main::key($num++,0,$l2,'soc-p2')} = $sensors->{'volts-soc-p2'} if $sensors->{'volts-soc-p2'};
+			if ($sensors->{'volts-dimm-p1'}){
+				$rows->[$j]{main::key($num++,0,$l2,'dimm-p1')} = $sensors->{'volts-dimm-p1'};
+			}
+			if ($sensors->{'volts-dimm-p2'}){
+				$rows->[$j]{main::key($num++,0,$l2,'dimm-p2')} = $sensors->{'volts-dimm-p2'};
+			}
+			if ($sensors->{'volts-soc-p1'}){
+				$rows->[$j]{main::key($num++,0,$l2,'soc-p1')} = $sensors->{'volts-soc-p1'};
+			}
+			if ($sensors->{'volts-soc-p2'}){
+				$rows->[$j]{main::key($num++,0,$l2,'soc-p2')} = $sensors->{'volts-soc-p2'};
+			}
 		}
 		if (scalar @$gpu_data == 1 && $extra > 2 && 
-		($gpu_data->[0]{'watts'} || $gpu_data->[0]{'mvolts'})){
+		($gpu_data->[0]{'watts'} || $gpu_data->[0]{'volts-gpu'})){
 			$rows->[$j]{main::key($num++,1,$l2,'gpu')} = $gpu_data->[0]{'type'};
-			$rows->[$j]{main::key($num++,0,$l3,'watts')} = $gpu_data->[0]{'watts'} if $gpu_data->[0]{'watts'};
-			$rows->[$j]{main::key($num++,0,$l3,'mV')} = $gpu_data->[0]{'mvolts'} if $gpu_data->[0]{'mvolts'};
+			if ($gpu_data->[0]{'watts'}){
+				$rows->[$j]{main::key($num++,0,$l3,'watts')} = $gpu_data->[0]{'watts'};
+			}
+			if ($gpu_data->[0]{'volts-gpu'}){
+				$rows->[$j]{main::key($num++,0,$l3,$gpu_data->[0]{'volts-gpu'}[1])} = $gpu_data->[0]{'volts-gpu'}[0];
+			}
 		}
 	}
 	eval $end if $b_log;
@@ -23977,12 +23992,11 @@ sub load_sys_data {
 				$unit = 'RPM';
 				$value = $item->{'value'};
 			}
+			# note: many sensors require further math on value, so these will be wrong
+			# in many cases since this is not running the math on the results like 
+			# lm-sensors will do if sensors are detected and loaded and configured.
 			elsif ($item->{'id'} =~ /^in\d/){
-				if ($hwmons{$hwmon}->{'type'} eq 'gpu'){
-					$unit = 'mV';
-					$value = $item->{'value'};
-				}
-				else {
+				if ($item->{'value'} >= 1000){
 					$unit = 'V';
 					$value = sprintf('%0.2f',$item->{'value'}/1000) + 0;
 					if ($hwmons{$hwmon}->{'type'} eq 'main' && $name =~ /^in\d/){
@@ -23994,6 +24008,10 @@ sub load_sys_data {
 						}
 						# vbat can be 3, 3.3, but so can 3.3V board
 					}
+				}
+				else {
+						$unit = 'mV';
+						$value = $item->{'value'};
 				}
 			}
 			elsif ($item->{'id'} =~ /^power/){
@@ -24476,8 +24494,8 @@ sub gpu_sensor_data {
 				elsif (/^[^:]+:([0-9\.]+)\s+W\s/i){
 					$gpu_data->[$j]{'watts'} = $1;
 				}
-				elsif (/^[^:]+:([0-9\.]+)\s+mV\s/i){
-					$gpu_data->[$j]{'mvolts'} = $1;
+				elsif (/^[^:]+:([0-9\.]+)\s+(m?V)\s/i){
+					$gpu_data->[$j]{'volts-gpu'} = [$1,$2];
 				}
 			}
 		}
