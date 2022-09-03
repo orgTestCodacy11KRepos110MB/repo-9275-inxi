@@ -23902,6 +23902,7 @@ sub load_sys_data {
 		$item =~ m|/sys/class/hwmon/(hwmon\d+)/|;
 		$mon = $1;
 		$mon =~ s/hwmon(\d)$/hwmon0$1/ if $mon =~ /hwmon\d$/;
+		# if it's a new hwmon, dump all previous data to avoid carry-over
 		if (!defined $hwmons{$mon}){
 			$sensor = '';
 			$holder = '';
@@ -23911,9 +23912,11 @@ sub load_sys_data {
 			$sensor = $1;
 			$value = main::reader($item,'strip',0);;
 		}
+		# add the label to the just created _input item, if valid
 		elsif ($item =~ m/([^\/]+)_label$/){
-			# print "3: $mon :: $sensor :: $holder :: $item\n";
-			# if this doesn't match, something seriously wrong happened
+			print "3: mon: $mon id: $sensor holder: $holder file: $item\n" if $dbg[51];
+			# if this doesn't match, something unexpected happened, like no _input for
+			# _label item. Seen that, real.
 			next if !$holder || $1 ne $holder;
 			if (defined $hwmons{$mon}->{'sensors'}[$j]{'id'}){
 				$sensor = $1;
@@ -23921,7 +23924,9 @@ sub load_sys_data {
 			}
 		}
 		if ($sensor && ($sensor ne $holder || $item eq 'END')){
-			# print "2: $mon :: $sensor :: $holder :: $item\n";
+			print "2: mon: $mon id: $sensor holder: $holder file: $item\n" if $dbg[51];
+			# add the item, we'll add label after if it's located since it will be next 
+			# in loop due to sort order.
 			if ($value){
 				push(@{$hwmons{$mon}->{'sensors'}},{
 				'id' => $sensor,
@@ -23932,8 +23937,7 @@ sub load_sys_data {
 			$holder = $sensor;
 			($sensor,$value) = ('',undef,undef);
 		}
-		
-		# print "1: $mon :: $sensor :: $holder :: $item\n";
+		print "1: mon: $mon id: $sensor holder: $holder file: $item\n" if $dbg[51];
 		# print "$item\n";
 		if ($item =~ /name$/){
 			$name = main::reader($item,'strip',0);
@@ -23970,6 +23974,7 @@ sub load_sys_data {
 		}
 		elsif ($item =~ /device$/){
 			$device = readlink($item);
+			print "device: $device\n" if $dbg[51];
 			$device =~ s|^.*/||;
 			$hwmons{$mon}->{'device'} = $device;
 		}
@@ -24010,8 +24015,8 @@ sub load_sys_data {
 					}
 				}
 				else {
-						$unit = 'mV';
-						$value = $item->{'value'};
+					$unit = 'mV';
+					$value = $item->{'value'};
 				}
 			}
 			elsif ($item->{'id'} =~ /^power/){
