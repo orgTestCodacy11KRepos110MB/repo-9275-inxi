@@ -5843,7 +5843,6 @@ sub show_options {
 	['2', '-A', '', "Chip vendor:product ID for each audio device; PCIe speed,
 	lanes (if found)."],
 	['2', '-B', '', "Serial number."],
-	['2', '-C', '', "Add microarchitecture level (64 bit AMD/Intel only)."],
 	['2', '-D', '', "Disk transfer speed; NVMe lanes; Disk serial number; LVM 
 	volume group free space (if available); disk duid (some BSDs)."],
 	['2', '-E', '', "Chip vendor:product ID, LMP subversion; PCIe speed, lanes 
@@ -5926,11 +5925,12 @@ sub show_options {
 	also sets --extra=3:"],
 	['2', '-A', '', "If available: list of alternate kernel modules/drivers 
 	for device(s); PCIe lanes-max: gen, speed, lanes (if relevant)."],
-	['2', '-C', '', "If available: CPU generation, process node, built years; CPU 
-	socket type, base/boost speeds (dmidecode+root/sudo/doas required); Full 
-	topology line, with cores, threads, threads per core, granular cache data, 
-	smt status; CPU vulnerabilities (bugs); family, model-id, stepping - format: 
-	hex (decimal) if greater than 9; microcode format: hex."],
+	['2', '-C', '', "If available:  microarchitecture level (64 bit AMD/Intel 
+	only).CPU generation, process node, built years; CPU socket type, base/boost 
+	speeds (dmidecode+root/sudo/doas required); Full topology line, with cores, 
+	threads, threads per core, granular cache data, smt status; CPU 
+	vulnerabilities (bugs); family, model-id, stepping - format: hex (decimal) 
+	if greater than 9; microcode format: hex."],
 	['2', '-d,-D', '', "If available: logical and physical block sizes; drive 
 	family; maj:min, USB drive specifics; SMART report."],
 	['2', '-E', '', "If available: in Report:, adds Info: line: acl-mtu, 
@@ -8764,7 +8764,7 @@ sub full_output {
 		if ($b_admin && $cpu->{'gen'}){
 			$rows->[$j]{main::key($num++,0,3,'gen')} = $cpu->{'gen'};
 		}
-		if ($extra > 1 && $properties->{'arch-level'}){
+		if ($b_admin && $properties->{'arch-level'}){
 			$rows->[$j]{main::key($num++,1,2,'level')} = $properties->{'arch-level'}[0];
 			if ($properties->{'arch-level'}[1]){
 				$rows->[$j]{main::key($num++,0,3,'note')} = $properties->{'arch-level'}[1];
@@ -10314,7 +10314,7 @@ sub cpu_properties {
 		$bits_sys = ($cpu->{'flags'} =~ /\blm\b/) ? 64 : 32;
 	}
 	# must run after to make sure we have cpu bits
-	if (!%risc && $bits_sys && $bits_sys == 64 && $cpu->{'flags'}){
+	if ($b_admin && !%risc && $bits_sys && $bits_sys == 64 && $cpu->{'flags'}){
 		$arch_level = cp_cpu_level(
 		$cpu->{'flags'}
 		);
