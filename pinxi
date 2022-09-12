@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.21';
-my $self_date='2022-09-05';
-my $self_patch='14';
+my $self_date='2022-09-11';
+my $self_patch='15';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -7595,21 +7595,21 @@ sub sound_server_output {
 	my ($program);
 	my ($j,$num) = (0,0);
 	foreach my $server (@{sound_server_data()}){
-		next if $extra < 1 && (!$server->[2] || $server->[2] ne 'yes');
+		next if $extra < 1 && (!$server->[3] || $server->[3] ne 'yes');
 		$j = scalar @$rows;
-		$server->[1] ||= 'N/A';
 		$server->[2] ||= 'N/A';
+		$server->[3] ||= 'N/A';
 		push(@$rows, {
-		main::key($num++,1,1,'Sound Server') => $server->[0],
-		main::key($num++,0,2,'v') => $server->[1],
-		main::key($num++,0,2,'running') => $server->[2],
+		main::key($num++,1,1,$server->[0]) => $server->[1],
+		main::key($num++,0,2,'v') => $server->[2],
+		main::key($num++,0,2,'running') => $server->[3],
 		});
 	}
 	eval $end if $b_log;
 }
 sub sound_server_data {
 	eval $start if $b_log;
-	my ($program,$running,$server,$version);
+	my ($program,$running,$server,$type,$version);
 	my $servers = [];
 	if (my $file = $system_files{'asound-version'}){
 		# avoid possible second line if compiled by user
@@ -7618,55 +7618,61 @@ sub sound_server_data {
 		$version = (split(/\s+/, $content))[-1];
 		$version =~ s/\.$//; # trim off period
 		$server = 'ALSA';
+		$type = 'Sound Interface';
 		$running = 'yes';
 		# not needed I think, if asound is there, it's running, but if that's
 		# not correct, can use one of the info/list/stat tests for aplay
 		# if (main::check_program('aplay') && main::grabber('aplay -l 2>/dev/null')){
 		# 	$running = 'yes';
 		# }
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	# sndstat file may be removed in linux oss
 	if (-e '/dev/sndstat' || ($program = main::check_program('ossinfo'))){
 		$server = 'OSS';
+		$type = 'Sound Interface';
 		#$version = main::program_version('oss','\S',2);
 		$version = (grep {/^hw.snd.version:/} @{$sysctl{'audio'}})[0] if $sysctl{'audio'};
 		$version = (split(/:\s*/,$version),1)[1] if $version;
 		$version =~ s|/.*$|| if $version;
 		# not a great test, but ok for now
 		$running = (-e '/dev/sndstat') ? 'yes' : 'no?';
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	if ($program = main::check_program('sndiod')){
 		$server = 'sndio';
+		$type = 'Sound Interface';
 		#$version = main::program_version('sndio','\S',2);
 		$running = (grep {/sndiod/} @ps_cmd) ? 'yes': 'no';
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	if ($program = main::check_program('jackd')){
 		$server = 'JACK';
+		$type = 'Sound Server';
 		$version = main::program_version($program,'^jackd',3,'--version',1);
 		$running = (grep {/jackd/} @ps_cmd) ? 'yes':'no' ;
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	# note: pactl info/list/stat could be used
 	if ($program = main::check_program('pactl')){
 		$server = 'PulseAudio';
+		$type = 'Sound Server';
 		$version = main::program_version($program,'^pactl',2,'--version',1);
 		$running = (grep {m|/pulseaudiod?\b|} @ps_cmd) ? 'yes':'no' ;
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	if ($program = main::check_program('pipewire')){
 		$server = 'PipeWire';
+		$type = 'Sound Server';
 		$version = main::program_version($program,'^Compiled with libpipe',4,'--version',1);
 		$running = (grep {/pipewire/} @ps_cmd) ? 'yes':'no' ;
-		push(@$servers, [$server,$version,$running]);
-		($running,$server,$version) = ('','','');
+		push(@$servers, [$type,$server,$version,$running]);
+		($running,$version) = ('','');
 	}
 	main::log_data('dump','sound servers: @$servers',$servers) if $b_log;
 	print Data::Dumper::Dumper $servers if $dbg[26];
@@ -11597,15 +11603,19 @@ sub cp_cpu_level {
 	my @l4 = qw(avx512f avx512bw avx512cd avx512dq avx512vl);
 	if ((@found = grep {$flags{$_}} @l1) && scalar(@found) == scalar(@l1)){
 		$level = 'v1';
+		print 'v1: ', Data::Dumper::Dumper \@found;
 		if ((@found = grep {$flags{$_}} @l2) && scalar(@found) == scalar(@l2)){
 			$level = 'v2';
+			print 'v2: ', Data::Dumper::Dumper \@found;
+			# It's not 100% certain that if flags exist v3/v4 supported. flags don't 
+			# give full possible outcomes in these cases. See: docs/inxi-cpu.txt
 			if ((@found = grep {$flags{$_}} @l3) && scalar(@found) == scalar(@l3)){
 				$level = 'v3';
-				# It's not 100% certain that if flags exist v4 supported. flags don't 
-				# give full possible outcomes in these cases. See: docs/inxi-cpu.txt
+				print 'v3: ', Data::Dumper::Dumper \@found;
 				$note = main::message('note-check');
 				if ((@found = grep {$flags{$_}} @l4) && scalar(@found) == scalar(@l4)){
 					$level = 'v4';
+					print 'v4: ', Data::Dumper::Dumper \@found;
 				}
 			}
 		}
