@@ -840,7 +840,7 @@ sub cp_cpu_arch {
 					$year = '2005-06';} # 6? Nocona
 			}
 			elsif ($model =~ /^(6)$/){
-				$arch = 'Netburst Presler';
+				$arch = 'Netburst Presler'; # 6:2,4,5:presler
 				$process = 'Intel 65nm';
 				$year = '2006';}
 			else {
