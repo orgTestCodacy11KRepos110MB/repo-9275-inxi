@@ -14,6 +14,7 @@
 ## http://us.download.nvidia.com/XFree86/Linux-x86_64/515.43.04/README/supportedchips.html#subsys
 ## Copy with mouse highlight the driver section, then paste that into a text file.
 ## Make sure it preserves the tabs \t!!! Otherwise it won't work!
+## https://www.techpowerup.com/gpu-specs/?architecture=Lovelace&sort=generation
 use strict;
 use warnings;
 # use diagnostics;

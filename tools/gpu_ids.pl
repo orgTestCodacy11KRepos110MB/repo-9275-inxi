@@ -476,7 +476,7 @@ my $nv_data = {
 	'file' => 'gpu.nv.515.xx.sort',
 	'00' => {
 	'arch' => 'Maxwell',
-	'pattern' => 'G?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
+	'pattern' => '\bG?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
 	'code' => 'GMxxx',
 	'process' => 'TSMC 28nm',
 	'years' => '2014-19',
@@ -484,7 +484,7 @@ my $nv_data = {
 	# Matrox D-Series D1450/D1480: Nvidia. Pascal and GP107 - Quadro P1000	1CFB
 	'01' => {
 	'arch' => 'Pascal',
-	'pattern' => 'G?P\d{1,4}M?|MX[23]\d{2}|GPU100|Titan Xp?|GTX? 10\d{2}|D-Series D14\d{2}',
+	'pattern' => '\bG?P\d{1,4}M?|MX[23]\d{2}|GPU100|Titan Xp?|GTX? 10\d{2}|D-Series D14\d{2}',
 	'code' => 'GP10x',
 	'process' => 'TSMC 16nm',
 	'years' => '2016-21',
@@ -492,7 +492,7 @@ my $nv_data = {
 	# not certain DGX are always V100, maybe, maybe not
 	'02' => {
 	'arch' => 'Volta',
-	'pattern' => 'G?V100S?|PG5\d{2}|Titan V|NVIDIA DGX',
+	'pattern' => '\bG?V100S?|PG5\d{2}|Titan V|NVIDIA DGX',
 	'code' => 'GV1xx',
 	'process' => 'TSMC 12nm',
 	'years' => '2017-20',
@@ -501,30 +501,32 @@ my $nv_data = {
 	# Matrox D-Series D2450/D2480: Nvidia. Quadro RTX 3000 1F76
 	'03' => {
 	'arch' => 'Turing',
-	'pattern' => 'T\d{1,4}|MX[45]\d{2}|GTX 16\d{2}|RTX 20\d{2}|Quadro RTX [34568]\d{3}|Titan RTX|CMP [345]\dHX|D-Series D24\d{2}',
+	'pattern' => '\bT\d{1,4}|MX[45]\d{2}|GTX 16\d{2}|RTX 20\d{2}|Quadro RTX [34568]\d{3}|Titan RTX|CMP [345]\dHX|D-Series D24\d{2}',
 	'code' => 'TUxxx',
 	'process' => 'TSMC 12nm FF',
 	'years' => '2018-22',
 	},
+	# note: rtx A6000 is ampere, not lovelace. Why?
 	'04' => {
 	'arch' => 'Ampere',
-	'pattern' => 'G?A\d{1,4}[GMH]?|RTX 30\d{2}(Ti)?|CMP [789]\dHX',
+	'pattern' => '\bG?A\d{1,4}[GMH]?|RTX 30\d{2}(Ti)?|CMP [789]\dHX',
 	'code' => 'GAxxx',
 	'process' => 'TSMC n7 (7nm)',
 	'years' => '2020-22',
 	},
 	'05' => {
 	'arch' => 'Hopper',
-	'pattern' => 'G?H[12]\d{2}',
+	'pattern' => '\bG?H[12]\d{2}',
 	'code' => 'GH1xx',
 	'process' => 'TSMC n4 (5nm)',
 	'years' => '2022+',
 	},
+	# note: quadro rtx 4000 is turing, but rtx 4000, rtx 6000 lovelace
 	'06' => {
 	'arch' => 'Lovelace',
-	'pattern' => 'G?L\d{1,4}|RTX 40\d{2}',
+	'pattern' => '\bG?L\d{1,4}|\bAD1\d{2}|RTX [6-8]0\d{2}', 
 	'code' => 'AD1xx',
-	'process' => 'TSMC n5 (5nm)',
+	'process' => 'TSMC n4 (5nm)',
 	'years' => '2022-23+',
 	},
 	},
@@ -540,7 +542,7 @@ my $nv_data = {
 	# GT 720M and 805A/810A are the same cpu id.
 	'01' => {
 	'arch' => 'Kepler',
-	'pattern' => 'K\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720',
+	'pattern' => '\bK\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720',
 	'code' => 'GKxxx',
 	'process' => 'TSMC 28nm',
 	'years' => '2012-18', # 2012-2018 Kepler 2013-2015 Kepler 2.0
