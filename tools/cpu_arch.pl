@@ -312,7 +312,7 @@ sub cp_cpu_arch {
 				$process = 'GF 12nm';
 				$year = '2018-21';}
 			# used this but it didn't age well:  ^(2[0123456789ABCDEF]|
-			elsif ($model =~ /^(31|47|60|68|71|90)$/){
+			elsif ($model =~ /^(31|47|60|68|71|90|98|A.)$/){
 				$arch = 'Zen 2';
 				$gen = '3';
 				$process = 'TSMC n7 (7nm)'; # some consumer maybe GF 14nm
@@ -333,19 +333,19 @@ sub cp_cpu_arch {
 		elsif ($family eq '19'){
 			# ext model 6,7, but no base models yet
 			# 10 engineering sample
-			if ($model =~ /^(10|[67][0-9A-F])$/){
+			if ($model =~ /^(1.|6.|7.|A.)$/){
 				$arch = 'Zen 4';
 				$gen = '5';
 				$process = 'TSMC n5 (5nm)';
 				$year = '2022';}
 			# double check 40, 44
-			elsif ($model =~ /^(40|44)$/){
+			elsif ($model =~ /^(4.)$/){
 				$arch = 'Zen 3+';
 				$gen = '4';
 				$process = 'TSMC n6 (7nm)';
 				$year = '2022';}
-			# 21, 50: step 0; 
-			elsif ($model =~ /^(0|1|8|21|50)$/){
+			# 21, 50: step 0; known: 21, 3x, 50
+			elsif ($model =~ /^(0|1|8|2.|3.|5.)$/){
 				$arch = 'Zen 3';
 				$gen = '4';
 				$process = 'TSMC n7 (7nm)';
@@ -620,10 +620,6 @@ sub cp_cpu_arch {
 				$arch = 'M Tolapai'; # pentium M system on chip
 				$process = 'Intel 90nm';
 				$year = '2008';} 
-			elsif ($model =~ /^(1D)$/){
-				$arch = 'Penryn';
-				$process = 'Intel 45nm';
-				$year = '2007-08';}
 			elsif ($model =~ /^(17)$/){
 				$arch = 'Penryn'; # 17:A:Core 2,Celeron-wolfdale,yorkfield
 				$process = 'Intel 45nm';
@@ -637,6 +633,10 @@ sub cp_cpu_arch {
 				$arch = 'Bonnell';
 				$process = 'Intel 45nm';
 				$year = '2008-13';} # atom Bonnell? 27?
+			elsif ($model =~ /^(1D)$/){
+				$arch = 'Penryn';
+				$process = 'Intel 45nm';
+				$year = '2007-08';}
 			# 25 may be nahelem in a stepping, check. Stepping 2 is westmere
 			elsif ($model =~ /^(25|2C|2F)$/){
 				$arch = 'Westmere'; # die shrink of nehalem
@@ -681,7 +681,7 @@ sub cp_cpu_arch {
 					$process = 'Intel 14nm';
 					$year = '2019';}
 				elsif ($stepping >= 8){
-					$arch = 'Cooper Lake';
+					$arch = 'Cooper Lake'; # 55:A:14nm
 					$process = 'Intel 14nm';
 					$year = '2020';}
 				else {
@@ -700,12 +700,12 @@ sub cp_cpu_arch {
 				$arch = 'Skylake-S';
 				$process = 'Intel 14nm';
 				$year = '2015';}
-			elsif ($model =~ /^(66)$/){
+			elsif ($model =~ /^(66|67)$/){
 				$arch = 'Cannon Lake';
 				$process = 'Intel 10nm';
 				$year = '2018';}
 			# 6 are servers, 7 not
-			elsif ($model =~ /^(6A|6C|7D|7E)$/){
+			elsif ($model =~ /^(6A|6C|7D|7E|9F)$/){
 				$arch = 'Ice Lake';
 				$process = 'Intel 10nm';
 				$year = '2019-21';}
@@ -717,10 +717,22 @@ sub cp_cpu_arch {
 				$arch = 'Knights Mill';
 				$process = 'Intel 14nm';
 				$year = '2017-19';}
-			elsif ($model =~ /^(8A|96|9C)$/){
-				$arch = 'Tremont';
+			elsif ($model =~ /^(86)$/){
+				$arch = 'Tremont Snow Ridge'; # embedded
 				$process = 'Intel 10nm';
-				$year = '2019';}
+				$year = '2020';}
+			elsif ($model =~ /^(87)$/){
+				$arch = 'Tremont Parker Ridge'; # embedded
+				$process = 'Intel 10nm';
+				$year = '2022';}
+			elsif ($model =~ /^(8A)$/){
+				$arch = 'Tremont Lakefield';
+				$process = 'Intel 10nm';
+				$year = '2020';} # ?
+			elsif ($model =~ /^(96)$/){
+				$arch = 'Tremont Elkhart Lake';
+				$process = 'Intel 10nm';
+				$year = '2020';} # ?
 			elsif ($model =~ /^(8C|8D)$/){
 				$arch = 'Tiger Lake';
 				$process = 'Intel 10nm';
@@ -762,29 +774,21 @@ sub cp_cpu_arch {
 				$arch = 'Sapphire Rapids';
 				$process = 'Intel 7 (10nm ESF)';
 				$year = '2021+';} # server
-			elsif ($model =~ /^(97|9A)$/){
+			elsif ($model =~ /^(97|9A|BE)$/){
 				$arch = 'Alder Lake'; # socket LG 1700
 				$process = 'Intel 7 (10nm ESF)';
 				$year = '2021+';}
-			## IDS UNKNOWN, release late 2022
-			# elsif ($model =~ /^()$/){
-			#	$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
-			#	$process = 'Intel 7 (10nm)';
-			# $year = '2022+';}
-			# elsif ($model =~ /^()$/){
-			#	$arch = 'Meteor Lake'; # 14 gen
-			#	$process = 'Intel 4 (7nm)';
-			# $year = 2023;}
-			# Granite Rapids: Intel 3 (7nm+)
-			# Arrow Lake - 15 gen, 20A (2nm), 2025
-			# Lunar Lake - 16 gn, 18A (1.8nm), 2025
+			elsif ($model =~ /^(9A|9C)$/){
+				$arch = 'Tremont Jasper Lake';
+				$process = 'Intel 10nm';
+				$year = '2021+';} # ?
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';
 					$process = 'Intel 14nm';
 					$year = '2018';}
 				elsif ($stepping >= 10 && $stepping <= 13){
-					$arch = 'Coffee Lake';
+					$arch = 'Coffee Lake'; # 9E:A,B,C,D
 					$process = 'Intel 14nm';
 					$year = '2018';}
 				else {
@@ -793,16 +797,36 @@ sub cp_cpu_arch {
 					$process = 'Intel 14nm';
 					$year = '2018';} 
 			}
-			elsif ($model =~ /^(A5)$/){
+			elsif ($model =~ /^(A5|A6)$/){
 				$arch = 'Comet Lake'; # stepping 0-5
 				$process = 'Intel 14nm';
 				$year = '2020';}
-			elsif ($model =~ /^(A7)$/){
+			elsif ($model =~ /^(A7|A8)$/){
 				$arch = 'Rocket Lake'; # stepping 1
 				$process = 'Intel 14nm';
 				$year = '2021+';} 
 			# More info: comet: shares family/model, need to find stepping numbers
-			# Coming: meteor lake; granite rapids; diamond rapids
+			# Coming: meteor lake; granite rapids; emerald rapids, diamond rapids
+			## IDS UNKNOWN, release late 2022
+			elsif ($model =~ /^(AA|AB|AC|B5)$/){
+				$arch = 'Meteor Lake'; # 14 gen
+				$process = 'Intel 4 (7nm)'; # confirm
+				$year = '2023+';}
+			elsif ($model =~ /^(AD|AE)$/){
+				$arch = 'Granite Rapids'; # ?
+				$process = 'Intel 3 (7nm+)'; # confirm
+				$year = '2024+';}
+			elsif ($model =~ /^(B6)$/){
+				$arch = 'Grand Ridge'; # 14 gen
+				$process = 'Intel 4 (7nm)'; # confirm
+				$year = '2023+';}
+			elsif ($model =~ /^(B7|BA)$/){
+				$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
+				$process = 'Intel 7 (10nm)';
+			$year = '2022+';}
+			# Granite Rapids: Intel 3 (7nm+)
+			# Arrow Lake - 15 gen, 20A (2nm), 2025
+			# Lunar Lake - 16 gn, 18A (1.8nm), 2025
 		}
 		# itanium 1 family 7 all recalled
 		elsif ($family eq 'B'){
@@ -822,7 +846,12 @@ sub cp_cpu_arch {
 				$process = 'Intel 180nm';
 				$year = '2000-01';}
 			elsif ($model =~ /^(2)$/){
-				$arch = 'Netburst Northwood';
+				if ($stepping <= 4 || $stepping > 6){
+					$arch = 'Netburst Northwood';}
+				elsif ($stepping == 5){
+					$arch = 'Netburst Gallatin';}
+				else {
+					$arch = 'Netburst';}
 				$process = 'Intel 130nm';
 				$year = '2002-03';}
 			elsif ($model =~ /^(3)$/){
@@ -830,6 +859,7 @@ sub cp_cpu_arch {
 				$process = 'Intel 90nm';
 				$year = '2004-06';} # 6? Nocona
 			elsif ($model =~ /^(4)$/){
+				# these are vague, and same stepping can have > 1 core names
 				if ($stepping < 10){
 					$arch = 'Netburst Prescott'; # 4:1,9:prescott
 					$process = 'Intel 90nm';
