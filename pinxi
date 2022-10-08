@@ -14112,7 +14112,7 @@ sub drive_speed {
 ## GraphicItem 
 {
 package GraphicItem;
-my ($b_wayland_data,%graphics,$monitor_ids,$monitor_map);
+my ($b_primary,$b_wayland_data,%graphics,$monitor_ids,$monitor_map);
 my ($gpu_amd,$gpu_intel,$gpu_nv);
 sub get {
 	eval $start if $b_log;
@@ -15276,9 +15276,14 @@ sub swaymsg_data {
 					}
 					$monitor_ids->{$id}{'model'} = main::remove_duplicates($monitor_ids->{$id}{'model'});
 				}
-				if ($monitor_ids->{$id}{'primary'} && 
-				$monitor_ids->{$id}{'primary'} ne 'false'){
-					$monitor_ids->{$id}{'primary'} = $id;
+				if ($monitor_ids->{$id}{'primary'}){
+					if ($monitor_ids->{$id}{'primary'} ne 'false'){
+						$monitor_ids->{$id}{'primary'} = $id;
+						$b_primary = 1;
+					}
+					else {
+						$monitor_ids->{$id}{'primary'} = undef;
+					}
 				}
 				if (!$monitor_ids->{$id}{'serial'}){
 					$monitor_ids->{$id}{'serial'} = main::clean_dmi($mon->{'serial'});
@@ -15605,7 +15610,8 @@ sub xrandr_data {
 		$xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip','ref');
 	}
 	else {
-		 $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-4-displays-1.txt",'strip','ref');
+		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-4-displays-1.txt",'strip','ref');
+		 $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-3-display-primary-issue.txt",'strip','ref');
 		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip','ref');
 		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-2.txt",'strip','ref');
 	}
@@ -15676,6 +15682,7 @@ sub xrandr_data {
 			if ($set_as){
 				$primary = $monitor_id;
 				$set_as =~ s/\s$//;
+				$b_primary = 1;
 			}
 			$monitors{$monitor_id} = {
 			'screen' => $screen_id,
@@ -15718,6 +15725,7 @@ sub xrandr_data {
 		$graphics{'display-screens'} = scalar @{$graphics{'screens'}};
 	}
 	map_monitor_ids(\@ids) if @ids;
+	# print "xrandr_screens 1: " . Data::Dumper::Dumper \@xrandr_screens;
 	foreach my $main (@{$graphics{'screens'}}){
 		# print "h: " . Data::Dumper::Dumper $main;
 		# print "h: " . Data::Dumper::Dumper @xrandr_screens;
@@ -15743,7 +15751,7 @@ sub xrandr_data {
 		$i++;
 	}
 	undef $layouts;
-	# print "xrand: " . Data::Dumper::Dumper \@xrandr_screens;
+	# print "xrandr_screens 2: " . Data::Dumper::Dumper \@xrandr_screens;
 	print 'Data: xrandr: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
 	main::log_data('dump','$graphics{screens}',$graphics{'screens'}) if $b_log;
 	eval $end if $b_log;
@@ -16851,7 +16859,7 @@ sub advanced_monitor_data {
 	foreach my $key (keys %$monitors){
 		next if !defined $monitors->{$key}{'pos-x'} || !defined $monitors->{$key}{'pos-y'};
 		# this is the only scenario we can guess at if no primary detected
-		if (!$monitors->{$key}{'primary'} &&
+		if (!$b_primary && !$monitors->{$key}{'primary'} &&
 		 $monitors->{$key}{'pos-x'} == 0 && $monitors->{$key}{'pos-y'} == 0){
 			$monitors->{$key}{'position'} = 'primary';
 			$monitors->{$key}{'primary'} = $monitors->{$key}{'monitor'};
