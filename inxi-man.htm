@@ -42,8 +42,8 @@
 <h1>inxi man page</h1>
 
 <pre>
-inxi version: 3.3.21
-inxi date: 2022-08-22
+inxi version: 3.3.22
+inxi date: 2022-10-08
 </pre>
 
 <p>The following are the supported options of inxi. If your version of inxi is 
@@ -357,7 +357,8 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <b>--graphics</b></b></a></dt>
   <dd>Show Graphic device(s) information, including details of device and
       display drivers (<b>X:</b> <b>loaded:</b>, and, if applicable:
-      <b>unloaded:</b>, <b>failed:</b>, and active <b>gpu:</b> drivers), display
+      <b>unloaded:</b>, <b>failed:</b>, <b>dri:</b> (if X and different from
+      loaded X drivers) drivers, and active <b>gpu:</b> drivers), display
       protocol (if available), display server (and/or Wayland compositor),
       vendor and version number, e.g.:
     <p class="Pp"><b>Display: x11 server: Xorg v: 1.15.1</b></p>
@@ -740,9 +741,16 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
   <dd>Show output from sensors if sensors installed/configured:
       Motherboard/CPU/GPU temperatures; detected fan speeds. GPU temperature
       when available. Nvidia shows screen number for multiple screens. IPMI
-      sensors are also used (root required) if present. See Advanced options
-      <b>--sensors-use</b> or <b>--sensors-exclude</b> if you want to use only a
-      subset of all sensors, or exclude one.</dd>
+      sensors are also used (root required) if present.
+    <p class="Pp">See Advanced options <b>--sensors-use</b> or
+        <b>--sensors-exclude</b> if you want to use only a subset of all
+        sensors, or exclude one (currently only for <b>lm-sensors</b> and
+        <b>/sys</b> sourced data).</p>
+    <p class="Pp">For current Linux, will fallback gracefully to using
+        <b>/sys/class/hwmon</b> as sensor data source if <b>lm-sensors</b> is
+        not installed. You can compare the two by using <b>--force
+        sensors-sys</b> option with <b>-s</b>.</p>
+  </dd>
   <dt id="slots"><a class="permalink" href="#slots"><b>--slots</b></a></dt>
   <dd>Show PCI slots with type, speed, and status information.
     <p class="Pp"></p>
@@ -1075,7 +1083,6 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp">Setting a specific color type removes the global color
         selection.</p>
     <p class="Pp"></p>
-    <p class="Pp"></p>
   </dd>
   <dt id="indent"><a class="permalink" href="#indent"><b>--indent
     [11-xx]</b></a></dt>
@@ -1280,7 +1287,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp"></p>
   </dd>
   <dt id="x~5"><a class="permalink" href="#x~5"><b>-x -D</b></a></dt>
-  <dd>- Adds HDD temperature with disk data.
+  <dd>- Adds drive temperature with disk data.
     <p class="Pp">Method 1: Systems running Linux kernels ~5.6 and newer should
         have <b>drivetemp</b> module data available. If so, drive temps will
         come from /sys data for each drive, and will not require root or
@@ -1327,6 +1334,8 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp">- <b>X.org:</b> Adds direct rendering status.</p>
     <p class="Pp">- <b>X.org:</b> Adds (for single GPU, nvidia driver) screen
         number that GPU is running on.</p>
+    <p class="Pp">- Adds device temperature for each discrete device (Linux
+        only).</p>
     <p class="Pp"></p>
   </dd>
   <dt id="x~8"><a class="permalink" href="#x~8"><b>-x -i</b></a></dt>
@@ -1396,6 +1405,8 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp">- Adds version/port(s)/driver version (if available) for each
         device;</p>
     <p class="Pp">- Adds PCI/USB ID of each device.</p>
+    <p class="Pp">- Adds device temperature for each discrete device (Linux
+        only).</p>
     <p class="Pp"></p>
   </dd>
   <dt id="x~15"><a class="permalink" href="#x~15"><b>-x -o, <b>-x -p</b>, <b>-x
@@ -1417,8 +1428,8 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp"></p>
   </dd>
   <dt id="x~18"><a class="permalink" href="#x~18"><b>-x -s</b></a></dt>
-  <dd>- Adds basic voltages: 12v, 5v, 3.3v, vbat (<b>ipmi</b>, <b>lm-sensors</b>
-      if present).
+  <dd>- Adds basic voltages: 12v, 5v, 3.3v, vbat (<b>ipmi</b>, <b>lm-sensors
+      /</b> <b>/sys/class/hwmon</b> if present).
     <p class="Pp"></p>
   </dd>
   <dt id="x~19"><a class="permalink" href="#x~19"><b>-x -S</b></a></dt>
@@ -1458,13 +1469,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
   <dd>- Adds serial number.
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~3"><a class="permalink" href="#xx~3"><b>-xx -C</b></a></dt>
-  <dd>- Adds microarchitecture level (v1,v2,v3,v4) (Intel and AMD 64 bit CPUs
-      only). This information is used for setting compile time optimization
-      switches in for example GCC. These levels were introduced in 2020.
-    <p class="Pp"></p>
-  </dd>
-  <dt id="xx~4"><a class="permalink" href="#xx~4"><b>-xx -D</b></a></dt>
+  <dt id="xx~3"><a class="permalink" href="#xx~3"><b>-xx -D</b></a></dt>
   <dd>- Adds disk serial number.
     <p class="Pp">- Adds disk speed (if available). This is the theoretical top
         speed of the device as reported. This speed may be restricted by system
@@ -1482,7 +1487,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp">- Adds disk duid, if available. Some BSDs have it.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~5"><a class="permalink" href="#xx~5"><b>-xx -E
+  <dt id="xx~4"><a class="permalink" href="#xx~4"><b>-xx -E
     (<b>--bluetooth</b>)</b></a></dt>
   <dd>- Adds vendor:product ID of each device.
     <p class="Pp">- Adds (<b>hciconfig </b>only) LMP subversion (and/or HCI
@@ -1491,7 +1496,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         bluetooth, which is rare).</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~6"><a class="permalink" href="#xx~6"><b>-xx -G</b></a></dt>
+  <dt id="xx~5"><a class="permalink" href="#xx~5"><b>-xx -G</b></a></dt>
   <dd>Triggers much more complete Screen/Monitor output.
     <p class="Pp"><b>X.org:</b> requires <b>xdpyinfo</b> or <b>xrandr</b>, and
         the advanced per monitor feature requires <b>xrandr</b>.</p>
@@ -1569,7 +1574,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp"><b>v: 3.3 Mesa 11.2.0 compat-v: 3.0</b></p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~7"><a class="permalink" href="#xx~7"><b>-xx -I</b></a></dt>
+  <dt id="xx~6"><a class="permalink" href="#xx~6"><b>-xx -I</b></a></dt>
   <dd>- Adds init type version number (and rc if present).
     <p class="Pp">- Adds other detected installed gcc versions (if present).</p>
     <p class="Pp">- Adds system default runlevel/target, if detected. Supports
@@ -1583,18 +1588,18 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         IRC client.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~8"><a class="permalink" href="#xx~8"><b>-xx -j (<b>--swap</b>),
+  <dt id="xx~7"><a class="permalink" href="#xx~7"><b>-xx -j (<b>--swap</b>),
     <b>-xx -p</b>, <b>-xx -P</b></b></a></dt>
   <dd>- Adds swap priority to each swap partition (for <b>-P</b>) used, and for
       all swap types (for <b>-j</b>).
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~9"><a class="permalink" href="#xx~9"><b>-xx -J
+  <dt id="xx~8"><a class="permalink" href="#xx~8"><b>-xx -J
     (<b>--usb</b>)</b></a></dt>
   <dd>- Adds vendor:chip id.
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~10"><a class="permalink" href="#xx~10"><b>-xx -L, <b>-xx
+  <dt id="xx~9"><a class="permalink" href="#xx~9"><b>-xx -L, <b>-xx
     --logical</b></b></a></dt>
   <dd>- Adds internal LVM Logical volumes, like raid image and meta data
       volumes.
@@ -1605,7 +1610,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         'stripes'.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~11"><a class="permalink" href="#xx~11"><b>-xx -m,
+  <dt id="xx~10"><a class="permalink" href="#xx~10"><b>-xx -m,
     <b>--memory-modules</b></b></a></dt>
   <dd>- Adds memory device Manufacturer.
     <p class="Pp">- Adds memory device Part Number (<b>part-no:</b>). Useful for
@@ -1622,32 +1627,32 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         available.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~12"><a class="permalink" href="#xx~12"><b>-xx -M</b></a></dt>
+  <dt id="xx~11"><a class="permalink" href="#xx~11"><b>-xx -M</b></a></dt>
   <dd>- Adds chassis information, if data is available. Also shows BIOS ROM size
       if using <b>dmidecode</b>.
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~13"><a class="permalink" href="#xx~13"><b>-xx -N</b></a></dt>
+  <dt id="xx~12"><a class="permalink" href="#xx~12"><b>-xx -N</b></a></dt>
   <dd>- Adds vendor:product ID for each device.
     <p class="Pp">- Adds PCIe speed and lanes item (Linux only, and if PCIe
         device and detected).</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~14"><a class="permalink" href="#xx~14"><b>-xx -r</b></a></dt>
+  <dt id="xx~13"><a class="permalink" href="#xx~13"><b>-xx -r</b></a></dt>
   <dd>- Adds to <b>Packages:</b> info. See <b>-Ixx</b>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~15"><a class="permalink" href="#xx~15"><b>-xx -R</b></a></dt>
+  <dt id="xx~14"><a class="permalink" href="#xx~14"><b>-xx -R</b></a></dt>
   <dd>- md-raid: Adds superblock (if present) and algorithm. If resync, shows
       progress bar.
     <p class="Pp">- Hardware RAID: Adds Chip vendor:product ID.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~16"><a class="permalink" href="#xx~16"><b>-xx -s</b></a></dt>
+  <dt id="xx~15"><a class="permalink" href="#xx~15"><b>-xx -s</b></a></dt>
   <dd>- Adds DIMM/SOC voltages, if present (<b>ipmi</b> only).
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~17"><a class="permalink" href="#xx~17"><b>-xx -S</b></a></dt>
+  <dt id="xx~16"><a class="permalink" href="#xx~16"><b>-xx -S</b></a></dt>
   <dd>- Adds display manager (<b>dm</b>) type, if present. If none, shows N/A.
       Supports most known display managers, including gdm, gdm3, idm, kdm,
       lightdm, lxdm, mdm, nodm, sddm, slim, tint, wdm, and xdm.
@@ -1661,12 +1666,12 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         (Xfce/KDE/Trinity).</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~18"><a class="permalink" href="#xx~18"><b>-xx --slots</b></a></dt>
+  <dt id="xx~17"><a class="permalink" href="#xx~17"><b>-xx --slots</b></a></dt>
   <dd>- Adds slot length.
     <p class="Pp">- Adds slot voltage, if available.</p>
     <p class="Pp"></p>
   </dd>
-  <dt id="xx~19"><a class="permalink" href="#xx~19"><b>-xx -w ,
+  <dt id="xx~18"><a class="permalink" href="#xx~18"><b>-xx -w ,
     <b>-W</b></b></a></dt>
   <dd>- Adds wind chill, heat index, and dew point, if available.
     <p class="Pp">- Adds cloud cover, rain, snow, or precipitation (amount in
@@ -1846,6 +1851,13 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     - Adds CPU generation, process node, and built years, if detected. For
       Intel, only will show if Core generation, otherwise the arch value is
       enough. For AMD, only shows Zen generation.
+    <p class="Pp">- Adds microarchitecture <b>level:</b> (v1,v2,v3,v4) (64 bit
+        Intel/AMD CPUs only). This information is used for setting compile time
+        optimization switches in for example GCC. These levels were introduced
+        in 2020.</p>
+    <p class="Pp">Because this a CPU flag based test, and these levels when &gt;
+        2 are not always 100% based on exposed CPU flags (eg OSXSAVE), for &gt;
+        v2, adds <b>note: check</b>.</p>
     <p class="Pp">- Adds CPU family, model-id, and stepping (replaces <b>rev</b>
         of <b>-Cx</b>). Format is <b>hexadecimal (decimal)</b> if greater than
         9, otherwise <b>hexadecimal</b>.</p>
@@ -1944,6 +1956,10 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
 <b>    arch: Zen</b>
 
 <b>      gen: 1</b>
+
+<b>    level: v3</b>
+
+<b>      note: check</b>
 
 <b>    process: GF 14nm</b>
 
@@ -2154,9 +2170,9 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
 
 <b>  Display: x11 server: X.Org v: 1.21.1.3 with: Xwayland v: 22.1.0</b>
 
-<b>    compositor: xfwm v: 4.16.1 driver: X: loaded: modesetting gpu: radeon</b>
+<b>    compositor: xfwm v: 4.16.1 driver: X: loaded: modesetting dri: r600</b>
 
-<b>    display-ID: :0.0 screens: 1</b>
+<b>    gpu: radeon display-ID: :0.0 screens: 1</b>
 
 <b>  Screen-1: 0 s-res: 2560x1024 s-dpi: 96 s-size: 677x270mm (26.65x10.63&quot;)</b>
 
@@ -2419,7 +2435,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp"></p>
   </dd>
   <dt id="force"><a class="permalink" href="#force"><b>--force
-    [colors|dmidecode|hddtemp|lsusb|rpm|usb-sys|wayland|vmstat|wmctrl]</b></a></dt>
+    [option(s)]</b></a></dt>
   <dd>Various force options to allow users to override defaults. Values can be
       given as a comma separated list:
     <p class="Pp"><b>inxi -MJ --force dmidecode,lsusb</b></p>
@@ -2449,6 +2465,12 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
         not going to be many rpms, if any, installed, so the command runs in
         those cases (if inxi can determine it is running in that type of
         system).</p>
+    <p class="Pp">- <b>sensors-sys</b> - Force use of <b>/sys/class/hwmon</b>
+        data for sensors (excluding ipmi sensors, which are their own line if
+        present), skip <b>lm-sensors</b>. Generally useful for testing since sys
+        data is used if no lm-sensors data was found anyway, but if
+        <b>lm-sensors</b> was installed, and returned no data, it's most likely
+        if not nearly certain that <b>/sys</b> will also not return data.</p>
     <p class="Pp">- <b>usb-sys</b> - Forces the USB data generator to use
         <b>/sys</b> as data source instead of <b>lsusb</b> (Linux only).</p>
     <p class="Pp">- <b>vmstat</b> - Forces use of vmstat for memory data.</p>
@@ -2542,20 +2564,25 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
     <p class="Pp"></p>
   </dd>
   <dt id="sensors~2"><a class="permalink" href="#sensors~2"><b>--sensors-exclude</b></a></dt>
-  <dd>Similar to <b>--sensors-use</b> except removes listed sensors from sensor
-      data. Make permanent with <b>SENSORS_EXCLUDE</b> configuration item. Note
-      that gpu, network, disk, and other specific device monitor chips are
-      excluded by default.
+  <dd>Linux only. Similar to <b>--sensors-use</b> except removes listed sensors
+      from sensor data. Make permanent with <b>SENSORS_EXCLUDE</b> configuration
+      item. Note that gpu, network, disk, and other specific device monitor
+      chips are excluded by default.
     <p class="Pp">Example: <b>inxi -sxx --sensors-exclude
       k10temp-pci-00c3</b></p>
     <p class="Pp"></p>
   </dd>
-  <dt id="sensors~3"><a class="permalink" href="#sensors~3"><b>--sensors-use</b></a></dt>
-  <dd>Use only the (comma separated) sensor arrays for <b>-s</b> output. Make
-      permanent with <b>SENSORS_USE</b> configuration item. Sensor array ID
-      value must be the exact value shown in lm-sensors sensors output
-      (Linux/lm-sensors only). If you only want to exclude one (or more) sensors
-      from the output, use <b>--sensors-exclude</b>.
+  <dt id="sensors~3"><a class="permalink" href="#sensors~3"><b>--sensors-sys</b></a></dt>
+  <dd>Shortcut. See <b>--force sensors-sys</b>
+    <p class="Pp"></p>
+  </dd>
+  <dt id="sensors~4"><a class="permalink" href="#sensors~4"><b>--sensors-use</b></a></dt>
+  <dd>Linux only. Use only the (comma separated) sensor arrays for <b>-s</b>
+      output. Make permanent with <b>SENSORS_USE</b> configuration item. Sensor
+      array ID value must be the exact value shown in lm-sensors sensors output
+      (lm-sensors only) or use <b>-s --dbg 18</b> ('main' =&gt;.. section) to
+      see the sensor ID strings used internally. If you only want to exclude one
+      (or more) sensors from the output, use <b>--sensors-exclude</b>.
     <p class="Pp">Can be useful if the default sensor data used by inxi is not
         from the right sensor array. Note that all other sensor data will be
         removed, which may lead to undesired consequences. Please be aware that
@@ -3018,7 +3045,7 @@ go to <a href="/docs/inxi-man-2.x.htm">inxi 2.3.xx and older man page</a>. </p>
 </div>
 <table class="foot">
   <tr>
-    <td class="foot-date">2022-08-06</td>
+    <td class="foot-date">2022-10-08</td>
     <td class="foot-os">inxi</td>
   </tr>
 </table>
