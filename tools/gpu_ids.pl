@@ -25,6 +25,11 @@
 ## file. The majority come from the current https://pci-ids.ucw.cz/ lists which 
 ## is stored as: pci.ids.ucw.cz - Just check to see if they have a newer version, 
 ## they number it by date so it's easy to see if it's been updated.
+## 
+## Creates product id lists for these functions:## GPU DATA ##
+## set_amd_data() set_intel_data() set_nv_data()
+## 
+## 
 
 use strict;
 use warnings;
@@ -41,14 +46,14 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_ids.pl';
-my $self_version = '1.7';
-my $self_date = '2022-05-31';
+my $self_version = '1.8';
+my $self_date = '2022-10-12';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|intel|nv-(current|515|510|470|390|367|340|304|173|96|71)';
+my $options = 'amd|intel|nv-(current|520|515|510|470|390|367|340|304|173|96|71)';
 
 my ($active,$file,$id_data,%output);
 my $data = [];
@@ -473,7 +478,7 @@ my $intel_data = {
 my $nv_data = {
 # Nvidia GeForce GPU: GeForce GTX 860M
 	'nv-current' => {
-	'file' => 'gpu.nv.515.xx.sort',
+	'file' => 'gpu.nv.520.xx.sort',
 	'00' => {
 	'arch' => 'Maxwell',
 	'pattern' => '\bG?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
@@ -642,6 +647,9 @@ $nv_data->{'nv-510'}{'file'} = 'gpu.nv.510.xx.sort';
 
 $nv_data->{'nv-515'} = $nv_data->{'nv-current'};
 $nv_data->{'nv-515'}{'file'} = 'gpu.nv.515.xx.sort';
+
+$nv_data->{'nv-520'} = $nv_data->{'nv-current'};
+$nv_data->{'nv-520'}{'file'} = 'gpu.nv.520.xx.sort';
 
 sub process {
 	say "Running job: $job";
