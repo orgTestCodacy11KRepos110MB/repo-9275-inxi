@@ -71,6 +71,7 @@ my $dbg = [];
 # note, order matters here, so sort, since we delete the detected lines after
 # each iteration through the keys
 
+## DATA HANDLERS ##
 sub assign {
 	# nothing to do for amd/intel, but maybe in future
 	if ($job eq 'amd'){
@@ -100,7 +101,6 @@ sub assign {
 	say "\$active data:\n", Dumper $active if $dbg->[5];
 	delete $active->{'file'};
 }
-
 sub load {
 	if ($job eq 'amd'){
 		$active = {
@@ -675,7 +675,7 @@ sub load {
 		};
 	}
 }
-
+## PROCESSORS ##
 sub process {
 	say "Running job: $job";
 	foreach my $key (sort keys %$active){
@@ -770,7 +770,7 @@ sub output {
 		say $item if $b_print_output;
 	}
 }
-
+## VALIDATION ##
 sub checks {
 	my @errors;
 	if (! -e $self_name ){
@@ -782,7 +782,7 @@ sub checks {
 		exit 1;
 	}
 }
-
+## UTILITIES ##
 sub reader {
 	my $file = $_[0];
 	if (!$file || ! -r $file){
@@ -804,6 +804,7 @@ sub uniq {
 	my %seen;
 	@{$_[0]} = grep !$seen{$_}++, @{$_[0]};
 }
+## OPTIONS/VERSION ##
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
@@ -894,6 +895,7 @@ sub show_options {
 sub show_version {
 	say "$self_name v: $self_version date: $self_date";
 }
+## MAIN ##
 sub main {
 	checks();
 	options();
