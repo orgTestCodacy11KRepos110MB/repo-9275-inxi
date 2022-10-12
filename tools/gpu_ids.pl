@@ -28,8 +28,6 @@
 ## 
 ## Creates product id lists for these functions:## GPU DATA ##
 ## set_amd_data() set_intel_data() set_nv_data()
-## 
-## 
 
 use strict;
 use warnings;
