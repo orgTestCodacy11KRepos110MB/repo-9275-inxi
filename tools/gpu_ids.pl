@@ -78,20 +78,20 @@ sub assign {
 	}
 	else {
 		# assign current latest driver data for nv-current
-		if ($job eq 'nv-510'){
-			$nv_data->{'nv-510'} = $nv_data->{'nv-current'};
-			$nv_data->{'nv-510'}{'file'} = 'gpu.nv.510.xx.sort';
-		}
-		elsif ($job eq 'nv-515'){
-			$nv_data->{'nv-515'} = $nv_data->{'nv-current'};
-			$nv_data->{'nv-515'}{'file'} = 'gpu.nv.515.xx.sort';
+		if ($job eq 'nv-current'){
+			$nv_data->{'nv-current'}{'file'} = 'gpu.nv.520.xx.sort';
 		}
 		elsif ($job eq 'nv-520'){
 			$nv_data->{'nv-520'} = $nv_data->{'nv-current'};
 			$nv_data->{'nv-520'}{'file'} = 'gpu.nv.520.xx.sort';
 		}
-		elsif ($job eq 'nv-current'){
-			$nv_data->{'nv-current'}{'file'} = 'gpu.nv.520.xx.sort';
+		elsif ($job eq 'nv-515'){
+			$nv_data->{'nv-515'} = $nv_data->{'nv-current'};
+			$nv_data->{'nv-515'}{'file'} = 'gpu.nv.515.xx.sort';
+		}
+		elsif ($job eq 'nv-510'){
+			$nv_data->{'nv-510'} = $nv_data->{'nv-current'};
+			$nv_data->{'nv-510'}{'file'} = 'gpu.nv.510.xx.sort';
 		}
 		$active = $nv_data->{$job};
 	}
