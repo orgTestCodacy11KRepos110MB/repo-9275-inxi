@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.22';
-my $self_date='2022-10-12';
-my $self_patch='03';
+my $self_date='2022-10-14';
+my $self_patch='04';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -28327,7 +28327,9 @@ sub get_linux_distro {
 	# that stuff changes, legacy, deprecated, but these ideally are going to be right
 	my $osr_good = 'manjaro|antergos|chakra|guix|mageia|pclinuxos|raspberry pi os|';
 	$osr_good .= 'slint|zorin';
- 	my ($b_issue,$b_lsb,$b_skip_issue,$b_skip_osr);
+	# force use of pretty name because that's only location of derived distro name
+	my $osr_pretty = 'zinc';
+ 	my ($b_issue,$b_lsb,$b_osr_pretty,$b_skip_issue,$b_skip_osr);
 	my ($issue,$lsb_release) = ('/etc/issue','/etc/lsb-release');
 	$b_issue = 1 if -f $issue;
 	$b_lsb = 1 if -f $lsb_release;
@@ -28365,8 +28367,13 @@ sub get_linux_distro {
 	# Note that antergos changed this around 	# 2018-05, and now lists 
 	# antergos in os-release, sigh... We want these distros to use os-release 
 	# if it contains their names. Last check below
-	if (@osr && (grep {/($osr_good)/i} @osr)){
-		$distro_file = $os_release;
+	if (@osr){
+		if (grep {/($osr_good)/i} @osr){
+			$distro_file = $os_release;
+		}
+		elsif (grep {/($osr_pretty)/i} @osr){
+			$b_osr_pretty = 1;
+		}
 	}
 	if (grep {/armbian/} @distro_files){
 		$distro_id = 'armbian' ;
@@ -28423,7 +28430,7 @@ sub get_linux_distro {
 		$distro = get_lsb_release();
 	}
 	elsif ($distro_file && $distro_file eq $os_release){
-		$distro = get_os_release();
+		$distro = get_os_release($b_osr_pretty);
 		$b_skip_osr = 1;
 	}
 	# if distro id file was found and it's not in the exluded primary distro file list, read it
@@ -28462,7 +28469,7 @@ sub get_linux_distro {
 		# os-release/lsb gives more manageable and accurate output than issue, 
 		# but mint should use issue for now. Antergos uses arch os-release, but issue shows them
 		if (!$b_skip_issue && @osr){
-			$distro = get_os_release();
+			$distro = get_os_release($b_osr_pretty);
 			$b_skip_osr = 1;
 		}
 		elsif (!$b_skip_issue && $b_lsb){
@@ -28492,7 +28499,7 @@ sub get_linux_distro {
 	# not handling the corrupt data, maybe later if needed. 10 + distro: (8) + string
 	if ($distro && length($distro) > 60){
 		if (!$b_skip_osr && @osr){
-			$distro = get_os_release();
+			$distro = get_os_release($b_osr_pretty);
 			$b_skip_osr = 1;
 		}
 	}
@@ -28505,7 +28512,7 @@ sub get_linux_distro {
 	}
 	if (!$distro){
 		if (!$b_skip_osr && @osr){
-			$distro = get_os_release();
+			$distro = get_os_release($b_osr_pretty);
 			$b_skip_osr = 1;
 		}
 		elsif ($b_lsb){
@@ -28608,7 +28615,7 @@ sub system_base {
 	# osr has distro name but has fedora centos redhat ID_LIKE and VERSION_ID same
 	my $base_osr_redhat = 'almalinux|centos|rocky'; 
 	# osr has distro name but has ubuntu ID_LIKE/UBUNTU_CODENAME
-	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zorin'; 
+	my $base_osr_ubuntu = 'mint|neon|nitrux|pop!_os|zinc|zorin'; 
 	my $base_upstream_lsb = '/etc/upstream-release/lsb-release';
 	my $base_upstream_osr = '/etc/upstream-release/os-release';
 	# these id as themselves, but system base is version file
@@ -28657,7 +28664,7 @@ sub system_base {
 			$system_base = get_os_release();
 		}
 		if (!$system_base && $base_type){
-			$system_base = get_os_release($base_type);
+			$system_base = get_os_release('',$base_type);
 		}
 	}
 	if (!$system_base && @distro_files && 
@@ -28746,7 +28753,7 @@ sub get_lsb_release {
 }
 sub get_os_release {
 	eval $start if $b_log;
-	my ($base_type) = @_;
+	my ($b_osr_pretty,$base_type) = @_;
 	my ($base_id,$base_name,$base_version,$distro,$distro_name,
 	$name,$name_lc,$name_pretty,
 	$version_codename,$version_name,$version_id) = ('','','','','','','','','','','');
@@ -28805,7 +28812,7 @@ sub get_os_release {
 	# arco shows only the release name, like kirk, in pretty name. Too many distros 
 	# are doing pretty name wrong, and just putting in the NAME value there
 	if (!$base_type){
-		if ($name && $version_name){
+		if ((!$b_osr_pretty || !$name_pretty) && $name && $version_name){
 			$distro = $name;
 			$distro = 'Arco Linux' if $name_lc =~ /^arco/;
 			if ($version_id && $version_name !~ /$version_id/){
@@ -29946,7 +29953,7 @@ sub package_counts {
 	['cards','pkginfo','p','-i',1,1,'','main::check_program(\'cards\')'], 
 	# older dpkg-query do not support -f values consistently: eg ${binary:Package}
 	['dpkg','dpkg-query','p','-W -f=\'${Package}\n\'',1,0,'','',
-	 ['apt','apt-get','aptitude','synaptic']],
+	 ['apt','apt-get','aptitude','deb-get','nala','synaptic']],
 	['emerge','emerge','d','/var/db/pkg/*/*/',1,5,'\\/'],
 	['eopkg','eopkg','d','/var/lib/eopkg/package/*',1,5,'\\/'],
 	['guix-sys','guix','p','package -p "/run/current-system/profile" -I',1,0,''],
@@ -30052,8 +30059,11 @@ sub package_counts {
 	eval $end if $b_log;
 }
 sub appimage_counts {
-	if (@ps_cmd && (grep {/\bappimaged\b/} @ps_cmd)){
+	if (@ps_cmd && (grep {/\bappimage(d|launcher)\b/} @ps_cmd)){
 		my @list = main::globber($ENV{'HOME'} . '/.local/bin/*.appimage');
+		if (!@list && -e $ENV{'HOME'} . '/.appimage'){
+			@list = main::globber($ENV{'HOME'} . '/.appimage/*');
+		}
 		$count = scalar @list;
 		$pms{'zzz-appimage'} = {
 		'pkgs' => $count,
