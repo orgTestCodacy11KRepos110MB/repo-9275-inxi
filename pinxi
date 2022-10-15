@@ -6780,14 +6780,15 @@ sub message {
 	'edid-version' => "invalid EDID version: $id",
 	'egl-wayland' => 'No known Wayland GBM/EGL data sources.',
 	'egl-wayland-console' => 'No known Wayland GBM/EGL data sources.',
-	'gfx-interface' => 'No display interface data. No known data sources.',
-	'gfx-interface-console' => 'No display interface data available in console.',
-	'gfx-interface-xvesa' => 'No Xvesa VBE/GOP data found.',
+	'gfx-api' => 'No display API data. No known data sources.',
+	'gfx-api-console' => 'No display API data available in console. Headless machine?',
+	'gfx-api-xvesa' => 'No Xvesa VBE/GOP data found.',
+	'gl-console-glxinfo-missing' => 'GL data unavailable in console and glxinfo missing.',
 	'gl-console-root' => 'GL data unavailable in console for root.',
+	'gl-console-try' => 'GL data unavailable in console. Try -G --display',
 	'gl-display-root' => 'GL data unavailable for root.',
-	'gl-empty' => 'Unset. Missing GL driver?',
 	'gl-null' => 'No GL data found on this system.',
-	'gl-try' => 'GL data unavailable in console. Try -G --display',
+	'gl-value-empty' => 'Unset. Missing GL driver?',
 	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
 	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
@@ -14150,7 +14151,7 @@ sub get {
 	# note: not perfect, but we need usb gfx to show for all types, soc, pci, etc
 	usb_output($rows);
 	display_output($rows);
-	graphics_api_output($rows);
+	display_api_output($rows);
 	(%graphics,$monitor_ids,$monitor_map) = ();
 	eval $end if $b_log;
 	return $rows;
@@ -14782,9 +14783,9 @@ sub monitors_output_full {
 	eval $end if $b_log;
 }
 
-## GRAPHICS API OUTPUT ##
-# as soon as EGL for Wayland appears add it!
-sub graphics_api_output {
+## DISPLAY API OUTPUT ##
+# as soon as EGL data source for Wayland appears add it!
+sub display_api_output {
 	eval $start if $b_log;
 	my $rows = $_[0];
 	my $num = 0;
@@ -14814,7 +14815,7 @@ sub graphics_api_output {
 				}
 				else {
 					$api = 'N/A';
-					$type = 'gfx-interface';
+					$type = 'gfx-api';
 				}
 				push(@$rows,{
 				main::key($num++,1,1,'API') => $api,
@@ -14834,8 +14835,12 @@ sub graphics_api_output {
 						$type = 'gl-console-root';
 					}
 					else {
-						$type = 'gl-try';
+						$type = 'gl-console-try';
 					}
+				}
+				elsif (main::check_program('X') || main::check_program('Xorg')){
+					$api = 'OpenGL';
+					$type = 'gl-console-glxinfo-missing';
 				}
 				elsif (main::check_program('Xwayland')){
 					$api = 'GBM/EGL';
@@ -14843,7 +14848,7 @@ sub graphics_api_output {
 				}
 				else {
 					$api = 'N/A';
-					$type = 'gfx-interface-console';
+					$type = 'gfx-api-console';
 				}
 			}
 			push(@$rows,{
@@ -14899,7 +14904,7 @@ sub opengl_output {
 			# field value occurs.
 			else {
 				$b_nogl = 1;
-				$working[1] = main::message('gl-empty');
+				$working[1] = main::message('gl-value-empty');
 			}
 			push(@renderer, $working[1]);
 		}
@@ -14921,7 +14926,7 @@ sub opengl_output {
 				$compat_version = $working[0];
 			}
 			elsif (!$b_nogl){
-				push(@opengl_version, main::message('gl-empty'));
+				push(@opengl_version, main::message('gl-value-empty'));
 			}
 		}
 		elsif (/^opengl core profile version/i){
@@ -14996,7 +15001,7 @@ sub xvesa_output {
 	}
 	if (!$interface){
 		$rows->[$j]{main::key($$num++,1,1,'API')} = 'VBE/GOP';
-		$rows->[$j]{main::key($$num++,0,2,'Message')} = main::message('gfx-interface-xvesa');
+		$rows->[$j]{main::key($$num++,0,2,'Message')} = main::message('gfx-api-xvesa');
 	}
 	else {
 		$rows->[$j]{main::key($$num++,1,1,'API')} = $interface;
