@@ -50,7 +50,7 @@ use POSIX qw(ceil uname strftime ttyname);
 my $self_name='pinxi';
 my $self_version='3.3.22';
 my $self_date='2022-10-15';
-my $self_patch='05';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6775,18 +6775,20 @@ sub message {
 	'dmesg-boot-missing' => 'dmesg.boot not found',
 	'dmidecode-dev-mem' => 'dmidecode is not allowed to read /dev/mem',
 	'dmidecode-smbios' => 'No SMBIOS data for dmidecode to process',
-	'gl-console' => 'No advanced graphics data found on this system in console.',
 	'edid-revision' => "invalid EDID revision: $id",
 	'edid-sync' => "bad sync value: $id",
 	'edid-version' => "invalid EDID version: $id",
+	'egl-wayland' => 'No known Wayland GBM/EGL data sources.',
+	'egl-wayland-console' => 'No known Wayland GBM/EGL data sources.',
+	'gfx-interface' => 'No display interface data. No known data sources.',
+	'gfx-interface-console' => 'No display interface data available in console.',
+	'gfx-interface-xvesa' => 'No Xvesa VBE/GOP data found.',
+	'gl-console-root' => 'GL data unavailable in console for root.',
+	'gl-display-root' => 'GL data unavailable for root.',
 	'gl-empty' => 'Unset. Missing GL driver?',
 	'gl-null' => 'No GL data found on this system.',
-	'gl-root' => 'GL data unavailable in console for root.',
-	'gl-root-display' => 'GL data unavailable for root.',
 	'gl-try' => 'GL data unavailable in console. Try -G --display',
 	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
-	'interface-graphics' => 'Unable to show GL data. Required tool glxinfo missing.',
-	'interface-wayland' => 'Wayland GBM/EGL data currently not available.',
 	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
 	'IP-no-dig' => "No $id found. Connected to web? SSL issues? Try enabling dig",
@@ -6874,7 +6876,6 @@ sub message {
 	'unknown-shell' => 'ERR-100',
 	'weather-error' => "Error: $id",
 	'weather-null' => "No $id found. Internet connection working?",
-	'xvesa-interface' => 'No Xvesa VBE/GOP data found.',
 	);
 	return $message{$type};
 }
@@ -14149,7 +14150,7 @@ sub get {
 	# note: not perfect, but we need usb gfx to show for all types, soc, pci, etc
 	usb_output($rows);
 	display_output($rows);
-	interface_output($rows);
+	graphics_api_output($rows);
 	(%graphics,$monitor_ids,$monitor_map) = ();
 	eval $end if $b_log;
 	return $rows;
@@ -14781,80 +14782,88 @@ sub monitors_output_full {
 	eval $end if $b_log;
 }
 
-## INTERFACE OUTPUT ##
+## GRAPHICS API OUTPUT ##
 # as soon as EGL for Wayland appears add it!
-sub interface_output {
+sub graphics_api_output {
 	eval $start if $b_log;
 	my $rows = $_[0];
 	my $num = 0;
-	my ($program,$type);
+	my ($api,$program,$type);
 	# print ("$b_display : $b_root\n");
-	if ($b_display){
-		if (!$force{'wayland'} && ($program = main::check_program('glxinfo'))){
-			interface_glx_output($program,$rows,\$num);
-		}
-		elsif ($graphics{'xvesa'}){
-			interface_vesa_output($rows,\$num);
-		}
-		# handles no data until we find one for wayland egl data
-		elsif ($graphics{'protocol'} eq 'wayland'){
-			interface_egl_output($rows,\$num);
-		}
-		else {
-			if (main::check_program('X') || main::check_program('XFree86')){
-				$type = 'glxinfo-missing';
+	# xvesa is absolute, if it's there, it works in or out of display
+	if ($graphics{'xvesa'}){
+		xvesa_output($rows,\$num);
+	}
+	else {
+		if ($b_display){
+			if (!$force{'wayland'} && ($program = main::check_program('glxinfo'))){
+				opengl_output($program,$rows,\$num);
+			}
+			# handles no data until we find one for wayland egl data
+			elsif ($graphics{'protocol'} eq 'wayland'){
+				egl_output($rows,\$num);
 			}
 			else {
-				$type = 'interface-graphics';
+				if (main::check_program('X') || main::check_program('Xorg')){
+					$api = 'OpenGL';
+					$type = 'glxinfo-missing';
+				}
+				elsif (main::check_program('Xwayland')){
+					$api = 'GBM/EGL';
+					$type = 'egl-wayland';
+				}
+				else {
+					$api = 'N/A';
+					$type = 'gfx-interface';
+				}
+				push(@$rows,{
+				main::key($num++,1,1,'API') => $api,
+				main::key($num++,0,2,'Message') => main::message($type)
+				});
+			}
+		}
+		else {
+			if ($graphics{'protocol'} eq 'wayland'){
+				$api = 'GBM/EGL';
+				$type = 'egl-wayland-console';
+			}
+			else {
+				if (main::check_program('glxinfo')){
+					$api = 'OpenGL';
+					if ($b_root){
+						$type = 'gl-console-root';
+					}
+					else {
+						$type = 'gl-try';
+					}
+				}
+				elsif (main::check_program('Xwayland')){
+					$api = 'GBM/EGL';
+					$type = 'egl-wayland-console';
+				}
+				else {
+					$api = 'N/A';
+					$type = 'gfx-interface-console';
+				}
 			}
 			push(@$rows,{
-			main::key($num++,0,1,'Message') => main::message($type)
+			main::key($num++,1,1,'API') => $api,
+			main::key($num++,0,2,'Message') => main::message($type)
 			});
 		}
 	}
-	else {
-		$type = 'gl-console';
-		if ($graphics{'xvesa'}){
-			interface_vesa_output($rows,\$num);
-		}
-		elsif (!main::check_program('glxinfo')){
-			if ($graphics{'protocol'} eq 'wayland'){
-				$type = 'interface-wayland';
-			}
-			elsif (main::check_program('X') || main::check_program('XFree86')) {
-				$type = 'glxinfo-missing';
-			}
-			else {
-				$type = 'interface-graphics';
-			}
-		}
-		else {
-			if ($graphics{'protocol'} eq 'wayland'){
-				$type = 'interface-wayland';
-			}
-			elsif ($b_root){
-				$type = 'gl-root';
-			}
-			else {
-				$type = 'gl-try';
-			}
-		}
-		push(@$rows,{
-		main::key($num++,0,1,'Message') => main::message($type)
-		});
-	}
 	eval $end if $b_log;
 }
-sub interface_egl_output {
+sub egl_output {
 	eval $start if $b_log;
 	my ($rows,$num) = @_;
 	push(@$rows,{
 	main::key($num++,1,1,'API') => 'GBM/EGL',
-	main::key($num++,0,2,'Message') => main::message('interface-wayland')
+	main::key($num++,0,2,'Message') => main::message('egl-wayland')
 	});
 	eval $end if $b_log;
 }
-sub interface_glx_output {
+sub opengl_output {
 	eval $start if $b_log;
 	my ($program,$rows,$num) = @_;
 	# NOTE: glxinfo -B is not always available, unfortunately
@@ -14862,9 +14871,9 @@ sub interface_glx_output {
 	# my $file = "$fake_data_dir/graphics/glxinfo/glxinfo-ssh-centos.txt";
 	# my @glxinfo = main::reader($file);
 	if (!@$glxinfo){
-		my $type = 'gl-console';
+		my $type;
 		if ($b_root){
-			$type = 'gl-root-display';
+			$type = 'gl-display-root';
 		}
 		else {
 			$type = 'gl-null';
@@ -14963,7 +14972,7 @@ sub interface_glx_output {
 	}
 	eval $end if $b_log;
 }
-sub interface_vesa_output {
+sub xvesa_output {
 	eval $start if $b_log;
 	my ($rows,$num) = @_;
 	my ($controller,$dac,$interface,$ram,$source,$version);
@@ -14986,7 +14995,8 @@ sub interface_vesa_output {
 		$ram = main::get_size($ram,'string');
 	}
 	if (!$interface){
-		$rows->[$j]{main::key($$num++,0,1,'Message')} = main::message('xvesa-interface');
+		$rows->[$j]{main::key($$num++,1,1,'API')} = 'VBE/GOP';
+		$rows->[$j]{main::key($$num++,0,2,'Message')} = main::message('gfx-interface-xvesa');
 	}
 	else {
 		$rows->[$j]{main::key($$num++,1,1,'API')} = $interface;
