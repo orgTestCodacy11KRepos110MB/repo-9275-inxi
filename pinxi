@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.22';
-my $self_date='2022-10-14';
-my $self_patch='04';
+my $self_date='2022-10-15';
+my $self_patch='05';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6785,6 +6785,7 @@ sub message {
 	'gl-root-display' => 'GL data unavailable for root.',
 	'gl-try' => 'GL data unavailable in console. Try -G --display',
 	'glxinfo-missing' => 'Unable to show GL data. Required tool glxinfo missing.',
+	'interface-graphics' => 'Unable to show GL data. Required tool glxinfo missing.',
 	'interface-wayland' => 'Wayland GBM/EGL data currently not available.',
 	'IP' => "No $id found. Connected to web? SSL issues?",
 	'IP-dig' => "No $id found. Connected to web? SSL issues? Try --no-dig",
@@ -14800,8 +14801,14 @@ sub interface_output {
 			interface_egl_output($rows,\$num);
 		}
 		else {
+			if (main::check_program('X') || main::check_program('XFree86')){
+				$type = 'glxinfo-missing';
+			}
+			else {
+				$type = 'interface-graphics';
+			}
 			push(@$rows,{
-			main::key($num++,0,1,'Message') => main::message('glxinfo-missing')
+			main::key($num++,0,1,'Message') => main::message($type)
 			});
 		}
 	}
@@ -14814,8 +14821,11 @@ sub interface_output {
 			if ($graphics{'protocol'} eq 'wayland'){
 				$type = 'interface-wayland';
 			}
-			else {
+			elsif (main::check_program('X') || main::check_program('XFree86')) {
 				$type = 'glxinfo-missing';
+			}
+			else {
+				$type = 'interface-graphics';
 			}
 		}
 		else {
@@ -14839,7 +14849,8 @@ sub interface_egl_output {
 	eval $start if $b_log;
 	my ($rows,$num) = @_;
 	push(@$rows,{
-	main::key($num++,0,1,'Message') => main::message('interface-wayland')
+	main::key($num++,1,1,'API') => 'GBM/EGL',
+	main::key($num++,0,2,'Message') => main::message('interface-wayland')
 	});
 	eval $end if $b_log;
 }
@@ -14859,7 +14870,8 @@ sub interface_glx_output {
 			$type = 'gl-null';
 		}
 		push(@$rows, {
-		main::key($$num++,0,1,'Message') => main::message($type)
+		main::key($$num++,1,1,'API') => 'OpenGL',
+		main::key($$num++,0,2,'Message') => main::message($type)
 		});
 		return;
 	}
@@ -14939,9 +14951,9 @@ sub interface_glx_output {
 	$renderer = join(', ', @renderer) if @renderer;
 	my $j = scalar @$rows;
 	push(@$rows, {
-	main::key($$num++,1,1,'OpenGL') => '',
-	main::key($$num++,1,2,'renderer') => ($renderer) ? $renderer : 'N/A',
+	main::key($$num++,1,1,'API') => 'OpenGL',
 	main::key($$num++,0,2,'v') => ($version) ? $version : 'N/A',
+	main::key($$num++,1,2,'renderer') => ($renderer) ? $renderer : 'N/A',
 	});
 	if ($b_compat && $extra > 1 && $compat_version){
 		$rows->[$j]{main::key($$num++,0,2,'compat-v')} = $compat_version;
@@ -14951,7 +14963,6 @@ sub interface_glx_output {
 	}
 	eval $end if $b_log;
 }
-# WARNING! Never seen a GOP type UEFI, needs more data
 sub interface_vesa_output {
 	eval $start if $b_log;
 	my ($rows,$num) = @_;
@@ -14959,7 +14970,9 @@ sub interface_vesa_output {
 	# note: goes to stderr, not stdout
 	my @data = main::grabber($graphics{'xvesa'} . ' -listmodes 2>&1');
 	my $j = scalar @$rows;
-	if ($data[0] && $data[0] =~ /^(VBE|GOP)\s+version\s+(\S+)\s\(([^)]+)\)/i){
+	# gop replaced uga, both for uefi
+	# WARNING! Never seen a GOP type UEFI, needs more data
+	if ($data[0] && $data[0] =~ /^(VBE|GOP|UGA)\s+version\s+(\S+)\s\(([^)]+)\)/i){
 		$interface = $1;
 		$version = $2;
 		$source = $3;
@@ -14976,7 +14989,7 @@ sub interface_vesa_output {
 		$rows->[$j]{main::key($$num++,0,1,'Message')} = main::message('xvesa-interface');
 	}
 	else {
-		$rows->[$j]{main::key($$num++,1,1,'Interface')} = $interface;
+		$rows->[$j]{main::key($$num++,1,1,'API')} = $interface;
 		$rows->[$j]{main::key($$num++,0,2,'v')} = ($version) ? $version : 'N/A';
 		$rows->[$j]{main::key($$num++,0,2,'source')} = ($source) ? $source : 'N/A';
 		if ($dac){
