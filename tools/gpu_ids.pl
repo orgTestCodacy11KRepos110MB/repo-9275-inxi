@@ -487,7 +487,7 @@ sub load {
 		# https://en.wikipedia.org/wiki/Intel_Arc and TPU don't fully agree
 		'23' => {
 		'arch' => 'Gen-12.7',
-		'pattern' => 'Alchemist|DG2|Arc A\d{3}M?',
+		'pattern' => 'Alchemist|DG2|Arc A\d{2,3}M?',
 		'code' => 'Alchemist',
 		'process' => 'TSMC n6 (7nm)', 
 		'years' => '2022+',

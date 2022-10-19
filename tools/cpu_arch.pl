@@ -760,7 +760,7 @@ sub cp_cpu_arch {
 					$year = '2018';}
 				# note: had it as > 13, but 0xC seems to be CL
 				elsif ($stepping >= 13){
-					$arch = 'Comet Lake'; # guess, have not seen docs yet
+					$arch = 'Comet Lake'; # 10 gen
 					$process = 'Intel 14nm';
 					$year = '2019-20';}
 				# NOTE: not enough info to lock this down
@@ -798,11 +798,11 @@ sub cp_cpu_arch {
 					$year = '2018';} 
 			}
 			elsif ($model =~ /^(A5|A6)$/){
-				$arch = 'Comet Lake'; # stepping 0-5
+				$arch = 'Comet Lake'; # 10 gen; stepping 0-5
 				$process = 'Intel 14nm';
 				$year = '2020';}
 			elsif ($model =~ /^(A7|A8)$/){
-				$arch = 'Rocket Lake'; # stepping 1
+				$arch = 'Rocket Lake'; # 11 gen; stepping 1
 				$process = 'Intel 14nm';
 				$year = '2021+';} 
 			# More info: comet: shares family/model, need to find stepping numbers
@@ -810,7 +810,7 @@ sub cp_cpu_arch {
 			## IDS UNKNOWN, release late 2022
 			elsif ($model =~ /^(AA|AB|AC|B5)$/){
 				$arch = 'Meteor Lake'; # 14 gen
-				$process = 'Intel 4 (7nm)'; # confirm
+				$process = 'Intel 4 (7nm)';
 				$year = '2023+';}
 			elsif ($model =~ /^(AD|AE)$/){
 				$arch = 'Granite Rapids'; # ?
@@ -824,9 +824,12 @@ sub cp_cpu_arch {
 				$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
 				$process = 'Intel 7 (10nm)';
 			$year = '2022+';}
-			# Granite Rapids: Intel 3 (7nm+)
-			# Arrow Lake - 15 gen, 20A (2nm), 2025
-			# Lunar Lake - 16 gn, 18A (1.8nm), 2025
+			# Emerald Rapids: Intel 7 (10nm), 2023
+			# Granite Rapids: Intel 3 (7nm+), 2024
+			# Diamond Rapids: Intel 3 (7nm+), 2025
+			# Arrow Lake - 15 gen, Intel 20A (2nm), 2024
+			# Lunar Lake - 16 gen, Intel 18A (1.8nm), 2025
+			# Nova Lake - 17 gen, Intel 18A (1.8nm), 2026
 		}
 		# itanium 1 family 7 all recalled
 		elsif ($family eq 'B'){
