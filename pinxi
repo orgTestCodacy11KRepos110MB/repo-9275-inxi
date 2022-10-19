@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.22';
-my $self_date='2022-10-17';
-my $self_patch='07';
+my $self_date='2022-10-18';
+my $self_patch='08';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -6173,6 +6173,7 @@ my $pppid = '';
 sub set {
 	eval $start if $b_log;
 	main::set_ps_aux() if !$loaded{'ps-aux'};
+	# $b_irc = 1; # for testing, like cli konvi start which shows as tty
 	if (!$b_irc){
 		# we'll run ShellData::set() for -I, but only then
 	}
@@ -6443,11 +6444,13 @@ sub check_modern_konvi {
 	# main::log_data('data',"name: $client{'name'} :: qdb: $client{'qdbus'} :: version: $client{'version'} :: konvi: $client{'konvi'} :: PPID: $ppid") if $b_log;
 	# sabayon uses /usr/share/apps/konversation as path
 	if (-d '/usr/share/kde4/apps/konversation' || -d '/usr/share/apps/konversation'){
-		$pid = main::awk(\@ps_aux,'konversation -session',2,'\s+');
+		# was -session, then -qwindowtitle, in cli nothing, just konversation$
+		$pid = main::awk(\@ps_aux,'konversation( -|$)',2,'\s+');
 		main::log_data('data',"pid: $pid") if $b_log;
 		$konvi = readlink ("/proc/$pid/exe");
 		$konvi =~ s/^.*\///; # basename
 		@app = main::program_values('konversation');
+		# print "$pid $konvi\n";
 		if ($konvi){
 			@app = main::program_values('konversation');
 			$konvi_version = main::program_version($konvi,$app[0],$app[1],$app[2],$app[5],$app[6]);
@@ -6468,15 +6471,16 @@ sub check_modern_konvi {
 	qdb: $client{'qdbus'} version: $konvi_version konvi: $konvi PID: $pid") if $b_log;
 	main::log_data('data',"b_is_qt4: $b_modern_konvi") if $b_log;
 	## for testing this module
-# 	my $ppid = getppid();
-# 	system('qdbus org.kde.konversation', '/irc', 'say', $client{'dserver'}, $client{'dtarget'}, 
-# 	"getpid_dir: $konvi_qt4 verNum: $konvi_version pid: $pid ppid: $ppid");
+	# my $ppid = getppid();
+	# system('qdbus org.kde.konversation', '/irc', 'say', $client{'dserver'}, $client{'dtarget'}, 
+	# "getpid_dir: verNum: $konvi_version pid: $pid ppid: $ppid");
+	# print "verNum: $konvi_version pid: $pid ppid: $ppid\n";
 	eval $end if $b_log;
 	return $b_modern_konvi;
 }
 sub set_konvi_data {
 	eval $start if $b_log;
-	my $config_tool = '';
+	my $config_cmd = '';
 	# https://userbase.kde.org/Konversation/Scripts/Scripting_guide
 	if ($client{'konvi'} == 3){
 		$client{'dserver'} = shift @ARGV;
@@ -6492,20 +6496,23 @@ sub set_konvi_data {
 	# for some reason this logic hiccups on multiple spaces between args
 	@ARGV = grep { $_ ne '' } @ARGV;
 	# there's no current kde 5 konvi config tool that we're aware of. Correct if changes.
+	# This part may never have worked, but I don't have legacy data to determine.
 	if (main::check_program('kde4-config')){
-		$config_tool = 'kde4-config';
+		$config_cmd = 'kde4-config --path data';
 	}
-	elsif (main::check_program('kde5-config')){
-		$config_tool = 'kde5-config';
-	}
+	# kde5-coinfig never existed, was replaced by $XDG_DATA_HOME in KDE
 	elsif (main::check_program('kde-config')){
-		$config_tool = 'kde-config';
+		$config_cmd = 'kde-config --path data';
+	}
+	elsif (main::check_program('qtpaths')){
+		$config_cmd = 'qtpaths --paths GenericDataLocation';
 	}
 	# The section below is on request of Argonel from the Konversation developer team:
 	# it sources config files like $HOME/.kde/share/apps/konversation/scripts/inxi.conf
-	if ($config_tool){
-		my @data = main::grabber("$config_tool --path data 2>/dev/null",':');
-		Configs::set(\@data);
+	if ($config_cmd){
+		my @data = main::grabber("$config_cmd 2>/dev/null",':');
+		Configs::set(\@data) if @data;
+		main::log_data('dump',"kde config \@data",\@data) if $b_log;
 	}
 	eval $end if $b_log;
 }
@@ -14546,7 +14553,9 @@ sub display_output(){
 					}
 					if ($main->{'res-x'} && $main->{'res-y'}){
 						$resolution = $main->{'res-x'} . 'x' . $main->{'res-y'};
-						$resolution .= '~' . $main->{'hz'} . 'Hz' if $show{'graphic-basic'};
+						if ($main->{'hz'} && $show{'graphic-basic'}){
+							$resolution .= '~' . $main->{'hz'} . 'Hz';
+						}
 					}
 					$resolution ||= 'N/A';
 					if ($s_count == 1 || !$show{'graphic-basic'}){
