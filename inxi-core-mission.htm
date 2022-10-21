@@ -24,71 +24,140 @@ Page Version: 1.1
 Page Updated: 2022-10-21
 </pre>
 
-<p>If you would like to submit patches for inxi, read and understand these core requirements for inxi. Patches not following these rules will be ignored. </p>
+<p>If you would like to submit patches for inxi, read and understand these core requirements for inxi. Patches not following these rules will be ignored, or at least I'll ask you why you didn't learn what is going on before spending your time on the code.</p>
 
-<h2>Core Philosophy/Requirements</h2>
+<ul>
+<li><a href="#concepts">Core Philosophy and Concepts</a> &#8211; Some things in inxi are hard to understand if you don't understand why things are the way they are.</li>
+<li><a href="#coding">Coding Requirements</a> &#8211; Basic requirements for working on inxi.</li>
+<li><a href="#summary">Summary</a> &#8211; Brief summing up.</li>
+</ul>
+
+<h2 id="concepts">Core Philosophy and Concepts</h2>
 
 <p>Just so it's clear, as these may not be obvious to all. inxi has some core requirements that will never be changed. Failure to meet any of the following requirements is always a critical show stopper bug. These requirements have determined many of the critical development decisions in inxi. For example, the Perl version to use (Perl 5.008), the selection of Perl 5 in the firsst place, how features are developedd, tested, and optimized, how fallback cases are handled, how legacy methods are maintained in cascade testing, and so on. It's really not not possible to understand why things are the way they are in inxi without understading the following:</p>
+
+<p>These requirements are done mainly for the users of inxi, and to make developing and debugging and testing possible. They are absolutely non-negotiable, and are the essence of what makes inxi inxi.</p>
+
+<p>If you don't like reading, then working on inxi is almost certainly not for you. Almost all new features require a huge amount of research and reading, and so consider this document itself as sort of a test you can take to see if you'd like working on inxi. inxi has a lot of code, a lot of complicated logic, and a lot of documentation, and requires reading and scanning a lot of 3rd party docs and research and data to develop or advance features.</p>
+
+<p>There are many ways to help with inxi, and coding is only one of them. Testing, debugging, finding issues, bugs, glitches, suggesting improvements or enhancements (ideally including doing the research for those, which is difficult and can be quite time consuming and/or tedious) are absolutely invaluable and critical for all ongoing (and past) inxi development. As noted in summary, finding a feature you really care about and focusing on that can be a really good way to enter into the world of inxi. Most key features, and many minor ones, are the results of a person or group offering their energy/time/passion in developing and testing new features.</p>
 
 <ol>
 
 <li>
-<p>First and foremost: don't EVER work on inxi in the master branch!!! The development branch is inxi-perl, and the develoopment version is pinxi. This came about during the rewrite to Perl, so that I could compare pinxi (the perl version) against inxi (the bash version) to make sure the Perl inxi was feature complete or better on launch. This was so useful that I decided to just keep pinxi as the development version and branch permanently. Further, pinxi does NOT get merged into inxi, it gets copied over to inxi then committed. The two are standalone programs, that is. pinxi can best be thought of as next inxi, or inxi unstable, or inxi rolling.</p>
-
-<p>inxi git 'branches' are made to emulate svn branches, which are physical static directories, not git style. I much prefered the svn way of handling branches, and still do, so I made git emuulate that. No merging every occurs between these 'branches'!</p>
-
-<p>If you submit patches to the master branch, it means you did NOT read the README, and that's not a great way to start any collaboration.</p>
-
-<p>pinxi is always ahead of inxi, except the days right around next inxi release, but pinxi is also very dynamic, which basically means, really, you need to talk to me before doing anything substantial, I don't use git merge features, I don't use branches in the way you might be used to, and the real master version of inxi is actually my local dev pinxi, which gets committed now and then to github. </p>
-
-<p>Debugger data should  always come using pinxi, since it may have newer debuggers added to deal with newer issues.</p>
-</li>
-
-<li>
-<p>inxi must run on really old systems, using Perl version, 5.008. 5.008 Perl was picked because it's the first 'modern' Perl that is basically feature complete, and very little is required to make the code run on all Perls since 5.008 in terms of awareness of certain features that can't be used. The determination on the which Perl version to use was basically which Perl Redhat shipped with in 2008, give or take. 5.008 was a very good break point I've found, it's quite easy to write all code to work on that, and newer Perls. Any failure of code to run on 5.008 Perl is a critical bug and will be corrected immediately.</p>
+<p><b>Run everywhere</b>: inxi must run on really old systems, using Perl version, 5.008. 5.008 Perl was picked because it's the first 'modern' Perl that is basically feature complete, and very little is required to make the code run on all Perls since 5.008 in terms of awareness of certain features that can't be used. The determination on the which Perl version to use was basically which Perl Redhat shipped with in 2008, give or take. 5.008 was a very good break point I've found, it's quite easy to write all code to work on that, and newer Perls. Any failure of code to run on 5.008 Perl is a critical bug and will be corrected immediately.</p>
 
 <p>A corollary of this is that all new Perl 5 variants, including Perl 7. must work as well. Initial tests on Perl 5.032 with 7 test modules show inxi works fine on Perl 7.</p>
+
+<p>inxi must also run on really new systems and hardware. If you have new hardware that isn't supported yet, like ARM servers, M1/M2 SOC systems, you can help make inxi better by giving us data and debugger information, and testing fixes and updates.</p>
 </li>
 
 <li>
-<p>No modules that are not in standard core modules are used for standard features, that is, inxi will never require any Perl module that is not in all the core modules since 5.008. Note that Redhat split out some modules from core modules, and that is handled where relevant by internal tests for the module, but it should in general not impact much for regular users.</p>
+<b>Install/Upgrade easily</b>: inxi always is installable, and upgradeable, as a single file, plus the man page once -U is used as root. This will never change, it's impossible to develop inxi without that core feature (see below for the development branch pinxi info). While certain libraries might be added in the future for features that do not exist today, they would never be required to actually run inxi, for example, language support for non english. This feature appears increasingly unlikely to ever happen however.
+</li>
+
+</ol>
+
+<p><a href="#top">top</a></p>
+
+<h2 id="coding">Coding Requirements</h2>
+
+<p>These are the core technical requirements to work on the code. Note that these may evolve and change over time as my interests and abilities change or develop. I got better at Perl as I worked on Perl inxi, so there are certain ways of doing things I used at first during the rewrite to Perl I don't tend to use now. Those get updated as time goes along, but it's not a priority since it's time consuming. Other than that, just look at how things are done and that should be enough.</p>
+
+<p>I consider inxi to be quite complicated, and some features are extremely interconnected, so really, make sure you understand why something is the way it is before assuming it was done wrong. Not everything is perfectly commented, but I do try to make unclear logics clear via comments where I notice that issue, but of course, sometimes something is clear when it's created...</p>
+
+<p>These requirements are slowly evolving to suite my current style and preferences. Note that I do almost all the work of coding inxi, so this basically is how I want to develop and run inxi as a very large and very complicated system data program. If you don't like this way of doing things, then do yourself a favor and find something else to contribute to. I don't get paid to do this, so I'm not going to adopt methods or techniques I don't like.</p>
+
+<p>I try to make the internal inxi code better and better over time, more and more clear, consistent, and organized. As inxi gets bigger and more powerful, this type of ongoing refactoring and improvement becomes increasingly critical to be able to manage the increasingly complex logic and data handling and parsing inxi engages in. I view this effort as increasingly successful, which is evidenced by how rare it is now for the code to actually be in the way of the solution or feature being considered.</p>
+
+<ol>
+
+<li>
+<p><b>Work on pinxi, not inxi!</b>: First and foremost: don't EVER work on inxi in the master branch!!! The development branch is inxi-perl, and the development version is pinxi. This came about during the rewrite to Perl, so that I could compare pinxi (the perl version) against inxi (the bash version) to make sure the Perl inxi was feature complete or better on launch. This was so useful that I decided to just keep pinxi as the development version and branch permanently. Further, pinxi does NOT get merged into inxi, it gets copied over to inxi then committed. The two are standalone programs, that is. pinxi can best be thought of as next inxi, or inxi unstable, or inxi rolling.</p>
+
+<p>inxi git 'branches' are made to emulate svn branches, which are physical static directories, not git style. I much prefered the svn way of handling branches, and still do, so I made git emuulate that. No merging ever occurs between these 'branches'!</p>
+
+<p>If you submit patches to the master branch, it means you did NOT read the README, and that's not a great way to start any collaboration.</p>
 </li>
 
 <li>
-<p>Modules are only used if that is the absolute only way to achieve the result in a meaningful way. Modules are almost never required, that is, you can see from the top load / use section that very few are required. A few modules for special features regular users won't use, like export to json or xml, are loaded after the fact, and tested for, etc, if that feature is requested. But even there, the most basic module is used that will achieve the functionality.</p>
+<p><b>pinxi is leading edge</b>: pinxi is always ahead of inxi, except the days right around next inxi release, but pinxi is also very dynamic, which basically means, really, you need to talk to me before doing anything substantial, I don't use git merge features, I don't use branches in the way you might be used to, and the real master version of inxi is actually my local dev pinxi, which gets committed now and then to github by copying pinxi to inxi, updating a few values, and commiting that to the master branch as the new, next, inxi version. This is the version that is tagged.</p>
+
+<p>Debugger data should always come using current updated pinxi, since it may have newer debuggers added to deal with newer issues.</p>
 </li>
 
 <li>
-<p>Use of programs in subshells, like lm-sensors, lsblk, smartclt, hddtemp, etc, are always handled by testing for the tool, then showing appropriate alert messages if it's missing, or if it requires root to run.</p>
-
-<p>As a subset of this rule, that means that it's actually fine to have new features that use tools that old operating systems didn't have, or that different platforms like BSDs, don't have, as long as the tools are tested for, handled, and error output where appropriate, is put in place if the feature can't work without the tool.</p>
+In terms of the actual code: tabs, not spaces. Really. You can always adjust your code editor's tab width.
 </li>
 
 <li>
-<p>inxi always is installable, and upgradeable, as a single file, plus the man page once -U is used as root. This will never change, it's impossible to develop inxi without that core feature. This makes code-folding your friend!! While certain libraries might be added in the future for features that do not exist today, they would never be required to actually run inxi, for example, language support for non english. This feature appears increasingly unlikely to ever happen however.</p>
+inxi is a very long program, in one file. If your code editor can't do code folding, then find one that does, otherwise you can't really work on inxi/pinxi, it's not practical. If you can't deal with very long files or code bases, then inxi is not for you. The single file is due to core requirement to install/update inxi easily everywhere always. I use Kate mostly to work on pinxi, and Geany also is reasonably ok. Note that code folding can have bugs, so inxi code is carefully maintained to not trigger some such bugs (like Geany folding wrong if there is no space after a comment # in many cases). I have not tested inxi code folding on any other editor.
 </li>
 
 <li>
-<p>Since the codebase and logic for inxi are quite old,and handle legacy situations as well as modern ones, in general, old methods are preserved, and a cascade of  tests are used to determine which method to use. In other words, something that was required to get data in 2008 remains in place, and newer methods are simply integrated into the flow, via testing. This way the old stuff keeps working as expected, and new methods and solutions are used when available.</p>
+Readable code is preferred over terse code, unless the terse Perl is faster than the expanded, which happens. If you don't know how to use Perl optimizers, then you probably want to skip trying to optimize stuff unless it's very obvious and clear gain, and reproducible. In some cases, after running:
+<pre>use Benchmark qw(:all);
+cmpthese(5, {...</pre>
+tests on various methods, difficult to read Perl may be used in utility functions which users don't have to interact with beyond calling them.
 </li>
 
 <li>
-<p>In keeping with requirement 1 is a further requirement that code that can be optimized in terms of execution speed should be optimized. If any technique or method can be demonstrated clearly to be faster than something else that produces the same reesult, that faster technique should be used. Now and then I revisit certain features that have expanded and expanded over time and test them, and have more than once sped up the feature by 100s of times, literally, by simply refactoring it. Differences that are only a few percent are unlikely to worth the time because they won't result in much improvement and could be CPU / system dependent, but loop tests of methods and syntaxes generally reveal real optimizations readily. Devel::NYTProf Perl optimizer is used now and then to catch glaring bottlenecks.</p>
+<b>Internal Tools Docs</b>: Many and ideally most of the inxi utility functions (aka subs) are documented in inxi-perl/docs/inxi-tools.txt. This is not always fully up to date, but I try to keep it reasonably current. Not all tools are documented, but probably will be one of these days. There's almost always an internal inxi tool to do standard repeated operations, and if there isn't, there's either a reason for that, or it's simply because I didn't do it.
+</li>
+
+<li>
+<b>Internal Values Docs</b>: Many internal inxi hash/array values are documented in inxi-perl/docs/inxi-values.txt. These are very useful and help you avoid trying to reinvent the wheel. I try to keep this one quite up to date since I refer to it whenever I add or change internal test / boolean values.
+</li>
+
+<li>
+<b>Cascading Tests</b>: Since the codebase and logic for inxi are quite old,and handle legacy situations as well as modern ones, in general, old methods are preserved, and a cascade of  tests are used to determine which method to use. In other words, something that was required to get data in 2008 remains in place, and newer methods are simply integrated into the flow, via testing. This way the old stuff keeps working as expected, and new methods and solutions are used when available. This basically means you can't just jam in something that works only on your system, and which hasn't been tested anywhere else, you have to understand the cascades of testing and conditions before interacting with them. This can be quite difficult, and requires/forces some discipline, otherwise things devolve into chaos quite rapidly.
+</li>
+
+<li>
+<p><b>Global Data Storage</b>: data types, like dmidecode output, that can be used by more than one primary output type, are stored after parsing and processing into global variables, usually arrays or hashes. Great effort is made to avoid ever calling or creating a subshell more than once for the same program, because those are by far and away the most expensive operations inxi carries out while running and parsing and collecting data.</p>
+
+<p>A small set of other variables are also stored globally, like test booleans, arrays, and hashes, and configuration hashes. Most of these are outlined in inxi-perl/docs/inxi-values.txt. Note that doing docs is boring, but I try to keep that file in particular up to date since I use it when adding new values to existing items. </p>
+
+<p>Globals are however kept to an absolute minimum, and are often required only because of using Perl 5.008, not Perl 5.010, which had 'state' scalars, which remove in many cases the need for using global variables. But the set that is used now is the most barebones I've found to be practical.</p>
+
+<p>To keep things manageable, in many cases, Package (aka Class) scope is used to store values internally within a Package, which helps avoid global clutter.</p>
+</li>
+
+<li>
+<p><b>Optimization</b>: there is a further requirement that code that can be optimized in terms of execution speed should be optimized. If any technique or method can be demonstrated clearly to be faster than something else that produces the same reesult, that faster technique should be used. Now and then I revisit certain features that have expanded and expanded over time and test them, and have more than once sped up the feature by 100s of times, literally, by simply refactoring it. Differences that are only a few percent are unlikely to worth the time because they won't result in much improvement and could be CPU / system dependent, but loop tests of methods and syntaxes generally reveal real optimizations readily. Devel::NYTProf Perl optimizer is used now and then to catch glaring bottlenecks.</p>
+
+<p>Since a lot of these operations run in very large loops, an optimizaiton of a few ms in a big loop can really add up, but if it's something only running once, it's not always worth doing unless it makes the code better.</p>
 
 <p>A last part of this is that once you run Devel::NTYProf you quickly realize that loading modules and running subshells is at least 90% of the execution time of inxi, so in particular, anything that can get rid of a subshell command and give the same or better results is good. That's particularly relevant with RAM files like /proc/ or /sys, which are super fast to read.</p>
+
+<p>Optimizations that yield for a total run > 0.01 seconds are generally very desirable, and 0.1 seconds or greater will always be added as long as they don't damage code readability and usability, which some highly optimized Perl can do.</p>
 
 <p>Once all this is clear, go back, and run inxi on a 100 mghz machine with a few 100 MB ram, and you'll quickly see why these things matter. inxi is actually tested on an ancient 200mghz mmx laptop now and then, just to keep it honest, and runs quite well on it, relatively speaking. </p>
 </li>
 
 <li>
-<p>In terms of the actual code, just a few things: tabs, not spaces. Really. Readable code is preferred over terse code, unless the terse Perl is faster than the expanded, which happens. Note that I got better at Perl as I worked on Perl inxi, so there are certain ways of doing things I used at first during the rewrite to Perl I don't tend to use now. Those get updated as time goes along, but it's not a priority since it's time consuming. Other than that, just look at how things are done and that should be enough. </p>
+<p><b>Perl Modules</b>: No modules that are not in standard core modules are used for standard features, that is, inxi will never require any Perl module that is not in all the core modules since 5.008. Note that Redhat split out some modules from core modules, and that is handled where relevant by internal tests for the module, but it should in general not impact much for regular users.</p>
 
-<p>I consider inxi to be quite complicated, and some features are extremely interconnected, so really, make sure you understand why something is the way it is before assuming it was done wrong. Not everything is perfectly commented, but I do try to make unclear logics clear via comments where I notice that issue, but of course, sometimes something is clear when it's created...</p>
+<p>Modules are only used if that is the absolute only way to achieve the result in a meaningful way. Modules are almost never required, that is, you can see from the top load / use section that very few are required. A few modules for special features regular users won't use, like export to json or xml, are loaded after the fact, and tested for, etc, if that feature is requested. But even there, the most basic module is used that will achieve the functionality.</p>
+</li>
+
+<li>
+<p><b>Subshells</b>: Use of programs in subshells, like lm-sensors, lsblk, smartclt, hddtemp, etc, are always handled by testing for the tool, then showing appropriate alert messages if it's missing, or if it requires root to run.</p>
+
+<p>As a subset of this rule, that means that it's actually fine to have new features that use tools that old operating systems didn't have, or that different platforms like BSDs, don't have, as long as the tools are tested for, handled, and error output where appropriate, is put in place if the feature can't work without the tool.</p>
 </li>
 
 </ol>
 
+<p><a href="#top">top</a></p>
+
+<h2 id="summary">Summary</h2>
+
 <p>I think that's it for the actual true core requirements of inxi/pinxi. Some of these might not be obvious as core requirements when all you've seen is distro packaged inxis, but once you start running inxi on very old hardware and operating systems, the reason for the requirement grows very obvious very quickly.</p>
+
+<p>Note that I welcome people able to contribute in a way that is positive, and does not cost me time and energy, and benefits realworld inxi users and use cases. I do not welcome time sucks, whining, or complaining, or being unable to adapt to the way inxi does things.</p>
+
+<p>Often the best way to learn and help with inxi is to test, find features you are really passionate about, and start focusing in on those, and learning inxi/pinxi well enough to where you can start finding bugs, issues, and things that could be better or improved. In other words, contributions of time, skill, and energy are valued just as much as code contributions, if not more.</p>
 
 <p><a href="#top">top</a></p>
 
