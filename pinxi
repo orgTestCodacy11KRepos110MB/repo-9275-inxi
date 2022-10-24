@@ -20191,7 +20191,7 @@ sub get {
 	# print 'get md: ', Data::Dumper::Dumper \@md_raid;
 	# print 'get zfs: ', Data::Dumper::Dumper \@zfs_raid;
 	if (!@btrfs_raid && !@lvm_raid && !@md_raid && !@zfs_raid && !@soft_raid && 
-	 !$hardware_raid){
+	!$hardware_raid){
 		if ($show{'raid-forced'}){
 			$key1 = 'Message';
 			$val1 = main::message('raid-data');
@@ -21241,7 +21241,7 @@ sub zfs_data {
 		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+|[a-f0-9]{4,}(-[a-f0-9]{4,}){3,})$/ && 
 		($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTPE]$/)){
 			#print "r1:$row[1]",' :: ', Cwd::abs_path('/dev/disk/by-id/'.$row[1]), "\n";
-			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)\s.*?(DEGRADED|FAULTED|INUSE|OFFLINE)?$/;
+			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)|[a-f0-9]{4,}(-[a-f0-9]{4,}){3,}\s.*?(DEGRADED|FAULTED|INUSE|OFFLINE)?$/;
 			#my $working = '';
 			my $working = ($1) ? $1 : ''; # note: the negative case can never happen
 			my $state = ($4) ? $4 : '';
@@ -21268,33 +21268,34 @@ sub zfs_data {
 			# data since they have no array row, but they might show it in 
 			# component row:
 			#   ada0s2    25.9G  19.6G  6.25G         -     0%    75%
-			if (!$zfs[$j]->{'size'} && $row[2] && $row[2] ne '-'){
+			#   ec399377-c03c-e844-a876-8c8b044124b8  1.88G   397M  1.49G        -         -     0%  20.7%      -    ONLINE
+			if (!$zfs[$j]->{'zfs-size'} && $row[2] && $row[2] ne '-'){
 				$size = ($row[2]) ? main::translate_size($row[2]): '';
 				$size_holder = 0;
 				$zfs[$j]->{'arrays'}[$k]{'size'} = $size;
 				$raw_logical[0] += $size if $size;
 			}
-			if (!$zfs[$j]->{'allocated'} && $row[3] && $row[3] ne '-'){
+			if (!$zfs[$j]->{'raw-allocated'} && $row[3] && $row[3] ne '-'){
 				$allocated = ($row[3]) ? main::translate_size($row[3]) : '';
 				$zfs[$j]->{'arrays'}[$k]{'allocated'} = $allocated;
 			}
-			if (!$zfs[$j]->{'free'} && $row[4] && $row[4] ne '-'){
+			if (!$zfs[$j]->{'zfs-free'} && $row[4] && $row[4] ne '-'){
 				$free = ($row[4]) ? main::translate_size($row[4]) : '';
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
-			if ((!$maj_min || !$part_size) && @proc_partitions){
+			if ((!$maj_min || !$part_size) && $working && @proc_partitions){
 				my $part = PartitionData::get($working);
 				if (@$part){
 					$maj_min = $part->[0] . ':' . $part->[1];
 					$part_size = $part->[2];
 				}
 			}
-			if ((!$maj_min || !$part_size) && @lsblk){
+			if ((!$maj_min || !$part_size) && $working && @lsblk){
 				my $data= LsblkData::get($working);
 				$maj_min = $data->{'maj-min'};
 				$part_size = $data->{'size'};
 			}
-			if (!$part_size && $bsd_type){
+			if (!$part_size && $bsd_type && $working){
 				my $temp = DiskDataBSD::get($working);
 				$part_size = $temp->{'size'} if $temp->{'size'};
 			}
