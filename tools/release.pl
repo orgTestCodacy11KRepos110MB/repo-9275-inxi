@@ -94,8 +94,8 @@ sub assign {
 sub validate_man {
 	say $line;
 	print "Validating $man_use man page... ";
-	my $invalid = qx(LC_ALL=en_US.UTF-8 MANROFFSEQ='' MANWIDTH=80 man --warnings -E UTF-8 -l -Tutf8 -Z $man_file >/dev/null);
-	die "\n$man_use is invalid and gave errors!" if $invalid;
+	my $invalid = qx(LC_ALL=en_US.UTF-8 MANROFFSEQ='' MANWIDTH=80 man --warnings -E UTF-8 -l -Tutf8 -Z $man_file 2>&1 >/dev/null);
+	die "\n$man_use is invalid and gave errors!\nErrors:\n$invalid" if $invalid;
 	say "man file valid.";
 }
 sub load_data {
