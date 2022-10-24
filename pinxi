@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.22';
-my $self_date='2022-10-18';
-my $self_patch='08';
+my $self_date='2022-10-22';
+my $self_patch='09';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -21233,11 +21233,13 @@ sub zfs_data {
 		#  ada0s2    25.9G  14.6G  11.3G         -     0%    56%
 		#    gptid/3838f796-5c46-11e6-a931-d05099ac4dc2      -      -      -         -      -      -
 		# Using /dev/disk/by-id:
-		#  ata-VBOX_HARDDISK_VB5b6350cd-06618d58      -      -      -        -         -      -      -      -  ONLINE
+		#  ata-VBOX_HARDDISK_VB5b6350cd-06618d58    
+		# Using /dev/disk/by-partuuid:
+		#  ec399377-c03c-e844-a876-8c8b044124b8     -        -         -      -      -      -  ONLINE
 		# Spare in use:
 		#  /home/fred/zvol/hdd-2-3          -      -      -        -         -      -      -      -  INUSE
-		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)$/ && 
-		 ($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTPE]$/)){
+		elsif ($row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+|[a-f0-9]{4,}(-[a-f0-9]{4,}){3,})$/ && 
+		($row[2] eq '-' || $row[2] =~ /^[0-9\.]+[MGTPE]$/)){
 			#print "r1:$row[1]",' :: ', Cwd::abs_path('/dev/disk/by-id/'.$row[1]), "\n";
 			$row[1] =~ /^(sd[a-z]+|[a-z0-9]+[0-9]+|([\S]+)\/.*|(ata|mmc|nvme|pci|scsi|wwn)-\S+)\s.*?(DEGRADED|FAULTED|INUSE|OFFLINE)?$/;
 			#my $working = '';
@@ -21257,22 +21259,27 @@ sub zfs_data {
 				$real =~ s|/dev/||;
 				$working = $real;
 			}
+			elsif (!$bsd_type && $row[1] =~ /^[a-f0-9]{4,}(-[a-f0-9]{4,}){3,}$/ &&
+			-e "/dev/disk/by-partuuid/$row[1]" && ($real = Cwd::abs_path('/dev/disk/by-partuuid/'.$row[1]))){
+				$real =~ s|/dev/||;
+				$working = $real;
+			}
 			# kind of a hack, things like cache may not show size/free
 			# data since they have no array row, but they might show it in 
 			# component row:
 			#   ada0s2    25.9G  19.6G  6.25G         -     0%    75%
 			if (!$zfs[$j]->{'size'} && $row[2] && $row[2] ne '-'){
-				$size = ($row[2])? main::translate_size($row[2]): '';
+				$size = ($row[2]) ? main::translate_size($row[2]): '';
 				$size_holder = 0;
 				$zfs[$j]->{'arrays'}[$k]{'size'} = $size;
 				$raw_logical[0] += $size if $size;
 			}
 			if (!$zfs[$j]->{'allocated'} && $row[3] && $row[3] ne '-'){
-				$allocated = ($row[3])? main::translate_size($row[3]): '';
+				$allocated = ($row[3]) ? main::translate_size($row[3]) : '';
 				$zfs[$j]->{'arrays'}[$k]{'allocated'} = $allocated;
 			}
 			if (!$zfs[$j]->{'free'} && $row[4] && $row[4] ne '-'){
-				$free = ($row[4])? main::translate_size($row[4]): '';
+				$free = ($row[4]) ? main::translate_size($row[4]) : '';
 				$zfs[$j]->{'arrays'}[$k]{'free'} = $free;
 			}
 			if ((!$maj_min || !$part_size) && @proc_partitions){
