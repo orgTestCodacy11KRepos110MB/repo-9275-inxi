@@ -18,44 +18,94 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'release.pl';
-my $self_version = '1.2';
-my $self_date = '2022-08-09';
+my $self_version = '1.3';
+my $self_date = '2022-10-22';
 
 ## Update these to release date and version
-my $date = '2022-10-08';
-my $version = '3.3.22';
+# acxi
+my $date_acxi = '2022-10-22';
+my $version_acxi = '3.5.03';
+# inxi
+my $date_inxi = '2022-10-08';
+my $version_inxi = '3.3.22';
 
 # note: you need to make a symbolic link from real html /docs/ directory to here:
 my $dev = "$ENV{'HOME'}/bin/scripts/inxi/svn/branches/inxi-perl/";
+my $file_acxi = "$ENV{'HOME'}/bin/scripts/acxi/acxi";
+my $file_acxi_changelog = "$ENV{'HOME'}/bin/scripts/acxi/git/acxi.changelog";
 my $file_inxi = "$ENV{'HOME'}/bin/scripts/inxi/svn/trunk/inxi";
 my $file_pinxi = "${dev}pinxi";
-my $file_changelog = "$file_pinxi.changelog";
-my $html_changelog = "${dev}smxi.org-docs/inxi-changelog.htm";
-my $html_changelog_temp = "${dev}smxi.org-docs/inxi-changelog-temp.htm";
-my $html_options="${dev}smxi.org-docs/inxi-options.htm";
-my $html_options_temp="${dev}smxi.org-docs/inxi-options-temp.htm";
-my $html_man="${dev}smxi.org-docs/inxi-man.htm";
-my $html_man_temp="${dev}smxi.org-docs/inxi-man-temp.htm";
+my $file_pinxi_changelog = "$file_pinxi.changelog";
+my $html_acxi_changelog = "${dev}smxi.org-docs/acxi-changelog.htm";
+my $html_acxi_changelog_temp = "${dev}smxi.org-docs/acxi-changelog-temp.htm";
+my $html_acxi_options = "${dev}smxi.org-docs/acxi-options.htm";
+my $html_acxi_options_temp = "${dev}smxi.org-docs/acxi-options-temp.htm";
+my $html_acxi_man = "${dev}smxi.org-docs/acxi-man.htm";
+my $html_acxi_man_temp = "${dev}smxi.org-docs/acxi-man-temp.htm";
+my $html_inxi_changelog = "${dev}smxi.org-docs/inxi-changelog.htm";
+my $html_inxi_changelog_temp = "${dev}smxi.org-docs/inxi-changelog-temp.htm";
+my $html_inxi_options = "${dev}smxi.org-docs/inxi-options.htm";
+my $html_inxi_options_temp = "${dev}smxi.org-docs/inxi-options-temp.htm";
+my $html_inxi_man = "${dev}smxi.org-docs/inxi-man.htm";
+my $html_inxi_man_temp = "${dev}smxi.org-docs/inxi-man-temp.htm";
+my $name_acxi = 'acxi';
+my $name_inxi = 'inxi';
+my $type = 'inxi';
 
 my ($b_docs,$b_sync,$b_verify);
 my ($changelog_contents,$man_contents,$options_contents,@data);
+my ($changelog_file,$date,$html_changelog,$html_man,$html_options,
+$man_file,$man_use,$name,$version);
+my (@copy_files,@temp_files);
 my $line = '------------------------------------------------------------------';
 
+sub assign {
+	if ($type eq 'inxi'){
+		$changelog_file = $file_pinxi_changelog;
+		$date = $date_inxi;
+		$html_changelog = $html_inxi_changelog;
+		$html_man = $html_inxi_man;
+		$html_options = $html_inxi_options;
+		$man_file = "$file_pinxi.1";
+		$man_use = 'pinxi.1';
+		$name = $name_inxi;
+		$version = $version_inxi;
+		@copy_files = ($html_inxi_changelog_temp,$html_inxi_man_temp,$html_inxi_options_temp);
+		@temp_files = ($html_inxi_changelog_temp,$html_inxi_options_temp,$html_inxi_man_temp);
+	}
+	elsif ($type eq 'acxi') {
+		$changelog_file = $file_acxi_changelog;
+		$date = $date_acxi;
+		$html_changelog = $html_acxi_changelog;
+		$html_man = $html_acxi_man;
+		$html_options = $html_acxi_options;
+		$man_file = "$file_acxi.1";
+		$man_use = 'acxi.1';
+		$name = $name_acxi;
+		$version = $version_acxi;
+		@copy_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
+		@temp_files= ($html_acxi_changelog_temp,$html_acxi_options_temp,$html_acxi_man_temp);
+	}
+	else {
+		say "Unsupported type: $type. Exiting.";
+		exit 12;
+	}
+}
 sub validate_man {
 	say $line;
-	print "Validating pinxi.1 man page... ";
-	my $invalid = qx(LC_ALL=en_US.UTF-8 MANROFFSEQ='' MANWIDTH=80 man --warnings -E UTF-8 -l -Tutf8 -Z $file_pinxi.1 >/dev/null);
-	die "\n$file_pinxi.1 is invalid and gave errors!" if $invalid;
+	print "Validating $man_use man page... ";
+	my $invalid = qx(LC_ALL=en_US.UTF-8 MANROFFSEQ='' MANWIDTH=80 man --warnings -E UTF-8 -l -Tutf8 -Z $man_file >/dev/null);
+	die "\n$man_use is invalid and gave errors!" if $invalid;
 	say "man file valid.";
 }
 sub load_data {
 	say $line;
 	print "Loading changelog, help, and man data... ";
-	$changelog_contents = join("\n",reader($file_changelog));
+	$changelog_contents = join("\n",reader($changelog_file));
 	die "\n\@changelog raw data empty!" if !$changelog_contents;
 	$changelog_contents =~ s/</&lt;/g;
 	$changelog_contents =~ s/>/&gt;/g;
-	my $cmd = "mman -Thtml ${dev}pinxi.1 | sed -e '/^<!DOCTYPE/,/^<body/{/^<!DOCTYPE/!{/^<body/!d}}' -e '/^<!DOCTYPE/d' -e '/^<body/d'";
+	my $cmd = "mman -Thtml $man_file | sed -e '/^<!DOCTYPE/,/^<body/{/^<!DOCTYPE/!{/^<body/!d}}' -e '/^<!DOCTYPE/d' -e '/^<body/d'";
 	$man_contents = qx($cmd);
 	@data = split("\n",$man_contents);
 	@data = map {
@@ -64,7 +114,12 @@ sub load_data {
 	$_} @data;
 	$man_contents = join("\n",@data);
 	die "\n\$man_contents data is empty!" if !$man_contents;
-	$options_contents = qx(pinxi -yh | sed 's/pinxi/inxi/g');
+	if ($type eq 'inxi'){
+		$options_contents = qx(pinxi -yh | sed 's/pinxi/inxi/g');
+	}
+	elsif ($type eq 'acxi'){
+		$options_contents = qx($file_acxi -h);
+	}
 	die "\n\$options raw date empty!" if !$options_contents;
 	say "data loaded";
 }
@@ -72,20 +127,21 @@ sub load_data {
 sub update_temp_files {
 	say $line;
 	say "Updating -temp.htm files with version/date...";
-	foreach my $file (($html_changelog_temp,$html_options_temp,$html_man_temp)){
+	foreach my $file (@temp_files){
 		@data = reader($file);
 		@data = map {
-		$_ =~ s/^inxi version: .*/inxi version: $version/;
-		$_ =~ s/^inxi date: .*/inxi date: $date/;
+		$_ =~ s/^$name version: .*/$name version: $version/;
+		$_ =~ s/^$name date: .*/$name date: $date/;
 		$_} @data;
 		writer(\@data,$file);
 	}
 	say "Files updated.";
+
 }
 sub copy_files {
 	say $line;
 	say "Copying *-temp.htm files to *.htm files...";
-	foreach my $temp (($html_changelog_temp,$html_man_temp,$html_options_temp)){
+	foreach my $temp (@copy_files){
 		say " Copying:\n $temp";
 		my $file = $temp;
 		$file =~ s/-temp//;
@@ -194,6 +250,9 @@ sub reader {
 sub options {
 	my @errors;
 	Getopt::Long::GetOptions (
+	'a|acxi' => sub {
+		$type = 'acxi';
+	},
 	'd|docs' => sub {
 		$b_docs = 1;
 	},
@@ -238,6 +297,7 @@ sub show_options {
 	say "-h,--help    - This help option menu";
 	say "-s,--sync    - pinxi verification tests, sync and update pinxi* to";
 	say "               inxi*. Must use with -d to avoid errors.";
+	say "-a,--acxi    - Switches to release type: acxi (default inxi)";
 	say "-v,--version - Show tool version and date.";
 	say "-V,--verify  - Run pinxi verification tests.";
 }
@@ -250,6 +310,7 @@ sub finalize {
 }
 sub main {
 	options();
+	assign();
 	if ($b_docs){
 		validate_man();
 		load_data();
@@ -257,11 +318,13 @@ sub main {
 		copy_files();
 		process();
 	}
-	if ($b_verify){
-		verify();
-	}
-	if ($b_sync){
-		sync_inxi();
+	if ($type eq 'inxi'){
+		if ($b_verify){
+			verify();
+		}
+		if ($b_sync){
+			sync_inxi();
+		}
 	}
 	finalize();
 }
