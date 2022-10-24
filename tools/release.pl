@@ -71,7 +71,7 @@ sub assign {
 		$name = $name_inxi;
 		$version = $version_inxi;
 		@copy_files = ($html_inxi_changelog_temp,$html_inxi_man_temp,$html_inxi_options_temp);
-		@temp_files = ($html_inxi_changelog_temp,$html_inxi_options_temp,$html_inxi_man_temp);
+		@temp_files = ($html_inxi_changelog_temp,$html_inxi_man_temp,$html_inxi_options_temp);
 	}
 	elsif ($type eq 'acxi') {
 		$changelog_file = $file_acxi_changelog;
@@ -84,7 +84,7 @@ sub assign {
 		$name = $name_acxi;
 		$version = $version_acxi;
 		@copy_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
-		@temp_files= ($html_acxi_changelog_temp,$html_acxi_options_temp,$html_acxi_man_temp);
+		@temp_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
 	}
 	else {
 		say "Unsupported type: $type. Exiting.";
