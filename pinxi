@@ -19497,8 +19497,7 @@ sub set_partitions {
 		$row[0] =~ s/\^\^/ /g if $b_space; # reset spaces in > 1 word fs name
 		# autofs is a bsd thing, has size 0
 		if ($row[0] =~ /^($filters)$/ || $row[0] =~ /^ROOT/i || 
-		($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|devtmpfs|iso9660|tmpfs)$/)) ||
-		($windows{'wsl'} && $row[0] eq 'drivers')){
+		($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|devtmpfs|iso9660|tmpfs)$/))){
 			next;
 		}
 		# cygwin C:\cygwin passes this test so has to be handled later
@@ -19531,14 +19530,15 @@ sub set_partitions {
 		# note: Main/jails/transmission_1 path can be > 1 deep 
 		# Main zfs 3678031340 8156 3678023184 0% /mnt/Main
 		if (!$dev_base && ($row[0] =~ /^([^\/]+\/)(.+)/ || 
-		 ($row[0] =~ /^[^\/]+$/ && $row[1] =~ /^(btrfs|hammer[2-9]?|zfs)$/))){
+		($row[0] =~ /^[^\/]+$/ && $row[1] =~ /^(btrfs|hammer[2-9]?|zfs)$/)) ||
+		($windows{'wsl'} && $row[0] eq 'drivers')){
 			$dev_base = $row[0];
 			$dev_type = 'logical';
 		}
 		# this handles yet another fredforfaen special case where a mounted drive
 		# has the search string in its name, includes / (|
 		if ($row[-1] =~ m%^/(|boot|boot/efi|home|opt|tmp|usr|usr/home|var|var/log|var/tmp)$% ||
-		 ($b_android && $row[-1] =~ /^\/(cache|data|firmware|system)$/)){
+		($b_android && $row[-1] =~ /^\/(cache|data|firmware|system)$/)){
 			$b_load = 1;
 			# note, older df in bsd do not have file system column
 			$type = 'main';
@@ -19599,7 +19599,7 @@ sub set_partitions {
 				elsif ($windows{'wsl'} && $row[0] =~ /^(drvfs)/){
 					$dev_type = 'windows';
 					if ($id =~ m|^/mnt/([a-z])$|){
-						$dev_base = uc($1) . ':\\';
+						$dev_base = uc($1) . ':';
 					}
 					$dev_base = $row[0] if !$dev_base;
 				}
