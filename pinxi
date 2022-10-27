@@ -74,7 +74,7 @@ my ($fake_data_dir,$self_path,$user_config_dir,$user_config_file,$user_data_dir)
 ## Hashes
 my (%alerts,%build_prop,%client,%colors,,%cpuinfo_machine,%disks_bsd,
 %dboot,%devices,%dl,%dmmapper,%force,%loaded,%mapper,%program_values,%risc,
-%service_tool,%show,%sysctl,%system_files,%usb);
+%service_tool,%show,%sysctl,%system_files,%usb,%windows);
 
 ## System Arrays
 my (@app,@cpuinfo,@dmi,@ifs,@ifs_bsd,@paths,@ps_aux,@ps_cmd,@ps_gui,
@@ -102,7 +102,7 @@ if (eval {require Time::HiRes}){
 @t0 = eval 'Time::HiRes::gettimeofday()' if $b_hires; # let's start it right away
 
 ## Booleans [busybox_ps not used actively]
-my ($b_admin,$b_android,$b_busybox_ps,$b_cygwin,$b_display,$b_irc,$b_root);
+my ($b_admin,$b_android,$b_busybox_ps,$b_display,$b_irc,$b_root);
 
 ## System
 my ($bsd_type,$device_vm,$language,$os,$pci_tool) = ('','','','','');
@@ -523,8 +523,16 @@ sub set_os {
 		# force to string e2k, and also in case we need that ID changed
 		$cpu_arch = 'elbrus' if $cpu_arch =~ /e2k|elbrus/;
 	}
-	$b_cygwin = 1 if $os =~ /cygwin/;
-	$b_android = 1 if -e '/system/build.prop';
+	# set some less common scenarios
+	if ($os =~ /cygwin/){
+		$windows{'cygwin'} = 1;
+	}
+	elsif (-e '/usr/lib/wsl/drivers'){
+		$windows{'wsl'} = 1;
+	}
+	elsif (-e '/system/build.prop'){
+		$b_android = 1;
+	}
 	if ($os =~ /(aix|bsd|cosix|dragonfly|darwin|hp-?ux|indiana|illumos|irix|sunos|solaris|ultrix|unix)/){
 		if ($os =~ /openbsd/){
 			$os = 'openbsd';
@@ -1613,7 +1621,8 @@ sub create_debug_directory {
 	$alt_string = '-' . uc($risc{'id'}) if %risc;
 	$alt_string .= "-BSD-$bsd_type" if $bsd_type;
 	$alt_string .= '-ANDROID' if $b_android; 
-	$alt_string .= '-CYGWIN' if $b_cygwin; # could be windows arm?
+	$alt_string .= '-CYGWIN' if $windows{'cygwin'}; # could be windows arm?
+	$alt_string .= '-WSL' if $windows{'wsl'}; # could be windows arm?
 	$debug_dir = "$self_name$alt_string-$host$id-$today$root_string-$self_version-$self_patch";
 	$debug_gz = "$debug_dir.tar.gz";
 	$data_dir = "$user_data_dir/$debug_dir";
@@ -5088,7 +5097,7 @@ sub get {
 		}
 	},
 	'cygwin' => sub {
-		$b_cygwin = 1;},
+		$windows{'cygwin'} = 1;},
 	'dbg:s' => sub { 
 		my ($opt,$arg) = @_;
 		if ($arg !~ /^\d+(,\d+)*$/){
@@ -5389,6 +5398,8 @@ sub get {
 		$force{'wayland'} = 1;},
 	'wm|wmctrl' => sub { 
 		$force{'wmctrl'} = 1;},
+	'wsl' => sub {
+		$windows{'wsl'} = 1;},
 	'<>' => sub {
 		my ($opt) = @_;
 		main::error_handler('unknown-option', "$opt", "");}
@@ -19459,6 +19470,8 @@ sub set_partitions {
 	# push @partitions_working, '//mafreebox.freebox.fr/Disque dur cifs         239216096  206434016  20607496      91% /freebox/Disque dur';
 	# push @partitions_working, '//mafreebox.freebox.fr/AllPG      cifs         436616192  316339304 120276888      73% /freebox/AllPG';
 	# push(@partitions_working,'/dev/loop0p1                  iso9660         3424256   3424256           0     100% /media/jason/d-live nf 11.3.0 gn 6555 9555 amd64');
+	 push(@partitions_working,'drvfs          9p        511881212 115074772  396806440      23% /mnt/c');
+	push(@partitions_working,'drivers        9p        511881212 115074772  396806440      23% /usr/lib/wsl/drivers');
 	foreach (@partitions_working){
 		($dev_base,$dev_mapped,$dev_type,$fs,$id,$label,
 		$maj_min,$type,$uuid) = ('','','','','','','','','');
@@ -19484,7 +19497,8 @@ sub set_partitions {
 		$row[0] =~ s/\^\^/ /g if $b_space; # reset spaces in > 1 word fs name
 		# autofs is a bsd thing, has size 0
 		if ($row[0] =~ /^($filters)$/ || $row[0] =~ /^ROOT/i || 
-		 ($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|devtmpfs|iso9660|tmpfs)$/))){
+		($b_fs && ($row[2] == 0 || $row[1] =~ /^(autofs|devtmpfs|iso9660|tmpfs)$/)) ||
+		($windows{'wsl'} && $row[0] eq 'drivers')){
 			next;
 		}
 		# cygwin C:\cygwin passes this test so has to be handled later
@@ -19576,11 +19590,18 @@ sub set_partitions {
 			}
 			if (!$dev_type){
 				# C:/cygwin64, D:
-				if ($b_cygwin && $row[0] =~ /^[A-Z]+:/){
+				if ($windows{'cygwin'} && $row[0] =~ /^[A-Z]+:/){
 					$dev_type = 'windows';
 					$dev_base = $row[0] if !$dev_base;
 					# looks weird if D:, yes, I know, windows uses \, but cygwin doesn't
 					$dev_base .= '/' if $dev_base =~ /:$/; 
+				}
+				elsif ($windows{'wsl'} && $row[0] =~ /^(drvfs)/){
+					$dev_type = 'windows';
+					if ($id =~ m|^/mnt/([a-z])$|){
+						$dev_base = uc($1) . ':\\';
+					}
+					$dev_base = $row[0] if !$dev_base;
 				}
 				# need data set, this could maybe be converted to use 
 				# dev-mapped and abspath but not without testing
@@ -28553,7 +28574,7 @@ sub get_linux_distro {
 	# test for /etc/lsb-release as a backup in case of failure, in cases 
 	# where > one version/release file were found but the above resulted 
 	# in null distro value. 
-	if (!$distro && $b_cygwin){
+	if (!$distro && $windows{'cygwin'}){
 		$distro = $uname[0]; # like so: CYGWIN_NT-10.0-19043
 		$b_skip_osr = 1;
 	}
