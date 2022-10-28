@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.22';
-my $self_date='2022-10-26';
-my $self_patch='12';
+my $self_date='2022-10-27';
+my $self_patch='13';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -29205,24 +29205,27 @@ sub get_hostname {
 	return $hostname;
 }
 
-sub get_init_data {
+## InitData
+{
+package InitData;
+my ($init,$init_version,$program) = ('','','');
+sub get {
 	eval $start if $b_log;
-	my $runlevel = get_runlevel_data();
+	my $runlevel = get_runlevel();
 	my $default = ($extra > 1) ? get_runlevel_default() : '';
-	my ($init,$init_version,$rc,$rc_version,$program) = ('','','','','');
-	my $comm = (-r '/proc/1/comm') ? reader('/proc/1/comm','',0) : '';
-	my (@data);
+	my ($rc,$rc_version) = ('','');
+	my $comm = (-r '/proc/1/comm') ? main::reader('/proc/1/comm','',0) : '';
 	# this test is pretty solid, if pid 1 is owned by systemd, it is systemd
 	# otherwise that is 'init', which covers the rest of the init systems.
 	# more data may be needed for other init systems. 
 	# Some systemd cases no /proc/1/comm exists however :(
 	if (($comm && $comm =~ /systemd/) || -e '/run/systemd/units'){
 		$init = 'systemd';
-		if ($program = check_program('systemd')){
-			$init_version = program_version($program,'^systemd','2','--version',1);
+		if ($program = main::check_program('systemd')){
+			$init_version = main::program_version($program,'^systemd','2','--version',1);
 		}
-		if (!$init_version && ($program = check_program('systemctl'))){
-			$init_version = program_version($program,'^systemd','2','--version',1);
+		if (!$init_version && ($program = main::check_program('systemctl'))){
+			$init_version = main::program_version($program,'^systemd','2','--version',1);
 		}
 		if ($runlevel && $runlevel =~ /^\d$/){
 			my $target = '';
@@ -29236,16 +29239,30 @@ sub get_init_data {
 		}
 	}
 	if (!$init && $comm){
+		# not verified
+		if ($comm =~ /^31init/){
+			$init = '31init';
+			# no version, this is a 31 line C program
+		}
 		# epoch version == Epoch Init System 1.0.1 "Sage"
-		if ($comm =~ /epoch/){
+		elsif ($comm =~ /epoch/){
 			$init = 'Epoch';
-			$init_version = program_version('epoch', '^Epoch', '4','version');
+			$init_version = main::program_version('epoch', '^Epoch', '4','version');
+		}
+		# if they fix dinit to show /proc/1/comm == dinit
+		elsif ($comm =~ /^dinit/){
+			dinit_data();
 		}
 		elsif ($comm =~ /finit/){
 			$init = 'finit';
-			if ($program = check_program('finit')){
-				$init_version = program_version($program,'^Finit','2','-v',1);
+			if ($program = main::check_program('finit')){
+				$init_version = main::program_version($program,'^Finit','2','-v',1);
 			}
+		}
+		# not verified
+		elsif ($comm =~ /^hummingbird/){
+			$init = 'Hummingbird';
+			# no version data known. Complete if more info found.
 		}
 		# nosh can map service manager to systemctl, service, rcctl, at least.
 		elsif ($comm =~ /^nosh/){
@@ -29254,16 +29271,28 @@ sub get_init_data {
 		# missing data: note, runit can install as a dependency without being the 
 		# init system: http://smarden.org/runit/sv.8.html
 		# NOTE: the proc test won't work on bsds, so if runit is used on bsds we 
-		# will need more datas
+		# will need more data
 		elsif ($comm =~ /runit/){
 			$init = 'runit';
-		}
-		elsif ($comm =~ /shepherd/){
-			$init = 'Shepherd';
-			$init_version = program_version('shepherd', '^shepherd', '4','--version',1);
+			# no version data as of 2022-10-26
 		}
 		elsif ($comm =~ /^s6/){
 			$init = 's6';
+			# no version data as of 2022-10-26
+		}
+		elsif ($comm =~ /shepherd/){
+			$init = 'Shepherd';
+			$init_version = main::program_version('shepherd', '^shepherd', '4','--version',1);
+		}
+		# fallback for some inits that link to /sbin/init
+		elsif ($comm eq 'init'){
+			# shows /sbin/dinit-init but may change
+			if (-e '/sbin/dinit' && readlink('/sbin/init') =~ /dinit/){
+				dinit_data();
+			}
+			elsif (-e '/sbin/openrc-init' && readlink('/sbin/init') =~ /openrc/){
+				($init,$init_version) = openrc_data();
+			}
 		}
 	}
 	if (!$init){
@@ -29271,42 +29300,36 @@ sub get_init_data {
 		# init (upstart 0.6.3)
 		# openwrt /sbin/init hangs on --version command, I think
 		if (!%risc && 
-		 ($init_version = program_version('init', 'upstart', '3','--version'))){
+		 ($init_version = main::program_version('init', 'upstart', '3','--version'))){
 			$init = 'Upstart';
 		}
-		elsif (check_program('launchctl')){
+		elsif (main::check_program('launchctl')){
 			$init = 'launchd';
 		}
 		# could be nosh or runit as well for BSDs, not handled yet
 		elsif (-f '/etc/inittab'){
 			$init = 'SysVinit';
-			if (check_program('strings')){
-				@data = grabber('strings /sbin/init');
-				$init_version = awk(\@data,'^version\s+[0-9]',2);
+			if (main::check_program('strings')){
+				my @data = main::grabber('strings /sbin/init');
+				$init_version = main::awk(\@data,'^version\s+[0-9]',2);
 			}
 		}
 		elsif (-f '/etc/ttys'){
 			$init = 'init (BSD)';
 		}
 	}
-	if ((grep { /openrc/ } globber('/run/*openrc*')) || (grep {/openrc/} @ps_cmd)){
-		$rc = 'OpenRC';
-		# /sbin/openrc --version == openrc (OpenRC) 0.13
-		if ($program = check_program('openrc')){
-			$rc_version = program_version($program, '^openrc', '3','--version');
-		}
-		# /sbin/rc --version == rc (OpenRC) 0.11.8 (Gentoo Linux)
-		elsif ($program = check_program('rc')){
-			$rc_version = program_version($program, '^rc', '3','--version');
+	if ((grep { /openrc/ } main::globber('/run/*openrc*')) || (grep {/openrc/} @ps_cmd)){
+		if (!$init || $init ne 'OpenRC'){
+			($rc,$rc_version) = openrc_data();
 		}
 		if (-r '/run/openrc/softlevel'){
-			$runlevel = reader('/run/openrc/softlevel','',0);
+			$runlevel = main::reader('/run/openrc/softlevel','',0);
 		}
 		elsif (-r '/var/run/openrc/softlevel'){
-			$runlevel = reader('/var/run/openrc/softlevel','',0);
+			$runlevel = main::reader('/var/run/openrc/softlevel','',0);
 		}
-		elsif ($program = check_program('rc-status')){
-			$runlevel = (grabber("$program -r 2>/dev/null"))[0];
+		elsif ($program = main::check_program('rc-status')){
+			$runlevel = (main::grabber("$program -r 2>/dev/null"))[0];
 		}
 	}
 	eval $end if $b_log;
@@ -29318,6 +29341,86 @@ sub get_init_data {
 	'runlevel' => $runlevel,
 	'default' => $default,
 	};
+}
+sub dinit_data {
+	eval $start if $b_log;
+	$init = 'dinit';
+	# Dinit version 0.15.1. 
+	if ($program = main::check_program('dinit')){
+		$init_version = main::program_version($program,'^Dinit','3','--version',1);
+		$init_version =~ s/\.$//;
+	}
+	eval $end if $b_log;
+}
+sub openrc_data {
+	eval $start if $b_log;
+	my ($id,$version);
+	$id = 'OpenRC';
+	# /sbin/openrc --version == openrc (OpenRC) 0.13
+	if ($program = main::check_program('openrc')){
+		$version = main::program_version($program, '^openrc', '3','--version');
+	}
+	# /sbin/rc --version == rc (OpenRC) 0.11.8 (Gentoo Linux)
+	elsif ($program = main::check_program('rc')){
+		$version = main::program_version($program, '^rc', '3','--version');
+	}
+	eval $end if $b_log;
+	return ($id,$version);
+}
+# # check? /var/run/nologin for bsds?
+sub get_runlevel {
+	eval $start if $b_log;
+	my $runlevel = '';
+	if ($program = main::check_program('runlevel')){
+		# variants: N 5; 3 5; unknown
+		$runlevel = (main::grabber("$program 2>/dev/null"))[0];
+		$runlevel = undef if $runlevel && lc($runlevel) eq 'unknown';
+		$runlevel =~ s/^(\S\s)?(\d)$/$2/ if $runlevel;
+		# print_line($runlevel . ";;");
+	}
+	eval $end if $b_log;
+	return $runlevel;
+}
+# note: it appears that at least as of 2014-01-13, /etc/inittab is going 
+# to be used for default runlevel in upstart/sysvinit. systemd default is 
+# not always set so check to see if it's linked.
+sub get_runlevel_default {
+	eval $start if $b_log;
+	my @data;
+	my $default = '';
+	if ($program = main::check_program('systemctl')){
+		# note: systemd systems do not necessarily have this link created
+		my $systemd = '/etc/systemd/system/default.target';
+		# faster to read than run
+		if (-e $systemd){
+			$default = readlink($systemd);
+			$default =~ s/(.*\/|\.target$)//g if $default; 
+		}
+		if (!$default){
+			$default = (main::grabber("$program get-default 2>/dev/null"))[0];
+			$default =~ s/\.target$// if $default;
+		}
+	}
+	if (!$default){
+		# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
+		# note that technically default can be changed at boot but for inxi purposes 
+		# that does not matter, we just want to know the system default
+		my $upstart = '/etc/init/rc-sysinit.conf';
+		my $inittab = '/etc/inittab';
+		if (-r $upstart){
+			# env DEFAULT_RUNLEVEL=2
+			@data = main::reader($upstart);
+			$default = main::awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
+		}
+		# handle weird cases where null but inittab exists
+		if (!$default && -r $inittab){
+			@data = main::reader($inittab);
+			$default = main::awk(\@data,'^id.*initdefault',2,':');
+		}
+	}
+	eval $end if $b_log;
+	return $default;
+}
 }
 
 ## IpData
@@ -31119,62 +31222,6 @@ sub set_ps_gui {
 	eval $end if $b_log;
 }
 
-# # check? /var/run/nologin for bsds?
-sub get_runlevel_data {
-	eval $start if $b_log;
-	my $runlevel = '';
-	if (my $program = check_program('runlevel')){
-		# variants: N 5; 3 5; unknown
-		$runlevel = (grabber("$program 2>/dev/null"))[0];
-		$runlevel = undef if $runlevel && lc($runlevel) eq 'unknown';
-		$runlevel =~ s/^(\S\s)?(\d)$/$2/ if $runlevel;
-		# print_line($runlevel . ";;");
-	}
-	eval $end if $b_log;
-	return $runlevel;
-}
-
-# note: it appears that at least as of 2014-01-13, /etc/inittab is going 
-# to be used for default runlevel in upstart/sysvinit. systemd default is 
-# not always set so check to see if it's linked.
-sub get_runlevel_default {
-	eval $start if $b_log;
-	my @data;
-	my $default = '';
-	if (my $program = check_program('systemctl')){
-		# note: systemd systems do not necessarily have this link created
-		my $systemd = '/etc/systemd/system/default.target';
-		# faster to read than run
-		if (-e $systemd){
-			$default = readlink($systemd);
-			$default =~ s/(.*\/|\.target$)//g if $default; 
-		}
-		if (!$default){
-			$default = (grabber("$program get-default 2>/dev/null"))[0];
-			$default =~ s/\.target$// if $default;
-		}
-	}
-	if (!$default){
-		# http://askubuntu.com/questions/86483/how-can-i-see-or-change-default-run-level
-		# note that technically default can be changed at boot but for inxi purposes 
-		# that does not matter, we just want to know the system default
-		my $upstart = '/etc/init/rc-sysinit.conf';
-		my $inittab = '/etc/inittab';
-		if (-r $upstart){
-			# env DEFAULT_RUNLEVEL=2
-			@data = reader($upstart);
-			$default = awk(\@data,'^env\s+DEFAULT_RUNLEVEL',2,'=');
-		}
-		# handle weird cases where null but inittab exists
-		if (!$default && -r $inittab){
-			@data = reader($inittab);
-			$default = awk(\@data,'^id.*initdefault',2,':');
-		}
-	}
-	eval $end if $b_log;
-	return $default;
-}
-
 sub get_self_version {
 	eval $start if $b_log;
 	my $patch = $self_patch;
@@ -31240,7 +31287,7 @@ sub process_status {
 		$cmd = "$service_tool{$key}->[0] $service status";
 	}
 	# upstart, legacy, and finit, needs more data
-	elsif ($key eq 'initctl'){
+	elsif ($key eq 'initctl' || $key eq 'dinitctl'){
 		$cmd = "$service_tool{$key}->[0] status $service";
 	}
 	# runit
@@ -31294,14 +31341,15 @@ sub process_status {
 			last;
 		}
 		# Status : running
-		elsif ($working[0] eq 'Status'){
+		elsif ($working[0] eq 'Status' || $working[0] eq 'State'){
 			$result = lc($working[1]);
 			$result = $translate{$result} if $translate{$result};
 			last;
 		}
 		# valid syntax, but service does not exist
 		# * rc-service: service 'ntp' does not exist :: 
-		elsif ($row =~ /$service.*?(not (exist|(be )?found)|no such (directory|file)|unrecognized)/i){
+		# dinitctl: service not loaded [whether exists or not]
+		elsif ($row =~ /$service.*?(not (exist|(be )?found|loaded)|no such (directory|file)|unrecognized)/i){
 			$result = 'not found';
 			last;
 		}
@@ -31367,6 +31415,9 @@ sub set {
 	# needs data, never seen output, but report if present
 	elsif ($path = main::check_program('s6-svstat')){
 		%service_tool = ('s6-rc' => [$path,'s6-rc']);
+	}
+	elsif ($path = main::check_program('dinitctl')){
+		%service_tool = ('dinitctl' => [$path,'dinitctl']);
 	}
 	# make it last in tools, need more data
 	elsif ($path = main::check_program('initctl')){
@@ -33026,7 +33077,7 @@ sub info_item {
 		$data->{$data_name}[$index]{main::key($num++,0,2,'gpu')} = $gpu_ram;
 	}
 	if ((!$b_display || $force{'display'}) || $extra > 0){
-		my $init = main::get_init_data();
+		my $init = InitData::get();
 		my $init_type = ($init->{'init-type'}) ? $init->{'init-type'}: 'N/A';
 		$data->{$data_name}[$index]{main::key($num++,1,1,'Init')} = $init_type;
 		if ($extra > 1){

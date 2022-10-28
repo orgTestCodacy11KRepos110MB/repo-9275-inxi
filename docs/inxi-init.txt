@@ -3,8 +3,8 @@ INXI INIT DATA
 ================================================================================
 
 FILE:    inxi-init.txt
-VERSION: 1.1
-DATE:    2022-07-05
+VERSION: 1.2
+DATE:    2022-10-27
 
 ----------------------------------------
 Docs:
@@ -13,13 +13,19 @@ See: docs/inxi-data.txt - more active, and maybe more init data.
 ----------------------------------------
 Comments:
 
+* Check https://iso.artixlinux.org/isos.php to see if they have added any new 
+isos for various init systems, those are very helpful.
+
 ================================================================================
 
 Sections:
 1. INIT SYSTEMS
   BSD INIT
+  31INIT
+  DINIT
   EPOCH
   FINIT
+  HUMMINGBIRD
   LAUNCHD
   OPENRC / RC / /etc/rc.d
   NOSH
@@ -32,6 +38,7 @@ Sections:
 2. SERVICE TOOLS
   /etc/init.d
   /etc/rc.d
+  dinitctl [dinit]
   initctl [upstart, finit, mapped for nosh]
   launchctl
   rcctl 
@@ -51,13 +58,16 @@ GENERAL: TO GET OWNER OF PID !
 cat /proc/1/comm
 
 eg:
-init (sysvinit, debian)
+init (sysvinit, debian, dinit, openrc [if init])
 systemd (systemd, siduction)
 
 sudo lsof -a -p 1 -d txt
 [sudo] password for harald: 
 COMMAND PID USER  FD   TYPE DEVICE SIZE/OFF   NODE NAME
 init      1 root txt    REG    8,1    35204 327291 /sbin/init
+
+If init, check: readlink /sbin/init to make sure it's not linked to by one of 
+the init systems we want to get data about, like openrc, dinit.
 
 ========================================
 BSD INIT
@@ -80,6 +90,66 @@ Version Data
 ----------------------------------------
 
 Check to see if strings gives us version
+
+========================================
+31INIT
+----------------------------------------
+
+https://gitlab.com/tearch-linux/applications-and-tools/31init
+
+31 line C program, init only, no --version.
+
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Service tools: unknown
+
+----------------------------------------
+Version Data
+----------------------------------------
+
+Not available, no options.
+
+========================================
+DINIT
+----------------------------------------
+
+https://github.com/davmac314/dinit
+
+https://davmac.org/projects/dinit/
+
+https://forum.artixlinux.org/index.php/topic,3232.0.html
+
+dinit
+
+Problem: /proc/1/comm returns: init, not dinit
+
+But: readlink /sbin/init > /sbin/dinit-init so able to detect with fallback 
+/proc/1/comm == init then if dinit found show.
+
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Service tool: dinitctl
+ dinitctl start service_name
+ dinitctl stop service_name
+ dinitctl restart service_name
+ dinitctl enable service_name
+ dinitctl disable service_name
+ dinitctl list [list running services]
+ 
+----------------------------------------
+Version Data
+----------------------------------------
+
+dinit --version 
+dinit-init --version
+Dinit version 0.15.1. 
+
+Note dot at end, I think that's a period to end sentence, not part of version
+That's trimmed off.
 
 ========================================
 EPOCH
@@ -135,6 +205,26 @@ Project homepage: https://troglobit.com/projects/finit/
 so that is supported by inxi now.
 
 ========================================
+HUMMINGBIRD
+----------------------------------------
+
+https://github.com/Sweets/hummingbird
+
+Hummingbird
+
+----------------------------------------
+Service Tool
+----------------------------------------
+
+Service tool: unknown
+
+----------------------------------------
+Version Data
+----------------------------------------
+
+Unknown if -v / --version
+
+========================================
 LAUNCHD
 ----------------------------------------
 
@@ -156,15 +246,21 @@ no data available yet.
 OPENRC / RC / /etc/rc.d
 ----------------------------------------
 
-Not an init, just rc system
+Can be an init and rc system, or just just rc system
 
 check if: /run/openrc exists
+
+To see if Linux init system:
+
+/proc/1/comm == init AND readlink /sbin/init == /sbin/openrc-init.
+
+Similar to dinit.
 
 ----------------------------------------
 Service Tool
 ----------------------------------------
 
-Tool: rc-service [ghostbsd/gentoo]
+Tool: rc-service [artix,ghostbsd,gentoo]
 Tool: service [Nomad, FreeBSD]
 Tool: /etc/rc.d [OpenBSD, if rcctl not found]
 
@@ -173,10 +269,12 @@ Version Data
 ----------------------------------------
 
 /sbin/rc --version
-rc (OpenRC) 0.11.8 (Gentoo Linux)
+ rc (OpenRC) 0.11.8 (Gentoo Linux)
+ rc (OpenRC) 0.45.2 (Artix Linux)
 
 /sbin/openrc --version
  openrc (OpenRC) 0.13
+ openrc (OpenRC) 0.45.2 (Artix Linux)
  
 ========================================
 NOSH
@@ -378,6 +476,27 @@ ksh: /etc/rc.d/ntp: not found
 [unknown directive]
 /etc/rc.d/sshd fred
 usage: /etc/rc.d/sshd [-df] start|stop|restart|reload|check
+
+========================================
+dinitctl (dinit)
+----------------------------------------
+
+Service tool: dinitctl
+ dinitctl start service_name
+ dinitctl stop service_name
+ dinitctl restart service_name
+ dinitctl enable service_name
+ dinitctl disable service_name
+ dinitctl list [list running services]
+
+# update this from artix dinitctl
+Service: metad
+  State: Started/Stopped
+  
+Disable stops, enable starts, doesn't show disabled/enabled
+
+Whether exists or not:
+dinitctl: service not loaded
 
 ========================================
 initctl (Upstart, finit, mapped for nosh)
