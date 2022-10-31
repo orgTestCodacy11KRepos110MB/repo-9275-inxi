@@ -44,8 +44,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_ids.pl';
-my $self_version = '1.8';
-my $self_date = '2022-10-12';
+my $self_version = '1.9';
+my $self_date = '2022-10-31';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
@@ -143,6 +143,7 @@ sub load {
 		'05' => {
 		'arch' => 'IBM',
 		'pattern' => 'Fire GL[1234][As]?',
+		'comment' => "# vendor 1014 IBM, subvendor: 1092\n${tab}# 0172|0173|0174|0184",
 		'code' => 'Fire GL',
 		'process' => 'IBM 156-250nm',
 		'years' => '1999-2001',
@@ -151,6 +152,7 @@ sub load {
 		'06' => {
 		'arch' => 'Rage-6',
 		'pattern' => 'Rage 6|RV?100|RS2[05]0M?|Radeon 7[02]\d{2}|M6|ES1000',
+		'comment' => "# vendor 1014 IBM, subvendor: 1092\n${tab}# 0172|0173|0174|0184\n${tab}# rage 5 was game cube flipper chip 2000",
 		'code' => 'R100',
 		'process' => 'TSMC 180nm',
 		'years' => '2000-07',
@@ -159,6 +161,7 @@ sub load {
 		'07' => {
 		'arch' => 'Rage-7',
 		'pattern' => 'RV?2\d{2}|RC22\d{2}|RS100|RS3[05]0M?|FireGL 88\d{2}|X1\d{3}|FireGL 9[5-9]\d{2}|Mobility Radeon 9[01]\d{2}|M[79]\+?',
+		'comment' => "# |Radeon (7[3-9]{2}|8\d{3}|9[5-9]\d{2}",
 		'code' => 'R200',
 		'process' => 'TSMC 150nm',
 		'years' => '2001-06',
@@ -194,6 +197,7 @@ sub load {
 		'12' => {
 		'arch' => 'TeraScale',
 		'pattern' => 'Xenos|RV?[67]\d{2}|RS6[09]0M?|RS[76]80[CLM]?|HD [234]\d{3}|M7[246]|8[2468]|M9[23678]',
+		'comment' => '# process:  tsmc 55nm, 65nm, xbox 360s at 40nm',
 		'code' => 'R6xx/RV6xx/RV7xx',
 		'process' => 'TSMC 55-65nm', # tsmc 55nm, 65nm, xbox 360s at 40nm
 		'years' => '2005-13',
@@ -225,6 +229,7 @@ sub load {
 		'16' => {
 		'arch' => 'GCN-2',
 		'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
+		'comment' => '# process: both TSMC and GlobalFoundries',
 		'code' => 'Sea Islands',
 		'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
 		'years' => '2013-17',
@@ -233,6 +238,7 @@ sub load {
 		'17' => {
 		'arch' => 'GCN-3',
 		'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
+		
 		'code' => 'Volcanic Islands',
 		'process' => 'TSMC 28nm',
 		'years' => '2014-19',
@@ -449,6 +455,7 @@ sub load {
 		'18' => {
 		'arch' => 'Gen-11',
 		'pattern' => '9th Gen(eration)?|(Elkhart|Ice|Jasper)\s?Lake|Lakefield|Crystal\s?Well|Iris Plus Graphics G[77]',
+		'comment' => '# gen10 was cancelled.',
 		'code' => '',
 		'process' => 'Intel 10nm',
 		'years' => '2019-21',
@@ -511,8 +518,15 @@ sub load {
 			'00' => {
 			'arch' => 'Maxwell',
 			'pattern' => '\bG?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
+			'comment' => "## Current Active Series\n${tab}# load microarch data, as stuff goes legacy, these will form new legacy items.",
 			'code' => 'GMxxx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC 28nm',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2014-19',
 			},
 			# Matrox D-Series D1450/D1480: Nvidia. Pascal and GP107 - Quadro P1000	1CFB
@@ -520,7 +534,13 @@ sub load {
 			'arch' => 'Pascal',
 			'pattern' => '\bG?P\d{1,4}M?|MX[23]\d{2}|GPU100|Titan Xp?|GTX? 10\d{2}|D-Series D14\d{2}',
 			'code' => 'GP10x',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC 16nm',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2016-21',
 			},
 			# not certain DGX are always V100, maybe, maybe not
@@ -528,7 +548,13 @@ sub load {
 			'arch' => 'Volta',
 			'pattern' => '\bG?V100S?|PG5\d{2}|Titan V|NVIDIA DGX',
 			'code' => 'GV1xx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC 12nm',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2017-20',
 			},
 			# CMP are mining cpus
@@ -537,7 +563,13 @@ sub load {
 			'arch' => 'Turing',
 			'pattern' => '\bT\d{1,4}|MX[45]\d{2}|GTX 16\d{2}|RTX 20\d{2}|Quadro RTX [34568]\d{3}|Titan RTX|CMP [345]\dHX|D-Series D24\d{2}',
 			'code' => 'TUxxx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC 12nm FF',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2018-22',
 			},
 			# note: rtx A6000 is ampere, not lovelace. Why?
@@ -545,14 +577,26 @@ sub load {
 			'arch' => 'Ampere',
 			'pattern' => '\bG?A\d{1,4}[GMH]?|RTX 30\d{2}(Ti)?|CMP [789]\dHX',
 			'code' => 'GAxxx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC n7 (7nm)',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2020-22',
 			},
 			'05' => {
 			'arch' => 'Hopper',
 			'pattern' => '\bG?H[12]\d{2}',
 			'code' => 'GH1xx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC n4 (5nm)',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2022+',
 			},
 			# note: quadro rtx 4000 is turing, but rtx 40[5-9]0, rtx 6000 lovelace
@@ -560,7 +604,13 @@ sub load {
 			'arch' => 'Lovelace',
 			'pattern' => '\bG?L\d{1,4}|\bAD1\d{2}|RTX 40[5-9]0|RTX [6-8]0\d{2}', 
 			'code' => 'AD1xx',
+			'kernel' => '',
+			'legacy' => 0,
 			'process' => 'TSMC n4 (5nm)',
+			'release' => '',
+			'series' => '520.xx+',
+			'status' => '$status_current',
+			'xorg' => '',
 			'years' => '2022-23+',
 			},
 		},
@@ -569,16 +619,30 @@ sub load {
 			'00' => {
 			'arch' => 'Fermi 2',
 			'pattern' => '7[1]\d[AM]?|GT 720M',
+			'comment' => '## Legacy 470.xx',
 			'code' => 'GF119/GK208',
+			'kernel' => '',
+			'legacy' => 1,
 			'process' => 'TSMC 28nm',
+			'release' => '',
+			'series' => '470.xx+',
+			'status' =>'main::message(\'nv-legacy-active\',\'2023/24\')',
+			'xorg' => '',
 			'years' => '2010-16',
 			},
 			# GT 720M and 805A/810A are the same cpu id.
 			'01' => {
 			'arch' => 'Kepler',
 			'pattern' => '\bK\d{1,4}(M|D|c|st?|Xm|t)?|NVS|GTX|7[3-9]\d[AM]?|[689]\d{2}[AM]?|Quadro 4\d{2}|GT 720',
+			'comment' => "# GT 720M and 805A/810A are the same cpu id.\n${tab}# years: 2012-2018 Kepler 2013-2015 Kepler 2.0",
 			'code' => 'GKxxx',
+			'kernel' => '',
+			'legacy' => 1,
 			'process' => 'TSMC 28nm',
+			'release' => '',
+			'series' => '470.xx+',
+			'status' => 'main::message(\'nv-legacy-active\',\'2023/24\')',
+			'xorg' => '',
 			'years' => '2012-18', # 2012-2018 Kepler 2013-2015 Kepler 2.0
 			},
 		},
@@ -588,8 +652,15 @@ sub load {
 			'00' => {
 			'arch' => 'Fermi',
 			'pattern' => '.*',
+			'comment' => "## Legacy 390.xx\n${tab}# this is Fermi, Fermi 2.0",
 			'code' => 'GF1xx',
+			'kernel' => '',
+			'legacy' => 1,
 			'process' => '40/28nm',
+			'release' => '',
+			'series' => '390.xx+',
+			'status' => 'main::message(\'nv-legacy-active\',\'late 2022\')',
+			'xorg' => '',
 			'years' => '2010-16',
 			},
 		},
@@ -598,8 +669,15 @@ sub load {
 			'00' => {
 			'arch' => 'Kepler',
 			'pattern' => '.*',
+			'comment' => "## Legacy 367.xx",
 			'code' => 'GKxxx',
+			'kernel' => '',
+			'legacy' => 1,
 			'process' => 'TSMC 28nm',
+			'release' => '',
+			'series' => '367.xx',
+			'status' => 'main::message(\'nv-legacy-active\',\'late 2022\')',
+			'xorg' => '',
 			'years' => '2012-18', # check
 			},
 		},
@@ -611,8 +689,15 @@ sub load {
 			'arch' => 'Tesla',
 			# T\d{1,4}|Tesla|[89]\d{3}(M|GS)?|(G|GT[SX]?)?\s?[1234]\d{2}M?|ION|NVS
 			'pattern' => '.*',
+			'comment' => "## Legacy 340.xx\n${tab}# these are both Tesla and Tesla 2.0\n${tab}# code: not clear, 8800/GT2xx/maybe G7x\n${tab}# years: 2006-2010 Tesla 2007-2013 Tesla 2.0 ",
 			'code' => '', # not clear, 8800/GT2xx/maybe G7x
+			'kernel' => '5.4',
+			'legacy' => 1,
 			'process' => '40-80nm',
+			'release' => '340.108',
+			'series' => '340.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.20',
 			'years' => '2006-13', # 2006-2010 Tesla 2007-2013 Tesla 2.0
 			},
 		},
@@ -621,8 +706,15 @@ sub load {
 			'00' => {
 			'arch' => 'Curie',
 			'pattern' => '[67]\d{3}(SE|M)?|Quadro (FX|NVS)',
+			'comment' => "## Legacy 304.xx\n${tab}# code: hard to get these, roughly MCP[567]x/NV4x/G7x\n${tab}# process: IBM 130, TSMC 90-110",
 			'code' => '', # hard to get these, roughly MCP[567]x/NV4x/G7x
+			'kernel' => '4.13',
+			'legacy' => 1,
 			'process' => '90-130nm', # IBM 130, TSMC 90-110
+			'release' => '304.137',
+			'series' => '304.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.19',
 			'years' => '2003-13',
 			},
 		},
@@ -631,8 +723,15 @@ sub load {
 			'00' => {
 			'arch' => 'Rankine',
 			'pattern' => 'FX|PCX|NVS',
+			'comment' => "## Legacy 173.14.xx\n${tab}# process: IBM 130, TSMC 130-150",
 			'code' => 'NV3x',
+			'kernel' => '3.12',
+			'legacy' => 1,
 			'process' => '130-150nm', # IBM 130, TSMC 130-150
+			'release' => '173.14.39',
+			'series' => '173.14.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.15',
 			'years' => '2003-05',
 			},
 		},
@@ -641,15 +740,28 @@ sub load {
 			'00' => {
 			'arch' => 'Celsius',
 			'pattern' => 'GeForce2|Quadro2',
+			'comment' => '## Legacy 96.43.xx',
 			'code' => 'NV1x',
+			'kernel' => '3.6',
+			'legacy' => 1,
 			'process' => 'TSMC 150-220nm',
+			'release' => '96.43.23',
+			'series' => '96.43.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.12',
 			'years' => '1999-2005',
 			},
 			'01' => {
 			'arch' => 'Kelvin',
 			'pattern' => 'GeForce[34]|Quadro(4| NVS| DCC)',
 			'code' => 'NV[12]x',
+			'kernel' => '3.6',
+			'legacy' => 1,
 			'process' => 'TSMC 150nm',
+			'release' => '96.43.23',
+			'series' => '96.43.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.12',
 			'years' => '2001-03',
 			},
 		},
@@ -658,15 +770,28 @@ sub load {
 			'00' => {
 			'arch' => 'Fahrenheit',
 			'pattern' => 'TNT2?|Vanta',
+			'comment' => '## Legacy 71.86.xx',
 			'code' => 'NVx',
+			'kernel' => '2.6.38',
+			'legacy' => 1,
 			'process' => 'TSMC 220-350nm',
+			'release' => '71.86.15',
+			'series' => '71.86.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.7',
 			'years' => '1998-2000',
 			},
 			'01' => {
 			'arch' => 'Celsius',
 			'pattern' => 'Quadro|GeForce2?',
 			'code' => 'NV1x',
+			'kernel' => '2.6.38',
+			'legacy' => 1,
 			'process' => 'TSMC 150-220nm',
+			'release' => '71.86.15',
+			'series' => '71.86.xx',
+			'status' => '$status_eol',
+			'xorg' => '1.7',
 			'years' => '1999-2005',
 			},
 		},
@@ -716,7 +841,20 @@ sub process {
 				say "IDs for: $active->{$key}{'arch'}:\n$line";
 				say join("\n",@ids);
 			}
-			$output{$key} = {'arch' => $active->{$key}{'arch'}, 'ids' => [@ids]};
+			$output{$key} = {
+			'arch' => $active->{$key}{'arch'}, 
+			'ids' => [@ids],
+			'comment' => $active->{$key}{'comment'}, 
+			'code' => $active->{$key}{'code'}, 
+			'kernel' => $active->{$key}{'kernel'}, # nv
+			'legacy' => $active->{$key}{'legacy'}, # nv
+			'process' => $active->{$key}{'process'}, 
+			'release' => $active->{$key}{'release'}, # nv
+			'series' => $active->{$key}{'series'}, # nv
+			'status' => $active->{$key}{'status'}, # nv
+			'xorg' => $active->{$key}{'xorg'}, # nv
+			'years' => $active->{$key}{'years'}, 
+			};
 		}
 		else {
 			say "No results found for pattern." if $dbg->[3] || $dbg->[4];
@@ -736,6 +874,9 @@ sub output {
 	foreach my $sort (sort keys %output){
 		if ($b_print_output){
 			if ($b_hash){
+				if ($output{$sort}->{'comment'}){
+					say $tab . $output{$sort}->{'comment'};
+				}
 				say $tab . '{' . $quote . 'arch' . $quote . ' => ' . $quote . $output{$sort}->{'arch'} . $quote . ',';
 			}
 			else {
@@ -763,8 +904,29 @@ sub output {
 			$cnt++;
 			$cnt2++;
 		}
+		
+		if ($b_hash){
+			$item .= "$quote,\n";
+			$item .= $tab . $quote . "code$quote => " . $quote . $output{$sort}->{'code'} . "$quote,\n";
+			if (defined $output{$sort}->{'kernel'}){
+				$item .= $tab . $quote . "kernel$quote => " . $quote . $output{$sort}->{'kernel'} . "$quote,\n";
+				$item .= $tab . $quote . "legacy$quote => " . $output{$sort}->{'legacy'} . ",\n";
+			}
+			$item .= $tab . $quote . "process$quote => " . $quote . $output{$sort}->{'process'} . "$quote,\n";
+			if (defined $output{$sort}->{'release'}){
+				$item .= $tab . $quote . "release$quote => " . $quote . $output{$sort}->{'release'} . "$quote,\n";
+				$item .= $tab . $quote . "series$quote => " . $quote .$output{$sort}->{'series'} . "$quote,\n";
+				$item .= $tab . $quote . "status$quote => " . $quote . $output{$sort}->{'status'} . ",\n";
+				$item .= $tab . $quote . "xorg$quote => " . $quote .$output{$sort}->{'xorg'} . "$quote,\n";
+			}
+			$item .= $tab . $quote . "years$quote => " . $quote . $output{$sort}->{'years'} . "$quote,\n";
+			$item .= $tab . "},";
+		}
 		# we want hardcoded \n here to create spaces between result blocks
-		$item .= ($b_hash) ? "$quote,\n" : "\n";
+		else {
+			$item .= "\n";
+		}
+		
 		say $item if $b_print_output;
 	}
 }

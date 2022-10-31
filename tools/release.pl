@@ -26,8 +26,8 @@ my $self_date = '2022-10-22';
 my $date_acxi = '2022-10-22';
 my $version_acxi = '3.5.03';
 # inxi
-my $date_inxi = '2022-10-08';
-my $version_inxi = '3.3.22';
+my $date_inxi = '2022-10-31';
+my $version_inxi = '3.3.23';
 
 # note: you need to make a symbolic link from real html /docs/ directory to here:
 my $dev = "$ENV{'HOME'}/bin/scripts/inxi/svn/branches/inxi-perl/";
@@ -260,6 +260,9 @@ sub options {
 		show_options();
 		exit 0;
 	},
+	'i|inxi' => sub {
+		$type = 'inxi';
+	},
 	's|sync' => sub {
 		$b_sync = 1;
 		$b_verify = 1;
@@ -295,6 +298,7 @@ sub show_options {
 	say "\nAvailable Options:";
 	say "-d,--docs    - Update HTML docs for smxi.org";
 	say "-h,--help    - This help option menu";
+	say "-i,--inxi    - Switches to release type: inxi (default)";
 	say "-s,--sync    - pinxi verification tests, sync and update pinxi* to";
 	say "               inxi*. Must use with -d to avoid errors.";
 	say "-a,--acxi    - Switches to release type: acxi (default inxi)";

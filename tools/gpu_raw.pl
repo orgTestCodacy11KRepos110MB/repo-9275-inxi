@@ -15,7 +15,12 @@
 ## Copy with mouse highlight the driver section, then paste that into a text file.
 ## Make sure it preserves the tabs \t!!! Otherwise it won't work!
 ## https://www.techpowerup.com/gpu-specs/?architecture=Lovelace&sort=generation
+## pci-ids:
 ## intel/amd (and future vendors): http://pci-ids.ucw.cz/v2.2/pci.ids
+## device hunt amd:
+## https://devicehunt.com/search/type/pci/vendor/1002/device/any
+## device hunt intel:
+## https://devicehunt.com/search/type/pci/vendor/8086/device/any
 use strict;
 use warnings;
 # use diagnostics;

@@ -820,7 +820,7 @@ sub cp_cpu_arch {
 				$arch = 'Grand Ridge'; # 14 gen
 				$process = 'Intel 4 (7nm)'; # confirm
 				$year = '2023+';}
-			elsif ($model =~ /^(B7|BA)$/){
+			elsif ($model =~ /^(B7|BA|BF)$/){
 				$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
 				$process = 'Intel 7 (10nm)';
 			$year = '2022+';}
