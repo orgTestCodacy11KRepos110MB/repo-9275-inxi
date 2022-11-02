@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.23';
-my $self_date='2022-10-31';
-my $self_patch='01';
+my $self_date='2022-11-01';
+my $self_patch='02';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -5215,7 +5215,8 @@ sub get {
 			my $wl = 'bluetooth|compiler|cpu|dboot|dmidecode|elbrus|ipmi|logical|lspci|';
 			$wl .= 'partitions|pciconf|pcictl|pcidump|raid-btrfs|raid-hw|raid-lvm|';
 			$wl .= 'raid-md|raid-soft|raid-zfs|sensors|sensors-sys|swaymsg|sysctl|';
-			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wl-info|wlr-randr|xorg-log|xrandr';
+			$wl .= 'uptime|usbconfig|usbdevs|vmstat|wl-info|wlr-randr|';
+			$wl .= 'xdpyinfo|xorg-log|xrandr';
 			for (split(',',$arg)){
 				if ($_ =~ /\b($wl)\b/){
 					$fake{lc($1)} = 1;
@@ -15563,9 +15564,14 @@ sub xdpyinfo_data {
 	eval $start if $b_log;
 	my ($program) = @_;
 	my ($diagonal,$diagonal_m,$dpi) = ('','','');
-	my ($screen_id,$screen,@working);
+	my ($screen_id,$xdpyinfo,@working);
 	my ($res_x,$res_y,$size_x,$size_x_i,$size_y,$size_y_i);
-	my $xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip','ref');
+	if (!$fake{'xdpyinfo'}){
+		$xdpyinfo = main::grabber("$program $display_opt 2>/dev/null","\n",'strip','ref');
+	}
+	else {
+		$xdpyinfo = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xdpyinfo/xdpyinfo-1-screen-2-in-inxi.txt",'strip','ref');
+	}
 	# @$xdpyinfo = map {s/^\s+//;$_} @$xdpyinfo if @$xdpyinfo;
 	# print join("\n",@$xdpyinfo), "\n";
 	# X vendor and version detection.
@@ -15632,7 +15638,7 @@ sub xdpyinfo_data {
 				$diagonal = ($size_x && $size_y) ? sprintf("%.2f", (sqrt($size_x**2 + $size_y**2)/25.4)) + 0 : '';
 				$diagonal_m = ($size_x && $size_y) ? sprintf("%.0f", (sqrt($size_x**2 + $size_y**2))) : '';
 			}
-			$screen = {
+			push(@{$graphics{'screens'}}, {
 			'screen' => $screen_id,
 			'res-x' => $res_x,
 			'res-y' => $res_y,
@@ -15643,8 +15649,7 @@ sub xdpyinfo_data {
 			's-dpi' => $dpi,
 			'diagonal' => $diagonal,
 			'diagonal-m' => $diagonal_m,
-			};
-			push(@{$graphics{'screens'}}, $screen);
+			});
 		}
 	}
 	print 'Data: xdpyinfo: ', Data::Dumper::Dumper $graphics{'screens'} if $dbg[17];
@@ -15656,16 +15661,17 @@ sub xrandr_data {
 	my ($program) = @_;
 	my ($diagonal,$diagonal_m,$dpi,$monitor_id,$pos_x,$pos_y,$primary);
 	my ($res_x,$res_x_max,$res_y,$res_y_max);
-	my ($screen_id,$set_as,$size_x,$size_x_i,$size_y,$size_y_i,$x_screen);
+	my ($screen_id,$set_as,$size_x,$size_x_i,$size_y,$size_y_i);
 	my (@ids,%monitors,@xrandr_screens,$xrandr);
 	if (!$fake{'xrandr'}){
 		$xrandr = main::grabber("$program $display_opt 2>/dev/null",'','strip','ref');
 	}
 	else {
 		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-4-displays-1.txt",'strip','ref');
-		 $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-3-display-primary-issue.txt",'strip','ref');
+		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-3-display-primary-issue.txt",'strip','ref');
 		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-1.txt",'strip','ref');
 		# $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-test-2.txt",'strip','ref');
+		 $xrandr = main::reader("$ENV{HOME}/bin/scripts/inxi/data/xrandr/xrandr-1-screen-2-in-inxi.txt",'strip','ref');
 	}
 	# $graphics{'dimensions'} = (\@dimensions);
 	# we get a bit more info from xrandr than xdpyinfo, but xrandr fails to handle
@@ -15683,7 +15689,7 @@ sub xrandr_data {
 				$res_y = $2;
 				$res_x_max = $3;
 				$res_y_max = $4;
-				$x_screen = {
+				push(@{$graphics{'screens'}}, {
 				'screen' => $screen_id,
 				'res-x' => $res_x,
 				'res-y' => $res_y,
@@ -15694,8 +15700,7 @@ sub xrandr_data {
 				's-dpi' => undef,
 				'diagonal' => undef,
 				'diagonal-m' => undef,
-				};
-				push(@{$graphics{'screens'}}, $x_screen);
+				});
 			}
 			if (%monitors){
 				push(@xrandr_screens,\%monitors);

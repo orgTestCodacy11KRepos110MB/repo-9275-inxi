@@ -336,7 +336,7 @@ sub cp_cpu_arch {
 			if ($model =~ /^(1.|6.|7.|A.)$/){
 				$arch = 'Zen 4';
 				$gen = '5';
-				$process = 'TSMC n5 (5nm)';
+				$process = 'TSMC n5 (5nm)'; # Epyc Bergamo 4nm, no model IDs yet
 				$year = '2022';}
 			# double check 40, 44
 			elsif ($model =~ /^(4.)$/){
@@ -357,6 +357,8 @@ sub cp_cpu_arch {
 				$year = '2021-22';}
 			# Zen 5: TSMC n3
 		}
+		## Roadmap: check to verify, AMD is usually closer to target than Intel
+		# Epyc 4 genoa: zen 4, nm, 2022+ (dec 2022), cxl-1.1,pcie-5, ddr-5
 	}
 	elsif ($type eq 'arm'){
 		if ($family ne ''){
@@ -773,7 +775,7 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(8F)$/){
 				$arch = 'Sapphire Rapids';
 				$process = 'Intel 7 (10nm ESF)';
-				$year = '2021+';} # server
+				$year = '2023+';} # server
 			elsif ($model =~ /^(97|9A|BE)$/){
 				$arch = 'Alder Lake'; # socket LG 1700
 				$process = 'Intel 7 (10nm ESF)';
@@ -824,9 +826,13 @@ sub cp_cpu_arch {
 				$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
 				$process = 'Intel 7 (10nm)';
 			$year = '2022+';}
+			## roadmaps: check and update, since Intel misses their targets often
+			# Sapphire Rapids: 13 gen (?), Intel 7 (10nm), 2023
 			# Emerald Rapids: Intel 7 (10nm), 2023
 			# Granite Rapids: Intel 3 (7nm+), 2024
 			# Diamond Rapids: Intel 3 (7nm+), 2025
+			# Raptor Lake: 13 gen, Intel 7 (10nm), 2022
+			# Meteor Lake: 14 gen, Intel 4 (7nm+)
 			# Arrow Lake - 15 gen, Intel 20A (2nm), 2024
 			# Lunar Lake - 16 gen, Intel 18A (1.8nm), 2025
 			# Nova Lake - 17 gen, Intel 18A (1.8nm), 2026
