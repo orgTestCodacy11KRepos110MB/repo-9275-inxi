@@ -18,6 +18,15 @@ KNOWN ISSUES:
 --------------------------------------------------------------------------------
 BUGS:
 
+1. Found while resolving Fix 2, it turns out > 1 X Screens would not have shown
+correctly due to failing to pass $j row counter by reference. This bug was 
+introduced when the big Monitor updates were done, since you almost never see
+> 1 X Screens now, I never saw it until testing something for another reason.
+
+This led to > 1 Screen showing on the same line as the last monitor of the 
+previous Screen.
+
+See also Fixes 2, 3, 4, and Code 1, 2, 3.
 
 --------------------------------------------------------------------------------
 FIXES:
@@ -26,10 +35,22 @@ FIXES:
 initially announced) to 2023+ (the actual release date). Not my fault!! They 
 were too optimistic, inxi merely repeated their claims.
 
-2. Added $fake{'xdpyinfo'}, hoping to get some debugger data to test weird 
-extra 'Screen' seen with Endeavor user: 
+2. While trying to figure out extra Screen showing up, found a series of subtle 
+issues with how X Screens are handled. Added in more robust test for if Screen 
+ID has been added by xdpyinfo_data, and other weird corner cases that might 
+cause strange results in Display Screen-x. 
+
+Created check_screen() to allow for more granular and debugable testing.
+
+This forum post helped focus attention on this issue:
+
 https://forum.endeavouros.com/t/\
 my-second-screen-is-not-working-after-installing-nvidia/33388
+
+3. %monitors was not correctly assigned in xrandr screen fallback.
+
+4. Set number of Screens found if no xdpyinfo or if xrandr found > xdpyinfo 
+number of screens.
 
 --------------------------------------------------------------------------------
 ENHANCEMENTS:
@@ -48,7 +69,22 @@ CODE:
 
 1. In Graphics::xdpyinfo_data() and Graphics::xrandr_data() got rid of extra 
 step, now just assign hash reference directly to push of. Had used intermidiate 
-variable assignement of hash ref, but that is pointless.
+variable assignement of hash ref, but that is pointless. 
+
+2. Added $fake{'xdpyinfo'}, hoping to get some debugger data to test weird 
+extra 'Screen' seen with Endeavor user (see Fix 2, 3, Bug 1).
+
+3. Also, instead of using \%monitors, which creates a reference to the last 
+value of %monitors, used the correct and safer {%monitors}, which creates an 
+anonymous reference of the value %monitors had at that moment. This is a subtle 
+Perl error which is easy to make in cases where the hash or array reference is 
+almsot never > 1 instance, such as > 1 X Screens.
+
+This should at least help resolve the repeated 'monitors' rows in the output 
+in Fixes 2, 3, 4.
+
+4. Added 'source' to $graphics{'screens'} to log where each detected screen came 
+from, xdpyinfo or xrandr.
 
 --------------------------------------------------------------------------------
 -- Harald Hope - Tue, 01 Nov 2022 11:53:23 -0700
