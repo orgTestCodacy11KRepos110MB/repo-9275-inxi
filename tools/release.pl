@@ -23,8 +23,8 @@ my $self_date = '2022-10-22';
 
 ## Update these to release date and version
 # acxi
-my $date_acxi = '2022-10-22';
-my $version_acxi = '3.5.03';
+my $date_acxi = '2022-11-05';
+my $version_acxi = '3.5.04';
 # inxi
 my $date_inxi = '2022-10-31';
 my $version_inxi = '3.3.23';
