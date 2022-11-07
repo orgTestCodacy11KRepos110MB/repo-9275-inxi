@@ -387,25 +387,43 @@ sub cp_cpu_arch {
 		}
 		elsif ($family eq '6'){
 			if ($model =~ /^(6)$/){
-				$arch = 'WinChip-based';
+				$arch = 'Via Cyrix III (WinChip 5)';
 				$process = '150nm'; # guess
 				$year = '';}
 			elsif ($model =~ /^(7|8)$/){
-				$arch = 'C3';
+				$arch = 'Via C3';
 				$process = '150nm';
 				$year = '';}
 			elsif ($model =~ /^(9)$/){
-				$arch = 'C3-2';
+				$arch = 'Via C3-2';
 				$process = '130nm';
 				$year = '';}
 			elsif ($model =~ /^(A|D)$/){
-				$arch = 'C7';
+				$arch = 'Via C7';
 				$process = '90nm';
 				$year = '';}
 			elsif ($model =~ /^(F)$/){
-				$arch = 'Isaiah';
+				if ($stepping <= 1){
+					$arch = 'Via CN Nano (Isaah)';}
+				elsif ($stepping <= 2){
+					$arch = 'Via Nano (Isaah)';}
+				elsif ($stepping <= 10){
+					$arch = 'Via Nano (Isaah)';}
+				elsif ($stepping <= 12){
+					$arch = 'Via Isaah';}
+				elsif ($stepping <= 13){
+					$arch = 'Via Eden';}
+				elsif ($stepping <= 14){
+					$arch = 'Zhaoxin ZX';}
 				$process = '90nm'; # guess
 				$year = '';} 
+		}
+		elsif ($family eq '7'){
+			if ($model =~ /^(1.|3.)$/){
+				$arch = 'Zhaoxin ZX';
+				$process = '90nm'; # guess
+				$year = '';
+			}
 		}
 	}
 	# note, to test uncoment $cpu{'type'} = Elbrus in proc/cpuinfo logic
