@@ -53,7 +53,7 @@ my $name_inxi = 'inxi';
 my $type = 'inxi';
 
 my ($b_docs,$b_sync,$b_verify);
-my ($changelog_contents,$man_contents,$options_contents,@data);
+my ($changelog_contents,$man_contents,$options_contents,@data,$replace);
 my ($changelog_file,$date,$html_changelog,$html_man,$html_options,
 $man_file,$man_use,$name,$version);
 my (@copy_files,@temp_files);
@@ -85,6 +85,10 @@ sub assign {
 		$version = $version_acxi;
 		@copy_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
 		@temp_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
+		$replace = {
+		"$ENV{'HOME'}/.*?/acxi-test" => '/home/username/music/opus',
+		"$ENV{'HOME'}/.*?/music" => '/home/username/music/flac',
+		};
 	}
 	else {
 		say "Unsupported type: $type. Exiting.";
@@ -119,6 +123,10 @@ sub load_data {
 	}
 	elsif ($type eq 'acxi'){
 		$options_contents = qx($file_acxi -h);
+		# do user specific fixes
+		foreach my $path (sort keys %$replace){
+			$options_contents =~ s|$path|$replace->{$path}|;
+		}
 	}
 	die "\n\$options raw date empty!" if !$options_contents;
 	say "data loaded";

@@ -360,6 +360,7 @@ sub cp_cpu_arch {
 		## Roadmap: check to verify, AMD is usually closer to target than Intel
 		# Epyc 4 genoa: zen 4, nm, 2022+ (dec 2022), cxl-1.1,pcie-5, ddr-5
 	}
+	# we have no advanced data for ARM cpus, this is an area that could be improved?
 	elsif ($type eq 'arm'){
 		if ($family ne ''){
 			$arch="ARMv$family";}
