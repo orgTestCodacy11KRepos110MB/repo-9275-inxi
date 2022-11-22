@@ -18,13 +18,13 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'release.pl';
-my $self_version = '1.3';
-my $self_date = '2022-10-22';
+my $self_version = '1.4';
+my $self_date = '2022-11-21';
 
 ## Update these to release date and version
 # acxi
-my $date_acxi = '2022-11-06';
-my $version_acxi = '3.5.04';
+my $date_acxi = '2022-11-15';
+my $version_acxi = '3.5.05';
 # inxi
 my $date_inxi = '2022-10-31';
 my $version_inxi = '3.3.23';
@@ -56,33 +56,33 @@ my ($b_docs,$b_sync,$b_verify);
 my ($changelog_contents,$man_contents,$options_contents,@data,$replace);
 my ($changelog_file,$date,$html_changelog,$html_man,$html_options,
 $man_file,$man_use,$name,$version);
-my (@copy_files,@temp_files);
+my (@copy_files,@release_info,@temp_files);
 my $line = '------------------------------------------------------------------';
 
 sub assign {
 	if ($type eq 'inxi'){
 		$changelog_file = $file_pinxi_changelog;
-		$date = $date_inxi;
+		$date = (@release_info) ? $release_info[0] : $date_inxi;
 		$html_changelog = $html_inxi_changelog;
 		$html_man = $html_inxi_man;
 		$html_options = $html_inxi_options;
 		$man_file = "$file_pinxi.1";
 		$man_use = 'pinxi.1';
 		$name = $name_inxi;
-		$version = $version_inxi;
+		$version = (@release_info) ? $release_info[1] : $version_inxi;
 		@copy_files = ($html_inxi_changelog_temp,$html_inxi_man_temp,$html_inxi_options_temp);
 		@temp_files = ($html_inxi_changelog_temp,$html_inxi_man_temp,$html_inxi_options_temp);
 	}
 	elsif ($type eq 'acxi') {
 		$changelog_file = $file_acxi_changelog;
-		$date = $date_acxi;
+		$date = (@release_info) ? $release_info[0] : $date_acxi;
 		$html_changelog = $html_acxi_changelog;
 		$html_man = $html_acxi_man;
 		$html_options = $html_acxi_options;
 		$man_file = "$file_acxi.1";
 		$man_use = 'acxi.1';
 		$name = $name_acxi;
-		$version = $version_acxi;
+		$version = (@release_info) ? $release_info[1]: $version_acxi;
 		@copy_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
 		@temp_files = ($html_acxi_changelog_temp,$html_acxi_man_temp,$html_acxi_options_temp);
 		$replace = {
@@ -271,6 +271,15 @@ sub options {
 	'i|inxi' => sub {
 		$type = 'inxi';
 	},
+	'r|release:s' => sub {
+		my ($opt,$arg) = @_;
+		if ($arg && $arg =~ /^(20\d{2}-[012]\d-[0123]\d):([0-9]+\.[0-9\.]+)$/){
+			@release_info = ($1,$2);
+		}
+		else {
+			push(@errors,"Invalid arguments supplied for -r: $arg");
+		}
+	},
 	's|sync' => sub {
 		$b_sync = 1;
 		$b_verify = 1;
@@ -307,6 +316,7 @@ sub show_options {
 	say "-d,--docs    - Update HTML docs for smxi.org";
 	say "-h,--help    - This help option menu";
 	say "-i,--inxi    - Switches to release type: inxi (default)";
+	say "-r,--release - {date:version} Supply date:version";
 	say "-s,--sync    - pinxi verification tests, sync and update pinxi* to";
 	say "               inxi*. Must use with -d to avoid errors.";
 	say "-a,--acxi    - Switches to release type: acxi (default inxi)";

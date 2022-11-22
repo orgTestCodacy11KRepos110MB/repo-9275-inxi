@@ -483,6 +483,7 @@ sub set_disk_vendors {
 	['^TEUTONS','^TEUTONS','TEUTONS',''],
 	['^(Textorm)','^Textorm','Textorm',''], # B5 too short
 	['^THU','^THU','THU',''],
+	['^Tiger[\s_-]?Jet','^Tiger[\s_-]?Jet','TigerJet',''],
 	['^Tigo','^Tigo','Tigo',''],
 	['^(Timetec|35TT)','^Timetec','Timetec',''],
 	['^TKD','^TKD','TKD',''],
