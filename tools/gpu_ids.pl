@@ -44,14 +44,14 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_ids.pl';
-my $self_version = '1.9';
-my $self_date = '2022-10-31';
+my $self_version = '2.0';
+my $self_date = '2022-12-10';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
 
 my $job = 'nv-current';
-my $options = 'amd|intel|nv-(current|520|515|510|470|390|367|340|304|173|96|71)';
+my $options = 'amd|intel|nv-(current|525|520|515|510|470|390|367|340|304|173|96|71)';
 
 my ($active,$file,$id_data,$nv_data,%output);
 my $data = [];
@@ -79,7 +79,11 @@ sub assign {
 	else {
 		# assign current latest driver data for nv-current
 		if ($job eq 'nv-current'){
-			$nv_data->{'nv-current'}{'file'} = 'gpu.nv.520.xx.sort';
+			$nv_data->{'nv-current'}{'file'} = 'gpu.nv.525.xx.sort';
+		}
+		elsif ($job eq 'nv-525'){
+			$nv_data->{'nv-525'} = $nv_data->{'nv-current'};
+			$nv_data->{'nv-525'}{'file'} = 'gpu.nv.525.xx.sort';
 		}
 		elsif ($job eq 'nv-520'){
 			$nv_data->{'nv-520'} = $nv_data->{'nv-current'};
@@ -514,7 +518,7 @@ sub load {
 		$nv_data = {
 		# Nvidia GeForce GPU: GeForce GTX 860M
 		'nv-current' => {
-			'file' => 'gpu.nv.510.xx.sort',
+			'file' => 'gpu.nv.525.xx.sort',
 			'00' => {
 			'arch' => 'Maxwell',
 			'pattern' => '\bG?M\d{1,4}M?|MX1\d{2}|GTX? (745|750|8\d{2})(MX?|Ti)?|[89]\d{2}[AM]?X?|Quadro K(6\d|12\d|22\d)\dM?|NVS 8\d{2}|GeForce GPU',
@@ -524,7 +528,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC 28nm',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2014-19',
@@ -538,7 +542,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC 16nm',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2016-21',
@@ -552,7 +556,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC 12nm',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2017-20',
@@ -567,7 +571,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC 12nm FF',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2018-22',
@@ -581,7 +585,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC n7 (7nm)',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2020-22',
@@ -594,7 +598,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC n4 (5nm)',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2022+',
@@ -608,7 +612,7 @@ sub load {
 			'legacy' => 0,
 			'process' => 'TSMC n4 (5nm)',
 			'release' => '',
-			'series' => '520.xx+',
+			'series' => '525.xx+',
 			'status' => '$status_current',
 			'xorg' => '',
 			'years' => '2022-23+',
@@ -915,8 +919,8 @@ sub output {
 			$item .= $tab . $quote . "process$quote => " . $quote . $output{$sort}->{'process'} . "$quote,\n";
 			if (defined $output{$sort}->{'release'}){
 				$item .= $tab . $quote . "release$quote => " . $quote . $output{$sort}->{'release'} . "$quote,\n";
-				$item .= $tab . $quote . "series$quote => " . $quote .$output{$sort}->{'series'} . "$quote,\n";
-				$item .= $tab . $quote . "status$quote => " . $quote . $output{$sort}->{'status'} . ",\n";
+				$item .= $tab . $quote . "series$quote => " . $quote . $output{$sort}->{'series'} . "$quote,\n";
+				$item .= $tab . $quote . "status$quote => " . $output{$sort}->{'status'} . ",\n";
 				$item .= $tab . $quote . "xorg$quote => " . $quote .$output{$sort}->{'xorg'} . "$quote,\n";
 			}
 			$item .= $tab . $quote . "years$quote => " . $quote . $output{$sort}->{'years'} . "$quote,\n";

@@ -795,14 +795,10 @@ sub cp_cpu_arch {
 				$arch = 'Sapphire Rapids';
 				$process = 'Intel 7 (10nm ESF)';
 				$year = '2023+';} # server
-			elsif ($model =~ /^(97|9A|BE)$/){
+			elsif ($model =~ /^(97|9A|9C|BE)$/){
 				$arch = 'Alder Lake'; # socket LG 1700
 				$process = 'Intel 7 (10nm ESF)';
 				$year = '2021+';}
-			elsif ($model =~ /^(9A|9C)$/){
-				$arch = 'Tremont Jasper Lake';
-				$process = 'Intel 10nm';
-				$year = '2021+';} # ?
 			elsif ($model =~ /^(9E)$/){
 				if ($stepping == 9){
 					$arch = 'Kaby Lake';
@@ -844,7 +840,11 @@ sub cp_cpu_arch {
 			elsif ($model =~ /^(B7|BA|BF)$/){
 				$arch = 'Raptor Lake'; # 13 gen, socket LG 1700,1800
 				$process = 'Intel 7 (10nm)';
-			$year = '2022+';}
+				$year = '2022+';}
+			elsif ($model =~ /^(CF)$/){
+				$arch = 'Emerald Rapids'; # 5th gen xeon
+				$process = 'Intel 7 (10nm)';
+				$year = '2023+';}
 			## roadmaps: check and update, since Intel misses their targets often
 			# Sapphire Rapids: 13 gen (?), Intel 7 (10nm), 2023
 			# Emerald Rapids: Intel 7 (10nm), 2023

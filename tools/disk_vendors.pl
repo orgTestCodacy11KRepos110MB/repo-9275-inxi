@@ -121,6 +121,7 @@ sub set_disk_vendors {
 	['^AEGO','^AEGO','AEGO',''],
 	['^AFOX','^AFOX','AFOX',''],
 	['^(Agile|AGI)','^(AGI|Agile\s?Gear\s?Int[a-z]*)','AGI',''],
+	['^Aigo','^Aigo','Aigo',''],
 	['^Aireye','^Aireye','Aireye',''],
 	['^Alcatel','^Alcatel','Alcatel',''],
 	['^(Alcor(\s?Micro)?|058F)','^(Alcor(\s?Micro)?|058F)','Alcor Micro',''],
@@ -156,12 +157,14 @@ sub set_disk_vendors {
 	['^Bory','^Bory','Bory',''],
 	['^Braveeagle','^Braveeagle','BraveEagle',''],
 	['^(BUFFALO|BSC)','^BUFFALO','Buffalo',''], # usb: BSCR05TU2
+	['^Bugatek','^Bugatek','Bugatek',''],
 	['^Bulldozer','^Bulldozer','Bulldozer',''],
 	['^BUSlink','^BUSlink','BUSlink',''],
 	['^(Canon|MP49)','^Canon','Canon',''],
 	['^Centerm','^Centerm','Centerm',''],
 	['^(Centon|DS pro)','^Centon','Centon',''],
 	['^(CFD|CSSD)','^CFD','CFD',''],
+	['^CHIPAL','^CHIPAL','CHIPAL',''],
 	['^(Chipsbank|CHIPSBNK)','^Chipsbank','Chipsbank',''],
 	['^Clover','^Clover','Clover',''],
 	['^CODi','^CODi','CODi',''],
@@ -186,6 +189,7 @@ sub set_disk_vendors {
 	['^(DICOM|MAESTRO)','^DICOM','DICOM',''],
 	['^Digifast','^Digifast','Digifast',''],
 	['^DIGITAL\s?FILM','DIGITAL\s?FILM','Digital Film',''],
+	['^(Digma|Run(\sY2)?\b)','^Digma','Digma',''],
 	['^Dikom','^Dikom','Dikom',''],
 	['^Disain','^Disain','Disain',''],
 	['^(Disney|PIX[\s]?JR)','^Disney','Disney',''],
@@ -194,6 +198,7 @@ sub set_disk_vendors {
 	['^DragonDiamond','^DragonDiamond','DragonDiamond',''],
 	['^(DREVO\b|X1\s\d+[GT])','^DREVO','Drevo',''],
 	['^DSS','^DSS DAHUA','DSS DAHUA',''],
+	['^(Duex|DX\b)','^Duex','Duex',''], # DX\d may be starter for sandisk string
 	['^(Dynabook|AE[1-3]00)','^Dynabook','Dynabook',''],
 	# DX1100 is probably sandisk, but could be HP, or it could be hp branded sandisk
 	['^(Eaget|V8$)','^Eaget','Eaget',''],
@@ -228,6 +233,7 @@ sub set_disk_vendors {
 	['^(FOXLINE|FLD)','^FOXLINE','Foxline',''], # russian vendor?
 	['^(GALAX\b|Gamer\s?L|TA\dD|Gamer[\s-]?V)','^GALAX','GALAX',''],
 	['^Freecom','^Freecom(\sFreecom)?','Freecom',''],
+	['^Gaiver','^Gaiver','Gaiver',''],
 	['^Galaxy\b','^Galaxy','Galaxy',''],
 	['^Gamer[_\s-]?Black','^Gamer[_\s-]?Black','Gamer Black',''],
 	['^(Garmin|Fenix|Nuvi|Zumo)','^Garmin','Garmin',''],
@@ -252,7 +258,6 @@ sub set_disk_vendors {
 	# supertalent also has FM: |FM
 	['^(G[\.]?SKILL)','^G[\.]?SKILL','G.SKILL',''],
 	['^G[\s-]*Tech','^G[\s-]*Tech(nology)?','G-Technology',''],
-	['^Gaiver','^Gaiver','Gaiver',''],
 	['^(Hajaan|HS[1-9])','^Haajan','Haajan',''],
 	['^Haizhide','^Haizhide','Haizhide',''],
 	['^(Hama|FlashPen\s?Fancy)','^Hama','Hama',''],
@@ -298,14 +303,17 @@ sub set_disk_vendors {
 	['^Jingyi','^Jingyi','Jingyi',''],
 	# NOTE: ITY2 120GB hard to find
 	['^JMicron','^JMicron(\s?Tech(nology)?)?','JMicron Tech',''], #JMicron H/W raid
+	['^JSYERA','^JSYERA','Jsyera',''],
 	['^(Jual|RX7)','^Jual','Jual',''], 
 	['^Kazuk','^Kazuk','Kazuk',''],
 	['(\bKDI\b|^OM3P)','\bKDI\b','KDI',''],
+	['^KEEPDATA','^KEEPDATA','KeepData',''],
 	['^KLLISRE','^KLLISRE','KLLISRE',''],
 	['^KimMIDI','^KimMIDI','KimMIDI',''],
 	['^Kimtigo','^Kimtigo','Kimtigo',''],
 	['^Kingbank','^Kingbank','Kingbank',''],
 	['^Kingchux[\s-]?ing','^Kingchux[\s-]?ing','Kingchuxing',''],
+	['^KINGCOMP','^KINGCOMP','KingComp',''],
 	['(KingDian|^NGF|S(280|400))','KingDian','KingDian',''],
 	['^(Kingfast|TYFS)','^Kingfast','Kingfast',''],
 	['^KingMAX','^KingMAX','KingMAX',''],
@@ -317,6 +325,7 @@ sub set_disk_vendors {
 	# kingwin docking, not actual drive
 	['^(EZD|EZ-Dock)','','Kingwin Docking Station',''],
 	['^Kingwin','^Kingwin','Kingwin',''],
+	['^KLLISRE','^KLLISRE','KLLISRE',''],
 	['(KIOXIA|^K[BX]G\d)','KIOXIA','KIOXIA',''], # company name comes after product ID
 	['^(KLEVV|NEO\sN|CRAS)','^KLEVV','KLEVV',''],
 	['^Kodak','^Kodak','Kodak',''],
@@ -345,7 +354,9 @@ sub set_disk_vendors {
 	['^(LSI|MegaRAID)','^LSI\b','LSI',''],
 	['^(M-Systems|DiskOnKey)','^M-Systems','M-Systems',''],
 	['^(Mach\s*Xtreme|MXSSD|MXU|MX[\s-])','^Mach\s*Xtreme','Mach Xtreme',''],
+	['^(MacroVIP|MV\d)','^MacroVIP','MacroVIP',''],
 	['^Mainic','^Mainic','Mainic',''],
+	['^Maxell','^Maxell','Maxell',''],
 	['^Maximus','^Maximus','Maximus',''],
 	['^Maxone','^Maxone','Maxone',''],
 	['^(Memorex|TravelDrive|TD\s?Classic)','^Memorex','Memorex',''],
@@ -413,12 +424,15 @@ sub set_disk_vendors {
 	['^(-?Pretec|UltimateGuard)','-?Pretec','Pretec',''],
 	['^(Prolific)','^Prolific( Technolgy Inc\.)?','Prolific',''],
 	# PS3109S9 is the result of an error condition with ssd drive
+	['^PUSKILL','^PUSKILL','Puskill',''],
 	['QEMU','^\d*QEMU( QEMU)?','QEMU',''], # 0QUEMU QEMU HARDDISK
 	['(^Quantum|Fireball)','^Quantum','Quantum',''],
 	['^QUMO','^QUMO','Qumo',''],
+	['^Qunion','^Qunion','Qunion',''],
 	['^(R[3-9]|AMD\s?(RADEON)?|Radeon)','AMD\s?(RADEON)?','AMD Radeon',''], # ssd 
 	['^(Ramaxel|RT|RM|RPF|RDM)','^Ramaxel','Ramaxel',''],
 	['^(Ramsta|R[1-9])','^Ramsta','Ramsta',''],
+	['^RCESSD','^RCESSD','RCESSD',''],
 	['^(Realtek|RTL)','^Realtek','Realtek',''],
 	['^(Reletech)','^Reletech','Reletech',''], # id: P400 but that's too short
 	['^RENICE','^RENICE','Renice',''],
@@ -505,6 +519,7 @@ sub set_disk_vendors {
 	['^(OOS[1-9]|Utania)','Utania','Utania',''],
 	['^U-TECH','U-TECH','U-Tech',''],
 	['^VBOX','','VirtualBox',''],
+	['^(Veno|Scorp)','^Veno','Veno',''],
 	['^(Verbatim|STORE\s?\'?N\'?\s?(FLIP|GO)|Vi[1-9]|OTG\s?Tiny)','^Verbatim','Verbatim',''],
 	['^V-GEN','^V-GEN','V-Gen',''],
 	['^V[\s-]?(7|Seven)','^V[\s-]?(7|Seven)\b','VSeven',''],
@@ -536,6 +551,7 @@ sub set_disk_vendors {
 	['^(YingChu|YGC)','^YingChu','YingChu',''],
 	['^(YUCUN|R880)','^YUCUN','YUCUN',''],
 	['^(ZALMAN|ZM\b)','^ZALMAN','Zalman',''],
+	# Zao/J.Zau: marvell ssd controller
 	['^ZXIC','^ZXIC','ZXIC',''],
 	['^(Zebronics|ZEB)','^Zebronics','Zebronics',''],
 	['^Zenfast','^Zenfast','Zenfast',''],
