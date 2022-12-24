@@ -1,4 +1,84 @@
 ================================================================================
+Version: 3.3.25
+Patch: 00
+Date: 2022-??-??
+--------------------------------------------------------------------------------
+RELEASE NOTES:
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+SPECIAL THANKS:
+
+
+--------------------------------------------------------------------------------
+KNOWN ISSUES:
+
+
+--------------------------------------------------------------------------------
+BUGS:
+
+1. An accidental 'and' instead of 'or' test (see Code 1) led to systems without 
+gpu or dri graphics drivers not showing their xorg driver even when present. 
+This was due to a mistake, and also due to how Perl handles || and && in 
+sequence, which made this bug not show up until I tested on a system with xorg 
+graphics driver, but without dri or gpu drivers. Virtually no modern hardware or 
+operating systems would trip this condition, but older hardware and operating 
+systems, which may not have gpu or dri drivers, might. And did, in my case. This 
+is by the way why I try to test on old hardware at least now and then.
+
+--------------------------------------------------------------------------------
+FIXES:
+
+1. A poorly done attempt at optimization would have broken case insensitive 
+pre-compiled regex with $pattern = qr/../ because you can't add /$pattern/i to 
+precompiled pattern, but qr/.../i support only added perl 5.014. This should 
+impact almost nobody, but it is/was a glitch. Basically qr/../ can only be used 
+when no /i type modifier is required if supporting Perl less than 5.014.
+
+See inxi-perl/docs/optimization.txt section REGEX for more on this.
+
+Note that Perl already compares the values in the variable each iteration via a 
+simple equality test, so the only real gain from using qr// is not having to do 
+that equality test each iteration of a loop.
+
+--------------------------------------------------------------------------------
+ENHANCEMENTS:
+
+
+--------------------------------------------------------------------------------
+CHANGES:
+
+
+--------------------------------------------------------------------------------
+DOCUMENTATION:
+
+
+--------------------------------------------------------------------------------
+CODE:
+
+1. Test when no gpu drivers and no dri drivers but x drivers never showed x 
+driver. Was supposed to be all || for tests:
+
+if (@$gpu_drivers || $graphics{'dri-drivers'} && @$x_drivers){
+
+https://perldoc.perl.org/perlop. I believe this led to test 1 being false, test 
+2 being false, and since that left tests 2 and 3 needing to be true for the && 
+logical and to be true. Since only one of the two was true, the last bit was 
+seen as false. 
+
+2. Connected with 1, noticed that for some weird reason, I'd decided to assign
+the array ref for drivers like this:
+@$x_drivers = (a, b, c);
+when it was supposed to:
+$x_drivers = [a,b,c];
+This did not cause any issues, since they mean the same thing, but it was silly
+to write it that way.
+
+--------------------------------------------------------------------------------
+-- Harald Hope - Sun, 18 Dec 2022 14:22:22 -0800
+
+================================================================================
 Version: 3.3.24
 Patch: 00
 Date: 2022-12-10
