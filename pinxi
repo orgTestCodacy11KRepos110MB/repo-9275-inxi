@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.24';
-my $self_date='2022-12-24';
-my $self_patch='03';
+my $self_date='2022-12-25';
+my $self_patch='04';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -2192,14 +2192,18 @@ sub system_files {
 sub run_self {
 	print "Creating $self_name output file now. This can take a few seconds...\n";
 	print "Starting $self_name from: $self_path\n";
+	my $args = '-FERfJLrploudma --slots --pkg --edid';
 	my $a = ($debugger{'arg'}) ? ' ' . $debugger{'arg'} : '';
 	my $i = ($option eq 'main-full')? ' -i' : '';
 	my $z = ($debugger{'filter'}) ? ' -z' : '';
 	my $w = ($debugger{'width'}) ? $debugger{'width'} : 120;
-	my $aiz = "$i$z";
-	$aiz =~ s/[\s-]//g;
-	my $self_file = "$data_dir/$self_name-FERfJLrploudma$aiz-slots-pkg-edid-gpu-y$w.txt";
-	my $cmd = "$self_path/$self_name -FERfJLrploudma$i$z$a --slots --pkg --edid --gpu --debug 10 -y $w > $self_file 2>&1";
+	$args = $debugger{'arg-use'} if $debugger{'arg-use'};
+	$args = "$args$a$i$z --debug 10 -y $w";
+	my $arg_string = $args;
+	$arg_string =~ s/\s//g; 
+	my $self_file = "$data_dir/$self_name$arg_string.txt";
+	my $cmd = "$self_path/$self_name $args > $self_file 2>&1";
+	# print "Args: $args\nArg String: $arg_string\n";exit;
 	system($cmd);
 	copy($log_file, "$data_dir") or main::error_handler('copy-failed', "$log_file", "$!");
 	system("$self_path/$self_name --recommends -y 120 > $data_dir/$self_name-recommends-120.txt 2>&1");
@@ -5127,8 +5131,17 @@ sub get {
 		}},
 	'debug-arg:s' => sub { 
 		my ($opt,$arg) = @_;
-		if ($arg){
+		if ($arg && $arg =~ /^--?[a-z]/ig){
 			$debugger{'arg'} = $arg;
+		}
+		else {
+			main::error_handler('bad-arg', $opt, $arg);
+		}},
+	'debug-arg-use:s' => sub { 
+		my ($opt,$arg) = @_;
+		print "$arg\n";
+		if ($arg && $arg =~ /^--?[a-z]/ig){
+			$debugger{'arg-use'} = $arg;
 		}
 		else {
 			main::error_handler('bad-arg', $opt, $arg);
