@@ -21,6 +21,11 @@
 ## https://devicehunt.com/search/type/pci/vendor/1002/device/any
 ## device hunt intel:
 ## https://devicehunt.com/search/type/pci/vendor/8086/device/any
+##
+## pci.ids.amd.manual/pci.ids.intel.manual require syntax: 
+## vendorID\tdeviceIDtID string that matches gpu_ids.pl regex rule
+## 
+
 use strict;
 use warnings;
 # use diagnostics;

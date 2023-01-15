@@ -273,18 +273,18 @@ sub load {
 		'years' => '2017-20',
 		},
 		# rdna gaming
-		# Cyan Skillfish apu
+		# Cyan Skillfish apu, some but not most Barcelo
 		'21' => {
 		'arch' => 'RDNA-1',
-		'pattern' => 'Navi\s?1\d|Cyan\s?Skillfish|Ariel|Arden',
-		'code' => 'Navi',
+		'pattern' => 'Navi\s?1\d\S*|Cyan\s?Skillfish|Ariel|Arden',
+		'code' => 'Navi-1x',
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2019-20',
 		},
 		# Barcelo, Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
 		'22' => {
 		'arch' => 'RDNA-2',
-		'pattern' => 'Navi\s?2\d|Barcelo|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
+		'pattern' => 'Navi\s?2\d\S*|Barcelo|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 		'code' => 'Navi-2x',
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2020-22',
