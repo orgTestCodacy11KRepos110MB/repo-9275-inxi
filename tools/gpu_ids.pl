@@ -259,12 +259,13 @@ sub load {
 		},
 		# needs to go before 5 to catch the vega > 1
 		# cezanne, lucienne, renoir apu
+		# barcelo is refreshed cezanne/lucienne, at 6/7n
 		'19' => {
 		'arch' => 'GCN-5.1',
 		'pattern' => 'Vega (II|[678]|20)|Barcelo|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
 		'code' => 'Vega-2',
 		'process' =>  'TSMC n7 (7nm)',
-		'years' => '2018-21',
+		'years' => '2018-22+',
 		},
 		# raven ridge, dali, picasso, kestrel apu
 		'20' => {
@@ -283,8 +284,7 @@ sub load {
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2019-20',
 		},
-		# Barcelo, Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
-		# barcelo is refreshed cezanne/lucienne, at 6/7n
+		# Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
 		'22' => {
 		'arch' => 'RDNA-2',
 		'pattern' => 'Navi\s?2\d\S*|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
