@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## gpu_raw.pl: Copyright (C) 2022 Harald Hope
+## gpu_raw.pl: Copyright (C) 2023 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -38,8 +38,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_raw.pl';
-my $self_version = '1.1';
-my $self_date = '2022-05-22';
+my $self_version = '1.2';
+my $self_date = '2023-01-15';
 
 my $job = 'amd'; # default
 my $options = 'amd|intel'; # expand with |.. if > 1 job used in future
@@ -98,9 +98,15 @@ my $jobs = {
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
 'unless' => 'Graphic',
 },
+# source: https://dgpu-docs.intel.com/_sources/devices/hardware-table.md.txt
+{
+'file' => 'lists/pci.ids.intel.com',
+'id-name' => '\|\s+(\S{4}(,\s*\S{4})*)\s+\|\s+[^\|]+\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|',
+},
+
 # use this if you want to add manual id tab name / string lists 
 {
-'file' => 'lists/pci.ids.amd.manual',
+'file' => 'lists/pci.ids.intel.manual',
 'id-name' => '(\S{4})\t+(.+)',
 },
 ],
@@ -154,7 +160,16 @@ sub build {
 			next if $row =~ /$filters/i;
 			next if $unless && $row !~ /$unless/i;
 			# say $row;
-			if ($row =~ /^$pci$/){
+			if ($info->{'file'} eq 'lists/pci.ids.intel.com'){
+				if ($row =~ /^$pci$/){
+					my ($arch,$code) = ($3,$4);
+					my @temp = split(/,\s*/,$1);
+					foreach my $device (@temp){
+						push(@$devices,[lc($device),$arch . ' ' . $code]);
+					}
+				}
+			}
+			elsif ($row =~ /^$pci$/){
 				push(@$devices,[lc($1),$2]);
 			}
 			elsif ($sub_pci && $row =~ /^$sub_pci$/){

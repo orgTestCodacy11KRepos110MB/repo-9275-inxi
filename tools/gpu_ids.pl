@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-## gpu_ids.pl: Copyright (C) 2022 Harald Hope
+## gpu_ids.pl: Copyright (C) 2023 Harald Hope
 ## 
 ## License: GNU GPL v3 or greater
 ##
@@ -46,8 +46,8 @@ Getopt::Long::Configure ('bundling', 'no_ignore_case',
 'no_getopt_compat', 'no_auto_abbrev','pass_through');
 
 my $self_name = 'gpu_ids.pl';
-my $self_version = '2.0';
-my $self_date = '2022-12-10';
+my $self_version = '2.1';
+my $self_date = '2023-01-15';
 
 my $b_print_output = 1;
 my $b_print_remains = 1;
@@ -408,52 +408,54 @@ sub load {
 		#|\bv2\b.*Graphics Xeon E3-12\d{2}.*Graphics| E3-12xx goes from sandybridge to kaby lake
 		'11' => {
 		'arch' => 'Gen-6',
-		'pattern' => '2nd Gen(eration)?|Z2760|Sandy\s?Bridge',
+		'pattern' => 'Gen6|2nd Gen(eration)?|Z2760|Sandy\s?Bridge',
 		'code' => '',
 		'process' => 'Intel 32nm',
 		'years' => '2011',
 		},
-		'12' => {
-		'arch' => 'Gen-7',
-		'pattern' => '3rd Gen(eration)?|Ivy\s?Bridge',
-		'code' => '',
-		'process' => 'Intel 22nm',
-		'years' => '2012-13',
-		},
+		# needs to go before 7
 		# \bv4\b.*Graphics|
-		'13' => {
+		'12' => {
 		'arch' => 'Gen-7.5',
 		'pattern' => '4th Gen(eration)?|Haswell',
 		'code' => '',
 		'process' => 'Intel 22nm',
 		'years' => '2013',
 		},
+		'13' => {
+		'arch' => 'Gen-7',
+		'pattern' => 'Gen7|3rd Gen(eration)?|Ivy\s?Bridge',
+		'code' => '',
+		'process' => 'Intel 22nm',
+		'years' => '2012-13',
+		},
 		'14' => {
 		'arch' => 'Gen-8',
-		'pattern' => '5th Gen(eration)?|E8000|J3xxx\/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
+		'pattern' => 'Gen8|5th Gen(eration)?|E8000|J3xxx\/N3xxx|Broadwell|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?[56]\d{3}',
 		'code' => '',
 		'process' => 'Intel 14nm',
 		'years' => '2014-15',
 		},
-		#  kaby/coffee lake had early and refresh, refresh is 9.5
+		# needs to go before 9
 		'15' => {
-		'arch' => 'Gen-9',
-		'pattern' => '6th Gen(eration)?|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
-		'code' => '',
-		'process' => 'Intel 14n',
-		'years' => '2015-16',
-		},
-		'16' => {
 		'arch' => 'Gen-9.5',
 		'pattern' => '7th Gen(eration)?|(Kaby|Coffee|Comet|Whiskey)\s?Lake|Goldmont (\+|Plus)|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?6\d{2}',
 		'code' => '',
 		'process' => 'Intel 14nm',
 		'years' => '2016-20',
 		},
+		#  kaby/coffee lake had early and refresh, refresh is 9.5
+		'16' => {
+		'arch' => 'Gen-9',
+		'pattern' => 'Gen9|6th Gen(eration)?|N4200|E3900|N3350|Sky\s?lake|(HD|Iris|UHD) ((Plus|Pro)\s)?Graphics P?5\d{2}',
+		'code' => '',
+		'process' => 'Intel 14n',
+		'years' => '2015-16',
+		},
 		# cancelled
 		'17' => {
 		'arch' => 'Gen-10',
-		'pattern' => '8th Gen(eration)?|Cannon\s?Lake',
+		'pattern' => 'Gen10|8th Gen(eration)?|Cannon\s?Lake',
 		'code' => '',
 		'process' => 'Intel 10nm',
 		'years' => '',
@@ -461,7 +463,7 @@ sub load {
 		# Intel Xe-LP
 		'18' => {
 		'arch' => 'Gen-11',
-		'pattern' => '9th Gen(eration)?|(Elkhart|Ice|Jasper)\s?Lake|Lakefield|Crystal\s?Well|Iris Plus Graphics G[77]',
+		'pattern' => 'Gen11|9th Gen(eration)?|(Elkhart|Ice|Jasper)\s?Lake|Lakefield|Crystal\s?Well|Iris Plus Graphics G[77]',
 		'comment' => '# gen10 was cancelled.',
 		'code' => '',
 		'process' => 'Intel 10nm',
