@@ -101,7 +101,7 @@ my $jobs = {
 # source: https://dgpu-docs.intel.com/_sources/devices/hardware-table.md.txt
 {
 'file' => 'lists/pci.ids.intel.com',
-'id-name' => '\|\s+(\S{4}(,\s*\S{4})*)\s+\|\s+[^\|]+\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|',
+'id-name' => '\|\s+(\S{4}(,\s*\S{4})*)\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|',
 },
 
 # use this if you want to add manual id tab name / string lists 
@@ -162,10 +162,10 @@ sub build {
 			# say $row;
 			if ($info->{'file'} eq 'lists/pci.ids.intel.com'){
 				if ($row =~ /^$pci$/){
-					my ($arch,$code) = ($3,$4);
+					my ($name,$arch,$code) = ($3,$4,$5);
 					my @temp = split(/,\s*/,$1);
 					foreach my $device (@temp){
-						push(@$devices,[lc($device),$arch . ' ' . $code]);
+						push(@$devices,[lc($device),$arch . ' ' . $code . ' ' . $name]);
 					}
 				}
 			}

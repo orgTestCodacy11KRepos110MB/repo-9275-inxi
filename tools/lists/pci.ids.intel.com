@@ -2,15 +2,15 @@
 |:-------------|:--------|:-------------|:---------|
 | 56C0 | Intel Data Center GPU Flex 170 | XeHPG | Intel Data Center GPU Flex Series |
 | 56C1 | Intel Data Center GPU Flex 140 | XeHPG | Intel Data Center GPU Flex Series |
-| 56A6 | Intel Arc â„¢ A310 Graphics | XeHPG | Alchemist |
-| 5694 | Intel Arc â„¢ A350M Graphics | XeHPG | Alchemist |
-| 5693 | Intel Arc â„¢ A370M Graphics | XeHPG | Alchemist |
-| 56A5 | Intel Arc â„¢ A380 Graphics | XeHPG | Alchemist |
-| 5692 | Intel Arc â„¢ A550M Graphics | XeHPG | Alchemist |
-| 56A1 | Intel Arc â„¢ A750 Graphics | XeHPG | Alchemist |
-| 5691 | Intel Arc â„¢ A730M Graphics | XeHPG | Alchemist |
-| 56A0 | Intel Arc â„¢ A770 Graphics | XeHPG | Alchemist |
-| 5690 | Intel Arc â„¢ A770M Graphics | XeHPG | Alchemist |
+| 56A6 | Intel Arc A310 Graphics | XeHPG | Alchemist |
+| 5694 | Intel Arc A350M Graphics | XeHPG | Alchemist |
+| 5693 | Intel Arc A370M Graphics | XeHPG | Alchemist |
+| 56A5 | Intel Arc A380 Graphics | XeHPG | Alchemist |
+| 5692 | Intel Arc A550M Graphics | XeHPG | Alchemist |
+| 56A1 | Intel Arc A750 Graphics | XeHPG | Alchemist |
+| 5691 | Intel Arc A730M Graphics | XeHPG | Alchemist |
+| 56A0 | Intel Arc A770 Graphics | XeHPG | Alchemist |
+| 5690 | Intel Arc A770M Graphics | XeHPG | Alchemist |
 | 4905 | Intel Iris Xe MAX Graphics | Xe | DG1 |
 | 4680, 4682, 4688, 468A, 4690, 4692, 4693 | Intel UHD Graphics | Xe |Adler Lake-S |
 | 46D0, 46D1, 46D2 | Intel UHD Graphics |Xe | Adler Lake-N |

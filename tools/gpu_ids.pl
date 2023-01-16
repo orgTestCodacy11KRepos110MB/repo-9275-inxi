@@ -501,6 +501,7 @@ sub load {
 		},
 		# needs more info, are these going to be half tsmc, half intel? 
 		# https://en.wikipedia.org/wiki/Intel_Arc and TPU don't fully agree
+
 		'23' => {
 		'arch' => 'Gen-12.7',
 		'pattern' => 'Alchemist|DG2|Arc A\d{2,3}M?',
@@ -508,8 +509,16 @@ sub load {
 		'process' => 'TSMC n6 (7nm)', 
 		'years' => '2022+',
 		},
-		# this is not fully verified re gen and process, but is out as of 2022-07
+		# check XeHPG, that id name may get carried over next gen
 		'24' => {
+		'arch' => 'Gen-12.7',
+		'pattern' => 'GPU Flex 1\d{2}|XeHPG',
+		'code' => 'XeHPG',
+		'process' => 'TSMC n6 (7nm)', 
+		'years' => '2022+',
+		},
+		# this is not fully verified re gen and process, but is out as of 2022-07
+		'25' => {
 		'arch' => 'Gen-13',
 		'pattern' => 'Raptor Lake',
 		'code' => '',
