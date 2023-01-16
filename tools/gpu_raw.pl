@@ -69,6 +69,13 @@ my $jobs = {
 'file' => 'lists/pci.ids.amd.dh.com',
 'id-name' => '[^\t]+\t+1002[^\t]+\t+(\S{4})\t+(.+)',
 },
+# source: https://github.com/GPUOpen-Tools/device_info/blob/master/DeviceInfo.cpp
+# {GDT_GFX8_0_4, 0x6981, 0xC0, GDT_HW_GENERATION_VOLCANICISLAND, false, "gfx804", "6981:C0"},
+{
+'file' => 'lists/pci.ids.amd.github.com',
+'id-name' => '\{\S+?,\s+0x(\S{4}),\s+\S+?,\s+\S+?,\s+\S+?,\s+"([^"]+)",\s+"([^"]+)"\},',
+'next' => '^\s*(\/|$)',
+},
 # use this if you want to add manual id tab name / string lists 
 {
 'file' => 'lists/pci.ids.amd.manual',
@@ -99,6 +106,7 @@ my $jobs = {
 'unless' => 'Graphic',
 },
 # source: https://dgpu-docs.intel.com/_sources/devices/hardware-table.md.txt
+# note: replace these: replace in file: Â® with ''; replace: â„¢  with ''
 {
 'file' => 'lists/pci.ids.intel.com',
 'id-name' => '\|\s+(\S{4}(,\s*\S{4})*)\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|\s+([^\|]+)\s+\|',
@@ -167,6 +175,11 @@ sub build {
 					foreach my $device (@temp){
 						push(@$devices,[lc($device),$arch . ' ' . $code . ' ' . $name]);
 					}
+				}
+			}
+			elsif ($info->{'file'} eq 'lists/pci.ids.amd.github.com'){
+				if ($row =~ /^$pci$/){
+					push(@$devices,[lc($1),$2 . ' ' . $3]);
 				}
 			}
 			elsif ($row =~ /^$pci$/){

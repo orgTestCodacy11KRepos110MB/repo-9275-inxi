@@ -226,15 +226,16 @@ sub load {
 		},
 		'15' => {
 		'arch' => 'GCN-1',
-		'pattern' => 'Southern Islands|Banks|Cape Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
+		'pattern' => 'Southern Islands|Banks|Cape\s?Verde|Chelsea|Curacao|Durango|Exo|Hainan|Heathrow|Jet|Kryptos|Litho|Malta|Mars|Neptune|New Zealand|Oland|Opal|Pitcairn|Sun|Tahiti|Trinidad|Tropo|Venus|Wimbledon|HD\s?77[5-9]{2}|HD\s?79[0-7]\d|E88\d{2}',
 		'code' => 'Southern Islands',
 		'process' => 'TSMC 28nm',
 		'years' => '2011-20',
 		},
 		# beema, mullins, kabini, kaveri, temash apu
+		# had this, but wrong: 
 		'16' => {
 		'arch' => 'GCN-2',
-		'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}|Radeon R[234]E?',
+		'pattern' => 'Sea Islands|Beema|Bonaire|Emerald|Grenada|Hawaii|Kabini|Kalindi|Kaveri|Liverpool|Mullins|Neo|Saturn|Scorpio|Spectre|Strato|Temash|Tobago|Vesuvius|HD\s?(77|82)\d{2}',
 		'comment' => '# process: both TSMC and GlobalFoundries',
 		'code' => 'Sea Islands',
 		'process' => 'GF/TSMC 16-28nm', # both TSMC and GlobalFoundries
@@ -243,8 +244,7 @@ sub load {
 		# carrizo, bristol, prairie, stoney ridge apu
 		'17' => {
 		'arch' => 'GCN-3',
-		'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon R7 M',
-		
+		'pattern' => 'Volcanic|Amethyst|Antigua|Bristol|Capsaicin|Carrizo|Fiji|Ice\s?Land|Meso|Prarie|Polaris\s?24|Stoney|Tonga|Topaz|Wani|Weston|Radeon (R7 M|Radeon R[1234]E?)',
 		'code' => 'Volcanic Islands',
 		'process' => 'TSMC 28nm',
 		'years' => '2014-19',
@@ -252,7 +252,7 @@ sub load {
 		# Anubis, Arlene, Gladius, Pooky apu
 		'18' => {
 		'arch' => 'GCN-4',
-		'pattern' => 'Arctic Islands|Arlene|Anubis|Baffin|Ellesmere|Garfield|Gladius|Lexa|Polaris\s?(1\d|2[0123]|3[01])*|Pooky',
+		'pattern' => 'Arctic Islands|gfx80\d\b|Arlene|Anubis|Baffin|Ellesmere|Garfield|Gladius|Lexa|Polaris\s?(1\d|2[0123]|3[01])*|Pooky',
 		'code' => 'Arctic Islands',
 		'process' => 'GF 14nm',# 
 		'years' => '2016-20',
@@ -270,7 +270,7 @@ sub load {
 		# raven ridge, dali, picasso, kestrel apu
 		'20' => {
 		'arch' => 'GCN-5',
-		'pattern' => 'Vega|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
+		'pattern' => 'Vega|gfx90[c\d]\b|Dali|Fenghuang|Kestrel|Picasso|Raven|Instinct MI[12]\d',
 		'code' => 'Vega',
 		'process' =>  'GF 14nm',
 		'years' => '2017-20',
@@ -279,7 +279,7 @@ sub load {
 		# Cyan Skillfish apu, can be Navi1.2Lite
 		'21' => {
 		'arch' => 'RDNA-1',
-		'pattern' => 'Navi\s?1\d\S*|Cyan\s?Skillfish|Ariel|Arden',
+		'pattern' => 'Navi\s?1\d\S*|gfx101\d\b|Cyan\s?Skillfish|Ariel|Arden',
 		'code' => 'Navi-1x',
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2019-20',
@@ -287,7 +287,7 @@ sub load {
 		# Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
 		'22' => {
 		'arch' => 'RDNA-2',
-		'pattern' => 'Navi\s?2\d\S*|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
+		'pattern' => 'Navi\s?2\d\S*|gfx103\d\b|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 		'code' => 'Navi-2x',
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2020-22',
@@ -295,7 +295,7 @@ sub load {
 		# phoenix apu
 		'23' => {
 		'arch' => 'RDNA-3',
-		'pattern' => 'Navi\s?3\d\S*|Phoenix|RX 7[78]\d{2} XT',
+		'pattern' => 'Navi\s?3\d\S*|gfx110\d\b|Phoenix|RX 7[78]\d{2} XT',
 		'code' => 'Navi-3x',
 		'process' => 'TSMC n5 (5nm)',
 		'years' => '2022+',
@@ -409,7 +409,7 @@ sub load {
 		'11' => {
 		'arch' => 'Gen-6',
 		'pattern' => 'Gen6|2nd Gen(eration)?|Z2760|Sandy\s?Bridge',
-		'code' => '',
+		'code' => 'Sandybridge',
 		'process' => 'Intel 32nm',
 		'years' => '2011',
 		},
