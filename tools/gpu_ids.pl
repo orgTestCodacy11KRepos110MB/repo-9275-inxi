@@ -28,6 +28,8 @@
 ## 
 ## Creates product id lists for these functions:## GPU DATA ##
 ## set_amd_data() set_intel_data() set_nv_data()
+## 
+## If in doubt, verify string ids/process etc on: https://www.techpowerup.com
 
 use strict;
 use warnings;
@@ -259,7 +261,7 @@ sub load {
 		# cezanne, lucienne, renoir apu
 		'19' => {
 		'arch' => 'GCN-5.1',
-		'pattern' => 'Vega (II|[678]|20)|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
+		'pattern' => 'Vega (II|[678]|20)|Barcelo|Cezanne|Lucienne|Renoir|Radeon (Graphics [345]\d{2}SP|Pro VII|Instinct MI[56]\d)',
 		'code' => 'Vega-2',
 		'process' =>  'TSMC n7 (7nm)',
 		'years' => '2018-21',
@@ -273,7 +275,7 @@ sub load {
 		'years' => '2017-20',
 		},
 		# rdna gaming
-		# Cyan Skillfish apu, some but not most Barcelo
+		# Cyan Skillfish apu, can be Navi1.2Lite
 		'21' => {
 		'arch' => 'RDNA-1',
 		'pattern' => 'Navi\s?1\d\S*|Cyan\s?Skillfish|Ariel|Arden',
@@ -282,9 +284,10 @@ sub load {
 		'years' => '2019-20',
 		},
 		# Barcelo, Lockhart, Mendocino, Oberon, Raphael, Rembrandt, Scarlett, Van Gogh apu
+		# barcelo is refreshed cezanne/lucienne, at 6/7n
 		'22' => {
 		'arch' => 'RDNA-2',
-		'pattern' => 'Navi\s?2\d\S*|Barcelo|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
+		'pattern' => 'Navi\s?2\d\S*|Lockhart|Mendocino|Oberon|Raphael|Rembrandt|Scarlett|Van\s?Gogh|Radeon 680M',
 		'code' => 'Navi-2x',
 		'process' => 'TSMC n7 (7nm)',
 		'years' => '2020-22',
@@ -292,7 +295,7 @@ sub load {
 		# phoenix apu
 		'23' => {
 		'arch' => 'RDNA-3',
-		'pattern' => 'Navi\s?3\d\b|Phoenix|RX 7[78]\d{2} XT',
+		'pattern' => 'Navi\s?3\d\S*|Phoenix|RX 7[78]\d{2} XT',
 		'code' => 'Navi-3x',
 		'process' => 'TSMC n5 (5nm)',
 		'years' => '2022+',
