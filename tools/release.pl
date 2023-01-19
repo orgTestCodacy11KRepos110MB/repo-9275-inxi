@@ -32,7 +32,7 @@ my $version_inxi = '3.3.23';
 # note: you need to make a symbolic link from real html /docs/ directory to here:
 my $dev = "$ENV{'HOME'}/bin/scripts/inxi/svn/branches/inxi-perl/";
 my $file_acxi = "$ENV{'HOME'}/bin/scripts/acxi/acxi";
-my $file_acxi_changelog = "$ENV{'HOME'}/bin/scripts/acxi/git/acxi.changelog";
+my $file_acxi_changelog = "$ENV{'HOME'}/bin/scripts/acxi/acxi.changelog";
 my $file_inxi = "$ENV{'HOME'}/bin/scripts/inxi/svn/trunk/inxi";
 my $file_pinxi = "${dev}pinxi";
 my $file_pinxi_changelog = "$file_pinxi.changelog";
