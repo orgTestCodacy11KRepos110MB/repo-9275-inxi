@@ -49,8 +49,8 @@ use POSIX qw(ceil uname strftime ttyname);
 ## INXI INFO ##
 my $self_name='pinxi';
 my $self_version='3.3.24';
-my $self_date='2023-01-15';
-my $self_patch='05';
+my $self_date='2023-01-20';
+my $self_patch='06';
 ## END INXI INFO ##
 
 my ($b_pledge,@pledges);
@@ -1166,22 +1166,20 @@ sub print_irc_message {
 {
 package Configs;
 sub set {
-	my ($configs) = @_;
+	my ($b_show) = @_;
 	my ($key, $val,@config_files);
-	if (!$configs){
-		@config_files = (
-		qq(/etc/$self_name.conf), 
-		qq(/etc/$self_name.d/$self_name.conf), 
-		qq($user_config_dir/$self_name.conf)
-		);
-	}
-	else {
-		@config_files = @$configs;
-	}
+	# removed legacy kde @$configs test which never worked
+	@config_files = (
+	qq(/etc/$self_name.conf), 
+	qq(/etc/$self_name.d/$self_name.conf), 
+	qq($user_config_dir/$self_name.conf)
+	);
 	# Config files should be passed in an array as a param to this function.
 	# Default intended use: global @CONFIGS;
 	foreach (@config_files){
 		next unless open(my $fh, '<', "$_");
+		my $b_configs;
+		print "${line1}Configuration file: $_\n" if $b_show;
 		while (<$fh>){
 			chomp;
 			s/#.*//;
@@ -1193,11 +1191,29 @@ sub set {
 			next unless length;
 			($key, $val) = split(/\s*=\s*/, $_, 2);
 			next unless length($val);
-			process_item($key,$val);
+			if (!$b_show){
+				process_item($key,$val);
+			}
+			else {
+				print $line3 if !$b_configs;
+				print "$key=$val\n";
+				$b_configs = 1;
+			}
 			# print "f: $file key: $key val: $val\n";
 		}
 		close $fh;
+		if ($b_show && !$b_configs){
+			print "No configuration items found in file.\n";
+		}
 	}
+	
+}
+sub show {
+	print "Showing current active/set configurations, by file. Last overrides previous.\n";
+	set(1);
+	print $line1;
+	print "All done! Everything look good? If not, fix it.\n";
+	exit 0;
 }
 # note: someone managed to make a config file with corrupted values, so check
 # int explicitly, don't assume it was done correctly.
@@ -4695,6 +4711,8 @@ sub get {
 	'C|cpu' => sub {
 		$show{'short'} = 0;
 		$show{'cpu'} = 1;},
+	'config|configs|configuration|configurations' => sub {
+		$show{'configs'} = 1;},
 	'd|disk-full|optical' => sub {
 		$show{'short'} = 0;
 		$show{'disk'} = 1;
@@ -5435,18 +5453,18 @@ sub get {
 	eval $end if $b_log;
 }
 sub post_process {
+	# first run all the stuff that exits after running
 	CheckRecommends::run() if $show{'recommends'};
+	Configs::show() if $show{'configs'};
+	main::show_options() if $show{'help'};
+	main::show_version() if ($show{'version'} || $show{'version-short'});
 	# sets for either config or arg here
 	if ($use{'downloader'} || $wan_url || ($force{'no-dig'} && $show{'ip'})){
 		main::set_downloader();
 	}
-	main::set_xorg_log() if $show{'graphic'};
-	if ($show{'version'} || $show{'version-short'}){
-		main::show_version();
-	}
-	main::show_options() if $show{'help'};
 	$use{'man'} = 0 if (!$use{'yes-man'} || $use{'no-man'});
 	main::update_me($self_download, $download_id) if $use{'update-trigger'};
+	main::set_xorg_log() if $show{'graphic'};
 	if ($b_pledge){
 		my $b_update;
 		# if -c 9x, remove in SelectColors::set_selection(), else remove here
@@ -5998,6 +6016,8 @@ sub show_options {
 	push(@$rows, 
 	[0, '', '', "$line"],
 	[0, '', '', "Additional Options:"],
+	['1', '--config', '--configuration', "Show current active configurations by
+	file(s). Last item listed overrides previous."],
 	['1', '-h', '--help', "This help menu."],
  	['1', '', '--recommends', "Checks $self_name application dependencies + 
  	recommends, and directories, then shows what package(s) you need to install 
@@ -6536,27 +6556,6 @@ sub set_konvi_data {
 	}
 	# for some reason this logic hiccups on multiple spaces between args
 	@ARGV = grep { $_ ne '' } @ARGV;
-	# my $config_cmd = '';
-	# there's no current kde 5 konvi config tool that we're aware of. Correct if changes.
-	# This part may never have worked, but I don't have legacy data to determine.
-	# The idea was to get inxi.conf files from konvi data stores, but that was never right.
-	# if (main::check_program('kde4-config')){
-	#	$config_cmd = 'kde4-config --path data';
-	# }
-	# kde5-coinfig never existed, was replaced by $XDG_DATA_HOME in KDE
-	# elsif (main::check_program('kde-config')){
-	# 	$config_cmd = 'kde-config --path data';
-	# }
-	# elsif (main::check_program('qtpaths')){
-	# 	$config_cmd = 'qtpaths --paths GenericDataLocation';
-	# }
-	# The section below is on request of Argonel from the Konversation developer team:
-	# it sources config files like $HOME/.kde/share/apps/konversation/scripts/inxi.conf
-	#  if ($config_cmd){
-	#	  my @data = main::grabber("$config_cmd 2>/dev/null",':');
-	# 	Configs::set(\@data) if @data;
-	#	 main::log_data('dump',"kde config \@data",\@data) if $b_log;
-	# }
 	eval $end if $b_log;
 }
 }
